@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
-import { Building2, Calendar, FileText, Loader2, Stethoscope, Clock, MapPin } from 'lucide-react'
+import { Building2, Calendar, FileText, Loader2, Stethoscope, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { motion } from 'framer-motion'
 

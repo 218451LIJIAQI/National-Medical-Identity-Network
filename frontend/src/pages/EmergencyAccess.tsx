@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { 
-  AlertTriangle, Heart, Pill, Phone, User, CreditCard,
-  Shield, Wifi, WifiOff, ArrowLeft, Search, Loader2, CheckCircle, Clock, Droplets, Activity
+  AlertTriangle, Heart, Pill, Phone, User,
+  Shield, Wifi, WifiOff, ArrowLeft, Search, Loader2, CheckCircle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 

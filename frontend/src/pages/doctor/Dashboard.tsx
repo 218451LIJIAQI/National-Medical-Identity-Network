@@ -129,7 +129,7 @@ export default function DoctorDashboard() {
             gradient: 'from-amber-500 to-amber-600',
             change: '99.9% uptime'
           },
-        ].map((stat, i) => (
+        ].map((stat) => (
           <motion.div
             key={stat.label}
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
