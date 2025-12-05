@@ -1,0 +1,230 @@
+{
+  "patients": [
+    [
+      "880101-14-5678",
+      {
+        "icNumber": "880101-14-5678",
+        "fullName": "Ahmad bin Abdullah",
+        "dateOfBirth": "1988-01-01",
+        "gender": "male",
+        "bloodType": "O+",
+        "phone": "+60 12-345 6789",
+        "email": "ahmad.abdullah@email.com",
+        "address": "123 Jalan Merdeka, 50000 Kuala Lumpur",
+        "emergencyContact": "Fatimah binti Hassan",
+        "emergencyPhone": "+60 12-987 6543",
+        "allergies": [
+          "Penicillin",
+          "Shellfish"
+        ],
+        "chronicConditions": [
+          "Hypertension",
+          "Type 2 Diabetes"
+        ],
+        "createdAt": "2025-12-05T19:24:26.194Z",
+        "updatedAt": "2025-12-05T19:24:26.194Z"
+      }
+    ],
+    [
+      "550715-07-9999",
+      {
+        "icNumber": "550715-07-9999",
+        "fullName": "Tan Ah Kow",
+        "dateOfBirth": "1955-07-15",
+        "gender": "male",
+        "bloodType": "B+",
+        "phone": "+60 14-567 8901",
+        "email": "tan.ahkow@email.com",
+        "address": "789 Jalan Besar, 80000 Johor Bahru",
+        "emergencyContact": "Tan Mei Ling",
+        "emergencyPhone": "+60 14-222 3333",
+        "allergies": [
+          "Aspirin",
+          "Sulfa drugs"
+        ],
+        "chronicConditions": [
+          "Coronary Artery Disease",
+          "Hypertension",
+          "Hyperlipidemia",
+          "Chronic Kidney Disease Stage 3"
+        ],
+        "createdAt": "2025-12-05T19:24:26.198Z",
+        "updatedAt": "2025-12-05T19:24:26.198Z"
+      }
+    ]
+  ],
+  "medicalRecords": [
+    [
+      "a2dc890a-5103-41e9-9f8a-e8f771dcf020",
+      {
+        "id": "a2dc890a-5103-41e9-9f8a-e8f771dcf020",
+        "icNumber": "880101-14-5678",
+        "hospitalId": "hospital-jb",
+        "doctorId": "doc-jb-001",
+        "visitDate": "2024-09-05T11:00:00Z",
+        "visitType": "outpatient",
+        "chiefComplaint": "Kidney function follow-up",
+        "diagnosis": [
+          "Chronic Kidney Disease Stage 2",
+          "Diabetic Nephropathy"
+        ],
+        "diagnosisCodes": [
+          "N18.2",
+          "E11.21"
+        ],
+        "symptoms": [
+          "Mild fatigue",
+          "Occasional swelling in ankles"
+        ],
+        "notes": "eGFR at 68. Proteinuria present. Emphasized strict BP and glucose control. Avoid NSAIDs.",
+        "vitalSigns": {
+          "bloodPressureSystolic": 135,
+          "bloodPressureDiastolic": 88,
+          "heartRate": 76,
+          "temperature": 36.7,
+          "respiratoryRate": 16,
+          "oxygenSaturation": 98,
+          "weight": 77,
+          "height": 170
+        },
+        "labReports": [
+          {
+            "testType": "Renal Panel",
+            "testName": "Serum Creatinine",
+            "result": "1.4",
+            "unit": "mg/dL",
+            "referenceRange": "0.7-1.3",
+            "isAbnormal": true,
+            "reportDate": "2024-09-05",
+            "notes": "Mildly elevated",
+            "id": "b9373aee-7007-45aa-b7e1-5f69a9393239",
+            "recordId": "c1740554-fe05-4eae-88b9-f2f183a62f81"
+          },
+          {
+            "testType": "Renal Panel",
+            "testName": "eGFR",
+            "result": "68",
+            "unit": "mL/min/1.73m²",
+            "referenceRange": ">90",
+            "isAbnormal": true,
+            "reportDate": "2024-09-05",
+            "notes": "CKD Stage 2",
+            "id": "a8c345e2-4c0b-4d5c-98d5-fd1675152ea0",
+            "recordId": "c1740554-fe05-4eae-88b9-f2f183a62f81"
+          },
+          {
+            "testType": "Urinalysis",
+            "testName": "Urine Protein",
+            "result": "Positive",
+            "unit": "",
+            "referenceRange": "Negative",
+            "isAbnormal": true,
+            "reportDate": "2024-09-05",
+            "notes": "Indicates proteinuria",
+            "id": "f6b05e6a-fa65-45fb-8084-b3610d8bfb3f",
+            "recordId": "c1740554-fe05-4eae-88b9-f2f183a62f81"
+          }
+        ],
+        "createdAt": "2025-12-05T19:24:26.196Z",
+        "updatedAt": "2025-12-05T19:24:26.196Z"
+      }
+    ],
+    [
+      "781261c1-95b8-4c96-9961-df947c5d5df5",
+      {
+        "id": "781261c1-95b8-4c96-9961-df947c5d5df5",
+        "icNumber": "550715-07-9999",
+        "hospitalId": "hospital-jb",
+        "doctorId": "doc-jb-001",
+        "visitDate": "2024-11-20T10:00:00Z",
+        "visitType": "outpatient",
+        "chiefComplaint": "Routine nephrology follow-up",
+        "diagnosis": [
+          "Chronic Kidney Disease Stage 3B",
+          "Hypertension",
+          "Coronary Artery Disease"
+        ],
+        "diagnosisCodes": [
+          "N18.32",
+          "I10",
+          "I25.10"
+        ],
+        "symptoms": [
+          "Mild fatigue",
+          "Occasional shortness of breath"
+        ],
+        "notes": "eGFR stable at 38. Continue current medications. Avoid contrast agents. Follow up in 3 months.",
+        "vitalSigns": {
+          "bloodPressureSystolic": 145,
+          "bloodPressureDiastolic": 85,
+          "heartRate": 68,
+          "temperature": 36.6,
+          "respiratoryRate": 18,
+          "oxygenSaturation": 95,
+          "weight": 68,
+          "height": 165
+        },
+        "prescriptions": [
+          {
+            "medicationName": "Losartan",
+            "dosage": "50mg",
+            "frequency": "Once daily",
+            "duration": "3 months",
+            "quantity": 90,
+            "instructions": "For kidney protection",
+            "isActive": true,
+            "id": "f1033b81-2d1e-40fd-a26b-ab2427b6000f",
+            "recordId": "221d2737-5ae0-4495-a4dd-f0a2a3a34694"
+          },
+          {
+            "medicationName": "Furosemide",
+            "dosage": "40mg",
+            "frequency": "Once daily",
+            "duration": "3 months",
+            "quantity": 90,
+            "instructions": "Take in the morning",
+            "isActive": true,
+            "id": "78acda3d-41b2-48c1-9f37-3ac29372292f",
+            "recordId": "221d2737-5ae0-4495-a4dd-f0a2a3a34694"
+          }
+        ],
+        "createdAt": "2025-12-05T19:24:26.201Z",
+        "updatedAt": "2025-12-05T19:24:26.201Z"
+      }
+    ]
+  ],
+  "prescriptions": [],
+  "labReports": [],
+  "doctors": [
+    [
+      "doc-jb-001",
+      {
+        "id": "doc-jb-001",
+        "icNumber": "770808-01-5001",
+        "fullName": "Dr. Muhammad Hafiz bin Razak",
+        "specialization": "Nephrology",
+        "licenseNumber": "MMC-67890",
+        "hospitalId": "hospital-jb",
+        "department": "Nephrology",
+        "phone": "+60 7-223 5001",
+        "email": "dr.hafiz@hsajb.gov.my",
+        "isActive": true
+      }
+    ],
+    [
+      "doc-jb-002",
+      {
+        "id": "doc-jb-002",
+        "icNumber": "850415-01-5002",
+        "fullName": "Dr. Lee Siew Mei",
+        "specialization": "Neurology",
+        "licenseNumber": "MMC-78901",
+        "hospitalId": "hospital-jb",
+        "department": "Neurology",
+        "phone": "+60 7-223 5002",
+        "email": "dr.lee@hsajb.gov.my",
+        "isActive": true
+      }
+    ]
+  ]
+}

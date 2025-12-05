@@ -1,0 +1,265 @@
+{
+  "patients": [
+    [
+      "880101-14-5678",
+      {
+        "icNumber": "880101-14-5678",
+        "fullName": "Ahmad bin Abdullah",
+        "dateOfBirth": "1988-01-01",
+        "gender": "male",
+        "bloodType": "O+",
+        "phone": "+60 12-345 6789",
+        "email": "ahmad.abdullah@email.com",
+        "address": "123 Jalan Merdeka, 50000 Kuala Lumpur",
+        "emergencyContact": "Fatimah binti Hassan",
+        "emergencyPhone": "+60 12-987 6543",
+        "allergies": [
+          "Penicillin",
+          "Shellfish"
+        ],
+        "chronicConditions": [
+          "Hypertension",
+          "Type 2 Diabetes"
+        ],
+        "createdAt": "2025-12-05T19:24:26.193Z",
+        "updatedAt": "2025-12-05T19:24:26.193Z"
+      }
+    ],
+    [
+      "950320-10-1234",
+      {
+        "icNumber": "950320-10-1234",
+        "fullName": "Siti Nurhaliza binti Tarudin",
+        "dateOfBirth": "1995-03-20",
+        "gender": "female",
+        "bloodType": "A+",
+        "phone": "+60 13-456 7890",
+        "email": "siti.nurhaliza@email.com",
+        "address": "456 Jalan Putra, 10050 George Town, Penang",
+        "emergencyContact": "Razak bin Tarudin",
+        "emergencyPhone": "+60 13-111 2222",
+        "allergies": [],
+        "chronicConditions": [],
+        "createdAt": "2025-12-05T19:24:26.196Z",
+        "updatedAt": "2025-12-05T19:24:26.196Z"
+      }
+    ],
+    [
+      "550715-07-9999",
+      {
+        "icNumber": "550715-07-9999",
+        "fullName": "Tan Ah Kow",
+        "dateOfBirth": "1955-07-15",
+        "gender": "male",
+        "bloodType": "B+",
+        "phone": "+60 14-567 8901",
+        "email": "tan.ahkow@email.com",
+        "address": "789 Jalan Besar, 80000 Johor Bahru",
+        "emergencyContact": "Tan Mei Ling",
+        "emergencyPhone": "+60 14-222 3333",
+        "allergies": [
+          "Aspirin",
+          "Sulfa drugs"
+        ],
+        "chronicConditions": [
+          "Coronary Artery Disease",
+          "Hypertension",
+          "Hyperlipidemia",
+          "Chronic Kidney Disease Stage 3"
+        ],
+        "createdAt": "2025-12-05T19:24:26.199Z",
+        "updatedAt": "2025-12-05T19:24:26.199Z"
+      }
+    ]
+  ],
+  "medicalRecords": [
+    [
+      "07d92d07-bc00-46c0-8108-ec3f7b81c6fa",
+      {
+        "id": "07d92d07-bc00-46c0-8108-ec3f7b81c6fa",
+        "icNumber": "880101-14-5678",
+        "hospitalId": "hospital-penang",
+        "doctorId": "doc-pg-001",
+        "visitDate": "2024-03-10T14:00:00Z",
+        "visitType": "emergency",
+        "chiefComplaint": "Acute abdominal pain",
+        "diagnosis": [
+          "Acute Appendicitis"
+        ],
+        "diagnosisCodes": [
+          "K35.80"
+        ],
+        "symptoms": [
+          "Severe right lower quadrant pain",
+          "Nausea",
+          "Loss of appetite",
+          "Low-grade fever"
+        ],
+        "notes": "Patient presented with classic appendicitis symptoms. CT confirmed diagnosis. Emergency appendectomy performed successfully.",
+        "vitalSigns": {
+          "bloodPressureSystolic": 138,
+          "bloodPressureDiastolic": 88,
+          "heartRate": 98,
+          "temperature": 38.2,
+          "respiratoryRate": 20,
+          "oxygenSaturation": 96,
+          "weight": 75,
+          "height": 170
+        },
+        "prescriptions": [
+          {
+            "medicationName": "Cefuroxime",
+            "dosage": "500mg",
+            "frequency": "Twice daily",
+            "duration": "7 days",
+            "quantity": 14,
+            "instructions": "Complete the course",
+            "isActive": false,
+            "id": "a6c9003b-e976-46e7-9a85-eb9a27068454",
+            "recordId": "f35258db-2892-4934-84ff-56f425527395"
+          },
+          {
+            "medicationName": "Paracetamol",
+            "dosage": "1000mg",
+            "frequency": "Every 6 hours as needed",
+            "duration": "5 days",
+            "quantity": 20,
+            "instructions": "For pain relief",
+            "isActive": false,
+            "id": "b8a6ee7f-25aa-43ac-8029-13493b10b5db",
+            "recordId": "f35258db-2892-4934-84ff-56f425527395"
+          }
+        ],
+        "createdAt": "2025-12-05T19:24:26.196Z",
+        "updatedAt": "2025-12-05T19:24:26.196Z"
+      }
+    ],
+    [
+      "684573e8-2638-4bd0-aea3-6e8f14d59fca",
+      {
+        "id": "684573e8-2638-4bd0-aea3-6e8f14d59fca",
+        "icNumber": "950320-10-1234",
+        "hospitalId": "hospital-penang",
+        "doctorId": "doc-pg-002",
+        "visitDate": "2024-08-15T09:00:00Z",
+        "visitType": "outpatient",
+        "chiefComplaint": "Annual health screening",
+        "diagnosis": [
+          "General Medical Examination"
+        ],
+        "diagnosisCodes": [
+          "Z00.00"
+        ],
+        "symptoms": [],
+        "notes": "Healthy young adult. All screening results normal. Advised to maintain healthy lifestyle.",
+        "vitalSigns": {
+          "bloodPressureSystolic": 118,
+          "bloodPressureDiastolic": 75,
+          "heartRate": 72,
+          "temperature": 36.5,
+          "respiratoryRate": 14,
+          "oxygenSaturation": 99,
+          "weight": 55,
+          "height": 160
+        },
+        "labReports": [
+          {
+            "testType": "Complete Blood Count",
+            "testName": "Hemoglobin",
+            "result": "13.2",
+            "unit": "g/dL",
+            "referenceRange": "12.0-16.0",
+            "isAbnormal": false,
+            "reportDate": "2024-08-15",
+            "notes": "Normal",
+            "id": "44c3b552-2824-4435-877b-3d92a387b502",
+            "recordId": "eb8956a8-7957-453b-a1b6-8334c6408362"
+          },
+          {
+            "testType": "Lipid Panel",
+            "testName": "Total Cholesterol",
+            "result": "180",
+            "unit": "mg/dL",
+            "referenceRange": "<200",
+            "isAbnormal": false,
+            "reportDate": "2024-08-15",
+            "notes": "Normal",
+            "id": "1c93b3dc-c4e8-4125-9c6d-04a4e5a9bd74",
+            "recordId": "eb8956a8-7957-453b-a1b6-8334c6408362"
+          }
+        ],
+        "createdAt": "2025-12-05T19:24:26.197Z",
+        "updatedAt": "2025-12-05T19:24:26.197Z"
+      }
+    ],
+    [
+      "8bc67850-8ecf-43d7-b207-2d7a8304e0a8",
+      {
+        "id": "8bc67850-8ecf-43d7-b207-2d7a8304e0a8",
+        "icNumber": "550715-07-9999",
+        "hospitalId": "hospital-penang",
+        "doctorId": "doc-pg-001",
+        "visitDate": "2024-05-15T11:00:00Z",
+        "visitType": "inpatient",
+        "chiefComplaint": "Elective hernia repair",
+        "diagnosis": [
+          "Inguinal Hernia"
+        ],
+        "diagnosisCodes": [
+          "K40.90"
+        ],
+        "symptoms": [
+          "Groin bulge",
+          "Mild discomfort"
+        ],
+        "notes": "Laparoscopic inguinal hernia repair performed without complications. Discharged on day 2.",
+        "vitalSigns": {
+          "bloodPressureSystolic": 140,
+          "bloodPressureDiastolic": 85,
+          "heartRate": 72,
+          "temperature": 36.7,
+          "respiratoryRate": 16,
+          "oxygenSaturation": 97,
+          "weight": 69,
+          "height": 165
+        },
+        "createdAt": "2025-12-05T19:24:26.203Z",
+        "updatedAt": "2025-12-05T19:24:26.203Z"
+      }
+    ]
+  ],
+  "prescriptions": [],
+  "labReports": [],
+  "doctors": [
+    [
+      "doc-pg-001",
+      {
+        "id": "doc-pg-001",
+        "icNumber": "760612-07-5001",
+        "fullName": "Dr. Ong Chee Keong",
+        "specialization": "General Surgery",
+        "licenseNumber": "MMC-45678",
+        "hospitalId": "hospital-penang",
+        "department": "Surgery",
+        "phone": "+60 4-222 5001",
+        "email": "dr.ong@penanggeneral.gov.my",
+        "isActive": true
+      }
+    ],
+    [
+      "doc-pg-002",
+      {
+        "id": "doc-pg-002",
+        "icNumber": "820930-07-5002",
+        "fullName": "Dr. Fatimah binti Zainal",
+        "specialization": "Obstetrics & Gynecology",
+        "licenseNumber": "MMC-56789",
+        "hospitalId": "hospital-penang",
+        "department": "O&G",
+        "phone": "+60 4-222 5002",
+        "email": "dr.fatimah@penanggeneral.gov.my",
+        "isActive": true
+      }
+    ]
+  ]
+}
