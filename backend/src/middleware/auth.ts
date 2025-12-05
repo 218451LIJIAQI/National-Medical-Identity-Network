@@ -16,8 +16,8 @@ declare global {
 // Generate JWT token
 export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   return jwt.sign(payload, CONFIG.jwt.secret, {
-    expiresIn: CONFIG.jwt.expiresIn,
-  });
+    expiresIn: CONFIG.jwt.expiresIn as string,
+  } as jwt.SignOptions);
 }
 
 // Verify JWT token

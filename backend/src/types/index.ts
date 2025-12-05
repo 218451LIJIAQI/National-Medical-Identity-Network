@@ -73,8 +73,8 @@ export interface VitalSigns {
 
 // Prescription
 export interface Prescription {
-  id: string;
-  recordId: string;
+  id?: string;
+  recordId?: string;
   medicationName: string;
   dosage: string;
   frequency: string;
@@ -86,8 +86,8 @@ export interface Prescription {
 
 // Lab Report
 export interface LabReport {
-  id: string;
-  recordId: string;
+  id?: string;
+  recordId?: string;
   testType: string;
   testName: string;
   result: string;

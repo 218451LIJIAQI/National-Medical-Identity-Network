@@ -133,13 +133,13 @@ export class HospitalDatabase {
     return record.id;
   }
 
-  createMedicalRecord(record: Omit<MedicalRecord, 'id' | 'createdAt' | 'updatedAt'>): MedicalRecord {
+  createMedicalRecord(record: Partial<MedicalRecord> & Omit<MedicalRecord, 'id' | 'createdAt' | 'updatedAt'>): MedicalRecord {
     const now = new Date().toISOString();
     const newRecord: MedicalRecord = {
       ...record,
-      id: uuidv4(),
-      createdAt: now,
-      updatedAt: now,
+      id: (record as MedicalRecord).id || uuidv4(),
+      createdAt: (record as MedicalRecord).createdAt || now,
+      updatedAt: (record as MedicalRecord).updatedAt || now,
     };
     this.data.medicalRecords.set(newRecord.id, newRecord);
     this.saveData();
@@ -158,7 +158,7 @@ export class HospitalDatabase {
   getActivePrescriptionsByPatient(icNumber: string): Prescription[] {
     const recordIds = this.getMedicalRecordsByPatient(icNumber).map(r => r.id);
     return Array.from(this.data.prescriptions.values())
-      .filter(p => recordIds.includes(p.recordId) && p.isActive);
+      .filter(p => p.recordId && recordIds.includes(p.recordId) && p.isActive);
   }
 
   // Alias for route compatibility
@@ -171,7 +171,7 @@ export class HospitalDatabase {
       ...prescription,
       id: uuidv4(),
     };
-    this.data.prescriptions.set(newPrescription.id, newPrescription);
+    this.data.prescriptions.set(newPrescription.id!, newPrescription);
     this.saveData();
     return newPrescription;
   }
@@ -190,7 +190,7 @@ export class HospitalDatabase {
       ...labReport,
       id: uuidv4(),
     };
-    this.data.labReports.set(newLabReport.id, newLabReport);
+    this.data.labReports.set(newLabReport.id!, newLabReport);
     this.saveData();
     return newLabReport;
   }
