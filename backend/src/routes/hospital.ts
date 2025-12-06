@@ -259,7 +259,7 @@ router.get('/:hospitalId/record/:recordId', authenticate, async (req: Request, r
 router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
-    const recordData: MedicalRecord = req.body;
+    const recordData: MedicalRecord & { patientName?: string } = req.body;
     
     if (!recordData.icNumber || !recordData.doctorId) {
       res.status(400).json({
@@ -269,8 +269,9 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
       return;
     }
     
-    // Verify doctor belongs to this hospital
     const hospitalDb = getHospitalDb(hospitalId);
+    
+    // Verify doctor belongs to this hospital
     const doctor = await hospitalDb.getDoctor(recordData.doctorId);
     
     if (!doctor) {
@@ -279,6 +280,30 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
         error: 'Invalid doctor ID for this hospital',
       });
       return;
+    }
+    
+    // Check if patient exists, if not create a basic patient record
+    let patient = await hospitalDb.getPatient(recordData.icNumber);
+    if (!patient) {
+      // Auto-create patient with minimal info
+      const patientName = recordData.patientName || `Patient ${recordData.icNumber}`;
+      await hospitalDb.createPatient({
+        icNumber: recordData.icNumber,
+        fullName: patientName,
+        dateOfBirth: '1990-01-01', // Default date
+        gender: 'male', // Default, can be updated later
+        bloodType: '',
+        phone: '',
+        email: '',
+        address: '',
+        emergencyContact: '',
+        emergencyPhone: '',
+        allergies: [],
+        chronicConditions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`Auto-created patient record for IC: ${recordData.icNumber}`);
     }
     
     // Create the record

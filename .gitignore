@@ -31,3 +31,7 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Generated config files
+vite.config.js
+vite.config.d.ts

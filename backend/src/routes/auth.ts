@@ -77,6 +77,19 @@ router.post('/login', async (req: Request, res: Response) => {
           department: doctor.department,
         };
       }
+    } else if (user.role === 'hospital_admin' && user.hospitalId) {
+      // Get hospital name for admin display
+      const hospitalNames: Record<string, string> = {
+        'hospital-kl': 'Admin KL General',
+        'hospital-penang': 'Admin Penang MC',
+        'hospital-jb': 'Admin Johor Specialist',
+        'hospital-kuching': 'Admin Sarawak General',
+        'hospital-kk': 'Admin Queen Elizabeth',
+      };
+      userInfo = {
+        ...userInfo,
+        fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
+      };
     } else if (user.role === 'patient') {
       // Try to find patient info from any hospital that has their records
       const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
@@ -226,6 +239,19 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
           department: doctor.department,
         };
       }
+    } else if (user.role === 'hospital_admin' && user.hospitalId) {
+      // Get hospital name for admin display
+      const hospitalNames: Record<string, string> = {
+        'hospital-kl': 'Admin KL General',
+        'hospital-penang': 'Admin Penang MC',
+        'hospital-jb': 'Admin Johor Specialist',
+        'hospital-kuching': 'Admin Sarawak General',
+        'hospital-kk': 'Admin Queen Elizabeth',
+      };
+      userInfo = {
+        ...userInfo,
+        fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
+      };
     } else if (user.role === 'patient') {
       // Try to find patient info from any hospital that has their records
       const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);

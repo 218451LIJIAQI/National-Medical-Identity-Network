@@ -15,6 +15,7 @@ import DoctorDashboard from '@/pages/doctor/Dashboard'
 import PatientSearch from '@/pages/doctor/PatientSearch'
 import PatientTimeline from '@/pages/doctor/PatientTimeline'
 import NewRecord from '@/pages/doctor/NewRecord'
+import NewRecordSearch from '@/pages/doctor/NewRecordSearch'
 import PatientDashboard from '@/pages/patient/Dashboard'
 import PatientRecords from '@/pages/patient/Records'
 import PatientPrivacy from '@/pages/patient/Privacy'
@@ -23,6 +24,7 @@ import CentralAdminDashboard from '@/pages/admin/CentralAdmin'
 import AuditLogs from '@/pages/admin/AuditLogs'
 import EmergencyAccess from '@/pages/EmergencyAccess'
 import AboutPage from '@/pages/About'
+import HospitalVerification from '@/pages/HospitalVerification'
 
 // Premium Loading Component
 function PremiumLoader() {
@@ -67,16 +69,38 @@ function PremiumLoader() {
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
 
+  // Try localStorage as fallback if zustand state is empty
+  let effectiveUser = user
+  let effectiveAuth = isAuthenticated
+  
+  if (!user) {
+    const storedUser = localStorage.getItem('medlink-user')
+    if (storedUser) {
+      try {
+        effectiveUser = JSON.parse(storedUser)
+        effectiveAuth = true
+      } catch {
+        // Invalid JSON
+      }
+    }
+  }
+
+  // Debug logging - use string interpolation for clearer output
+  console.log(`[ProtectedRoute] hydrated=${_hasHydrated} auth=${effectiveAuth} role=${effectiveUser?.role} allowed=${allowedRoles?.join(',')} fromLS=${!user && !!effectiveUser}`)
+
   // Wait for hydration before checking auth
   if (!_hasHydrated) {
+    console.log('[ProtectedRoute] Waiting for hydration...')
     return <PremiumLoader />
   }
 
-  if (!isAuthenticated) {
+  if (!effectiveAuth) {
+    console.log('[ProtectedRoute] Not authenticated, redirecting to /login')
     return <Navigate to="/login" replace />
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && effectiveUser && !allowedRoles.includes(effectiveUser.role)) {
+    console.log('[ProtectedRoute] Role mismatch:', effectiveUser.role, 'not in', allowedRoles, '- redirecting to /')
     return <Navigate to="/" replace />
   }
 
@@ -96,6 +120,9 @@ function App() {
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>
+        
+        {/* Hospital Verification - Second layer authentication (standalone, no AuthLayout redirect) */}
+        <Route path="/verify" element={<HospitalVerification />} />
 
         {/* Doctor routes */}
         <Route element={<MainLayout />}>
@@ -116,10 +143,10 @@ function App() {
             }
           />
           <Route
-            path="/doctor/patient/:icNumber"
+            path="/doctor/new-record"
             element={
               <ProtectedRoute allowedRoles={['doctor']}>
-                <PatientTimeline />
+                <NewRecordSearch />
               </ProtectedRoute>
             }
           />
@@ -128,6 +155,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['doctor']}>
                 <NewRecord />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/patient/:icNumber"
+            element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <PatientTimeline />
               </ProtectedRoute>
             }
           />

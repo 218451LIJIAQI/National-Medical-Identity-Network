@@ -239,7 +239,3 @@ export const translations = {
     emergencyDesc: '即使离线也可获取关键医疗信息',
   },
 }
-
-export function getTranslation(lang: Language, key: keyof typeof translations.en): string {
-  return translations[lang][key] || translations.en[key] || key
-}

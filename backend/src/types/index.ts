@@ -145,14 +145,6 @@ export interface AuditLog {
   success: boolean;
 }
 
-// API Response Types
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
 export interface QueryFlowStep {
   step: number;
   action: string;
@@ -192,24 +184,6 @@ export interface DrugInteraction {
   recommendation: string;
   sourceHospital?: string;
   sourceDate?: string;
-}
-
-// Subsidy Eligibility
-export interface SubsidyEligibility {
-  icNumber: string;
-  category: 'B40' | 'M40' | 'T20' | 'unknown';
-  isEligible: boolean;
-  subsidyPercentage: number;
-  verificationDate: string;
-}
-
-// Privacy Settings
-export interface PrivacySettings {
-  icNumber: string;
-  allowGeneralSharing: boolean;
-  restrictedCategories: string[];
-  allowEmergencyOverride: boolean;
-  updatedAt: string;
 }
 
 // JWT Payload

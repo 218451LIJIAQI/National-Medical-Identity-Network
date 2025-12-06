@@ -4,11 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
+import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
-import { Search, Loader2, Building2, FileText, Clock, AlertCircle, CreditCard } from 'lucide-react'
+import { Search, Loader2, Building2, FileText, Clock, AlertCircle, CreditCard, MapPin, Stethoscope } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatIC, getHospitalColor } from '@/lib/utils'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 
 // Network visualization during query - Clean Step Progress Design
 function QueryNetworkVisualization({ step }: { step: number }) {
@@ -140,6 +142,8 @@ interface HospitalResult {
 export default function PatientSearch() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useAuthStore()
+  const theme = getHospitalTheme(user?.hospitalId)
   const [icNumber, setIcNumber] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [querySteps, setQuerySteps] = useState<QueryStep[]>([])
@@ -219,24 +223,47 @@ export default function PatientSearch() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header */}
+      {/* Premium Header - Hospital Themed */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
         <motion.div 
-          className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
+          className={`absolute -top-20 -right-20 w-60 h-60 bg-gradient-to-br ${theme.backgroundGlow} rounded-full blur-3xl`}
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
         <motion.div 
-          className="absolute -bottom-20 -left-20 w-40 h-40 bg-violet-300/20 rounded-full blur-3xl"
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
         <div className="relative z-10">
+          {/* Hospital Badge */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <motion.div 
+                className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 flex items-center justify-center font-bold text-lg"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                {theme.shortName}
+              </motion.div>
+              <div>
+                <p className="text-sm text-white/80 font-medium">{theme.name}</p>
+                <div className="flex items-center gap-1.5 text-xs text-white/60">
+                  <MapPin className="w-3 h-3" />
+                  {theme.city}
+                </div>
+              </div>
+            </div>
+            <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
+              <Stethoscope className="w-3 h-3 mr-1" />
+              Cross-Hospital Query
+            </Badge>
+          </div>
+          
           <div className="flex items-center gap-3 mb-2">
             <motion.div 
               className="p-3 bg-white/20 rounded-xl backdrop-blur-sm"
@@ -244,10 +271,9 @@ export default function PatientSearch() {
             >
               <Search className="w-7 h-7" />
             </motion.div>
-            <Badge className="bg-white/20 text-white border-0">Cross-Hospital Query</Badge>
           </div>
           <h1 className="text-3xl font-bold mb-2 drop-shadow-lg">Patient Search</h1>
-          <p className="text-blue-100 text-lg">Search patient records across the National Medical Network</p>
+          <p className="text-white/80 text-lg">Search patient records across the National Medical Network</p>
         </div>
       </motion.div>
 
@@ -259,15 +285,15 @@ export default function PatientSearch() {
       >
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
           <motion.div 
-            className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
+            className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`}
             style={{ backgroundSize: '200% 100%' }}
             animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
           />
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
             <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CreditCard className="w-5 h-5 text-blue-600" />
+              <div className={`p-2 ${theme.bgLight} rounded-lg`}>
+                <CreditCard className={`w-5 h-5 ${theme.iconColor}`} />
               </div>
               Enter Patient IC Number
             </CardTitle>
@@ -296,7 +322,7 @@ export default function PatientSearch() {
                   type="submit" 
                   disabled={isSearching} 
                   size="lg"
-                  className="h-14 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 font-semibold"
+                  className={`h-14 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor} font-semibold`}
                 >
                   {isSearching ? (
                     <>
@@ -444,16 +470,30 @@ export default function PatientSearch() {
 
             {/* Action Buttons */}
             <div className="flex justify-center gap-4">
-              <Button onClick={viewPatientTimeline} size="lg">
-                View Complete Timeline
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                onClick={() => navigate(`/doctor/patient/${encodeURIComponent(icNumber)}/new-record`)}
-              >
-                Create New Record
-              </Button>
+              <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  onClick={viewPatientTimeline} 
+                  size="lg"
+                  className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor} font-semibold`}
+                >
+                  View Complete Timeline
+                </Button>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  className={`h-12 px-6 rounded-xl ${theme.textColor} ${theme.borderColor} hover:${theme.bgLight}`}
+                  onClick={() => {
+                    const targetUrl = `/doctor/patient/${encodeURIComponent(icNumber)}/new-record`
+                    console.log('[PatientSearch] Navigating to:', targetUrl)
+                    console.log('[PatientSearch] Current user:', user)
+                    navigate(targetUrl)
+                  }}
+                >
+                  Create New Record
+                </Button>
+              </motion.div>
             </div>
           </motion.div>
         )}

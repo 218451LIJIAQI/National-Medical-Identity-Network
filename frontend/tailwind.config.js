@@ -48,51 +48,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        success: {
-          DEFAULT: "hsl(142, 76%, 36%)",
-          foreground: "hsl(0, 0%, 100%)",
-        },
-        warning: {
-          DEFAULT: "hsl(38, 92%, 50%)",
-          foreground: "hsl(0, 0%, 0%)",
-        },
-        hospital: {
-          kl: "#3B82F6",
-          penang: "#10B981",
-          jb: "#F59E0B",
-          kuching: "#8B5CF6",
-          kk: "#EF4444",
-        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-        "pulse-glow": {
-          "0%, 100%": { opacity: "1", transform: "scale(1)" },
-          "50%": { opacity: "0.8", transform: "scale(1.05)" },
-        },
-        "data-flow": {
-          "0%": { transform: "translateX(-100%)", opacity: "0" },
-          "50%": { opacity: "1" },
-          "100%": { transform: "translateX(100%)", opacity: "0" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
-        "data-flow": "data-flow 1.5s ease-in-out infinite",
       },
     },
   },

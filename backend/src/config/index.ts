@@ -101,31 +101,6 @@ export const CONFIG = {
   isProduction: process.env.NODE_ENV === 'production',
 };
 
-// Get hospital by ID
-export function getHospitalById(id: string) {
-  return HOSPITALS.find(h => h.id === id);
-}
-
-// Get hospital port
-export function getHospitalPort(id: string): number {
-  const hospital = HOSPITALS.find(h => h.id === id);
-  return hospital?.port || 3001;
-}
-
-// Get all hospital endpoints
-export function getHospitalEndpoints(baseUrl?: string) {
-  const base = baseUrl || (CONFIG.isProduction 
-    ? process.env.BACKEND_URL || 'https://medlink-api.onrender.com'
-    : 'http://localhost');
-    
-  return HOSPITALS.map(h => ({
-    ...h,
-    apiEndpoint: CONFIG.isProduction 
-      ? `${base}/api/hospitals/${h.id}`
-      : `${base}:${h.port}`,
-  }));
-}
-
 // Drug interaction database (simplified for demo)
 export const DRUG_INTERACTIONS = [
   {

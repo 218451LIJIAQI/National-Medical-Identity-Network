@@ -14,17 +14,6 @@ export function formatDate(dateString: string): string {
   })
 }
 
-export function formatDateTime(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-MY', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function formatIC(ic: string): string {
   // Format IC number: XXXXXX-XX-XXXX
   if (ic.includes('-')) return ic
@@ -56,32 +45,3 @@ export function getHospitalBadgeClass(hospitalId: string): string {
   return classes[hospitalId] || 'bg-gray-100 text-gray-800'
 }
 
-export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
-
-export function calculateAge(dateOfBirth: string): number {
-  const today = new Date()
-  const birthDate = new Date(dateOfBirth)
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const monthDiff = today.getMonth() - birthDate.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--
-  }
-  return age
-}
-
-export function getSeverityColor(severity: string): string {
-  const colors: Record<string, string> = {
-    low: 'text-green-600 bg-green-50',
-    moderate: 'text-yellow-600 bg-yellow-50',
-    high: 'text-orange-600 bg-orange-50',
-    critical: 'text-red-600 bg-red-50',
-  }
-  return colors[severity] || 'text-gray-600 bg-gray-50'
-}

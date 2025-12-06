@@ -58,7 +58,6 @@ async function fetchApi<T>(
       if (response.status === 401 && !endpoint.includes('/auth/login')) {
         const hasToken = getToken()
         if (hasToken) {
-          console.log('Token invalid, logging out...')
           useAuthStore.getState().logout()
         }
       }
@@ -86,9 +85,6 @@ export const authApi = {
       body: JSON.stringify({ icNumber, password, role }),
     }),
 
-  me: () => fetchApi<Record<string, unknown>>('/auth/me'),
-
-  logout: () => fetchApi('/auth/logout', { method: 'POST' }),
 }
 
 // Central API
@@ -136,26 +132,6 @@ export const centralApi = {
       hospitals: string[]
       lastUpdated: string
     }>(`/central/patient/${icNumber}`),
-
-  checkDrugInteractions: (icNumber: string, newMedication: string) =>
-    fetchApi<{
-      interactions: Array<{
-        drug1: string
-        drug2: string
-        severity: string
-        description: string
-        recommendation: string
-        sourceHospital?: string
-      }>
-      currentMedications: Array<{
-        medication: string
-        hospital: string
-        date: string
-      }>
-    }>('/central/drug-interactions', {
-      method: 'POST',
-      body: JSON.stringify({ icNumber, newMedication }),
-    }),
 
   getAuditLogs: (params?: {
     actorId?: string
@@ -257,43 +233,156 @@ export const hospitalApi = {
     fetchApi<{
       totalPatients: number
       totalRecords: number
-      activeDoctors: number
-      todayVisits: number
+      totalDoctors: number
+      activeDoctors?: number
+      todayVisits?: number
+      recentRecords: Array<Record<string, unknown>>
     }>(`/hospitals/${hospitalId}/stats`),
 
+  // Get patient info from a specific hospital
   getPatient: (hospitalId: string, icNumber: string) =>
-    fetchApi<Record<string, unknown>>(`/hospitals/${hospitalId}/patients/${icNumber}`),
+    fetchApi<{
+      icNumber: string
+      fullName: string
+      dateOfBirth: string
+      gender: string
+      bloodType: string
+      phone?: string
+      email?: string
+      address?: string
+      emergencyContact?: string
+      emergencyPhone?: string
+      allergies: string[]
+      chronicConditions: string[]
+    }>(`/hospitals/${hospitalId}/patients/${icNumber}`),
 
+  // Get all patients in hospital
   getPatients: (hospitalId: string) =>
-    fetchApi<Array<Record<string, unknown>>>(`/hospitals/${hospitalId}/patients`),
+    fetchApi<Array<{
+      icNumber: string
+      fullName: string
+      dateOfBirth: string
+      gender: string
+      bloodType: string
+    }>>(`/hospitals/${hospitalId}/patients`),
 
-  createPatient: (hospitalId: string, patient: Record<string, unknown>) =>
-    fetchApi(`/hospitals/${hospitalId}/patients`, {
-      method: 'POST',
-      body: JSON.stringify(patient),
-    }),
-
+  // Get patient records from a specific hospital
   getRecords: (hospitalId: string, icNumber: string) =>
-    fetchApi<Array<Record<string, unknown>>>(
-      `/hospitals/${hospitalId}/records/${icNumber}`
-    ),
+    fetchApi<Array<{
+      id: string
+      icNumber: string
+      hospitalId: string
+      hospitalName: string
+      doctorId: string
+      doctorName: string
+      visitDate: string
+      visitType: string
+      chiefComplaint: string
+      diagnosis: string[]
+      diagnosisCodes: string[]
+      symptoms: string[]
+      notes: string
+      vitalSigns?: {
+        bloodPressureSystolic?: number
+        bloodPressureDiastolic?: number
+        heartRate?: number
+        temperature?: number
+        weight?: number
+        height?: number
+        oxygenSaturation?: number
+      }
+      prescriptions: Array<{
+        id: string
+        medicationName: string
+        dosage: string
+        frequency: string
+        duration: string
+        quantity: number
+        instructions: string
+        isActive: boolean
+      }>
+      labReports: Array<{
+        id: string
+        testType: string
+        testName: string
+        result: string
+        unit: string
+        referenceRange: string
+        isAbnormal: boolean
+        reportDate: string
+        notes: string
+      }>
+      isReadOnly: boolean
+      sourceHospital: string
+      createdAt: string
+      updatedAt: string
+    }>>(`/hospitals/${hospitalId}/records/${icNumber}`),
 
+  // Get a single record by ID
   getRecord: (hospitalId: string, recordId: string) =>
-    fetchApi<Record<string, unknown>>(`/hospitals/${hospitalId}/record/${recordId}`),
+    fetchApi<{
+      id: string
+      icNumber: string
+      hospitalId: string
+      hospitalName: string
+      doctorId: string
+      doctorName: string
+      visitDate: string
+      visitType: string
+      chiefComplaint: string
+      diagnosis: string[]
+      diagnosisCodes: string[]
+      symptoms: string[]
+      notes: string
+      vitalSigns?: Record<string, unknown>
+      prescriptions: Array<Record<string, unknown>>
+      labReports: Array<Record<string, unknown>>
+      isReadOnly: boolean
+      sourceHospital: string
+    }>(`/hospitals/${hospitalId}/record/${recordId}`),
 
-  createRecord: (hospitalId: string, record: Record<string, unknown>) =>
+  // Create a new medical record
+  createRecord: (hospitalId: string, record: {
+    icNumber: string
+    doctorId: string
+    visitDate: string
+    visitType: string
+    chiefComplaint?: string
+    diagnosis: string[]
+    diagnosisCodes?: string[]
+    symptoms?: string[]
+    notes?: string
+    vitalSigns?: Record<string, unknown>
+  }) =>
     fetchApi<{ recordId: string }>(`/hospitals/${hospitalId}/records`, {
       method: 'POST',
       body: JSON.stringify(record),
     }),
 
+  // Get doctors in hospital
   getDoctors: (hospitalId: string) =>
-    fetchApi<Array<Record<string, unknown>>>(`/hospitals/${hospitalId}/doctors`),
+    fetchApi<Array<{
+      id: string
+      icNumber: string
+      fullName: string
+      specialization: string
+      department: string
+      hospitalId: string
+    }>>(`/hospitals/${hospitalId}/doctors`),
 
+  // Get active prescriptions for patient
   getPrescriptions: (hospitalId: string, icNumber: string) =>
-    fetchApi<Array<Record<string, unknown>>>(
-      `/hospitals/${hospitalId}/prescriptions/${icNumber}`
-    ),
+    fetchApi<Array<{
+      id: string
+      recordId: string
+      medicationName: string
+      dosage: string
+      frequency: string
+      duration: string
+      quantity: number
+      instructions: string
+      isActive: boolean
+    }>>(`/hospitals/${hospitalId}/prescriptions/${icNumber}`),
 }
 
 export default fetchApi

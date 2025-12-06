@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,25 +6,76 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
-import { hospitalApi } from '@/lib/api'
-import { ArrowLeft, Save, Loader2, FileText, Calendar, Stethoscope } from 'lucide-react'
+import { hospitalApi, centralApi } from '@/lib/api'
+import { ArrowLeft, Save, Loader2, FileText, Calendar, Stethoscope, User, AlertTriangle, Heart, Thermometer, Activity } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 
 export default function NewRecord() {
   const { icNumber } = useParams<{ icNumber: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user } = useAuthStore()
+  const theme = getHospitalTheme(user?.hospitalId)
   const [saving, setSaving] = useState(false)
+  const [loadingPatient, setLoadingPatient] = useState(true)
+  const [patientExists, setPatientExists] = useState(false)
+  const [patientInfo, setPatientInfo] = useState<{
+    fullName: string
+    dateOfBirth: string
+    gender: string
+    bloodType: string
+    allergies: string[]
+    chronicConditions: string[]
+  } | null>(null)
   
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split('T')[0],
     visitType: 'outpatient',
     chiefComplaint: '',
     diagnosis: '',
+    symptoms: '',
     notes: '',
+    patientName: '',
+    // Vital Signs
+    bloodPressureSystolic: '',
+    bloodPressureDiastolic: '',
+    heartRate: '',
+    temperature: '',
+    weight: '',
+    height: '',
   })
+
+  // Load patient info on mount
+  useEffect(() => {
+    async function loadPatient() {
+      if (!icNumber) return
+      try {
+        const response = await centralApi.getPatient(icNumber)
+        if (response.success && response.data?.patient) {
+          const p = response.data.patient as any
+          setPatientExists(true)
+          setPatientInfo({
+            fullName: p.fullName,
+            dateOfBirth: p.dateOfBirth,
+            gender: p.gender,
+            bloodType: p.bloodType || '',
+            allergies: p.allergies || [],
+            chronicConditions: p.chronicConditions || [],
+          })
+          setFormData(prev => ({ ...prev, patientName: p.fullName }))
+        } else {
+          setPatientExists(false)
+        }
+      } catch {
+        setPatientExists(false)
+      } finally {
+        setLoadingPatient(false)
+      }
+    }
+    loadPatient()
+  }, [icNumber])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,15 +100,27 @@ export default function NewRecord() {
 
     setSaving(true)
     try {
+      // Build vital signs object if any values provided
+      const vitalSigns: Record<string, unknown> = {}
+      if (formData.bloodPressureSystolic) vitalSigns.bloodPressureSystolic = Number(formData.bloodPressureSystolic)
+      if (formData.bloodPressureDiastolic) vitalSigns.bloodPressureDiastolic = Number(formData.bloodPressureDiastolic)
+      if (formData.heartRate) vitalSigns.heartRate = Number(formData.heartRate)
+      if (formData.temperature) vitalSigns.temperature = Number(formData.temperature)
+      if (formData.weight) vitalSigns.weight = Number(formData.weight)
+      if (formData.height) vitalSigns.height = Number(formData.height)
+
       const response = await hospitalApi.createRecord(user.hospitalId, {
-        icNumber: icNumber,
+        icNumber: icNumber || '',
         doctorId: user.doctorId,
         visitDate: formData.visitDate,
         visitType: formData.visitType,
         chiefComplaint: formData.chiefComplaint,
-        diagnosis: [formData.diagnosis],
+        diagnosis: formData.diagnosis.split(',').map(d => d.trim()).filter(Boolean),
+        symptoms: formData.symptoms.split(',').map(s => s.trim()).filter(Boolean),
         notes: formData.notes,
-      })
+        vitalSigns: Object.keys(vitalSigns).length > 0 ? vitalSigns : undefined,
+        patientName: formData.patientName || undefined,
+      } as any)
 
       if (response.success) {
         toast({
@@ -136,6 +199,69 @@ export default function NewRecord() {
         </div>
       </motion.div>
 
+      {/* Patient Info Card */}
+      {loadingPatient ? (
+        <Card className="border-0 shadow-lg">
+          <CardContent className="p-6 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400 mr-2" />
+            <span className="text-gray-500">Loading patient info...</span>
+          </CardContent>
+        </Card>
+      ) : patientInfo ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card className="border-0 shadow-lg overflow-hidden">
+            <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className={`p-3 ${theme.bgLight} rounded-xl`}>
+                  <User className={`w-6 h-6 ${theme.iconColor}`} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg">{patientInfo.fullName}</h3>
+                  <p className="text-gray-500 text-sm">
+                    {patientInfo.gender} • {patientInfo.bloodType || 'Blood type unknown'} • DOB: {patientInfo.dateOfBirth}
+                  </p>
+                  {patientInfo.allergies.length > 0 && (
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-500" />
+                      <span className="text-red-700 text-sm font-medium">Allergies: {patientInfo.allergies.join(', ')}</span>
+                    </div>
+                  )}
+                  {patientInfo.chronicConditions.length > 0 && (
+                    <div className="mt-2 flex gap-1 flex-wrap">
+                      {patientInfo.chronicConditions.map((c, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="p-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div>
+                <p className="font-medium text-amber-800">New Patient</p>
+                <p className="text-sm text-amber-600">This patient will be registered automatically when you save the record.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Main Form */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -143,21 +269,22 @@ export default function NewRecord() {
       >
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
           <motion.div 
-            className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
+            className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`}
             style={{ backgroundSize: '200% 100%' }}
             animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
           />
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
             <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <Calendar className="w-5 h-5 text-emerald-600" />
+              <div className={`p-2 ${theme.bgLight} rounded-lg`}>
+                <Calendar className={`w-5 h-5 ${theme.iconColor}`} />
               </div>
               Visit Details
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Basic Visit Info */}
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visitDate">Visit Date</Label>
@@ -184,46 +311,165 @@ export default function NewRecord() {
               </div>
             </div>
 
+            {/* Patient Name (for new patients) */}
+            {!patientExists && (
+              <div className="space-y-2">
+                <Label htmlFor="patientName">Patient Full Name *</Label>
+                <Input 
+                  id="patientName"
+                  placeholder="Enter patient's full name" 
+                  value={formData.patientName}
+                  onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
+                  required={!patientExists}
+                />
+              </div>
+            )}
+
+            {/* Vital Signs */}
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-gray-500" />
+                Vital Signs
+              </Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="bp" className="text-xs text-gray-500 flex items-center gap-1">
+                    <Heart className="w-3 h-3" /> Blood Pressure
+                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Input 
+                      id="bp"
+                      placeholder="120" 
+                      value={formData.bloodPressureSystolic}
+                      onChange={(e) => setFormData({ ...formData, bloodPressureSystolic: e.target.value })}
+                      className="w-16 text-center"
+                    />
+                    <span>/</span>
+                    <Input 
+                      placeholder="80" 
+                      value={formData.bloodPressureDiastolic}
+                      onChange={(e) => setFormData({ ...formData, bloodPressureDiastolic: e.target.value })}
+                      className="w-16 text-center"
+                    />
+                    <span className="text-xs text-gray-400">mmHg</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="hr" className="text-xs text-gray-500">Heart Rate</Label>
+                  <div className="flex items-center gap-1">
+                    <Input 
+                      id="hr"
+                      placeholder="72" 
+                      value={formData.heartRate}
+                      onChange={(e) => setFormData({ ...formData, heartRate: e.target.value })}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-gray-400">bpm</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="temp" className="text-xs text-gray-500 flex items-center gap-1">
+                    <Thermometer className="w-3 h-3" /> Temperature
+                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Input 
+                      id="temp"
+                      placeholder="36.5" 
+                      value={formData.temperature}
+                      onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-gray-400">°C</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="weight" className="text-xs text-gray-500">Weight</Label>
+                  <div className="flex items-center gap-1">
+                    <Input 
+                      id="weight"
+                      placeholder="70" 
+                      value={formData.weight}
+                      onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-gray-400">kg</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="height" className="text-xs text-gray-500">Height</Label>
+                  <div className="flex items-center gap-1">
+                    <Input 
+                      id="height"
+                      placeholder="170" 
+                      value={formData.height}
+                      onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-gray-400">cm</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Chief Complaint */}
             <div className="space-y-2">
               <Label htmlFor="chiefComplaint">Chief Complaint</Label>
               <textarea 
                 id="chiefComplaint"
                 className="w-full p-2 border rounded-md" 
-                rows={3} 
+                rows={2} 
                 placeholder="Patient's main reason for visit..."
                 value={formData.chiefComplaint}
                 onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
               />
             </div>
 
+            {/* Symptoms */}
             <div className="space-y-2">
-              <Label htmlFor="diagnosis">Diagnosis *</Label>
+              <Label htmlFor="symptoms">Symptoms</Label>
+              <Input 
+                id="symptoms"
+                placeholder="e.g., Headache, Fever, Fatigue (comma-separated)" 
+                value={formData.symptoms}
+                onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
+              />
+            </div>
+
+            {/* Diagnosis */}
+            <div className="space-y-2">
+              <Label htmlFor="diagnosis">Diagnosis * (comma-separated for multiple)</Label>
               <Input 
                 id="diagnosis"
-                placeholder="Primary diagnosis" 
+                placeholder="e.g., Essential Hypertension, Type 2 Diabetes" 
                 value={formData.diagnosis}
                 onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
                 required
               />
             </div>
 
+            {/* Clinical Notes */}
             <div className="space-y-2">
               <Label htmlFor="notes">Clinical Notes</Label>
               <textarea 
                 id="notes"
                 className="w-full p-2 border rounded-md" 
-                rows={5} 
-                placeholder="Detailed clinical notes..."
+                rows={4} 
+                placeholder="Detailed clinical notes, examination findings, treatment plan..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </div>
 
-            <div className="flex justify-end gap-4 pt-4">
+            {/* Submit Buttons */}
+            <div className="flex justify-end gap-4 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button 
+                type="submit" 
+                disabled={saving}
+                className={`bg-gradient-to-r ${theme.buttonGradient} shadow-lg`}
+              >
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
