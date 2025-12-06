@@ -19,7 +19,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
     
-    const user = getUserByIc(icNumber);
+    const user = await getUserByIc(icNumber);
     
     if (!user) {
       res.status(401).json({
@@ -47,7 +47,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
     
     // Update last login
-    updateUserLastLogin(user.id);
+    await updateUserLastLogin(user.id);
     
     // Generate token
     const token = generateToken({
@@ -67,28 +67,36 @@ router.post('/login', async (req: Request, res: Response) => {
     
     if (user.role === 'doctor' && user.hospitalId) {
       const hospitalDb = getHospitalDb(user.hospitalId);
-      const doctor = hospitalDb.getDoctorByIc(user.icNumber);
+      const doctor = await hospitalDb.getDoctorByIc(user.icNumber);
       if (doctor) {
         userInfo = {
           ...userInfo,
+          doctorId: doctor.id,  // Add doctor ID for creating records
           fullName: doctor.fullName,
           specialization: doctor.specialization,
           department: doctor.department,
         };
       }
-    } else if (user.role === 'patient' && user.hospitalId) {
-      const hospitalDb = getHospitalDb(user.hospitalId);
-      const patient = hospitalDb.getPatient(user.icNumber);
-      if (patient) {
-        userInfo = {
-          ...userInfo,
-          fullName: patient.fullName,
-        };
+    } else if (user.role === 'patient') {
+      // Try to find patient info from any hospital that has their records
+      const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
+      if (patientIndex && patientIndex.hospitals.length > 0) {
+        for (const hospitalId of patientIndex.hospitals) {
+          const hospitalDb = getHospitalDb(hospitalId);
+          const patient = await hospitalDb.getPatient(user.icNumber);
+          if (patient) {
+            userInfo = {
+              ...userInfo,
+              fullName: patient.fullName,
+            };
+            break;
+          }
+        }
       }
     }
     
     // Log the login
-    createAuditLog({
+    await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'login',
       actorId: user.id,
@@ -129,7 +137,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
     
     // Check if user already exists
-    const existingUser = getUserByIc(icNumber);
+    const existingUser = await getUserByIc(icNumber);
     if (existingUser) {
       res.status(400).json({
         success: false,
@@ -140,7 +148,7 @@ router.post('/register', async (req: Request, res: Response) => {
     
     // Create user
     const userId = uuidv4();
-    createUser({
+    await createUser({
       id: userId,
       icNumber,
       role,
@@ -152,7 +160,7 @@ router.post('/register', async (req: Request, res: Response) => {
     // If doctor, create doctor record
     if (role === 'doctor' && hospitalId) {
       const hospitalDb = getHospitalDb(hospitalId);
-      hospitalDb.createDoctor({
+      await hospitalDb.createDoctor({
         id: uuidv4(),
         icNumber,
         fullName: fullName || 'Dr. ' + icNumber,
@@ -190,7 +198,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       return;
     }
     
-    const user = getUserByIc(req.user.icNumber);
+    const user = await getUserByIc(req.user.icNumber);
     if (!user) {
       res.status(404).json({
         success: false,
@@ -208,18 +216,32 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
     
     if (user.role === 'doctor' && user.hospitalId) {
       const hospitalDb = getHospitalDb(user.hospitalId);
-      const doctor = hospitalDb.getDoctorByIc(user.icNumber);
+      const doctor = await hospitalDb.getDoctorByIc(user.icNumber);
       if (doctor) {
         userInfo = {
           ...userInfo,
+          doctorId: doctor.id,  // Add doctor ID for creating records
           fullName: doctor.fullName,
           specialization: doctor.specialization,
           department: doctor.department,
         };
       }
     } else if (user.role === 'patient') {
-      // Try to find patient info from any hospital
-      userInfo.fullName = 'Patient';
+      // Try to find patient info from any hospital that has their records
+      const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
+      if (patientIndex && patientIndex.hospitals.length > 0) {
+        for (const hospitalId of patientIndex.hospitals) {
+          const hospitalDb = getHospitalDb(hospitalId);
+          const patient = await hospitalDb.getPatient(user.icNumber);
+          if (patient) {
+            userInfo.fullName = patient.fullName;
+            break;
+          }
+        }
+      }
+      if (!userInfo.fullName) {
+        userInfo.fullName = 'Patient';
+      }
     }
     
     res.json({
@@ -239,7 +261,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
     if (req.user) {
-      createAuditLog({
+      await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'logout',
         actorId: req.user.userId,

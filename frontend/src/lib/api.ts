@@ -9,11 +9,34 @@ interface ApiResponse<T> {
   message?: string
 }
 
+// Get token from zustand store or fallback to localStorage
+function getToken(): string | null {
+  const storeToken = useAuthStore.getState().token
+  if (storeToken) return storeToken
+  
+  // Fallback: try to get from localStorage directly
+  const directToken = localStorage.getItem('medlink-token')
+  if (directToken) return directToken
+  
+  // Fallback: try to get from zustand persist storage
+  try {
+    const stored = localStorage.getItem('medlink-auth')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      return parsed.state?.token || null
+    }
+  } catch {
+    // ignore parse errors
+  }
+  
+  return null
+}
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const token = useAuthStore.getState().token
+  const token = getToken()
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -30,9 +53,14 @@ async function fetchApi<T>(
     const data = await response.json()
 
     if (!response.ok) {
-      // Handle 401 - unauthorized
-      if (response.status === 401) {
-        useAuthStore.getState().logout()
+      // Handle 401 - only logout if we have a token (meaning it's expired/invalid)
+      // Don't logout on login failure
+      if (response.status === 401 && !endpoint.includes('/auth/login')) {
+        const hasToken = getToken()
+        if (hasToken) {
+          console.log('Token invalid, logging out...')
+          useAuthStore.getState().logout()
+        }
       }
       return {
         success: false,
@@ -69,9 +97,15 @@ export const centralApi = {
     fetchApi<Array<Record<string, unknown>>>('/central/hospitals'),
 
   getStats: () =>
-    fetchApi<{ totalPatients: number; activeHospitals: number; todayQueries: number }>(
-      '/central/stats'
-    ),
+    fetchApi<{ 
+      totalPatients: number
+      activeHospitals: number
+      todayQueries: number
+      yesterdayQueries: number
+      queryChangePercent: number
+      newHospitalsThisMonth: number
+      avgResponseTime: number
+    }>('/central/stats'),
 
   queryPatient: (icNumber: string) =>
     fetchApi<{
@@ -135,6 +169,82 @@ export const centralApi = {
     return fetchApi<Array<Record<string, unknown>>>(
       `/central/audit-logs?${searchParams.toString()}`
     )
+  },
+
+  // Search patient index (central admin) - shows which hospitals patient has visited
+  searchPatientIndex: (icNumber: string) =>
+    fetchApi<{
+      icNumber: string
+      patient: {
+        fullName: string
+        icNumber: string
+        dateOfBirth: string
+        gender: string
+        bloodType: string
+        allergies: string[]
+        chronicConditions: string[]
+      } | null
+      hospitals: Array<{
+        hospitalId: string
+        hospitalName: string
+        shortName: string
+        city: string
+        recordCount: number
+        isActive: boolean
+      }>
+      totalHospitals: number
+      totalRecords: number
+      lastUpdated: string
+    }>(`/central/index/${icNumber}`),
+
+  // Get access logs for the current patient (who accessed my records)
+  getMyAccessLogs: (limit?: number) => {
+    const searchParams = new URLSearchParams()
+    if (limit) searchParams.set('limit', limit.toString())
+    return fetchApi<Array<{
+      id: string
+      timestamp: string
+      action: string
+      actorId: string
+      actorName: string
+      actorType: string
+      actorHospitalId?: string
+      hospitalName: string
+      targetIcNumber?: string
+      details: string
+      success: boolean
+    }>>(`/central/my-access-logs?${searchParams.toString()}`)
+  },
+
+  // Get privacy settings (blocked hospitals)
+  getPrivacySettings: () =>
+    fetchApi<Array<{
+      hospitalId: string
+      hospitalName: string
+      city: string
+      isBlocked: boolean
+    }>>(`/central/privacy-settings`),
+
+  // Update hospital access (block/unblock)
+  setHospitalAccess: (hospitalId: string, isBlocked: boolean) =>
+    fetchApi<{ message: string }>(`/central/privacy-settings/hospital-access`, {
+      method: 'POST',
+      body: JSON.stringify({ hospitalId, isBlocked }),
+    }),
+
+  // Get my activity logs (for doctors to see their own query history)
+  getMyActivityLogs: (limit?: number) => {
+    const searchParams = new URLSearchParams()
+    if (limit) searchParams.set('limit', limit.toString())
+    return fetchApi<Array<{
+      id: string
+      timestamp: string
+      action: string
+      targetIcNumber?: string
+      patientName: string
+      details: string
+      success: boolean
+    }>>(`/central/my-activity-logs?${searchParams.toString()}`)
   },
 }
 

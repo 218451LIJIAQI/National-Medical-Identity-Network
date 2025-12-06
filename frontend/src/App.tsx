@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
+import { motion } from 'framer-motion'
+import { Building2 } from 'lucide-react'
 
 // Layouts
 import MainLayout from '@/layouts/MainLayout'
@@ -22,9 +24,53 @@ import AuditLogs from '@/pages/admin/AuditLogs'
 import EmergencyAccess from '@/pages/EmergencyAccess'
 import AboutPage from '@/pages/About'
 
+// Premium Loading Component
+function PremiumLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+      <motion.div 
+        className="flex flex-col items-center gap-6"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <motion.div
+          className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/30"
+          animate={{ 
+            rotate: [0, 10, -10, 0],
+            scale: [1, 1.05, 1]
+          }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Building2 className="w-10 h-10 text-white drop-shadow-lg" />
+          <motion.div
+            className="absolute inset-0 rounded-3xl border-4 border-white/30"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        </motion.div>
+        <div className="text-center">
+          <motion.p 
+            className="text-gray-600 font-medium"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Loading...
+          </motion.p>
+          <p className="text-gray-400 text-sm mt-1">MedLink MY</p>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // Protected route wrapper
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore()
+
+  // Wait for hydration before checking auth
+  if (!_hasHydrated) {
+    return <PremiumLoader />
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

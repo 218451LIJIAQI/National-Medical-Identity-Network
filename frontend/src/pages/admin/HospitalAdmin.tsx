@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth'
-import { hospitalApi } from '@/lib/api'
+import { hospitalApi, centralApi } from '@/lib/api'
 import { Users, FileText, Activity, Building2, Loader2, Shield, TrendingUp, Clock, CheckCircle, Server, Database, Wifi, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -12,32 +12,90 @@ interface HospitalStats {
   totalPatients: number
   totalRecords: number
   totalDoctors: number
+  todayVisits?: number
+}
+
+interface HospitalInfo {
+  id: string
+  name: string
+  city: string
+}
+
+interface RecentActivity {
+  action: string
+  user: string
+  time: string
+  type: 'create' | 'query' | 'upload' | 'update'
 }
 
 export default function HospitalAdminDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState<HospitalStats>({ totalPatients: 0, totalRecords: 0, totalDoctors: 0 })
+  const [stats, setStats] = useState<HospitalStats>({ totalPatients: 0, totalRecords: 0, totalDoctors: 0, todayVisits: 0 })
+  const [hospitalInfo, setHospitalInfo] = useState<HospitalInfo | null>(null)
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function loadStats() {
+    async function loadData() {
       if (!user?.hospitalId) return
       try {
-        const response = await hospitalApi.getStats(user.hospitalId)
-        if (response.success && response.data) {
+        const [statsRes, hospitalRes, logsRes] = await Promise.all([
+          hospitalApi.getStats(user.hospitalId),
+          hospitalApi.getHospital(user.hospitalId),
+          centralApi.getAuditLogs({ limit: 5 }),
+        ])
+        
+        if (statsRes.success && statsRes.data) {
           setStats({
-            totalPatients: response.data.totalPatients || 0,
-            totalRecords: response.data.totalRecords || 0,
-            totalDoctors: response.data.activeDoctors || 0,
+            totalPatients: statsRes.data.totalPatients || 0,
+            totalRecords: statsRes.data.totalRecords || 0,
+            totalDoctors: statsRes.data.activeDoctors || 0,
+            todayVisits: statsRes.data.todayVisits || 0,
           })
         }
+        
+        if (hospitalRes.success && hospitalRes.data) {
+          const h = hospitalRes.data as any
+          setHospitalInfo({
+            id: h.id,
+            name: h.name,
+            city: h.city,
+          })
+        }
+        
+        if (logsRes.success && logsRes.data) {
+          const activities = (logsRes.data as any[]).slice(0, 4).map((log: any) => {
+            const logDate = new Date(log.timestamp)
+            const now = new Date()
+            const diffMs = now.getTime() - logDate.getTime()
+            const diffMins = Math.floor(diffMs / 60000)
+            const diffHours = Math.floor(diffMs / 3600000)
+            
+            let timeAgo = ''
+            if (diffMins < 60) {
+              timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
+            } else if (diffHours < 24) {
+              timeAgo = diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`
+            } else {
+              timeAgo = `${Math.floor(diffHours / 24)} days ago`
+            }
+            
+            return {
+              action: log.details || log.action || 'System action',
+              user: log.actorId?.slice(0, 12) || 'System',
+              time: timeAgo,
+              type: log.action === 'query' ? 'query' as const : 'create' as const,
+            }
+          })
+          setRecentActivity(activities)
+        }
       } catch (error) {
-        console.error('Failed to load hospital stats:', error)
+        console.error('Failed to load hospital data:', error)
       } finally {
         setLoading(false)
       }
     }
-    loadStats()
+    loadData()
   }, [user?.hospitalId])
 
   const containerVariants = {
@@ -68,22 +126,33 @@ export default function HospitalAdminDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* Header with Hospital Info */}
+      {/* Header with Hospital Info - Premium Design */}
       <motion.div 
         variants={itemVariants}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-8 text-white"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-8 text-white shadow-2xl shadow-violet-500/25"
       >
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-purple-300/20 rounded-full blur-3xl" />
+        <motion.div 
+          className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div 
+          className="absolute -bottom-32 -left-32 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
         
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <Building2 className="w-8 h-8" />
-            </div>
+          <div className="flex items-center gap-4 mb-4">
+            <motion.div 
+              className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <Building2 className="w-9 h-9 drop-shadow" />
+            </motion.div>
             <div>
-              <Badge className="bg-white/20 text-white mb-1">Hospital Administrator</Badge>
-              <h1 className="text-3xl font-bold">KL General Hospital</h1>
+              <Badge className="bg-white/20 text-white border-0 mb-2">🏥 Hospital Administrator</Badge>
+              <h1 className="text-4xl font-bold drop-shadow-lg">{hospitalInfo?.name || 'Hospital'}</h1>
             </div>
           </div>
           <p className="text-purple-100 max-w-xl mb-6">
@@ -121,11 +190,11 @@ export default function HospitalAdminDashboard() {
             changeType: 'up'
           },
           { 
-            label: 'Queries Today', 
-            value: '24', 
+            label: 'Visits Today', 
+            value: stats.todayVisits || 0, 
             icon: Activity, 
             gradient: 'from-violet-500 to-violet-600',
-            change: '+8% vs yesterday',
+            change: 'Today\'s activity',
             changeType: 'up'
           },
           { 
@@ -227,12 +296,11 @@ export default function HospitalAdminDashboard() {
             </div>
             <CardContent className="p-0">
               <div className="divide-y">
-                {[
-                  { action: 'New patient record created', user: 'Dr. Nurul Huda', time: '5 mins ago', type: 'create' },
-                  { action: 'External query from Penang GH', user: 'System', time: '12 mins ago', type: 'query' },
-                  { action: 'Lab results uploaded', user: 'Lab Tech Ahmad', time: '25 mins ago', type: 'upload' },
-                  { action: 'Prescription updated', user: 'Dr. Tan Wei Ming', time: '1 hour ago', type: 'update' },
-                ].map((activity, i) => (
+                {recentActivity.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    No recent activity
+                  </div>
+                ) : recentActivity.map((activity, i) => (
                   <motion.div 
                     key={i}
                     className="p-4 hover:bg-gray-50 transition-colors"

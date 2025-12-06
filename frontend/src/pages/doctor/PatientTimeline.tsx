@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centralApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { ArrowLeft, Plus, Building2, Calendar, User, AlertTriangle, FileText, Pill, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Building2, Calendar, User, AlertTriangle, FileText, Pill, Loader2, Shield } from 'lucide-react'
 import { formatDate, formatIC, getHospitalColor, getHospitalBadgeClass } from '@/lib/utils'
+import { motion } from 'framer-motion'
 
 interface PatientInfo {
   fullName: string
@@ -55,13 +56,18 @@ export default function PatientTimeline() {
     async function loadPatientData() {
       if (!icNumber) return
       try {
-        const response = await centralApi.queryPatient(icNumber)
-        if (response.success && response.data) {
+        // Fetch patient info and records in parallel
+        const [queryRes, patientRes] = await Promise.all([
+          centralApi.queryPatient(icNumber),
+          centralApi.getPatient(icNumber),
+        ])
+        
+        if (queryRes.success && queryRes.data) {
           // Extract records from all hospitals
           const allRecords: MedicalRecord[] = []
           const allMeds: Medication[] = []
           
-          response.data.hospitals.forEach((hospital: any) => {
+          queryRes.data.hospitals.forEach((hospital: any) => {
             hospital.records?.forEach((record: any) => {
               allRecords.push({
                 id: record.id,
@@ -89,17 +95,20 @@ export default function PatientTimeline() {
           allRecords.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
           setRecords(allRecords)
           setMedications(allMeds)
-          
-          // Set patient info from first record if available
-          if (allRecords.length > 0) {
+        }
+        
+        // Set patient info from patient API
+        if (patientRes.success && patientRes.data) {
+          const p = patientRes.data.patient as any
+          if (p) {
             setPatient({
-              fullName: 'Patient',
+              fullName: p.fullName || 'Unknown Patient',
               icNumber: icNumber,
-              dateOfBirth: '',
-              gender: '',
-              bloodType: '',
-              allergies: ['Penicillin', 'Shellfish'],
-              chronicConditions: ['Hypertension', 'Type 2 Diabetes'],
+              dateOfBirth: p.dateOfBirth || '',
+              gender: p.gender || '',
+              bloodType: p.bloodType || '',
+              allergies: p.allergies || [],
+              chronicConditions: p.chronicConditions || [],
             })
           }
         }
@@ -121,30 +130,71 @@ export default function PatientTimeline() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/doctor/search">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Patient Timeline</h1>
-            <p className="text-gray-500">{formatIC(patient.icNumber)}</p>
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-700 p-8 text-white shadow-2xl shadow-blue-500/25"
+      >
+        <motion.div 
+          className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-cyan-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 15, repeat: Infinity }}
+        />
+        
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/doctor/search">
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/30 rounded-xl">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </motion.div>
+            </Link>
+            <motion.div 
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <User className="w-7 h-7" />
+            </motion.div>
+            <div>
+              <Badge className="bg-white/20 text-white border-0 mb-1">
+                <Shield className="w-3 h-3 mr-1" /> Patient Timeline
+              </Badge>
+              <h1 className="text-3xl font-bold drop-shadow-lg">{patient.fullName}</h1>
+              <p className="text-blue-100 font-mono">{formatIC(patient.icNumber)}</p>
+            </div>
           </div>
+          <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
+            <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
+                <Plus className="h-5 w-5" />
+                New Record
+              </Button>
+            </motion.div>
+          </Link>
         </div>
-        <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Record
-          </Button>
-        </Link>
-      </div>
+      </motion.div>
 
-      {/* Patient Info Card */}
-      <Card>
+      {/* Patient Info Card - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500" />
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -198,7 +248,8 @@ export default function PatientTimeline() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </motion.div>
 
       {/* Timeline */}
       <Card>
@@ -277,6 +328,6 @@ export default function PatientTimeline() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   )
 }

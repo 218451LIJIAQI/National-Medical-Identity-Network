@@ -12,7 +12,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
     "build:frontend": "cd frontend && npm run build",
-    "seed": "cd backend && npm run seed",
+    "db:seed": "cd backend && npm run db:seed",
     "start": "cd backend && npm start"
   },
   "devDependencies": {

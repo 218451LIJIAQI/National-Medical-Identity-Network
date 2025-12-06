@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi } from '@/lib/api'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, FileText, Calendar, Stethoscope } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { motion } from 'framer-motion'
 
 export default function NewRecord() {
   const { icNumber } = useParams<{ icNumber: string }>()
@@ -36,10 +38,10 @@ export default function NewRecord() {
       return
     }
 
-    if (!user?.hospitalId) {
+    if (!user?.hospitalId || !user?.doctorId) {
       toast({
         title: 'Error',
-        description: 'Hospital ID not found',
+        description: 'Hospital ID or Doctor ID not found. Please re-login.',
         variant: 'destructive',
       })
       return
@@ -49,7 +51,7 @@ export default function NewRecord() {
     try {
       const response = await hospitalApi.createRecord(user.hospitalId, {
         icNumber: icNumber,
-        doctorId: user.id,
+        doctorId: user.doctorId,
         visitDate: formData.visitDate,
         visitType: formData.visitType,
         chiefComplaint: formData.chiefComplaint,
@@ -82,23 +84,80 @@ export default function NewRecord() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">New Medical Record</h1>
-          <p className="text-gray-500">Patient: {icNumber}</p>
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-8 text-white shadow-2xl shadow-emerald-500/25"
+      >
+        <motion.div 
+          className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-teal-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 15, repeat: Infinity }}
+        />
+        
+        <div className="relative z-10 flex items-center gap-4">
+          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => navigate(-1)}
+              className="bg-white/20 hover:bg-white/30 rounded-xl"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </motion.div>
+          <div className="flex items-center gap-4">
+            <motion.div 
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <FileText className="w-7 h-7" />
+            </motion.div>
+            <div>
+              <Badge className="bg-white/20 text-white border-0 mb-1">
+                <Stethoscope className="w-3 h-3 mr-1" /> New Record
+              </Badge>
+              <h1 className="text-3xl font-bold drop-shadow-lg">New Medical Record</h1>
+              <p className="text-emerald-100">Patient IC: <span className="font-mono font-semibold">{icNumber}</span></p>
+            </div>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Visit Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <motion.div 
+            className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
+            style={{ backgroundSize: '200% 100%' }}
+            animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+          />
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Calendar className="w-5 h-5 text-emerald-600" />
+              </div>
+              Visit Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visitDate">Visit Date</Label>
@@ -178,9 +237,10 @@ export default function NewRecord() {
                 )}
               </Button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
   )
 }

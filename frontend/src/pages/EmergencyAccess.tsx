@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { centralApi } from '@/lib/api'
 import { 
   AlertTriangle, Heart, Pill, Phone, User,
   Shield, Wifi, WifiOff, ArrowLeft, Search, Loader2, CheckCircle
@@ -39,105 +40,208 @@ export default function EmergencyAccess() {
     
     setLoading(true)
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Demo data - In production, this would try cached data first, then API
-    const demoData: EmergencyInfo = {
-      icNumber: icNumber,
-      name: 'Ahmad bin Abdullah',
-      bloodType: 'O+',
-      allergies: ['Penicillin', 'Shellfish', 'Latex'],
-      chronicConditions: ['Type 2 Diabetes', 'Hypertension', 'Asthma'],
-      emergencyContact: {
-        name: 'Siti binti Ahmad',
-        relationship: 'Wife',
-        phone: '+60 12-345 6789',
-      },
-      currentMedications: [
-        { name: 'Metformin', dosage: '500mg twice daily' },
-        { name: 'Amlodipine', dosage: '5mg once daily' },
-        { name: 'Ventolin Inhaler', dosage: 'As needed' },
-      ],
-      lastUpdated: new Date().toISOString(),
+    try {
+      // Try to get patient info from API
+      const response = await centralApi.queryPatient(icNumber)
+      
+      if (response.success && response.data) {
+        // Extract medications from all hospitals
+        const medications: { name: string; dosage: string }[] = []
+        response.data.hospitals.forEach((hospital: any) => {
+          hospital.records?.forEach((record: any) => {
+            record.prescriptions?.forEach((rx: any) => {
+              if (rx.isActive) {
+                medications.push({
+                  name: rx.medicationName,
+                  dosage: `${rx.dosage} ${rx.frequency}`,
+                })
+              }
+            })
+          })
+        })
+        
+        // Also try to get patient info
+        let patientName = 'Unknown Patient'
+        let bloodType = 'Unknown'
+        let allergies: string[] = []
+        let chronicConditions: string[] = []
+        let emergencyContact = { name: 'Not Available', relationship: '-', phone: '-' }
+        
+        try {
+          const patientRes = await centralApi.getPatient(icNumber)
+          if (patientRes.success && patientRes.data) {
+            const p = patientRes.data.patient as any
+            if (p) {
+              patientName = p.fullName || 'Unknown Patient'
+              bloodType = p.bloodType || 'Unknown'
+              allergies = p.allergies || []
+              chronicConditions = p.chronicConditions || []
+              if (p.emergencyContact) {
+                emergencyContact = {
+                  name: p.emergencyContact,
+                  relationship: 'Emergency Contact',
+                  phone: p.emergencyPhone || '-',
+                }
+              }
+            }
+          }
+        } catch {
+          // If patient info fails, continue with partial data
+        }
+        
+        const emergencyData: EmergencyInfo = {
+          icNumber: icNumber,
+          name: patientName,
+          bloodType: bloodType,
+          allergies: allergies.length > 0 ? allergies : ['None recorded'],
+          chronicConditions: chronicConditions.length > 0 ? chronicConditions : ['None recorded'],
+          emergencyContact,
+          currentMedications: medications.length > 0 ? medications : [
+            { name: 'No active medications', dosage: '-' }
+          ],
+          lastUpdated: new Date().toISOString(),
+        }
+        
+        setPatientInfo(emergencyData)
+      } else {
+        // Patient not found - show empty state
+        setPatientInfo(null)
+      }
+    } catch (error) {
+      console.error('Emergency search failed:', error)
+      setPatientInfo(null)
+    } finally {
+      setLoading(false)
     }
-    
-    setPatientInfo(demoData)
-    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-50 to-white">
-      {/* Header */}
-      <header className="bg-red-600 text-white py-4">
-        <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50">
+      {/* Premium Header */}
+      <motion.header 
+        className="relative bg-gradient-to-r from-red-600 via-red-700 to-orange-600 text-white py-5 shadow-xl shadow-red-500/20 overflow-hidden"
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", stiffness: 100 }}
+      >
+        {/* Animated background */}
+        <motion.div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)',
+          }}
+          animate={{ backgroundPosition: ['0px 0px', '40px 0px'] }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+        />
+        
+        <div className="container mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <Link to="/">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-red-700">
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-xl">
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                </motion.div>
               </Link>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-6 h-6" />
-                <span className="font-bold text-xl">Emergency Access Mode</span>
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <AlertTriangle className="w-7 h-7 drop-shadow-lg" />
+                </motion.div>
+                <div>
+                  <span className="font-bold text-2xl drop-shadow-lg">Emergency Access Mode</span>
+                  <p className="text-red-100 text-xs">Critical information only</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <motion.div whileHover={{ scale: 1.05 }}>
               <Button
                 variant="ghost"
                 size="sm"
-                className={`text-white ${isOffline ? 'bg-yellow-600' : 'bg-green-600'}`}
+                className={`text-white rounded-xl px-4 py-2 ${isOffline ? 'bg-yellow-500/80' : 'bg-emerald-500/80'} backdrop-blur-sm`}
                 onClick={() => setIsOffline(!isOffline)}
               >
-                {isOffline ? <WifiOff className="w-4 h-4 mr-1" /> : <Wifi className="w-4 h-4 mr-1" />}
+                {isOffline ? <WifiOff className="w-4 h-4 mr-2" /> : <Wifi className="w-4 h-4 mr-2" />}
                 {isOffline ? 'Offline Mode' : 'Online'}
               </Button>
-            </div>
+            </motion.div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Warning Banner */}
-        <Card className="border-yellow-400 bg-yellow-50 mb-6">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+        {/* Warning Banner - Premium Design */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 mb-8 shadow-lg shadow-amber-500/10 overflow-hidden">
+            <motion.div 
+              className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400"
+              style={{ backgroundSize: '200% 100%' }}
+              animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            />
+            <CardContent className="py-5 flex items-start gap-4">
+              <motion.div
+                className="p-3 bg-amber-100 rounded-xl"
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <AlertTriangle className="w-7 h-7 text-amber-600" />
+              </motion.div>
               <div>
-                <h3 className="font-bold text-yellow-800">Emergency Access Only</h3>
-                <p className="text-yellow-700 text-sm">
+                <h3 className="font-bold text-amber-900 text-lg">Emergency Access Only</h3>
+                <p className="text-amber-700 text-sm mt-1">
                   This mode provides critical medical information for emergency situations. 
                   All access is logged and audited. Use only when patient is unable to provide consent.
                 </p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        {/* Search Section */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="w-5 h-5" />
-              Quick Patient Lookup
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <div className="relative flex-1">
-                <Input
-                  placeholder="Enter Patient IC Number (e.g., 880101-14-5678)"
-                  value={icNumber}
-                  onChange={(e) => setIcNumber(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="text-lg py-6"
-                />
-              </div>
-              <Button 
-                size="lg" 
-                className="bg-red-600 hover:bg-red-700 px-8"
-                onClick={handleSearch}
+        {/* Search Section - Premium Design */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="mb-8 border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500" />
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Search className="w-5 h-5 text-red-600" />
+                </div>
+                Quick Patient Lookup
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex gap-4">
+                <div className="relative flex-1 group">
+                  <motion.div
+                    className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl opacity-0 blur transition-all duration-300 group-hover:opacity-30"
+                  />
+                  <div className="relative">
+                    <Input
+                      placeholder="Enter Patient IC Number (e.g., 880101-14-5678)"
+                      value={icNumber}
+                      onChange={(e) => setIcNumber(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      className="text-lg py-7 px-5 rounded-xl border-gray-200 focus:border-red-500 focus:ring-red-500/20"
+                    />
+                  </div>
+                </div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button 
+                    size="lg" 
+                    className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 px-8 h-14 rounded-xl shadow-lg shadow-red-500/25 font-semibold"
+                    onClick={handleSearch}
                 disabled={loading}
               >
                 {loading ? (
@@ -148,17 +252,19 @@ export default function EmergencyAccess() {
                     Search
                   </>
                 )}
-              </Button>
-            </div>
-            
-            {isOffline && (
-              <p className="text-sm text-yellow-600 mt-2 flex items-center gap-1">
-                <WifiOff className="w-4 h-4" />
-                Offline mode: Only cached patient data will be available
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                  </Button>
+                </motion.div>
+              </div>
+              
+              {isOffline && (
+                <p className="text-sm text-yellow-600 mt-2 flex items-center gap-1">
+                  <WifiOff className="w-4 h-4" />
+                  Offline mode: Only cached patient data will be available
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Results */}
         <AnimatePresence>

@@ -13,7 +13,7 @@ const router = Router();
 // ============================================================================
 
 // Get hospital info
-router.get('/:hospitalId', (req: Request, res: Response) => {
+router.get('/:hospitalId', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const hospital = HOSPITALS.find(h => h.id === hospitalId);
@@ -27,7 +27,7 @@ router.get('/:hospitalId', (req: Request, res: Response) => {
     }
     
     const hospitalDb = getHospitalDb(hospitalId);
-    const stats = hospitalDb.getStats();
+    const stats = await hospitalDb.getStats();
     
     res.json({
       success: true,
@@ -46,11 +46,11 @@ router.get('/:hospitalId', (req: Request, res: Response) => {
 });
 
 // Get hospital statistics
-router.get('/:hospitalId/stats', (req: Request, res: Response) => {
+router.get('/:hospitalId/stats', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const stats = hospitalDb.getStats();
+    const stats = await hospitalDb.getStats();
     
     res.json({
       success: true,
@@ -70,11 +70,11 @@ router.get('/:hospitalId/stats', (req: Request, res: Response) => {
 // ============================================================================
 
 // Get patient by IC (for cross-hospital queries - read only)
-router.get('/:hospitalId/patients/:icNumber', authenticate, (req: Request, res: Response) => {
+router.get('/:hospitalId/patients/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const patient = hospitalDb.getPatient(icNumber);
+    const patient = await hospitalDb.getPatient(icNumber);
     
     if (!patient) {
       res.status(404).json({
@@ -85,7 +85,7 @@ router.get('/:hospitalId/patients/:icNumber', authenticate, (req: Request, res: 
     }
     
     // Log the access
-    createAuditLog({
+    await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'view',
       actorId: req.user!.userId,
@@ -112,11 +112,11 @@ router.get('/:hospitalId/patients/:icNumber', authenticate, (req: Request, res: 
 });
 
 // Get all patients in hospital (hospital staff only)
-router.get('/:hospitalId/patients', authenticate, authorizeHospital, (req: Request, res: Response) => {
+router.get('/:hospitalId/patients', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const patients = hospitalDb.getAllPatients();
+    const patients = await hospitalDb.getAllPatients();
     
     res.json({
       success: true,
@@ -132,7 +132,7 @@ router.get('/:hospitalId/patients', authenticate, authorizeHospital, (req: Reque
 });
 
 // Create or update patient (hospital staff only)
-router.post('/:hospitalId/patients', authenticate, authorizeHospital, (req: Request, res: Response) => {
+router.post('/:hospitalId/patients', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const patientData: Patient = req.body;
@@ -146,14 +146,14 @@ router.post('/:hospitalId/patients', authenticate, authorizeHospital, (req: Requ
     }
     
     const hospitalDb = getHospitalDb(hospitalId);
-    hospitalDb.createPatient({
+    await hospitalDb.createPatient({
       ...patientData,
       createdAt: patientData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
     
     // Update central index
-    updatePatientIndex(patientData.icNumber, hospitalId);
+    await updatePatientIndex(patientData.icNumber, hospitalId);
     
     res.status(201).json({
       success: true,
@@ -173,11 +173,11 @@ router.post('/:hospitalId/patients', authenticate, authorizeHospital, (req: Requ
 // ============================================================================
 
 // Get patient records (for cross-hospital queries)
-router.get('/:hospitalId/records/:icNumber', authenticate, (req: Request, res: Response) => {
+router.get('/:hospitalId/records/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const records = hospitalDb.getRecordsByPatient(icNumber);
+    const records = await hospitalDb.getRecordsByPatient(icNumber);
     
     const hospital = HOSPITALS.find(h => h.id === hospitalId);
     const isOwnHospital = req.user?.hospitalId === hospitalId;
@@ -192,7 +192,7 @@ router.get('/:hospitalId/records/:icNumber', authenticate, (req: Request, res: R
     }));
     
     // Log the access
-    createAuditLog({
+    await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'view',
       actorId: req.user!.userId,
@@ -219,11 +219,11 @@ router.get('/:hospitalId/records/:icNumber', authenticate, (req: Request, res: R
 });
 
 // Get single record by ID
-router.get('/:hospitalId/record/:recordId', authenticate, (req: Request, res: Response) => {
+router.get('/:hospitalId/record/:recordId', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, recordId } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const record = hospitalDb.getRecordById(recordId);
+    const record = await hospitalDb.getRecordById(recordId);
     
     if (!record) {
       res.status(404).json({
@@ -256,7 +256,7 @@ router.get('/:hospitalId/record/:recordId', authenticate, (req: Request, res: Re
 });
 
 // Create new medical record (hospital staff only - own hospital)
-router.post('/:hospitalId/records', authenticate, authorizeHospital, (req: Request, res: Response) => {
+router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const recordData: MedicalRecord = req.body;
@@ -271,7 +271,7 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, (req: Reque
     
     // Verify doctor belongs to this hospital
     const hospitalDb = getHospitalDb(hospitalId);
-    const doctor = hospitalDb.getDoctor(recordData.doctorId);
+    const doctor = await hospitalDb.getDoctor(recordData.doctorId);
     
     if (!doctor) {
       res.status(400).json({
@@ -282,7 +282,7 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, (req: Reque
     }
     
     // Create the record
-    const recordId = hospitalDb.createRecord({
+    const recordId = await hospitalDb.createRecord({
       ...recordData,
       id: uuidv4(),
       hospitalId,
@@ -292,10 +292,10 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, (req: Reque
     });
     
     // Update central index
-    updatePatientIndex(recordData.icNumber, hospitalId);
+    await updatePatientIndex(recordData.icNumber, hospitalId);
     
     // Log the creation
-    createAuditLog({
+    await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'create',
       actorId: req.user!.userId,
@@ -327,11 +327,11 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, (req: Reque
 // ============================================================================
 
 // Get all doctors in hospital
-router.get('/:hospitalId/doctors', (req: Request, res: Response) => {
+router.get('/:hospitalId/doctors', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const doctors = hospitalDb.getAllDoctors();
+    const doctors = await hospitalDb.getAllDoctors();
     
     res.json({
       success: true,
@@ -347,11 +347,11 @@ router.get('/:hospitalId/doctors', (req: Request, res: Response) => {
 });
 
 // Get doctor by ID
-router.get('/:hospitalId/doctors/:doctorId', (req: Request, res: Response) => {
+router.get('/:hospitalId/doctors/:doctorId', async (req: Request, res: Response) => {
   try {
     const { hospitalId, doctorId } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const doctor = hospitalDb.getDoctor(doctorId);
+    const doctor = await hospitalDb.getDoctor(doctorId);
     
     if (!doctor) {
       res.status(404).json({
@@ -379,11 +379,11 @@ router.get('/:hospitalId/doctors/:doctorId', (req: Request, res: Response) => {
 // ============================================================================
 
 // Get active prescriptions for patient
-router.get('/:hospitalId/prescriptions/:icNumber', authenticate, (req: Request, res: Response) => {
+router.get('/:hospitalId/prescriptions/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;
     const hospitalDb = getHospitalDb(hospitalId);
-    const prescriptions = hospitalDb.getActivePrescriptions(icNumber);
+    const prescriptions = await hospitalDb.getActivePrescriptions(icNumber);
     
     res.json({
       success: true,

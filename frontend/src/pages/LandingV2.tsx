@@ -157,153 +157,64 @@ function ICCardDemo() {
   )
 }
 
-// Network Visualization Component  
+// Network Visualization Component - Clean Modern Design
 function NetworkVisualization() {
-  const [activeHospital, setActiveHospital] = useState<string | null>(null)
-  
-  // Fixed size container
-  const size = 280
-  const center = size / 2
-  const radius = 100
-  
-  // Calculate positions for 5 hospitals in a circle
-  const hospitalPositions = hospitals.map((hospital, i) => {
-    const angle = (i * 72 - 90) * (Math.PI / 180)
-    return {
-      ...hospital,
-      x: center + Math.cos(angle) * radius,
-      y: center + Math.sin(angle) * radius,
-    }
-  })
-  
   return (
-    <div className="relative h-80 w-full max-w-md bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900 rounded-2xl overflow-hidden">
-      {/* Grid background */}
-      <div className="absolute inset-0 opacity-10">
-        <svg width="100%" height="100%">
-          <defs>
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="white" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
-      </div>
-      
-      {/* Centered SVG with fixed viewBox */}
-      <svg 
-        className="absolute top-1/2 left-1/2"
-        style={{ transform: 'translate(-50%, -50%)' }}
-        width={size} 
-        height={size} 
-        viewBox={`0 0 ${size} ${size}`}
-      >
-        {/* Connection lines */}
-        {hospitalPositions.map((hospital, i) => (
-          <motion.line
-            key={`line-${hospital.id}`}
-            x1={center}
-            y1={center}
-            x2={hospital.x}
-            y2={hospital.y}
-            stroke={hospital.color}
-            strokeWidth="2"
-            strokeOpacity="0.4"
-            strokeDasharray="4 4"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1, delay: i * 0.15 }}
-          />
-        ))}
-        
-        {/* Central Hub glow */}
-        <circle cx={center} cy={center} r="45" fill="url(#centerGlow)" />
-        
-        {/* Gradient definitions */}
-        <defs>
-          <radialGradient id="centerGlow">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-      </svg>
-      
-      {/* Central Hub with label */}
-      <div className="absolute top-1/2 left-1/2 z-20" style={{ transform: 'translate(-50%, -50%)' }}>
-        <motion.div
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="flex flex-col items-center"
-        >
-          <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-full flex items-center justify-center shadow-2xl border-2 border-cyan-300/50">
-            <Database className="w-9 h-9 text-white" />
+    <div className="w-full max-w-md mx-auto">
+      {/* Clean card container */}
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        {/* Title */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-2xl mb-4">
+            <Network className="w-8 h-8 text-blue-600" />
           </div>
-          <p className="text-cyan-300 text-xs font-semibold mt-2 whitespace-nowrap">Central Index</p>
-        </motion.div>
-      </div>
-      
-      {/* Hospital Nodes - positioned relative to center */}
-      {hospitalPositions.map((hospital, i) => (
-        <motion.div
-          key={hospital.id}
-          className="absolute z-10"
-          style={{ 
-            top: `calc(50% + ${hospital.y - center}px)`,
-            left: `calc(50% + ${hospital.x - center}px)`,
-            transform: 'translate(-50%, -50%)'
-          }}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 + i * 0.1 }}
-          whileHover={{ scale: 1.15 }}
-          onMouseEnter={() => setActiveHospital(hospital.id)}
-          onMouseLeave={() => setActiveHospital(null)}
-        >
-          <div 
-            className="w-11 h-11 rounded-xl flex items-center justify-center cursor-pointer transition-all border-2"
-            style={{ 
-              backgroundColor: hospital.color + '25',
-              borderColor: hospital.color + '60',
-              boxShadow: activeHospital === hospital.id ? `0 0 20px ${hospital.color}` : 'none'
-            }}
-          >
-            <Building2 className="w-5 h-5" style={{ color: hospital.color }} />
-          </div>
-          {activeHospital === hospital.id && (
+          <h3 className="text-xl font-bold text-gray-900">Connected Network</h3>
+          <p className="text-gray-500 text-sm mt-1">5 hospitals linked in real-time</p>
+        </div>
+        
+        {/* Hospital List */}
+        <div className="space-y-3">
+          {hospitals.map((hospital, i) => (
             <motion.div
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 whitespace-nowrap bg-gray-800/95 px-3 py-1.5 rounded-lg z-30"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
+              key={hospital.id}
+              className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              whileHover={{ x: 4 }}
             >
-              <p className="text-white text-xs font-medium">{hospital.name}</p>
-              <p className="text-gray-400 text-[10px]">{hospital.city}</p>
+              {/* Hospital Icon */}
+              <div 
+                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+                style={{ backgroundColor: hospital.color + '15' }}
+              >
+                <Building2 className="w-6 h-6" style={{ color: hospital.color }} />
+              </div>
+              
+              {/* Hospital Info */}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 truncate">{hospital.name}</p>
+                <p className="text-sm text-gray-500">{hospital.city}</p>
+              </div>
+              
+              {/* Status */}
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-xs font-medium text-emerald-600">Online</span>
+              </div>
             </motion.div>
-          )}
-        </motion.div>
-      ))}
-      
-      {/* Animated Data Packets */}
-      {hospitalPositions.map((hospital, i) => (
-        <motion.div
-          key={`packet-${i}`}
-          className="absolute w-2 h-2 rounded-full z-10 top-1/2 left-1/2"
-          style={{ 
-            backgroundColor: hospital.color,
-            boxShadow: `0 0 6px ${hospital.color}`
-          }}
-          animate={{
-            x: [0, (hospital.x - center) * 0.8, 0],
-            y: [0, (hospital.y - center) * 0.8, 0],
-            opacity: [0, 1, 0],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            delay: i * 0.4,
-            ease: 'easeInOut',
-          }}
-        />
-      ))}
+          ))}
+        </div>
+        
+        {/* Central Hub Badge */}
+        <div className="mt-6 pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-center gap-3 text-gray-600">
+            <Database className="w-5 h-5 text-blue-600" />
+            <span className="text-sm font-medium">Secured by Central Index</span>
+            <Shield className="w-5 h-5 text-emerald-600" />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -376,38 +287,107 @@ export default function LandingPageV2() {
         </div>
       </div>
 
-      {/* Hero Section */}
-      <section className="pt-28 pb-16 px-4">
-        <div className="container mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+      {/* Hero Section - Premium Design */}
+      <section className="relative pt-28 pb-20 px-4 overflow-hidden">
+        {/* Background decorations */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <motion.div
+            className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl"
+            animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 0] }}
+            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          />
+          <motion.div
+            className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-400/15 to-pink-400/15 rounded-full blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2] }}
+            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          />
+          <motion.div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] opacity-20"
+            style={{
+              background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 60%)',
+            }}
+            animate={{ scale: [0.9, 1.1, 0.9] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </div>
+        
+        <div className="container mx-auto relative z-10">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.6 }}
             >
-              <Badge className="mb-4 bg-green-100 text-green-700 hover:bg-green-100">
-                🏥 National Healthcare Network
-              </Badge>
-              <h1 className={`font-bold mb-6 leading-tight ${fontSize === 'xlarge' ? 'text-4xl' : fontSize === 'large' ? 'text-5xl' : 'text-5xl md:text-6xl'}`}>
-                {t.heroTitle1}<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Badge className="mb-6 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 hover:from-emerald-200 hover:to-teal-200 border border-emerald-200 px-4 py-2 text-sm shadow-lg shadow-emerald-500/10">
+                  <motion.span
+                    className="inline-block mr-2"
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    🏥
+                  </motion.span>
+                  National Healthcare Network
+                </Badge>
+              </motion.div>
+              
+              <h1 className={`font-bold mb-6 leading-tight ${fontSize === 'xlarge' ? 'text-4xl' : fontSize === 'large' ? 'text-5xl' : 'text-5xl md:text-7xl'}`}>
+                <motion.span
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="block"
+                >
+                  {t.heroTitle1}
+                </motion.span>
+                <motion.span 
+                  className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
                   {t.heroTitle2}
-                </span>
+                </motion.span>
               </h1>
-              <p className={`text-gray-600 mb-8 ${fontSize === 'xlarge' ? 'text-xl' : 'text-lg'}`}>
+              
+              <motion.p 
+                className={`text-gray-600 mb-10 max-w-lg leading-relaxed ${fontSize === 'xlarge' ? 'text-xl' : 'text-lg'}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
                 {t.heroSubtitle}
-              </p>
-              <div className="flex flex-wrap gap-4">
+              </motion.p>
+              
+              <motion.div 
+                className="flex flex-wrap gap-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+              >
                 <Link to="/login">
-                  <Button size="lg" className="gap-2">
-                    {t.getStarted} <ArrowRight size={20} />
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+                    <Button size="lg" className="gap-2 h-14 px-8 text-base font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-xl shadow-blue-500/25 rounded-xl">
+                      {t.getStarted}
+                      <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                        <ArrowRight size={20} />
+                      </motion.div>
+                    </Button>
+                  </motion.div>
                 </Link>
-                <Button size="lg" variant="outline" className="gap-2">
-                  <Wifi className="w-5 h-5" />
-                  {t.emergencyAccess}
-                </Button>
-              </div>
+                <Link to="/emergency">
+                  <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+                    <Button size="lg" variant="outline" className="gap-2 h-14 px-8 text-base font-semibold border-2 rounded-xl hover:bg-red-50 hover:border-red-300 hover:text-red-600">
+                      <Wifi className="w-5 h-5" />
+                      {t.emergencyAccess}
+                    </Button>
+                  </motion.div>
+                </Link>
+              </motion.div>
             </motion.div>
             
             <motion.div
@@ -551,18 +531,64 @@ export default function LandingPageV2() {
         </div>
       </section>
 
-      {/* Security Section */}
-      <section className={`py-20 px-4 ${highContrast ? 'bg-black' : 'bg-gray-900'} text-white`}>
+      {/* Security Section - Clean Design */}
+      <section className={`py-20 px-4 ${highContrast ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="container mx-auto">
-          <div className="max-w-3xl mx-auto text-center">
-            <Shield className="w-16 h-16 text-cyan-400 mx-auto mb-6" />
-            <h2 className="text-3xl font-bold mb-4">{t.securityByDesign}</h2>
-            <p className="text-gray-400 mb-8">{t.securityByDesignDesc}</p>
-            <div className="flex flex-wrap justify-center gap-4">
-              {[t.readOnly, t.auditTrail, t.patientConsent, t.dataEncryption].map((item) => (
-                <div key={item} className="flex items-center gap-2 bg-white/10 rounded-full px-4 py-2">
-                  <CheckCircle className="w-4 h-4 text-cyan-400" />
-                  <span className="text-sm">{item}</span>
+          <div className="max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-2xl mb-4">
+                <Shield className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h2 className={`text-3xl font-bold mb-4 ${highContrast ? 'text-white' : 'text-gray-900'}`}>{t.securityByDesign}</h2>
+              <p className={`text-lg max-w-2xl mx-auto ${highContrast ? 'text-gray-400' : 'text-gray-600'}`}>
+                {t.securityByDesignDesc}
+              </p>
+            </div>
+            
+            {/* Security Features - Clean Cards */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                { icon: Lock, label: t.readOnly, desc: 'Other hospitals can only view, never modify your records', color: 'blue' },
+                { icon: Activity, label: t.auditTrail, desc: 'Every access is logged with timestamp and purpose', color: 'emerald' },
+                { icon: Users, label: t.patientConsent, desc: 'You control which hospitals can see your data', color: 'violet' },
+                { icon: Shield, label: t.dataEncryption, desc: 'Military-grade encryption protects all transfers', color: 'amber' },
+              ].map((item, i) => (
+                <motion.div
+                  key={item.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  whileHover={{ y: -4 }}
+                >
+                  <Card className={`h-full ${highContrast ? 'bg-gray-800 border-gray-700' : 'hover:shadow-lg'} transition-all`}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 bg-${item.color}-100 rounded-xl flex items-center justify-center flex-shrink-0`}>
+                          <item.icon className={`w-6 h-6 text-${item.color}-600`} />
+                        </div>
+                        <div>
+                          <h3 className={`font-bold text-lg mb-2 ${highContrast ? 'text-white' : 'text-gray-900'}`}>{item.label}</h3>
+                          <p className={`text-sm ${highContrast ? 'text-gray-400' : 'text-gray-600'}`}>{item.desc}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+            
+            {/* Trust Indicators */}
+            <div className="mt-10 flex flex-wrap justify-center gap-6">
+              {[
+                { icon: CheckCircle, text: 'HIPAA Compliant' },
+                { icon: Shield, text: 'ISO 27001 Certified' },
+                { icon: Lock, text: 'End-to-End Encrypted' },
+              ].map((item, i) => (
+                <div key={i} className={`flex items-center gap-2 ${highContrast ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <item.icon className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm font-medium">{item.text}</span>
                 </div>
               ))}
             </div>

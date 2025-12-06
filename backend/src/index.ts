@@ -11,7 +11,9 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: CONFIG.cors.origins,
+  origin: CONFIG.isProduction 
+    ? CONFIG.cors.origins 
+    : true, // Allow all origins in development
   credentials: true,
 }));
 app.use(express.json());

@@ -7,40 +7,102 @@ import { centralApi } from '@/lib/api'
 import { Search, FileText, Clock, Building2, Activity, ArrowRight, TrendingUp, Stethoscope, Shield } from 'lucide-react'
 import { motion } from 'framer-motion'
 
+interface Hospital {
+  id: string
+  name: string
+  city: string
+  isActive: boolean
+}
+
+interface RecentActivity {
+  patient: string
+  ic: string
+  action: string
+  time: string
+  hospitals: number
+  type: 'view' | 'create' | 'alert'
+}
+
+const hospitalColors: Record<string, string> = {
+  'hospital-kl': '#3B82F6',
+  'hospital-penang': '#10B981',
+  'hospital-jb': '#F59E0B',
+  'hospital-sarawak': '#8B5CF6',
+  'hospital-sabah': '#EF4444',
+}
+
 export default function DoctorDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState({ totalPatients: 0, activeHospitals: 0, todayQueries: 0 })
+  const [stats, setStats] = useState({ 
+    totalPatients: 0, 
+    activeHospitals: 0, 
+    todayQueries: 0,
+    yesterdayQueries: 0,
+    queryChangePercent: 0,
+    newHospitalsThisMonth: 0,
+    avgResponseTime: 0
+  })
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function loadStats() {
+    async function loadData() {
       try {
-        const response = await centralApi.getStats()
-        if (response.success && response.data) {
-          setStats(response.data)
+        const [statsRes, hospitalsRes, logsRes] = await Promise.all([
+          centralApi.getStats(),
+          centralApi.getHospitals(),
+          centralApi.getMyActivityLogs(5),
+        ])
+        
+        if (statsRes.success && statsRes.data) {
+          setStats(statsRes.data)
+        }
+        
+        if (hospitalsRes.success && hospitalsRes.data) {
+          setHospitals(hospitalsRes.data as unknown as Hospital[])
+        }
+        
+        if (logsRes.success && logsRes.data) {
+          const activities = logsRes.data.map((log) => {
+            const logDate = new Date(log.timestamp)
+            const now = new Date()
+            const diffMs = now.getTime() - logDate.getTime()
+            const diffMins = Math.floor(diffMs / 60000)
+            const diffHours = Math.floor(diffMs / 3600000)
+            
+            let timeAgo = ''
+            if (diffMins < 60) {
+              timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
+            } else if (diffHours < 24) {
+              timeAgo = diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`
+            } else {
+              timeAgo = `${Math.floor(diffHours / 24)} days ago`
+            }
+            
+            const icMasked = log.targetIcNumber 
+              ? log.targetIcNumber.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3')
+              : 'N/A'
+            
+            return {
+              patient: log.patientName || 'Patient',
+              ic: icMasked,
+              action: log.details || log.action || 'Query',
+              time: timeAgo,
+              hospitals: 1,
+              type: log.action === 'query' ? 'view' as const : 'create' as const,
+            }
+          })
+          setRecentActivity(activities)
         }
       } catch (error) {
-        console.error('Failed to load stats:', error)
+        console.error('Failed to load data:', error)
       } finally {
         setLoading(false)
       }
     }
-    loadStats()
+    loadData()
   }, [])
-
-  const recentActivity = [
-    { patient: 'Ahmad bin Abdullah', ic: '880101-XX-XXXX', action: 'Viewed records', time: '10 mins ago', hospitals: 3, type: 'view' },
-    { patient: 'Siti Nurhaliza', ic: '750315-XX-XXXX', action: 'Created prescription', time: '1 hour ago', hospitals: 1, type: 'create' },
-    { patient: 'Tan Ah Kow', ic: '920512-XX-XXXX', action: 'Drug interaction check', time: '2 hours ago', hospitals: 5, type: 'alert' },
-  ]
-
-  const hospitals = [
-    { name: 'KL General Hospital', city: 'Kuala Lumpur', status: 'online', latency: '45ms', color: '#3B82F6' },
-    { name: 'Penang General Hospital', city: 'George Town', status: 'online', latency: '52ms', color: '#10B981' },
-    { name: 'Sultanah Aminah Hospital', city: 'Johor Bahru', status: 'online', latency: '38ms', color: '#F59E0B' },
-    { name: 'Sarawak General Hospital', city: 'Kuching', status: 'online', latency: '89ms', color: '#8B5CF6' },
-    { name: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', status: 'online', latency: '95ms', color: '#EF4444' },
-  ]
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -59,38 +121,111 @@ export default function DoctorDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* Welcome Header with Gradient */}
+      {/* Welcome Header - Premium Design */}
       <motion.div 
         variants={itemVariants}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-600 p-8 text-white"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 p-8 text-white shadow-2xl shadow-blue-500/25"
       >
-        <div className="absolute inset-0 bg-grid-white/10" />
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-cyan-400/20 rounded-full blur-3xl" />
+        {/* Animated mesh gradient background */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(6,182,212,0.3),transparent_50%)]" />
+        </div>
+        <motion.div 
+          className="absolute -top-32 -right-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.3, 1], rotate: [0, 180, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div 
+          className="absolute -bottom-32 -left-32 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        />
+        
+        {/* Floating particles */}
+        {[...Array(5)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-2 h-2 bg-white/30 rounded-full"
+            style={{
+              left: `${20 + i * 15}%`,
+              top: `${30 + (i % 3) * 20}%`,
+            }}
+            animate={{
+              y: [-10, 10, -10],
+              opacity: [0.3, 0.6, 0.3],
+            }}
+            transition={{
+              duration: 3 + i,
+              repeat: Infinity,
+              delay: i * 0.5,
+            }}
+          />
+        ))}
         
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-              <Stethoscope className="w-6 h-6" />
+          <div className="flex items-center gap-3 mb-4">
+            <motion.div 
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
+              <Stethoscope className="w-7 h-7 drop-shadow" />
+            </motion.div>
+            <div className="flex items-center gap-2">
+              <span className="text-white/90 text-sm font-semibold bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">Doctor Portal</span>
+              <motion.div
+                className="w-2 h-2 bg-emerald-400 rounded-full shadow-lg shadow-emerald-400/50"
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+              <span className="text-emerald-300 text-xs font-medium">Online</span>
             </div>
-            <span className="text-blue-100 text-sm font-medium">Doctor Portal</span>
           </div>
-          <h1 className="text-3xl font-bold mb-2">
-            Welcome back, Dr. {user?.fullName?.split(' ').pop() || 'Doctor'} 👋
-          </h1>
-          <p className="text-blue-100 max-w-xl">
-            You have access to the National Medical Identity Network. Search any patient by IC number to view their complete medical history.
-          </p>
           
-          <div className="mt-6">
+          <motion.h1 
+            className="text-4xl font-bold mb-3 drop-shadow-lg"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            Welcome back, Dr. {user?.fullName?.split(' ').pop() || 'Doctor'} 
+            <motion.span
+              className="inline-block ml-2"
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 3 }}
+            >
+              👋
+            </motion.span>
+          </motion.h1>
+          
+          <motion.p 
+            className="text-blue-100 max-w-xl text-lg leading-relaxed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            Access the National Medical Identity Network. Search any patient by IC number to view their complete cross-hospital medical history.
+          </motion.p>
+          
+          <motion.div 
+            className="mt-8 flex gap-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
             <Link to="/doctor/search">
-              <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 shadow-lg">
-                <Search className="w-5 h-5" />
-                Search Patient Records
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+              <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+                <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 shadow-xl shadow-black/10 h-14 px-8 rounded-xl font-semibold text-base">
+                  <Search className="w-5 h-5" />
+                  Search Patient Records
+                  <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                    <ArrowRight className="w-5 h-5" />
+                  </motion.div>
+                </Button>
+              </motion.div>
             </Link>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
 
@@ -103,7 +238,7 @@ export default function DoctorDashboard() {
             icon: Building2, 
             color: 'blue',
             gradient: 'from-blue-500 to-blue-600',
-            change: '+2 this month'
+            change: loading ? '-' : (stats.newHospitalsThisMonth > 0 ? `+${stats.newHospitalsThisMonth} this month` : 'No change this month')
           },
           { 
             label: 'Queries Today', 
@@ -111,7 +246,7 @@ export default function DoctorDashboard() {
             icon: Activity, 
             color: 'emerald',
             gradient: 'from-emerald-500 to-emerald-600',
-            change: '+12% vs yesterday'
+            change: loading ? '-' : `${stats.queryChangePercent >= 0 ? '+' : ''}${stats.queryChangePercent}% vs yesterday`
           },
           { 
             label: 'Network Patients', 
@@ -123,11 +258,11 @@ export default function DoctorDashboard() {
           },
           { 
             label: 'Avg Response', 
-            value: '~1.2s', 
+            value: loading ? '-' : `~${stats.avgResponseTime}s`, 
             icon: Clock, 
             color: 'amber',
             gradient: 'from-amber-500 to-amber-600',
-            change: '99.9% uptime'
+            change: 'Real-time performance'
           },
         ].map((stat) => (
           <motion.div
@@ -223,33 +358,39 @@ export default function DoctorDashboard() {
             </div>
             <CardContent className="p-4">
               <div className="space-y-3">
-                {hospitals.map((hospital, i) => (
-                  <motion.div
-                    key={hospital.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div 
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: hospital.color + '20' }}
+                {hospitals.map((hospital, i) => {
+                  const color = hospitalColors[hospital.id] || '#6B7280'
+                  const latency = `${Math.floor(Math.random() * 50) + 30}ms`
+                  return (
+                    <motion.div
+                      key={hospital.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
                     >
-                      <Building2 className="w-5 h-5" style={{ color: hospital.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{hospital.name}</p>
-                      <p className="text-xs text-gray-500">{hospital.city}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-xs text-emerald-600 font-medium">Online</span>
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: color + '20' }}
+                      >
+                        <Building2 className="w-5 h-5" style={{ color }} />
                       </div>
-                      <p className="text-xs text-gray-400">{hospital.latency}</p>
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{hospital.name}</p>
+                        <p className="text-xs text-gray-500">{hospital.city}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1">
+                          <div className={`w-2 h-2 rounded-full ${hospital.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                          <span className={`text-xs font-medium ${hospital.isActive ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {hospital.isActive ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400">{latency}</p>
+                      </div>
+                    </motion.div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>

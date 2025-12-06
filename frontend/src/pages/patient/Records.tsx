@@ -88,24 +88,35 @@ export default function PatientRecords() {
       initial="hidden"
       animate="visible"
     >
-      {/* Header */}
+      {/* Header - Premium Design */}
       <motion.div 
         variants={itemVariants}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 text-white"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
       >
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-300/20 rounded-full blur-3xl" />
+        <motion.div 
+          className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div 
+          className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
         
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-              <FileText className="w-6 h-6" />
-            </div>
-            <span className="text-blue-100 text-sm font-medium">Medical Records</span>
+          <div className="flex items-center gap-3 mb-4">
+            <motion.div 
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <FileText className="w-7 h-7 drop-shadow" />
+            </motion.div>
+            <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm px-3 py-1">Medical Records</Badge>
           </div>
-          <h1 className="text-3xl font-bold mb-2">My Medical History</h1>
-          <p className="text-blue-100">
-            Complete records from {new Set(records.map(r => r.hospitalName)).size} hospitals • {records.length} total visits
+          <h1 className="text-4xl font-bold mb-3 drop-shadow-lg">My Medical History</h1>
+          <p className="text-blue-100 text-lg">
+            Complete records from <span className="font-semibold text-white">{new Set(records.map(r => r.hospitalName)).size} hospitals</span> • <span className="font-semibold text-white">{records.length} total visits</span>
           </p>
         </div>
       </motion.div>

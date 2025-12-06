@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { centralApi } from '@/lib/api'
 import { 
   Search, Shield, Eye, Download, Building2, Clock, AlertTriangle, CheckCircle, Loader2 
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { motion } from 'framer-motion'
 
 interface AuditLog {
   id: string
@@ -30,78 +32,31 @@ export default function AuditLogs() {
   useEffect(() => {
     async function loadLogs() {
       try {
-        // Simulated audit logs - in production would come from API
-        const demoLogs: AuditLog[] = [
-          {
-            id: '1',
-            timestamp: new Date().toISOString(),
-            action: 'CROSS_HOSPITAL_QUERY',
-            userId: 'doctor-001',
-            userRole: 'doctor',
-            targetIcNumber: '880101-14-5678',
-            sourceHospital: 'KL General Hospital',
-            targetHospitals: ['Penang General', 'Sultanah Aminah'],
-            status: 'success',
-            details: 'Retrieved 5 medical records from 2 hospitals',
-          },
-          {
-            id: '2',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            action: 'RECORD_VIEW',
-            userId: 'doctor-002',
-            userRole: 'doctor',
-            targetIcNumber: '750512-08-1234',
-            sourceHospital: 'Penang General Hospital',
-            status: 'success',
-            details: 'Viewed patient medical history',
-          },
-          {
-            id: '3',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            action: 'RECORD_CREATE',
-            userId: 'doctor-001',
-            userRole: 'doctor',
-            targetIcNumber: '880101-14-5678',
-            sourceHospital: 'KL General Hospital',
-            status: 'success',
-            details: 'Created new medical record - Outpatient visit',
-          },
-          {
-            id: '4',
-            timestamp: new Date(Date.now() - 10800000).toISOString(),
-            action: 'ACCESS_DENIED',
-            userId: 'unknown',
-            userRole: 'unknown',
-            targetIcNumber: '900315-10-9876',
-            sourceHospital: 'External',
-            status: 'denied',
-            details: 'Unauthorized access attempt blocked',
-          },
-          {
-            id: '5',
-            timestamp: new Date(Date.now() - 14400000).toISOString(),
-            action: 'PATIENT_CONSENT_UPDATE',
-            userId: 'patient-001',
-            userRole: 'patient',
-            targetIcNumber: '880101-14-5678',
-            sourceHospital: 'Self-Service Portal',
-            status: 'success',
-            details: 'Updated data sharing preferences',
-          },
-          {
-            id: '6',
-            timestamp: new Date(Date.now() - 18000000).toISOString(),
-            action: 'EMERGENCY_ACCESS',
-            userId: 'doctor-003',
-            userRole: 'doctor',
-            targetIcNumber: '850720-14-4567',
-            sourceHospital: 'Queen Elizabeth Hospital',
-            targetHospitals: ['All Connected Hospitals'],
-            status: 'success',
-            details: 'Emergency override - Patient unconscious',
-          },
-        ]
-        setLogs(demoLogs)
+        const response = await centralApi.getAuditLogs({ limit: 50 })
+        if (response.success && response.data) {
+          const apiLogs = (response.data as any[]).map((log: any) => {
+            // Map action types
+            let action = 'RECORD_VIEW'
+            if (log.action === 'query') action = 'CROSS_HOSPITAL_QUERY'
+            else if (log.action === 'create') action = 'RECORD_CREATE'
+            else if (log.action === 'login') action = 'LOGIN'
+            else if (log.action === 'emergency') action = 'EMERGENCY_ACCESS'
+            
+            return {
+              id: log.id,
+              timestamp: log.timestamp,
+              action,
+              userId: log.actorId?.slice(0, 12) || 'Unknown',
+              userRole: log.actorType || 'unknown',
+              targetIcNumber: log.targetIcNumber,
+              sourceHospital: log.actorHospitalId || 'Central Hub',
+              targetHospitals: log.targetHospitalId ? [log.targetHospitalId] : undefined,
+              status: log.success ? 'success' as const : 'denied' as const,
+              details: log.details,
+            }
+          })
+          setLogs(apiLogs)
+        }
       } catch (error) {
         console.error('Failed to load audit logs:', error)
       } finally {
@@ -155,21 +110,51 @@ export default function AuditLogs() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6 text-blue-600" />
-            Audit Logs
-          </h1>
-          <p className="text-gray-500">Complete trail of all data access and modifications</p>
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-zinc-900 p-8 text-white shadow-2xl"
+      >
+        <motion.div 
+          className="absolute -top-20 -right-20 w-60 h-60 bg-blue-500/20 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 15, repeat: Infinity }}
+        />
+        
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <motion.div 
+              className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <Shield className="w-8 h-8" />
+            </motion.div>
+            <div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-0 mb-2">Security Monitoring</Badge>
+              <h1 className="text-3xl font-bold drop-shadow-lg">Audit Logs</h1>
+              <p className="text-gray-400">Complete trail of all data access and modifications</p>
+            </div>
+          </div>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button variant="outline" className="gap-2 border-white/30 text-white hover:bg-white/10 rounded-xl h-12 px-6">
+              <Download className="w-5 h-5" />
+              Export Logs
+            </Button>
+          </motion.div>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Download className="w-4 h-4" />
-          Export Logs
-        </Button>
-      </div>
+      </motion.div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
@@ -320,6 +305,6 @@ export default function AuditLogs() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   )
 }

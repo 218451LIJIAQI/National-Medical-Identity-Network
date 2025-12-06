@@ -5,114 +5,115 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { centralApi } from '@/lib/api'
-import { Search, Loader2, Building2, FileText, Clock, AlertCircle, Database } from 'lucide-react'
+import { Search, Loader2, Building2, FileText, Clock, AlertCircle, CreditCard } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatIC, getHospitalColor } from '@/lib/utils'
 
-// Network visualization during query
+// Network visualization during query - Clean Step Progress Design
 function QueryNetworkVisualization({ step }: { step: number }) {
-  const hospitalPositions = [
-    { x: 20, y: 30 },
-    { x: 80, y: 30 },
-    { x: 10, y: 70 },
-    { x: 50, y: 80 },
-    { x: 90, y: 70 },
+  const steps = [
+    { id: 1, label: 'Authenticating', icon: '🔐' },
+    { id: 2, label: 'Looking up index', icon: '🔍' },
+    { id: 3, label: 'Querying hospitals', icon: '📡' },
+    { id: 4, label: 'Collecting data', icon: '📥' },
+    { id: 5, label: 'Complete', icon: '✅' },
   ]
 
   return (
-    <div className="relative h-48 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden">
-      {/* Central Hub */}
-      <motion.div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
-        animate={{ 
-          scale: step >= 1 ? [1, 1.2, 1] : 1,
-          boxShadow: step >= 1 ? ['0 0 0 0 rgba(6, 182, 212, 0)', '0 0 30px 10px rgba(6, 182, 212, 0.5)', '0 0 0 0 rgba(6, 182, 212, 0)'] : 'none'
-        }}
-        transition={{ duration: 1, repeat: step >= 1 && step < 4 ? Infinity : 0 }}
-      >
-        <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
-          <Database className="w-8 h-8 text-white" />
-        </div>
-        <p className="text-xs text-white text-center mt-1 font-medium">Central Index</p>
-      </motion.div>
-
-      {/* Hospital Nodes */}
-      {hospitalPositions.map((pos, i) => (
-        <motion.div
-          key={i}
-          className="absolute z-10"
-          style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
-          initial={{ opacity: 0.3 }}
-          animate={{ 
-            opacity: step >= 3 ? 1 : 0.3,
-            scale: step >= 3 ? [1, 1.1, 1] : 1
-          }}
-          transition={{ delay: i * 0.1, duration: 0.5 }}
-        >
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-            step >= 4 ? 'bg-green-500' : step >= 3 ? 'bg-blue-500' : 'bg-gray-600'
-          }`}>
-            <Building2 className="w-5 h-5 text-white" />
+    <div className="bg-white rounded-xl border border-gray-100 p-6">
+      {/* Progress Steps */}
+      <div className="flex items-center justify-between mb-6">
+        {steps.map((s, i) => (
+          <div key={s.id} className="flex items-center">
+            <motion.div
+              className={`flex flex-col items-center ${i < steps.length - 1 ? 'flex-1' : ''}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <motion.div
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
+                  step > s.id 
+                    ? 'bg-emerald-100 text-emerald-600' 
+                    : step === s.id 
+                      ? 'bg-blue-100 text-blue-600 ring-4 ring-blue-50' 
+                      : 'bg-gray-100 text-gray-400'
+                }`}
+                animate={step === s.id ? { scale: [1, 1.1, 1] } : {}}
+                transition={{ duration: 0.8, repeat: step === s.id ? Infinity : 0 }}
+              >
+                {step > s.id ? '✓' : s.icon}
+              </motion.div>
+              <span className={`text-xs mt-2 font-medium ${
+                step >= s.id ? 'text-gray-900' : 'text-gray-400'
+              }`}>
+                {s.label}
+              </span>
+            </motion.div>
+            
+            {/* Connector Line */}
+            {i < steps.length - 1 && (
+              <div className="flex-1 mx-2 h-0.5 bg-gray-200 relative overflow-hidden">
+                <motion.div
+                  className="absolute inset-y-0 left-0 bg-emerald-500"
+                  initial={{ width: '0%' }}
+                  animate={{ width: step > s.id ? '100%' : '0%' }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
+            )}
           </div>
-        </motion.div>
-      ))}
-
-      {/* Connection Lines */}
-      <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 5 }}>
-        {hospitalPositions.map((pos, i) => (
-          <motion.line
-            key={i}
-            x1="50%"
-            y1="50%"
-            x2={`${pos.x}%`}
-            y2={`${pos.y}%`}
-            stroke={step >= 3 ? '#06b6d4' : '#374151'}
-            strokeWidth="2"
-            strokeDasharray="5,5"
-            initial={{ pathLength: 0, opacity: 0.3 }}
-            animate={{ 
-              pathLength: step >= 3 ? 1 : 0,
-              opacity: step >= 3 ? 1 : 0.3
-            }}
-            transition={{ delay: i * 0.1, duration: 0.5 }}
-          />
         ))}
-      </svg>
-
-      {/* Data Packets Animation */}
-      <AnimatePresence>
-        {step >= 3 && step < 5 && hospitalPositions.map((pos, i) => (
+      </div>
+      
+      {/* Hospital Icons Row */}
+      <div className="flex justify-center gap-3 py-4 border-t border-gray-100">
+        {[1, 2, 3, 4, 5].map((i) => (
           <motion.div
-            key={`packet-${i}`}
-            className="absolute w-3 h-3 bg-cyan-400 rounded-full z-30"
-            style={{ left: '50%', top: '50%' }}
-            animate={{
-              left: [`50%`, `${pos.x}%`, `50%`],
-              top: [`50%`, `${pos.y}%`, `50%`],
-              scale: [1, 1.5, 1],
+            key={i}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+              step >= 3 
+                ? step >= 5 
+                  ? 'bg-emerald-100' 
+                  : 'bg-blue-100' 
+                : 'bg-gray-100'
+            }`}
+            initial={{ opacity: 0.5, scale: 0.9 }}
+            animate={{ 
+              opacity: step >= 3 ? 1 : 0.5,
+              scale: step >= 3 && step < 5 ? [0.9, 1, 0.9] : 1,
             }}
-            transition={{
-              duration: 1.5,
-              delay: i * 0.2,
-              repeat: Infinity,
-              ease: "easeInOut"
+            transition={{ 
+              delay: i * 0.1,
+              duration: 0.8,
+              repeat: step >= 3 && step < 5 ? Infinity : 0 
             }}
-          />
+          >
+            <Building2 className={`w-5 h-5 ${
+              step >= 3 
+                ? step >= 5 
+                  ? 'text-emerald-600' 
+                  : 'text-blue-600' 
+                : 'text-gray-400'
+            }`} />
+          </motion.div>
         ))}
-      </AnimatePresence>
-
-      {/* Status Text */}
-      <div className="absolute bottom-2 left-0 right-0 text-center">
+      </div>
+      
+      {/* Status Message */}
+      <div className="text-center pt-4 border-t border-gray-100">
         <motion.p 
-          className="text-cyan-400 text-sm font-medium"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+          className={`text-sm font-medium ${step >= 5 ? 'text-emerald-600' : 'text-blue-600'}`}
+          key={step}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          {step === 1 && '🔐 Authenticating...'}
-          {step === 2 && '🔍 Looking up patient index...'}
-          {step === 3 && '📡 Broadcasting to hospitals...'}
-          {step === 4 && '📥 Collecting responses...'}
-          {step >= 5 && '✅ Query complete!'}
+          {step === 1 && 'Verifying your credentials...'}
+          {step === 2 && 'Searching central patient index...'}
+          {step === 3 && 'Broadcasting query to hospitals...'}
+          {step === 4 && 'Receiving medical records...'}
+          {step >= 5 && 'All records retrieved successfully!'}
         </motion.p>
       </div>
     </div>
@@ -212,47 +213,108 @@ export default function PatientSearch() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Patient Search</h1>
-        <p className="text-gray-500">Search for patient records using their IC number</p>
-      </div>
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
+      >
+        <motion.div 
+          className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div 
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-violet-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 15, repeat: Infinity }}
+        />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <motion.div 
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <Search className="w-7 h-7" />
+            </motion.div>
+            <Badge className="bg-white/20 text-white border-0">Cross-Hospital Query</Badge>
+          </div>
+          <h1 className="text-3xl font-bold mb-2 drop-shadow-lg">Patient Search</h1>
+          <p className="text-blue-100 text-lg">Search patient records across the National Medical Network</p>
+        </div>
+      </motion.div>
 
-      {/* Search Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Enter Patient IC Number</CardTitle>
-          <CardDescription>
-            The system will query all connected hospitals for matching records
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSearch} className="flex gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="e.g., 880101-14-5678"
-                value={icNumber}
-                onChange={(e) => setIcNumber(e.target.value)}
-                disabled={isSearching}
-                className="text-lg"
-              />
-            </div>
-            <Button type="submit" disabled={isSearching} size="lg">
-              {isSearching ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Searching...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Search
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      {/* Search Form - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <motion.div 
+            className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
+            style={{ backgroundSize: '200% 100%' }}
+            animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+          />
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <CreditCard className="w-5 h-5 text-blue-600" />
+              </div>
+              Enter Patient IC Number
+            </CardTitle>
+            <CardDescription className="text-base">
+              The system will securely query all connected hospitals for matching records
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form onSubmit={handleSearch} className="flex gap-4">
+              <div className="flex-1 relative group">
+                <motion.div
+                  className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-violet-500 rounded-xl opacity-0 blur transition-all duration-300 group-hover:opacity-40"
+                />
+                <div className="relative">
+                  <Input
+                    placeholder="e.g., 880101-14-5678"
+                    value={icNumber}
+                    onChange={(e) => setIcNumber(e.target.value)}
+                    disabled={isSearching}
+                    className="text-lg h-14 px-5 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  type="submit" 
+                  disabled={isSearching} 
+                  size="lg"
+                  className="h-14 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 font-semibold"
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-5 w-5" />
+                      Search Network
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Query Animation with Network Visualization */}
       <AnimatePresence>
@@ -396,6 +458,6 @@ export default function PatientSearch() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }

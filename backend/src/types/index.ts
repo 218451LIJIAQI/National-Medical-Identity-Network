@@ -169,6 +169,8 @@ export interface CrossHospitalQueryResult {
   hospitals: HospitalQueryResult[];
   totalRecords: number;
   queryTime: number;
+  accessDenied?: boolean;
+  message?: string;
 }
 
 export interface HospitalQueryResult {

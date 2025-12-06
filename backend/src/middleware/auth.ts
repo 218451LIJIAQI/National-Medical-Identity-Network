@@ -30,7 +30,7 @@ export function verifyToken(token: string): JwtPayload | null {
 }
 
 // Authentication middleware
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -53,7 +53,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
   
   // Verify user still exists and is active
-  const user = getUserById(payload.userId);
+  const user = await getUserById(payload.userId);
   if (!user || !user.isActive) {
     res.status(401).json({
       success: false,
