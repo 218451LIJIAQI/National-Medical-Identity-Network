@@ -134,9 +134,9 @@ export interface PatientIndex {
 export interface AuditLog {
   id: string;
   timestamp: string;
-  action: 'query' | 'view' | 'create' | 'update' | 'login' | 'logout';
+  action: 'query' | 'view' | 'create' | 'update' | 'login' | 'logout' | 'emergency_access';
   actorId: string;
-  actorType: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin' | 'system';
+  actorType: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin' | 'system' | 'emergency';
   actorHospitalId?: string;
   targetIcNumber?: string;
   targetHospitalId?: string;

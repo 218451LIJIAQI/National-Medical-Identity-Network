@@ -59,6 +59,106 @@ router.get('/stats', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// Emergency Access Route (No Authentication Required)
+// ============================================================================
+
+// Emergency query - provides critical patient information without login
+// This is for emergency situations where healthcare providers need immediate access
+router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
+  const { icNumber } = req.params;
+  
+  try {
+    // Look up patient in central index
+    const patientIndex = await getPatientIndex(icNumber);
+    
+    if (!patientIndex || patientIndex.hospitals.length === 0) {
+      res.json({
+        success: true,
+        data: {
+          found: false,
+          icNumber,
+          message: 'Patient not found in any hospital',
+        },
+      });
+      return;
+    }
+    
+    // Get patient info from the first hospital that has records
+    let patientInfo: {
+      fullName: string;
+      bloodType: string;
+      allergies: string[];
+      chronicConditions: string[];
+      emergencyContact: string;
+      emergencyPhone: string;
+    } | null = null;
+    
+    for (const hospitalId of patientIndex.hospitals) {
+      const hospitalDb = getHospitalDb(hospitalId);
+      const patient = await hospitalDb.getPatient(icNumber);
+      if (patient) {
+        patientInfo = {
+          fullName: patient.fullName,
+          bloodType: patient.bloodType,
+          allergies: patient.allergies,
+          chronicConditions: patient.chronicConditions,
+          emergencyContact: patient.emergencyContact,
+          emergencyPhone: patient.emergencyPhone,
+        };
+        break;
+      }
+    }
+    
+    if (!patientInfo) {
+      res.json({
+        success: true,
+        data: {
+          found: false,
+          icNumber,
+          message: 'Patient data not available',
+        },
+      });
+      return;
+    }
+    
+    // Log emergency access (non-blocking, don't fail if logging fails)
+    try {
+      await createAuditLog({
+        timestamp: new Date().toISOString(),
+        action: 'emergency_access',
+        actorId: 'system',  // Use system user for anonymous access
+        actorType: 'system',
+        targetIcNumber: icNumber,
+        details: `Emergency access from IP: ${req.ip || 'unknown'}`,
+        ipAddress: req.ip || 'unknown',
+        success: true,
+      });
+    } catch (logError) {
+      console.warn('Failed to log emergency access:', logError);
+      // Continue even if logging fails - emergency access should not be blocked
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        found: true,
+        icNumber,
+        ...patientInfo,
+        hospitalsWithRecords: patientIndex.hospitals.length,
+        accessType: 'emergency',
+        warning: 'This is emergency access. Full audit trail has been recorded.',
+      },
+    });
+  } catch (error) {
+    console.error('Emergency access error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve emergency patient information',
+    });
+  }
+});
+
+// ============================================================================
 // Cross-Hospital Query Routes (Main Feature)
 // ============================================================================
 

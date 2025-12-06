@@ -41,63 +41,25 @@ export default function EmergencyAccess() {
     setLoading(true)
     
     try {
-      // Try to get patient info from API
-      const response = await centralApi.queryPatient(icNumber)
+      // Use emergency access API - no authentication required
+      const response = await centralApi.emergencyQuery(icNumber)
       
-      if (response.success && response.data) {
-        // Extract medications from all hospitals
-        const medications: { name: string; dosage: string }[] = []
-        response.data.hospitals.forEach((hospital: any) => {
-          hospital.records?.forEach((record: any) => {
-            record.prescriptions?.forEach((rx: any) => {
-              if (rx.isActive) {
-                medications.push({
-                  name: rx.medicationName,
-                  dosage: `${rx.dosage} ${rx.frequency}`,
-                })
-              }
-            })
-          })
-        })
-        
-        // Also try to get patient info
-        let patientName = 'Unknown Patient'
-        let bloodType = 'Unknown'
-        let allergies: string[] = []
-        let chronicConditions: string[] = []
-        let emergencyContact = { name: 'Not Available', relationship: '-', phone: '-' }
-        
-        try {
-          const patientRes = await centralApi.getPatient(icNumber)
-          if (patientRes.success && patientRes.data) {
-            const p = patientRes.data.patient as any
-            if (p) {
-              patientName = p.fullName || 'Unknown Patient'
-              bloodType = p.bloodType || 'Unknown'
-              allergies = p.allergies || []
-              chronicConditions = p.chronicConditions || []
-              if (p.emergencyContact) {
-                emergencyContact = {
-                  name: p.emergencyContact,
-                  relationship: 'Emergency Contact',
-                  phone: p.emergencyPhone || '-',
-                }
-              }
-            }
-          }
-        } catch {
-          // If patient info fails, continue with partial data
-        }
+      if (response.success && response.data && response.data.found) {
+        const data = response.data
         
         const emergencyData: EmergencyInfo = {
           icNumber: icNumber,
-          name: patientName,
-          bloodType: bloodType,
-          allergies: allergies.length > 0 ? allergies : ['None recorded'],
-          chronicConditions: chronicConditions.length > 0 ? chronicConditions : ['None recorded'],
-          emergencyContact,
-          currentMedications: medications.length > 0 ? medications : [
-            { name: 'No active medications', dosage: '-' }
+          name: data.fullName || 'Unknown Patient',
+          bloodType: data.bloodType || 'Unknown',
+          allergies: (data.allergies && data.allergies.length > 0) ? data.allergies : ['None recorded'],
+          chronicConditions: (data.chronicConditions && data.chronicConditions.length > 0) ? data.chronicConditions : ['None recorded'],
+          emergencyContact: {
+            name: data.emergencyContact || 'Not Available',
+            relationship: 'Emergency Contact',
+            phone: data.emergencyPhone || '-',
+          },
+          currentMedications: [
+            { name: 'Contact hospital for medication details', dosage: '-' }
           ],
           lastUpdated: new Date().toISOString(),
         }

@@ -107,6 +107,18 @@ export default function LoginPage() {
     { label: 'Dr. Maria Gonzales', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Pulmonology', ic: '810707-12-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
   ]
 
+  // Patient accounts - diverse patients across Malaysia
+  const patientAccounts = [
+    { label: 'Ahmad bin Abdullah', city: 'Kuala Lumpur', desc: 'Hypertension, Diabetes', ic: '880101-14-5678', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-emerald-500 via-teal-600 to-cyan-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
+    { label: 'Siti Nurhaliza binti Mohd', city: 'George Town', desc: 'Asthma', ic: '950320-10-1234', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-pink-500 via-rose-500 to-red-500', glowColor: 'shadow-pink-500/25', color: '#EC4899' },
+    { label: 'Tan Ah Kow', city: 'Johor Bahru', desc: 'Coronary Disease, CKD', ic: '550715-07-9999', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-amber-500 via-orange-500 to-red-500', glowColor: 'shadow-amber-500/25', color: '#F59E0B' },
+    { label: 'Raj Kumar a/l Muthu', city: 'Kuching', desc: 'Epilepsy', ic: '900808-01-5555', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-violet-500 via-purple-500 to-fuchsia-500', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
+    { label: 'Aishah binti Mohd Yusof', city: 'Kota Kinabalu', desc: 'Asthma', ic: '820425-12-7777', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-blue-500 via-indigo-500 to-violet-500', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
+    { label: 'Lee Mei Fong', city: 'Kuala Lumpur', desc: 'Rheumatoid Arthritis', ic: '780312-14-2345', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-cyan-500 via-teal-500 to-emerald-500', glowColor: 'shadow-cyan-500/25', color: '#06B6D4' },
+    { label: 'Lim Wei Ming (Doctor)', city: 'Kuala Lumpur', desc: 'Hyperlipidemia - Also a Doctor', ic: '750101-14-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
+    { label: 'Tan Mei Ling (Doctor)', city: 'George Town', desc: 'Migraine - Also a Doctor', ic: '760612-07-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
+  ]
+
   // Hospital Admin accounts - each hospital has unique style
   const hospitalAdminAccounts = [
     { label: 'KL General Admin', hospital: 'KL General Hospital', city: 'Kuala Lumpur', desc: 'Hospital Administrator', ic: 'admin-kl', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-blue-600 via-indigo-600 to-violet-600', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
@@ -116,9 +128,8 @@ export default function LoginPage() {
     { label: 'Queen Elizabeth Admin', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Hospital Administrator', ic: 'admin-kk', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
   ]
 
-  // Other demo accounts (non-doctor, non-hospital-admin)
+  // Other demo accounts (Central Admin only)
   const demoAccounts = [
-    { label: 'Patient', desc: 'Ahmad bin Abdullah', ic: '880101-14-5678', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-slate-700', glowColor: 'shadow-slate-500/25' },
     { label: 'Central Admin', desc: 'National Network', ic: 'central-admin', password: 'central123', role: 'central_admin', icon: Network, bgGradient: 'from-cyan-500 via-blue-500 to-indigo-600', glowColor: 'shadow-cyan-500/25' },
   ]
 
@@ -134,10 +145,12 @@ export default function LoginPage() {
     },
   }
 
-  // Check if selected IC is a doctor or hospital admin
+  // Check if selected IC is a doctor, hospital admin, or patient
   const selectedDoctor = doctorAccounts.find(d => d.ic === icNumber)
   const selectedHospitalAdmin = hospitalAdminAccounts.find(a => a.ic === icNumber)
+  const selectedPatient = patientAccounts.find(p => p.ic === icNumber)
   const [showHospitalAdminModal, setShowHospitalAdminModal] = useState(false)
+  const [showPatientModal, setShowPatientModal] = useState(false)
 
   const fillDemo = (demo: { ic: string; password: string; role: string }) => {
     setIcNumber(demo.ic)
@@ -155,6 +168,11 @@ export default function LoginPage() {
     setShowHospitalAdminModal(false)
   }
 
+  const selectPatient = (patient: typeof patientAccounts[0]) => {
+    fillDemo(patient)
+    setShowPatientModal(false)
+  }
+
   // Handle role selection for multi-role users
   const handleRoleSelect = async (role: string) => {
     if (!pendingLogin) return
@@ -162,24 +180,16 @@ export default function LoginPage() {
     setShowRoleSelection(false)
     setSelectedRole(role)
     
-    const multiRoleUser = multiRoleUsers[pendingLogin.ic]
-    
     if (role === 'patient') {
-      // For patient role: use the existing patient demo account
-      // This ensures proper backend authentication
+      // For patient role: use the doctor's own IC as patient
+      // Doctors now have their own patient accounts in the database
+      // Use the same password as the doctor account (unified password per IC)
       try {
-        const response = await authApi.login('880101-14-5678', 'patient123', 'patient')
+        const response = await authApi.login(pendingLogin.ic, pendingLogin.password, 'patient')
         
         if (response.success && response.data) {
           const { token, user } = response.data
-          
-          // Override the name to show the doctor's name as patient
-          const patientUser = {
-            ...user,
-            fullName: multiRoleUser?.doctorInfo.label.replace('Dr. ', '') || (user as any).fullName,
-          }
-          
-          login(token, patientUser as any)
+          login(token, user as any)
           
           toast({
             title: 'Welcome!',
@@ -1035,6 +1045,57 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
+              {/* Patient Selection Button */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setShowPatientModal(true)}
+                className={`relative p-4 rounded-2xl cursor-pointer transition-all duration-300 overflow-hidden ${
+                  selectedPatient
+                    ? `bg-gradient-to-br ${selectedPatient.bgGradient} text-white shadow-xl ${selectedPatient.glowColor}` 
+                    : 'bg-gradient-to-br from-gray-50 to-gray-100 hover:from-emerald-50 hover:to-teal-50 border border-gray-200 hover:border-emerald-200'
+                }`}
+              >
+                {selectedPatient && (
+                  <motion.div
+                    className="absolute inset-0 opacity-30"
+                    animate={{ 
+                      background: [
+                        'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.3) 0%, transparent 50%)',
+                        'radial-gradient(circle at 80% 80%, rgba(255,255,255,0.3) 0%, transparent 50%)',
+                        'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.3) 0%, transparent 50%)',
+                      ]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  />
+                )}
+                
+                <div className="relative flex items-start gap-3">
+                  <motion.div 
+                    className={`p-2.5 rounded-xl ${selectedPatient ? 'bg-white/20' : 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500'} shadow-lg`}
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <User className="w-5 h-5 text-white" />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-sm ${selectedPatient ? 'text-white' : 'text-gray-900'}`}>
+                      {selectedPatient ? selectedPatient.label : 'Patient'}
+                    </p>
+                    <p className={`text-xs truncate ${selectedPatient ? 'text-white/80' : 'text-gray-500'}`}>
+                      {selectedPatient ? selectedPatient.desc : '8 patients available'}
+                    </p>
+                    <p className={`text-xs font-mono mt-1 ${selectedPatient ? 'text-white/70' : 'text-gray-400'}`}>
+                      {selectedPatient ? selectedPatient.ic : 'Click to select →'}
+                    </p>
+                  </div>
+                  <ChevronRight className={`w-5 h-5 ${selectedPatient ? 'text-white/70' : 'text-gray-400'}`} />
+                </div>
+              </motion.div>
+
               {/* Other Demo Accounts */}
               <AnimatePresence>
                 {demoAccounts.map((demo, index) => (
@@ -1282,6 +1343,103 @@ export default function LoginPage() {
                         <ChevronRight 
                           className="w-5 h-5 text-gray-300" 
                           style={{ color: icNumber === admin.ic ? admin.color : undefined }}
+                        />
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Patient Selection Modal */}
+      <AnimatePresence>
+        {showPatientModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowPatientModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="relative p-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white">
+                <button
+                  onClick={() => setShowPatientModal(false)}
+                  className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
+                  title="Close"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+                    <User className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Select Patient</h3>
+                    <p className="text-sm text-white/80">Choose from 8 patients</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient List */}
+              <div className="p-4 max-h-[400px] overflow-y-auto">
+                <div className="space-y-3">
+                  {patientAccounts.map((patient, index) => (
+                    <motion.div
+                      key={patient.ic}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => selectPatient(patient)}
+                      className={`relative p-4 rounded-2xl cursor-pointer transition-all duration-300 border-2 ${
+                        icNumber === patient.ic
+                          ? 'border-transparent bg-gradient-to-r shadow-lg'
+                          : 'border-gray-100 hover:border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                      style={{
+                        background: icNumber === patient.ic 
+                          ? `linear-gradient(135deg, ${patient.color}15, ${patient.color}05)` 
+                          : undefined,
+                        borderColor: icNumber === patient.ic ? patient.color : undefined,
+                      }}
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Patient Color Badge */}
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg"
+                          style={{ backgroundColor: patient.color }}
+                        >
+                          <User className="w-5 h-5" />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900">{patient.label}</p>
+                          <p className="text-sm text-gray-600">{patient.desc}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <MapPin className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-500">{patient.city}</span>
+                            <span className="text-xs text-gray-300">•</span>
+                            <span className="text-xs font-mono text-gray-400">{patient.ic}</span>
+                          </div>
+                        </div>
+
+                        <ChevronRight 
+                          className="w-5 h-5 text-gray-300" 
+                          style={{ color: icNumber === patient.ic ? patient.color : undefined }}
                         />
                       </div>
                     </motion.div>

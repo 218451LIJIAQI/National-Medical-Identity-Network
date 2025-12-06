@@ -100,9 +100,19 @@ export async function registerHospital(hospital: Hospital): Promise<void> {
 // User Operations
 // ============================================================================
 
-export async function getUserByIc(icNumber: string): Promise<User | null> {
+export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
+  const where: { icNumber: string; isActive: boolean; role?: string } = { 
+    icNumber, 
+    isActive: true 
+  };
+  
+  // If role is specified, filter by role (for multi-role users like doctors who are also patients)
+  if (role) {
+    where.role = role;
+  }
+  
   const user = await prisma.user.findFirst({
-    where: { icNumber, isActive: true },
+    where,
   });
   
   if (!user) return null;

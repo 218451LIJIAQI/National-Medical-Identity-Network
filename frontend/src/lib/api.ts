@@ -34,9 +34,10 @@ function getToken(): string | null {
 
 async function fetchApi<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  skipAuth: boolean = false
 ): Promise<ApiResponse<T>> {
-  const token = getToken()
+  const token = skipAuth ? null : getToken()
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -125,6 +126,23 @@ export const centralApi = {
       totalRecords: number
       queryTime: number
     }>(`/central/query/${icNumber}`),
+
+  // Emergency access - no authentication required
+  emergencyQuery: (icNumber: string) =>
+    fetchApi<{
+      found: boolean
+      icNumber: string
+      fullName?: string
+      bloodType?: string
+      allergies?: string[]
+      chronicConditions?: string[]
+      emergencyContact?: string
+      emergencyPhone?: string
+      hospitalsWithRecords?: number
+      accessType?: string
+      warning?: string
+      message?: string
+    }>(`/central/emergency/${icNumber}`, { method: 'GET' }, true),
 
   getPatient: (icNumber: string) =>
     fetchApi<{

@@ -275,6 +275,35 @@ async function main() {
       allergies: JSON.stringify([]),
       chronicConditions: JSON.stringify(['Polycystic Ovary Syndrome']),
     },
+    // ========== Doctors who are also patients ==========
+    {
+      icNumber: '750101-14-5001', // Dr. Lim Wei Ming
+      fullName: 'Lim Wei Ming',
+      dateOfBirth: new Date('1975-01-01'),
+      gender: 'male',
+      bloodType: 'A+',
+      phone: '+60 12-888 9999',
+      email: 'lim.weiming@personal.com',
+      address: '88 Jalan Damansara, 50490 Kuala Lumpur',
+      emergencyContact: 'Lim Siew Ling',
+      emergencyPhone: '+60 12-777 8888',
+      allergies: JSON.stringify([]),
+      chronicConditions: JSON.stringify(['Mild Hyperlipidemia']),
+    },
+    {
+      icNumber: '760612-07-5001', // Dr. Tan Mei Ling
+      fullName: 'Tan Mei Ling',
+      dateOfBirth: new Date('1976-06-12'),
+      gender: 'female',
+      bloodType: 'O+',
+      phone: '+60 13-999 0000',
+      email: 'tan.meiling@personal.com',
+      address: '56 Lorong Gurney, 10250 George Town',
+      emergencyContact: 'Tan Boon Hock',
+      emergencyPhone: '+60 13-888 9999',
+      allergies: JSON.stringify(['Sulfonamides']),
+      chronicConditions: JSON.stringify(['Migraine']),
+    },
   ];
 
   for (const p of patients) {
@@ -297,6 +326,9 @@ async function main() {
     { icNumber: '850928-01-4567', hospitals: ['hospital-jb'] },
     { icNumber: '700505-13-1111', hospitals: ['hospital-kuching', 'hospital-kk'] },
     { icNumber: '980101-12-9999', hospitals: ['hospital-kk'] },
+    // Doctors as patients
+    { icNumber: '750101-14-5001', hospitals: ['hospital-penang', 'hospital-jb'] }, // Dr. Lim Wei Ming
+    { icNumber: '760612-07-5001', hospitals: ['hospital-kl'] }, // Dr. Tan Mei Ling
   ];
 
   for (const pi of patientHospitals) {
@@ -705,6 +737,65 @@ async function main() {
         { testType: 'Metabolic', testName: 'Fasting Insulin', result: '18', unit: 'µU/mL', referenceRange: '<12', isAbnormal: true, reportDate: new Date('2024-07-10'), notes: 'Insulin resistance' },
       ],
     },
+
+    // ========== Doctors as Patients - Medical Records ==========
+    // Dr. Lim Wei Ming (IC: 750101-14-5001) - seen at other hospitals
+    {
+      icNumber: '750101-14-5001',
+      hospitalId: 'hospital-penang',
+      doctorId: 'doc-penang-001',
+      visitDate: new Date('2024-02-15'),
+      visitType: 'outpatient',
+      chiefComplaint: 'Annual health screening follow-up',
+      diagnosis: JSON.stringify(['Hyperlipidemia', 'Borderline Hypertension']),
+      diagnosisCodes: JSON.stringify(['E78.5', 'R03.0']),
+      symptoms: JSON.stringify(['None - routine checkup']),
+      notes: 'Elevated LDL cholesterol. Started on statin therapy. Lifestyle modifications advised including diet and exercise.',
+      vitalSigns: JSON.stringify({ bloodPressureSystolic: 138, bloodPressureDiastolic: 88, heartRate: 72, temperature: 36.5, weight: 78, height: 175 }),
+      prescriptions: [
+        { medicationName: 'Atorvastatin', dosage: '20mg', frequency: 'Once nightly', duration: '3 months', quantity: 90, instructions: 'Take at bedtime' },
+      ],
+      labReports: [
+        { testType: 'Lipid Panel', testName: 'Total Cholesterol', result: '6.2', unit: 'mmol/L', referenceRange: '<5.2', isAbnormal: true, reportDate: new Date('2024-02-15'), notes: 'Elevated' },
+        { testType: 'Lipid Panel', testName: 'LDL Cholesterol', result: '4.1', unit: 'mmol/L', referenceRange: '<2.6', isAbnormal: true, reportDate: new Date('2024-02-15'), notes: 'High LDL' },
+        { testType: 'Lipid Panel', testName: 'HDL Cholesterol', result: '1.2', unit: 'mmol/L', referenceRange: '>1.0', isAbnormal: false, reportDate: new Date('2024-02-15'), notes: '' },
+      ],
+    },
+    {
+      icNumber: '750101-14-5001',
+      hospitalId: 'hospital-jb',
+      doctorId: 'doc-jb-002',
+      visitDate: new Date('2024-08-20'),
+      visitType: 'outpatient',
+      chiefComplaint: 'Gastric discomfort',
+      diagnosis: JSON.stringify(['Gastroesophageal Reflux Disease']),
+      diagnosisCodes: JSON.stringify(['K21.0']),
+      symptoms: JSON.stringify(['Heartburn', 'Acid reflux after meals', 'Occasional epigastric pain']),
+      notes: 'Work-related stress contributing to symptoms. PPI therapy initiated. Stress management counseling recommended.',
+      vitalSigns: JSON.stringify({ bloodPressureSystolic: 132, bloodPressureDiastolic: 84, heartRate: 70, temperature: 36.6, weight: 77, height: 175 }),
+      prescriptions: [
+        { medicationName: 'Esomeprazole', dosage: '40mg', frequency: 'Once daily', duration: '4 weeks', quantity: 28, instructions: 'Take 30 minutes before breakfast' },
+      ],
+    },
+
+    // Dr. Tan Mei Ling (IC: 760612-07-5001) - seen at KL hospital
+    {
+      icNumber: '760612-07-5001',
+      hospitalId: 'hospital-kl',
+      doctorId: 'doc-kl-001',
+      visitDate: new Date('2024-05-10'),
+      visitType: 'outpatient',
+      chiefComplaint: 'Recurrent migraine headaches',
+      diagnosis: JSON.stringify(['Migraine without Aura', 'Tension-type Headache']),
+      diagnosisCodes: JSON.stringify(['G43.009', 'G44.209']),
+      symptoms: JSON.stringify(['Throbbing unilateral headache', 'Photophobia', 'Nausea during episodes', 'Neck tension']),
+      notes: 'Migraine frequency increased to 4-5 episodes per month. Started on prophylactic therapy. Maintain headache diary.',
+      vitalSigns: JSON.stringify({ bloodPressureSystolic: 118, bloodPressureDiastolic: 76, heartRate: 68, temperature: 36.5, weight: 55, height: 162 }),
+      prescriptions: [
+        { medicationName: 'Propranolol', dosage: '40mg', frequency: 'Twice daily', duration: '3 months', quantity: 180, instructions: 'Prophylactic - do not stop abruptly' },
+        { medicationName: 'Sumatriptan', dosage: '50mg', frequency: 'As needed', duration: '3 months', quantity: 12, instructions: 'Take at onset of migraine. Max 2 tablets per day' },
+      ],
+    },
   ];
 
   let recordCount = 0;
@@ -741,11 +832,19 @@ async function main() {
   const ADMIN_PWD = hashPassword('admin123');
   const CENTRAL_PWD = hashPassword('central123');
 
+  // ICs of doctors who are also patients - they should use the same password (doctor123)
+  const doctorPatientICs = ['750101-14-5001', '760612-07-5001'];
+  
   const users = [
     // Doctors
     ...doctors.map(d => ({ icNumber: d.icNumber, role: 'doctor', hospitalId: d.hospitalId, passwordHash: DOCTOR_PWD })),
-    // Patients
-    ...patients.map(p => ({ icNumber: p.icNumber, role: 'patient', hospitalId: 'hospital-kl', passwordHash: PATIENT_PWD })),
+    // Patients - use DOCTOR_PWD for doctors who are also patients, PATIENT_PWD for others
+    ...patients.map(p => ({ 
+      icNumber: p.icNumber, 
+      role: 'patient', 
+      hospitalId: 'hospital-kl', 
+      passwordHash: doctorPatientICs.includes(p.icNumber) ? DOCTOR_PWD : PATIENT_PWD 
+    })),
     // Hospital admins
     { icNumber: 'admin-kl', role: 'hospital_admin', hospitalId: 'hospital-kl', passwordHash: ADMIN_PWD },
     { icNumber: 'admin-penang', role: 'hospital_admin', hospitalId: 'hospital-penang', passwordHash: ADMIN_PWD },

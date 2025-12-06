@@ -19,7 +19,9 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
     
-    const user = await getUserByIc(icNumber);
+    // If role is specified, search for user with that specific role
+    // This supports multi-role users (e.g., doctors who are also patients)
+    const user = await getUserByIc(icNumber, role || undefined);
     
     if (!user) {
       res.status(401).json({
@@ -33,15 +35,6 @@ router.post('/login', async (req: Request, res: Response) => {
       res.status(401).json({
         success: false,
         error: 'Invalid credentials',
-      });
-      return;
-    }
-    
-    // Verify role matches if specified
-    if (role && user.role !== role) {
-      res.status(401).json({
-        success: false,
-        error: 'Invalid role for this account',
       });
       return;
     }
