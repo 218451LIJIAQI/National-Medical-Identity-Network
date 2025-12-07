@@ -617,7 +617,7 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
             // Look up doctor by IC number from their hospital database
             try {
               const hospitalDb = getHospitalDb(log.actorHospitalId);
-              const doctor = await hospitalDb.getDoctor(user.icNumber);
+              const doctor = await hospitalDb.getDoctorByIc(user.icNumber);
               if (doctor) {
                 actorName = doctor.fullName;
               } else {

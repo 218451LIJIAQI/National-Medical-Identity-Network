@@ -85,22 +85,16 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     }
   }
 
-  // Debug logging - use string interpolation for clearer output
-  console.log(`[ProtectedRoute] hydrated=${_hasHydrated} auth=${effectiveAuth} role=${effectiveUser?.role} allowed=${allowedRoles?.join(',')} fromLS=${!user && !!effectiveUser}`)
-
   // Wait for hydration before checking auth
   if (!_hasHydrated) {
-    console.log('[ProtectedRoute] Waiting for hydration...')
     return <PremiumLoader />
   }
 
   if (!effectiveAuth) {
-    console.log('[ProtectedRoute] Not authenticated, redirecting to /login')
     return <Navigate to="/login" replace />
   }
 
   if (allowedRoles && effectiveUser && !allowedRoles.includes(effectiveUser.role)) {
-    console.log('[ProtectedRoute] Role mismatch:', effectiveUser.role, 'not in', allowedRoles, '- redirecting to /')
     return <Navigate to="/" replace />
   }
 
