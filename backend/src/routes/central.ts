@@ -16,7 +16,7 @@ import { getHospitalDb } from '../database/hospital';
 import { authenticate, authorize } from '../middleware/auth';
 import { HOSPITALS, DRUG_INTERACTIONS } from '../config';
 import { CrossHospitalQueryResult, QueryFlowStep, HospitalQueryResult, DrugInteraction } from '../types';
-import prisma from '../database/prisma';
+// Note: Using multi-database architecture, no direct prisma import needed
 
 const router = Router();
 
@@ -613,27 +613,22 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
       try {
         const user = await getUserById(log.actorId);
         if (user && user.icNumber) {
-          if (log.actorType === 'doctor') {
-            // Look up doctor by IC number
-            const doctor = await prisma.doctor.findFirst({
-              where: { icNumber: user.icNumber }
-            });
-            if (doctor) {
-              actorName = doctor.fullName;
-            } else {
-              // Fallback: show as "Dr. [IC Number]"
+          if (log.actorType === 'doctor' && log.actorHospitalId) {
+            // Look up doctor by IC number from their hospital database
+            try {
+              const hospitalDb = getHospitalDb(log.actorHospitalId);
+              const doctor = await hospitalDb.getDoctor(user.icNumber);
+              if (doctor) {
+                actorName = doctor.fullName;
+              } else {
+                actorName = `Dr. ${user.icNumber}`;
+              }
+            } catch {
               actorName = `Dr. ${user.icNumber}`;
             }
           } else if (log.actorType === 'patient') {
-            // Look up patient by IC number
-            const patient = await prisma.patient.findFirst({
-              where: { icNumber: user.icNumber }
-            });
-            if (patient) {
-              actorName = patient.fullName;
-            } else {
-              actorName = `Patient ${user.icNumber}`;
-            }
+            // For patients, just show formatted name
+            actorName = `Patient ${user.icNumber}`;
           } else if (log.actorType === 'hospital_admin') {
             actorName = `Hospital Admin`;
           } else if (log.actorType === 'central_admin') {
@@ -706,11 +701,14 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
       
       if (log.targetIcNumber) {
         try {
-          const patient = await prisma.patient.findFirst({
-            where: { icNumber: log.targetIcNumber }
-          });
-          if (patient) {
-            patientName = patient.fullName;
+          // Get patient from any hospital that has their records
+          const patientIndex = await getPatientIndex(log.targetIcNumber);
+          if (patientIndex && patientIndex.hospitals.length > 0) {
+            const hospitalDb = getHospitalDb(patientIndex.hospitals[0]);
+            const patient = await hospitalDb.getPatient(log.targetIcNumber);
+            if (patient) {
+              patientName = patient.fullName;
+            }
           }
         } catch (err) {
           // Ignore lookup errors
