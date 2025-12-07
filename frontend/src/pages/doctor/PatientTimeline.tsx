@@ -251,83 +251,150 @@ export default function PatientTimeline() {
         </Card>
       </motion.div>
 
-      {/* Timeline */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Medical Records Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {records.map((record) => (
-              <div
-                key={record.id}
-                className={`p-4 border rounded-lg ${record.isReadOnly ? 'border-l-4 border-l-gray-400' : 'border-l-4 border-l-green-500'}`}
-                style={{ borderLeftColor: record.isReadOnly ? undefined : getHospitalColor(record.hospitalId) }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <Building2 
-                      className="h-5 w-5 mt-1" 
-                      style={{ color: getHospitalColor(record.hospitalId) }}
-                    />
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 rounded text-xs ${getHospitalBadgeClass(record.hospitalId)}`}>
-                          {record.hospitalName}
-                        </span>
-                        {record.isReadOnly && (
-                          <Badge variant="outline" className="text-xs">Read Only</Badge>
-                        )}
-                      </div>
-                      <h4 className="font-medium">{record.diagnosis.join(', ')}</h4>
-                      <p className="text-sm text-gray-500">Doctor ID: {record.doctorId}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(record.visitDate)}
-                    </div>
-                    <Badge variant={record.visitType === 'emergency' ? 'destructive' : 'secondary'} className="mt-1">
-                      {record.visitType}
-                    </Badge>
-                  </div>
-                </div>
+      {/* Timeline - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white border-b border-gray-100">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/25">
+                <FileText className="h-5 w-5 text-white" />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Active Medications */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Pill className="h-5 w-5" />
-            Active Medications
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            {medications.length === 0 ? (
-              <p className="text-gray-500 col-span-2 text-center py-4">No active medications found</p>
-            ) : (
-              medications.map((med, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">{med.name}</p>
-                    <p className="text-sm text-gray-500">{med.frequency}</p>
-                  </div>
-                  <Badge variant="outline">{med.hospital}</Badge>
+              Medical Records Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {records.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No medical records found</p>
                 </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              ) : records.map((record, index) => (
+                <motion.div
+                  key={record.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 + index * 0.05 }}
+                  whileHover={{ scale: 1.01, x: 4 }}
+                  className={`p-5 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
+                    record.isReadOnly 
+                      ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200' 
+                      : 'bg-gradient-to-r from-white to-blue-50/30 border-blue-200'
+                  }`}
+                  style={{ borderLeftWidth: 4, borderLeftColor: getHospitalColor(record.hospitalId) }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <motion.div 
+                        className="p-3 rounded-xl shadow-md"
+                        style={{ backgroundColor: `${getHospitalColor(record.hospitalId)}15` }}
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                      >
+                        <Building2 
+                          className="h-6 w-6" 
+                          style={{ color: getHospitalColor(record.hospitalId) }}
+                        />
+                      </motion.div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span 
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${getHospitalBadgeClass(record.hospitalId)}`}
+                          >
+                            {record.hospitalName}
+                          </span>
+                          {record.isReadOnly && (
+                            <Badge variant="outline" className="text-xs rounded-full px-3 bg-gray-100">
+                              🔒 Read Only
+                            </Badge>
+                          )}
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-lg">{record.diagnosis.join(', ')}</h4>
+                        <p className="text-sm text-gray-500 mt-1">Doctor ID: {record.doctorId}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
+                        <Calendar className="h-4 w-4" />
+                        {formatDate(record.visitDate)}
+                      </div>
+                      <Badge 
+                        className={`mt-2 rounded-full px-4 ${
+                          record.visitType === 'emergency' 
+                            ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-200' 
+                            : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {record.visitType}
+                      </Badge>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Active Medications - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+          <CardHeader className="bg-gradient-to-r from-emerald-50/50 to-white border-b border-gray-100">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25">
+                <Pill className="h-5 w-5 text-white" />
+              </div>
+              Active Medications
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              {medications.length === 0 ? (
+                <div className="col-span-2 text-center py-12 text-gray-500">
+                  <Pill className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No active medications found</p>
+                </div>
+              ) : (
+                medications.map((med, i) => (
+                  <motion.div 
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5 + i * 0.05 }}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    className="flex items-center justify-between p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-100 hover:shadow-lg hover:border-emerald-200 transition-all duration-300"
+                  >
+                    <div className="flex items-center gap-4">
+                      <motion.div
+                        className="p-3 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-md shadow-emerald-200"
+                        whileHover={{ rotate: 10 }}
+                      >
+                        <Pill className="w-5 h-5 text-white" />
+                      </motion.div>
+                      <div>
+                        <p className="font-bold text-gray-900">{med.name}</p>
+                        <p className="text-sm text-emerald-600 font-medium">{med.frequency}</p>
+                      </div>
+                    </div>
+                    <Badge className="rounded-full px-4 py-1.5 bg-white/80 text-emerald-700 border border-emerald-200 font-medium shadow-sm">
+                      {med.hospital}
+                    </Badge>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   )
 }

@@ -634,9 +634,10 @@ export default function HospitalVerification() {
                     />
                     <Button
                       type="button"
+                      variant="outline"
                       onClick={handleIcScan}
                       disabled={isLoading}
-                      className="relative w-full h-14 bg-white border-2 border-gray-200 hover:border-gray-300 rounded-xl transition-all duration-300 text-gray-700 hover:shadow-lg"
+                      className="relative w-full h-14 hover:border-gray-300 rounded-xl text-gray-700 hover:shadow-lg"
                     >
                       <div className="flex items-center justify-center gap-3">
                         <div className="relative">

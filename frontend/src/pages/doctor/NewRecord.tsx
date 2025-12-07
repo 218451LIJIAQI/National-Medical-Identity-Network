@@ -300,13 +300,13 @@ export default function NewRecord() {
                 <select 
                   id="visitType"
                   title="Visit Type"
-                  className="w-full p-2 border rounded-md"
+                  className="w-full h-12 px-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none cursor-pointer"
                   value={formData.visitType}
                   onChange={(e) => setFormData({ ...formData, visitType: e.target.value })}
                 >
-                  <option value="outpatient">Outpatient</option>
-                  <option value="inpatient">Inpatient</option>
-                  <option value="emergency">Emergency</option>
+                  <option value="outpatient">🏥 Outpatient</option>
+                  <option value="inpatient">🛏️ Inpatient</option>
+                  <option value="emergency">🚨 Emergency</option>
                 </select>
               </div>
             </div>
@@ -416,7 +416,7 @@ export default function NewRecord() {
               <Label htmlFor="chiefComplaint">Chief Complaint</Label>
               <textarea 
                 id="chiefComplaint"
-                className="w-full p-2 border rounded-md" 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400" 
                 rows={2} 
                 placeholder="Patient's main reason for visit..."
                 value={formData.chiefComplaint}
@@ -452,7 +452,7 @@ export default function NewRecord() {
               <Label htmlFor="notes">Clinical Notes</Label>
               <textarea 
                 id="notes"
-                className="w-full p-2 border rounded-md" 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400" 
                 rows={4} 
                 placeholder="Detailed clinical notes, examination findings, treatment plan..."
                 value={formData.notes}
@@ -460,28 +460,38 @@ export default function NewRecord() {
               />
             </div>
 
-            {/* Submit Buttons */}
-            <div className="flex justify-end gap-4 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={saving}
-                className={`bg-gradient-to-r ${theme.buttonGradient} shadow-lg`}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Record
-                  </>
-                )}
-              </Button>
+            {/* Submit Buttons - Premium Design */}
+            <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => navigate(-1)} 
+                  disabled={saving}
+                  className="h-12 px-6 rounded-xl border-2 font-semibold"
+                >
+                  Cancel
+                </Button>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
+                <Button 
+                  type="submit" 
+                  disabled={saving}
+                  className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-xl ${theme.shadowColor}/40 hover:shadow-2xl font-semibold transition-all`}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Saving Record...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-5 w-5" />
+                      Save Medical Record
+                    </>
+                  )}
+                </Button>
+              </motion.div>
             </div>
             </form>
           </CardContent>

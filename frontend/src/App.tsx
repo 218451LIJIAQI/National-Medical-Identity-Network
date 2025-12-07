@@ -14,15 +14,30 @@ import LandingPage from '@/pages/LandingV2'
 import LoginPage from '@/pages/Login'
 import DoctorDashboard from '@/pages/doctor/dashboards'
 import PatientSearch from '@/pages/doctor/PatientSearch'
+import HospitalWorkstation from '@/pages/doctor/HospitalWorkstation'
 import PatientTimeline from '@/pages/doctor/PatientTimeline'
 import NewRecord from '@/pages/doctor/NewRecord'
 import NewRecordSearch from '@/pages/doctor/NewRecordSearch'
+import QueuePage from '@/pages/doctor/QueuePage'
+import PrescriptionPage from '@/pages/doctor/PrescriptionPage'
+import LabOrdersPage from '@/pages/doctor/LabOrdersPage'
+import MCPage from '@/pages/doctor/MCPage'
+import ReferralPage from '@/pages/doctor/ReferralPage'
+import AppointmentsPage from '@/pages/doctor/AppointmentsPage'
+import RadiologyPage from '@/pages/doctor/RadiologyPage'
+import NursingPage from '@/pages/doctor/NursingPage'
+import BillingPage from '@/pages/doctor/BillingPage'
 import PatientDashboard from '@/pages/patient/Dashboard'
 import PatientRecords from '@/pages/patient/Records'
 import PatientPrivacy from '@/pages/patient/Privacy'
 import HospitalAdminDashboard from '@/pages/admin/HospitalAdmin'
 import CentralAdminDashboard from '@/pages/admin/CentralAdmin'
 import AuditLogs from '@/pages/admin/AuditLogs'
+import StaffPage from '@/pages/admin/StaffPage'
+import BedPage from '@/pages/admin/BedPage'
+import InventoryPage from '@/pages/admin/InventoryPage'
+import FinancePage from '@/pages/admin/FinancePage'
+import DepartmentPage from '@/pages/admin/DepartmentPage'
 import EmergencyAccess from '@/pages/EmergencyAccess'
 import AboutPage from '@/pages/About'
 import HospitalVerification from '@/pages/HospitalVerification'
@@ -119,6 +134,16 @@ function App() {
         {/* Hospital Verification - Second layer authentication (standalone, no AuthLayout redirect) */}
         <Route path="/verify" element={<HospitalVerification />} />
 
+        {/* Hospital Workstation - Full system (standalone) */}
+        <Route
+          path="/doctor/workstation"
+          element={
+            <ProtectedRoute allowedRoles={['doctor']}>
+              <HospitalWorkstation />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Doctor routes - Using Hospital-specific layouts */}
         <Route element={<HospitalLayout />}>
           <Route
@@ -161,6 +186,80 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Hospital Module Routes */}
+          <Route
+            path="/doctor/queue"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <QueuePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/prescription"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <PrescriptionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/lab"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <LabOrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/mc"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <MCPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/referral"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <ReferralPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/appointments"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <AppointmentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/radiology"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <RadiologyPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/nursing"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <NursingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/billing"
+            element={
+              <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <BillingPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Hospital Admin routes - Also use hospital-specific layouts */}
           <Route
@@ -176,6 +275,46 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['central_admin', 'hospital_admin']}>
                 <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/staff"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <StaffPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/beds"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <BedPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/inventory"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <InventoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/finance"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <FinancePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/departments"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <DepartmentPage />
               </ProtectedRoute>
             }
           />

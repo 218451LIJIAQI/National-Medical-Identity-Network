@@ -1,22 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Building2, Shield, Users, ArrowRight, CheckCircle, Lock, Globe,
-  CreditCard, Scan, Type, Moon, Sun, Wifi, Database, Network, Activity
+  CreditCard, Scan, Type, Moon, Sun, Database, Network, Activity,
+  Sparkles, Heart, Zap, Star, ChevronRight, Award
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSettingsStore } from '@/store/settings'
 import { translations, type Language } from '@/lib/i18n'
 
 const hospitals = [
-  { id: 'hospital-kl', name: 'KL General Hospital', city: 'Kuala Lumpur', color: '#3B82F6' },
-  { id: 'hospital-penang', name: 'Penang General Hospital', city: 'George Town', color: '#10B981' },
-  { id: 'hospital-jb', name: 'Sultanah Aminah Hospital', city: 'Johor Bahru', color: '#F59E0B' },
-  { id: 'hospital-sarawak', name: 'Sarawak General Hospital', city: 'Kuching', color: '#8B5CF6' },
-  { id: 'hospital-sabah', name: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', color: '#EF4444' },
+  { id: 'hospital-kl', name: 'KL General Hospital', city: 'Kuala Lumpur', color: '#3B82F6', gradient: 'from-blue-500 to-indigo-600' },
+  { id: 'hospital-penang', name: 'Penang Medical Centre', city: 'George Town', color: '#10B981', gradient: 'from-emerald-500 to-teal-600' },
+  { id: 'hospital-jb', name: 'Johor Specialist Hospital', city: 'Johor Bahru', color: '#F59E0B', gradient: 'from-amber-500 to-orange-600' },
+  { id: 'hospital-sarawak', name: 'Sarawak General Hospital', city: 'Kuching', color: '#8B5CF6', gradient: 'from-violet-500 to-purple-600' },
+  { id: 'hospital-sabah', name: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', color: '#EF4444', gradient: 'from-red-500 to-rose-600' },
 ]
 
 // IC Card Animation Component
@@ -222,6 +223,14 @@ function NetworkVisualization() {
 export default function LandingPageV2() {
   const { language, setLanguage, fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
   const t = translations[language]
+  const [scrolled, setScrolled] = useState(false)
+  
+  // Track scroll for header effect
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
   
   const fontSizeClass = {
     normal: 'text-base',
@@ -230,84 +239,145 @@ export default function LandingPageV2() {
   }[fontSize]
 
   return (
-    <div className={`min-h-screen ${highContrast ? 'bg-black text-white' : 'bg-gradient-to-b from-gray-50 to-white'} ${fontSizeClass}`}>
-      {/* Accessibility Toolbar */}
-      <div className={`fixed top-0 left-0 right-0 z-50 ${highContrast ? 'bg-gray-900' : 'bg-white/95'} backdrop-blur-lg border-b`}>
-        <div className="container mx-auto px-4 py-2">
+    <div className={`min-h-screen ${highContrast ? 'bg-black text-white' : 'bg-gradient-to-b from-slate-50 via-white to-blue-50/30'} ${fontSizeClass}`}>
+      {/* Premium Navigation Header */}
+      <motion.header 
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          scrolled 
+            ? highContrast ? 'bg-gray-900/95' : 'bg-white/80 shadow-lg shadow-gray-200/50' 
+            : highContrast ? 'bg-transparent' : 'bg-transparent'
+        } backdrop-blur-xl`}
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-white" />
+            {/* Premium Logo */}
+            <motion.div 
+              className="flex items-center gap-3"
+              whileHover={{ scale: 1.02 }}
+            >
+              <motion.div 
+                className="relative w-12 h-12 bg-gradient-to-br from-blue-600 via-cyan-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30"
+                whileHover={{ rotate: 5 }}
+                transition={{ type: "spring", stiffness: 400 }}
+              >
+                <Building2 className="w-6 h-6 text-white drop-shadow-md" />
+                <motion.div
+                  className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent"
+                  animate={{ opacity: [0.5, 0.8, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              </motion.div>
+              <div>
+                <h1 className="font-bold text-xl tracking-tight">{t.appName}</h1>
+                <p className="text-xs text-gray-500 -mt-0.5">Healthcare Network</p>
               </div>
-              <span className="font-bold text-xl">{t.appName}</span>
-            </div>
+            </motion.div>
             
-            {/* Accessibility Controls */}
-            <div className="flex items-center gap-2">
-              {/* Language Selector */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {/* Premium Nav Controls */}
+            <div className="flex items-center gap-3">
+              {/* Language Selector - Premium */}
+              <div className="hidden sm:flex items-center gap-1 bg-gray-100/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200/50">
                 {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-                  <button
+                  <motion.button
                     key={lang}
-                    className={`px-2 py-1 text-xs font-medium rounded ${
-                      language === lang ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-300 ${
+                      language === lang 
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/25' 
+                        : 'hover:bg-white/80 text-gray-600'
                     }`}
                     onClick={() => setLanguage(lang)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   >
                     {lang.toUpperCase()}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
               
-              {/* Font Size */}
-              <button
-                className="p-2 hover:bg-gray-100 rounded-lg"
+              {/* Accessibility Buttons */}
+              <motion.button
+                className="p-2.5 hover:bg-gray-100/80 rounded-xl transition-colors border border-transparent hover:border-gray-200"
                 onClick={() => setFontSize(fontSize === 'normal' ? 'large' : fontSize === 'large' ? 'xlarge' : 'normal')}
                 title="Change font size"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <Type className="w-5 h-5" />
-              </button>
+                <Type className="w-5 h-5 text-gray-600" />
+              </motion.button>
               
-              {/* High Contrast */}
-              <button
-                className="p-2 hover:bg-gray-100 rounded-lg"
+              <motion.button
+                className="p-2.5 hover:bg-gray-100/80 rounded-xl transition-colors border border-transparent hover:border-gray-200"
                 onClick={toggleHighContrast}
                 title="Toggle high contrast"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                {highContrast ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
+                {highContrast ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-gray-600" />}
+              </motion.button>
               
-              {/* Login */}
+              {/* Premium Login Button */}
               <Link to="/login">
-                <Button size="sm">{t.login}</Button>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-500/25 px-6 h-11 rounded-xl font-semibold">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {t.login}
+                  </Button>
+                </motion.div>
               </Link>
             </div>
           </div>
         </div>
-      </div>
+      </motion.header>
 
-      {/* Hero Section - Premium Design */}
-      <section className="relative pt-28 pb-20 px-4 overflow-hidden">
-        {/* Background decorations */}
+      {/* Hero Section - Ultra Premium Design */}
+      <section className="relative pt-32 pb-24 px-4 overflow-hidden">
+        {/* Premium Background with Mesh Gradient */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* Main gradient orbs */}
           <motion.div
-            className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl"
-            animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 0] }}
-            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+            className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-gradient-to-br from-blue-400/30 via-cyan-400/20 to-transparent rounded-full blur-3xl"
+            animate={{ scale: [1, 1.3, 1], x: [0, 30, 0], y: [0, -20, 0] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
-            className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-400/15 to-pink-400/15 rounded-full blur-3xl"
-            animate={{ scale: [1.2, 1, 1.2] }}
-            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+            className="absolute -bottom-60 -left-40 w-[500px] h-[500px] bg-gradient-to-br from-violet-400/20 via-purple-400/15 to-transparent rounded-full blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2], x: [0, -20, 0] }}
+            transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] opacity-20"
-            style={{
-              background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 60%)',
-            }}
-            animate={{ scale: [0.9, 1.1, 0.9] }}
-            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-gradient-to-br from-emerald-400/15 to-transparent rounded-full blur-3xl"
+            animate={{ scale: [1, 1.2, 1], y: [0, 30, 0] }}
+            transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          />
+          
+          {/* Subtle grid pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+          
+          {/* Floating particles */}
+          {[...Array(12)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-2 h-2 bg-blue-400/40 rounded-full"
+              style={{ left: `${8 + i * 8}%`, top: `${15 + (i % 5) * 15}%` }}
+              animate={{
+                y: [-20, 20, -20],
+                x: [-10, 10, -10],
+                opacity: [0.3, 0.6, 0.3],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{ duration: 5 + i * 0.5, repeat: Infinity, delay: i * 0.3 }}
+            />
+          ))}
+          
+          {/* Radial glow center */}
+          <motion.div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px]"
+            style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 50%)' }}
+            animate={{ scale: [0.9, 1.1, 0.9], opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
         </div>
         
@@ -318,51 +388,60 @@ export default function LandingPageV2() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
             >
+              {/* Premium Badge */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <Badge className="mb-6 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 hover:from-emerald-200 hover:to-teal-200 border border-emerald-200 px-4 py-2 text-sm shadow-lg shadow-emerald-500/10">
-                  <motion.span
-                    className="inline-block mr-2"
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    🏥
-                  </motion.span>
+                <Badge className="mb-8 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 text-emerald-700 border border-emerald-200/60 px-5 py-2.5 text-sm shadow-lg shadow-emerald-500/10 backdrop-blur-sm">
+                  <motion.div
+                    className="w-2 h-2 bg-emerald-500 rounded-full mr-3"
+                    animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <Star className="w-4 h-4 mr-2 text-emerald-600" />
                   National Healthcare Network
+                  <ChevronRight className="w-4 h-4 ml-2 text-emerald-500" />
                 </Badge>
               </motion.div>
               
-              <h1 className={`font-bold mb-6 leading-tight ${fontSize === 'xlarge' ? 'text-4xl' : fontSize === 'large' ? 'text-5xl' : 'text-5xl md:text-7xl'}`}>
+              {/* Ultra Premium Heading */}
+              <h1 className={`font-extrabold mb-8 leading-[1.1] tracking-tight ${fontSize === 'xlarge' ? 'text-4xl' : fontSize === 'large' ? 'text-5xl' : 'text-5xl md:text-7xl'}`}>
                 <motion.span
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="block"
+                  transition={{ delay: 0.3, duration: 0.6 }}
+                  className="block text-gray-900"
                 >
                   {t.heroTitle1}
                 </motion.span>
                 <motion.span 
-                  className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 bg-clip-text text-transparent"
+                  style={{ backgroundSize: '200% auto' }}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0, backgroundPosition: ['0%', '100%', '0%'] }}
+                  transition={{ 
+                    opacity: { delay: 0.4, duration: 0.6 },
+                    y: { delay: 0.4, duration: 0.6 },
+                    backgroundPosition: { duration: 5, repeat: Infinity, ease: 'linear' }
+                  }}
                 >
                   {t.heroTitle2}
                 </motion.span>
               </h1>
               
+              {/* Premium Subtitle */}
               <motion.p 
-                className={`text-gray-600 mb-10 max-w-lg leading-relaxed ${fontSize === 'xlarge' ? 'text-xl' : 'text-lg'}`}
+                className={`text-gray-600 mb-10 max-w-xl leading-relaxed ${fontSize === 'xlarge' ? 'text-xl' : 'text-lg'}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.5, duration: 0.6 }}
               >
                 {t.heroSubtitle}
               </motion.p>
               
+              {/* Premium CTA Buttons */}
               <motion.div 
                 className="flex flex-wrap gap-4"
                 initial={{ opacity: 0, y: 20 }}
@@ -370,23 +449,49 @@ export default function LandingPageV2() {
                 transition={{ delay: 0.6 }}
               >
                 <Link to="/login">
-                  <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                    <Button size="lg" className="gap-2 h-14 px-8 text-base font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-xl shadow-blue-500/25 rounded-xl">
+                  <motion.div 
+                    whileHover={{ scale: 1.03, y: -3 }} 
+                    whileTap={{ scale: 0.97 }}
+                    className="relative group"
+                  >
+                    {/* Glow effect */}
+                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 rounded-2xl blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
+                    <Button size="lg" className="relative gap-3 h-14 px-8 text-base font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-700 hover:via-cyan-700 hover:to-blue-700 shadow-2xl shadow-blue-500/30 rounded-xl border border-white/20">
+                      <Zap className="w-5 h-5" />
                       {t.getStarted}
-                      <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                      <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.2, repeat: Infinity }}>
                         <ArrowRight size={20} />
                       </motion.div>
                     </Button>
                   </motion.div>
                 </Link>
                 <Link to="/emergency">
-                  <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                    <Button size="lg" variant="outline" className="gap-2 h-14 px-8 text-base font-semibold border-2 rounded-xl hover:bg-red-50 hover:border-red-300 hover:text-red-600">
-                      <Wifi className="w-5 h-5" />
+                  <motion.div whileHover={{ scale: 1.03, y: -3 }} whileTap={{ scale: 0.97 }}>
+                    <Button size="lg" variant="outline" className="gap-3 h-14 px-8 text-base font-semibold border-2 border-gray-200 rounded-xl hover:bg-red-50 hover:border-red-300 hover:text-red-600 hover:shadow-lg hover:shadow-red-500/10 transition-all">
+                      <Heart className="w-5 h-5" />
                       {t.emergencyAccess}
                     </Button>
                   </motion.div>
                 </Link>
+              </motion.div>
+              
+              {/* Trust Indicators */}
+              <motion.div
+                className="flex items-center gap-6 mt-10 pt-10 border-t border-gray-200/60"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+              >
+                {[
+                  { icon: Shield, text: 'HIPAA Compliant', color: 'text-emerald-600' },
+                  { icon: Lock, text: 'End-to-End Encrypted', color: 'text-blue-600' },
+                  { icon: CheckCircle, text: '99.9% Uptime', color: 'text-cyan-600' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-gray-600">
+                    <item.icon className={`w-4 h-4 ${item.color}`} />
+                    <span className="text-sm font-medium">{item.text}</span>
+                  </div>
+                ))}
               </motion.div>
             </motion.div>
             
@@ -492,36 +597,70 @@ export default function LandingPageV2() {
         </div>
       </section>
 
-      {/* Connected Hospitals */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-4">{t.connectedHospitals}</h2>
-          <p className={`text-center ${highContrast ? 'text-gray-400' : 'text-gray-600'} mb-12`}>
-            5 {t.connectedHospitals.toLowerCase()} across Malaysia
-          </p>
+      {/* Connected Hospitals - Premium Design */}
+      <section className="py-24 px-4 relative overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/30 to-white pointer-events-none" />
+        
+        <div className="container mx-auto relative z-10">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Badge variant="info" className="mb-4 px-4 py-1.5">
+              <Network className="w-4 h-4 mr-2" />
+              Connected Network
+            </Badge>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">{t.connectedHospitals}</h2>
+            <p className={`text-lg max-w-2xl mx-auto ${highContrast ? 'text-gray-400' : 'text-gray-600'}`}>
+              Seamlessly connected healthcare facilities across Malaysia
+            </p>
+          </motion.div>
           
-          <div className="grid md:grid-cols-5 gap-4">
+          <div className="grid md:grid-cols-5 gap-5">
             {hospitals.map((hospital, index) => (
               <motion.div
                 key={hospital.id}
-                whileHover={{ scale: 1.05 }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
+                whileHover={{ y: -8, transition: { duration: 0.3 } }}
+                className="group"
               >
-                <Card className={`text-center hover:shadow-lg transition-shadow ${highContrast ? 'bg-gray-800 border-gray-700' : ''}`}>
-                  <CardContent className="pt-6">
-                    <div 
-                      className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center"
-                      style={{ backgroundColor: hospital.color + '20' }}
+                <Card className={`relative text-center overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-500 ${highContrast ? 'bg-gray-800' : 'bg-white'}`}>
+                  {/* Top gradient bar */}
+                  <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${hospital.gradient}`} />
+                  
+                  <CardContent className="pt-8 pb-6">
+                    {/* Hospital icon with glow */}
+                    <motion.div 
+                      className="relative w-16 h-16 mx-auto mb-4"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
                     >
-                      <Building2 className="w-7 h-7" style={{ color: hospital.color }} />
-                    </div>
-                    <h3 className="font-medium text-sm mb-1">{hospital.name}</h3>
-                    <p className={`text-xs ${highContrast ? 'text-gray-500' : 'text-gray-500'}`}>{hospital.city}</p>
-                    <div className="flex items-center justify-center gap-1 mt-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-xs text-green-600">Online</span>
+                      <div 
+                        className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${hospital.gradient} opacity-20 blur-lg group-hover:opacity-40 transition-opacity`}
+                      />
+                      <div 
+                        className={`relative w-full h-full rounded-2xl bg-gradient-to-br ${hospital.gradient} flex items-center justify-center shadow-lg`}
+                      >
+                        <Building2 className="w-8 h-8 text-white" />
+                      </div>
+                    </motion.div>
+                    
+                    <h3 className="font-bold text-sm mb-1 text-gray-900 group-hover:text-blue-600 transition-colors">{hospital.name}</h3>
+                    <p className="text-xs text-gray-500 mb-3">{hospital.city}</p>
+                    
+                    {/* Status indicator */}
+                    <div className="flex items-center justify-center gap-2 py-2 px-3 bg-emerald-50 rounded-full mx-auto w-fit">
+                      <motion.div 
+                        className="w-2 h-2 bg-emerald-500 rounded-full"
+                        animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      />
+                      <span className="text-xs font-semibold text-emerald-700">Online</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -596,35 +735,89 @@ export default function LandingPageV2() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-4">{t.ctaTitle}</h2>
-          <p className={`${highContrast ? 'text-gray-400' : 'text-gray-600'} max-w-xl mx-auto mb-8`}>
-            {t.ctaSubtitle}
-          </p>
-          <Link to="/login">
-            <Button size="lg" className="gap-2">
-              {t.loginNow} <ArrowRight size={20} />
-            </Button>
-          </Link>
+      {/* CTA - Premium Light Design */}
+      <section className="py-24 px-4 relative overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white">
+        {/* Subtle Background Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
+        
+        {/* Soft Gradient Orbs */}
+        <motion.div
+          className="absolute top-10 left-10 w-64 h-64 bg-gradient-to-br from-blue-100/50 to-cyan-100/50 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], x: [0, 20, 0] }}
+          transition={{ duration: 8, repeat: Infinity }}
+        />
+        <motion.div
+          className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-br from-emerald-100/40 to-teal-100/40 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2], y: [0, -20, 0] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        
+        <div className="container mx-auto text-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Badge className="mb-6 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border-blue-200/50 px-4 py-1.5">
+              <Award className="w-4 h-4 mr-2" />
+              Get Started Today
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent">{t.ctaTitle}</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto mb-10 text-lg">
+              {t.ctaSubtitle}
+            </p>
+            <Link to="/login">
+              <motion.div 
+                whileHover={{ scale: 1.05, y: -3 }} 
+                whileTap={{ scale: 0.95 }}
+                className="inline-block"
+              >
+                <Button size="lg" className="gap-3 h-16 px-10 text-lg font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 text-white hover:from-blue-700 hover:via-cyan-700 hover:to-emerald-700 shadow-2xl shadow-blue-500/25 rounded-2xl border-0">
+                  <Sparkles className="w-5 h-5" />
+                  {t.loginNow}
+                  <motion.div animate={{ x: [0, 5, 0] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                    <ArrowRight size={24} />
+                  </motion.div>
+                </Button>
+              </motion.div>
+            </Link>
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className={`py-8 px-4 border-t ${highContrast ? 'bg-gray-900 border-gray-800' : 'bg-gray-50'}`}>
-        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold">{t.appName}</span>
+      {/* Footer - Premium Design */}
+      <footer className={`py-12 px-4 ${highContrast ? 'bg-gray-900 border-gray-800' : 'bg-gradient-to-b from-gray-50 to-white'}`}>
+        <div className="container mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8 pb-8 border-b border-gray-200">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-cyan-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">{t.appName}</h3>
+                <p className="text-xs text-gray-500">Healthcare Network</p>
+              </div>
+            </div>
+            
+            {/* Navigation */}
+            <div className="flex items-center gap-8">
+              <Link to="/about" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">{t.about}</Link>
+              <Link to="/emergency" className="text-gray-600 hover:text-red-600 transition-colors font-medium text-sm">Emergency Access</Link>
+              <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">Sign In</Link>
+            </div>
           </div>
-          <p className={`text-sm ${highContrast ? 'text-gray-500' : 'text-gray-500'}`}>
-            {t.builtFor}
-          </p>
-          <div className={`flex items-center gap-4 text-sm ${highContrast ? 'text-gray-500' : 'text-gray-500'}`}>
-            <Link to="/about" className="hover:text-gray-900">{t.about}</Link>
-            <span>|</span>
-            <span>© 2024</span>
+          
+          {/* Bottom bar */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-500">
+              {t.builtFor}
+            </p>
+            <div className="flex items-center gap-6 text-sm text-gray-400">
+              <span>© 2024 MedLink MY</span>
+              <span>•</span>
+              <span>All rights reserved</span>
+            </div>
           </div>
         </div>
       </footer>

@@ -201,7 +201,7 @@ export default function CentralAdminDashboard() {
           </p>
           <div className="flex gap-3">
             <Link to="/admin/audit">
-              <Button className="bg-white text-cyan-600 hover:bg-cyan-50 gap-2">
+              <Button variant="outline" className="bg-white text-cyan-600 hover:bg-cyan-50 border-cyan-200 gap-2">
                 <Shield className="w-4 h-4" />
                 View All Audit Logs
                 <ArrowRight className="w-4 h-4" />

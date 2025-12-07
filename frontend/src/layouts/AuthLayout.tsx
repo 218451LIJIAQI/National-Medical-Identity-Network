@@ -43,7 +43,7 @@ export default function AuthLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex">
       {/* Left side - Premium Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 p-12 flex-col justify-between relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
         {/* Animated background elements */}
         <motion.div 
           className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl"
@@ -96,23 +96,23 @@ export default function AuthLayout() {
         </motion.div>
 
         <motion.div 
-          className="space-y-8 relative z-10"
+          className="space-y-12 relative z-10 flex-1"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
           <div>
-            <h2 className="text-5xl font-bold text-white leading-tight drop-shadow-lg">
+            <h2 className="text-[3.5rem] font-bold text-white leading-tight drop-shadow-lg">
               Your IC is your<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-emerald-200">Universal Medical Key</span>
             </h2>
-            <p className="mt-6 text-blue-100 text-lg max-w-md leading-relaxed">
+            <p className="mt-10 text-blue-100 text-xl max-w-lg leading-loose">
               Access your complete medical history from any hospital in Malaysia. 
               One identity, all your health records.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             {[
               { value: '5', label: 'Connected Hospitals', icon: Globe },
               { value: '10s', label: 'Record Retrieval', icon: Zap },
@@ -121,29 +121,29 @@ export default function AuthLayout() {
             ].map((stat, i) => (
               <motion.div 
                 key={i}
-                className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/20"
+                className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5 + i * 0.1 }}
                 whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.15)' }}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <stat.icon className="w-4 h-4 text-cyan-200" />
-                  <div className="text-3xl font-bold text-white">{stat.value}</div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <stat.icon className="w-5 h-5 text-cyan-200" />
+                  <div className="text-4xl font-bold text-white">{stat.value}</div>
                 </div>
-                <div className="text-blue-100 text-sm">{stat.label}</div>
+                <div className="text-blue-100 text-base">{stat.label}</div>
               </motion.div>
             ))}
           </div>
         </motion.div>
 
         <motion.div 
-          className="text-blue-200 text-sm relative z-10 flex items-center gap-2"
+          className="text-blue-100 text-lg font-medium relative z-10 flex items-center gap-3 mt-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          <span className="text-lg">🏆</span> Built for GoDamLah 2.0: Identity Hackathon
+          <span className="text-3xl">🏆</span> Built for GoDamLah 2.0: Identity Hackathon
         </motion.div>
       </div>
 

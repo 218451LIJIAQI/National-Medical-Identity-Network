@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
-import { FileText, Shield, Building2, Calendar, AlertTriangle, Heart, Pill, ArrowRight, User, CreditCard, Activity } from 'lucide-react'
+import { 
+  User, Heart, FileText, Building2, 
+  Activity, AlertTriangle, Shield, ArrowRight,
+  CreditCard, Pill, Calendar
+} from 'lucide-react'
 import { motion } from 'framer-motion'
 
 interface PatientData {
@@ -208,7 +212,7 @@ export default function PatientDashboard() {
           >
             <Link to="/patient/records">
               <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                <Button className="bg-white text-emerald-600 hover:bg-emerald-50 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
+                <Button variant="outline" className="bg-white text-emerald-600 hover:bg-emerald-50 border-emerald-200 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
                   <FileText className="w-5 h-5" />
                   My Records
                 </Button>
@@ -216,7 +220,7 @@ export default function PatientDashboard() {
             </Link>
             <Link to="/patient/privacy">
               <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" className="border-white/40 text-white hover:bg-white/20 backdrop-blur-sm gap-2 h-12 px-6 rounded-xl font-semibold">
+                <Button variant="ghost" className="border border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 gap-2 h-12 px-6 rounded-xl font-semibold">
                   <Shield className="w-5 h-5" />
                   Privacy
                 </Button>

@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
-  Menu, X, Hexagon, Shield, Wifi, Zap
+  Menu, X, Hexagon, Shield, Wifi, Zap, Users, Pill, FlaskConical,
+  Calendar, ArrowRightLeft, ScanLine, Stethoscope, Receipt,
+  Building2, Bed, Package, DollarSign
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -40,8 +42,22 @@ export default function SarawakGeneralLayout() {
     { icon: Home, label: 'Dashboard', path: '/doctor', desc: 'Overview' },
     { icon: Search, label: 'Patient Search', path: '/doctor/search', desc: 'Find Records' },
     { icon: FileText, label: 'New Record', path: '/doctor/new-record', desc: 'Create Entry' },
+    { icon: Users, label: 'Queue', path: '/doctor/queue', desc: 'Giliran' },
+    { icon: Pill, label: 'Prescription', path: '/doctor/prescription', desc: 'e-Preskripsi' },
+    { icon: FlaskConical, label: 'Lab Orders', path: '/doctor/lab', desc: 'Ujian Makmal' },
+    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology', desc: 'Radiologi' },
+    { icon: FileText, label: 'Medical Cert', path: '/doctor/mc', desc: 'Sijil MC' },
+    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral', desc: 'Rujukan' },
+    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments', desc: 'Temujanji' },
+    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing', desc: 'Kejururawatan' },
+    { icon: Receipt, label: 'Billing', path: '/doctor/billing', desc: 'Bil & Subsidi' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital', desc: 'Overview' },
+    { icon: Users, label: 'Staff', path: '/admin/staff', desc: 'Kakitangan' },
+    { icon: Building2, label: 'Departments', path: '/admin/departments', desc: 'Jabatan' },
+    { icon: Bed, label: 'Beds', path: '/admin/beds', desc: 'Katil' },
+    { icon: Package, label: 'Inventory', path: '/admin/inventory', desc: 'Inventori' },
+    { icon: DollarSign, label: 'Finance', path: '/admin/finance', desc: 'Kewangan' },
     { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity' },
   ]
 

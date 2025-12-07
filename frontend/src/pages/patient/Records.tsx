@@ -121,55 +121,75 @@ export default function PatientRecords() {
         </div>
       </motion.div>
 
-      {/* Stats */}
+      {/* Stats - Premium Design */}
       <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
           <CardContent className="pt-5">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <Building2 className="w-5 h-5 text-blue-600" />
-              </div>
+            <div className="flex items-center gap-4">
+              <motion.div 
+                className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <Building2 className="w-6 h-6 text-white" />
+              </motion.div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{new Set(records.map(r => r.hospitalName)).size}</p>
-                <p className="text-sm text-gray-500">Hospitals</p>
+                <p className="text-3xl font-bold text-gray-900">{new Set(records.map(r => r.hospitalName)).size}</p>
+                <p className="text-sm text-gray-500 font-medium">Hospitals</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-xl shadow-emerald-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
           <CardContent className="pt-5">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-100 rounded-xl">
-                <FileText className="w-5 h-5 text-emerald-600" />
-              </div>
+            <div className="flex items-center gap-4">
+              <motion.div 
+                className="p-3 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <FileText className="w-6 h-6 text-white" />
+              </motion.div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{records.length}</p>
-                <p className="text-sm text-gray-500">Total Records</p>
+                <p className="text-3xl font-bold text-gray-900">{records.length}</p>
+                <p className="text-sm text-gray-500 font-medium">Total Records</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-xl shadow-violet-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
           <CardContent className="pt-5">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-violet-100 rounded-xl">
-                <Clock className="w-5 h-5 text-violet-600" />
-              </div>
+            <div className="flex items-center gap-4">
+              <motion.div 
+                className="p-3 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <Clock className="w-6 h-6 text-white" />
+              </motion.div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{records.length > 0 ? formatDate(records[0].visitDate) : '-'}</p>
-                <p className="text-sm text-gray-500">Last Visit</p>
+                <p className="text-xl font-bold text-gray-900">{records.length > 0 ? formatDate(records[0].visitDate) : '-'}</p>
+                <p className="text-sm text-gray-500 font-medium">Last Visit</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Records List */}
+      {/* Records List - Premium Design */}
       <motion.div variants={itemVariants}>
-        <Card className="border-0 shadow-lg">
-          <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
-            <h2 className="text-lg font-semibold text-gray-900">Medical History Timeline</h2>
-            <p className="text-sm text-gray-500">Records sorted by most recent visit</p>
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+          <div className="p-6 border-b bg-gradient-to-r from-blue-50/50 to-white">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/25">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Medical History Timeline</h2>
+                <p className="text-sm text-gray-500">Records sorted by most recent visit</p>
+              </div>
+            </div>
           </div>
           <CardContent className="p-0">
             {records.length === 0 ? (

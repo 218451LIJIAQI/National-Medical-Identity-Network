@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth'
 import { hospitalApi, centralApi } from '@/lib/api'
 import { Users, FileText, Activity, Building2, Loader2, Shield, TrendingUp, Clock, CheckCircle, Server, Database, Wifi, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 
 interface HospitalStats {
   totalPatients: number
@@ -34,6 +35,9 @@ export default function HospitalAdminDashboard() {
   const [hospitalInfo, setHospitalInfo] = useState<HospitalInfo | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Get hospital theme for dynamic styling
+  const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
     async function loadData() {
@@ -129,7 +133,7 @@ export default function HospitalAdminDashboard() {
       {/* Header with Hospital Info - Premium Design */}
       <motion.div 
         variants={itemVariants}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-8 text-white shadow-2xl shadow-violet-500/25"
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
         <motion.div 
           className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
@@ -137,7 +141,7 @@ export default function HospitalAdminDashboard() {
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
         <motion.div 
-          className="absolute -bottom-32 -left-32 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl"
+          className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
@@ -151,16 +155,16 @@ export default function HospitalAdminDashboard() {
               <Building2 className="w-9 h-9 drop-shadow" />
             </motion.div>
             <div>
-              <Badge className="bg-white/20 text-white border-0 mb-2">🏥 Hospital Administrator</Badge>
+              <Badge variant="glass" className="mb-2">🏥 Hospital Administrator</Badge>
               <h1 className="text-4xl font-bold drop-shadow-lg">{hospitalInfo?.name || 'Hospital'}</h1>
             </div>
           </div>
-          <p className="text-purple-100 max-w-xl mb-6">
+          <p className="text-white/80 max-w-xl mb-6">
             Manage your hospital's medical records and monitor network connectivity with the National Medical Identity Network.
           </p>
           <div className="flex gap-3">
             <Link to="/admin/audit">
-              <Button className="bg-white text-purple-600 hover:bg-purple-50 gap-2">
+              <Button variant="outline" className="bg-white/90 hover:bg-white border-white/50 gap-2" style={{ color: theme.primaryColor }}>
                 <Shield className="w-4 h-4" />
                 View Audit Logs
                 <ArrowRight className="w-4 h-4" />

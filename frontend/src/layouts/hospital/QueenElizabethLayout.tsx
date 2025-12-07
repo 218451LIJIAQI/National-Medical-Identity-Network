@@ -10,9 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
   Menu, X, Crown, Clock, Calendar, Award, MapPin, 
-  Sparkles, Shield, Heart
+  Sparkles, Shield, Heart, Users, Pill, FlaskConical,
+  ArrowRightLeft, ScanLine, Stethoscope, Receipt,
+  ChevronLeft, ChevronRight, Building2, Bed, Package, DollarSign
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getHospitalTheme } from '@/lib/hospital-themes'
@@ -23,6 +25,17 @@ export default function QueenElizabethLayout() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const navScrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollNav = (direction: 'left' | 'right') => {
+    if (navScrollRef.current) {
+      const scrollAmount = 200
+      navScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      })
+    }
+  }
   
   const theme = getHospitalTheme(user?.hospitalId)
 
@@ -40,9 +53,23 @@ export default function QueenElizabethLayout() {
     { icon: Home, label: 'Dashboard', path: '/doctor' },
     { icon: Search, label: 'Patient Search', path: '/doctor/search' },
     { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
+    { icon: Users, label: 'Queue', path: '/doctor/queue' },
+    { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
+    { icon: FlaskConical, label: 'Lab Orders', path: '/doctor/lab' },
+    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
+    { icon: FileText, label: 'Medical Cert', path: '/doctor/mc' },
+    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
+    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments' },
+    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
+    { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
-    { icon: Activity, label: 'Audit Logs', path: '/admin/audit' },
+    { icon: Users, label: 'Staff', path: '/admin/staff' },
+    { icon: Building2, label: 'Departments', path: '/admin/departments' },
+    { icon: Bed, label: 'Beds', path: '/admin/beds' },
+    { icon: Package, label: 'Inventory', path: '/admin/inventory' },
+    { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
+    { icon: Activity, label: 'Audit', path: '/admin/audit' },
   ]
 
   const formatDate = () => {
@@ -110,9 +137,9 @@ export default function QueenElizabethLayout() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-emerald-500/20 px-3 py-1 rounded-full">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="text-emerald-200 text-xs font-medium">System Active</span>
+                <div className="flex items-center gap-2 bg-amber-500/20 px-3 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                  <span className="text-amber-200 text-xs font-medium">System Active</span>
                 </div>
               </div>
             </div>
@@ -148,8 +175,15 @@ export default function QueenElizabethLayout() {
               </div>
 
               {/* Desktop Navigation */}
-              <nav className="hidden lg:flex items-center">
-                <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-2xl p-1.5 border border-white/10">
+              <nav className="hidden lg:flex items-center max-w-[50vw] overflow-hidden">
+                <button
+                  onClick={() => scrollNav('left')}
+                  className="flex-shrink-0 p-2 text-rose-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                  title="Scroll Left"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div ref={navScrollRef} className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-2xl p-1.5 border border-white/10 overflow-x-auto scrollbar-hide">
                   {navItems.map((item) => {
                     const Icon = item.icon
                     const isActive = location.pathname === item.path
@@ -158,18 +192,25 @@ export default function QueenElizabethLayout() {
                         key={item.path}
                         to={item.path}
                         className={cn(
-                          "flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300",
+                          "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
                           isActive
                             ? "bg-white text-red-700 font-semibold shadow-lg"
                             : "text-rose-100 hover:bg-white/10 hover:text-white"
                         )}
                       >
                         <Icon className="w-4 h-4" />
-                        <span>{item.label}</span>
+                        <span className="text-sm">{item.label}</span>
                       </Link>
                     )
                   })}
                 </div>
+                <button
+                  onClick={() => scrollNav('right')}
+                  className="flex-shrink-0 p-2 text-rose-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                  title="Scroll Right"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </nav>
 
               {/* User Section */}
@@ -287,7 +328,7 @@ export default function QueenElizabethLayout() {
                   </div>
                 </div>
                 <div className="hidden md:flex items-center gap-3">
-                  <Badge className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200 px-3 py-1.5">
+                  <Badge className="bg-gradient-to-r from-rose-50 to-red-50 text-rose-700 border-rose-200 px-3 py-1.5">
                     <Heart className="w-3.5 h-3.5 mr-1.5" />
                     Connected
                   </Badge>

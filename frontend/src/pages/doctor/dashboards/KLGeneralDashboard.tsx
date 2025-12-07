@@ -187,6 +187,16 @@ export default function KLGeneralDashboard() {
                     New Record
                   </motion.button>
                 </Link>
+                <Link to="/doctor/workstation">
+                  <motion.button
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold shadow-lg shadow-emerald-200/50 hover:shadow-xl transition-all"
+                    whileHover={{ scale: 1.03, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Building2 className="w-5 h-5" />
+                    Full Workstation
+                  </motion.button>
+                </Link>
               </div>
             </div>
 

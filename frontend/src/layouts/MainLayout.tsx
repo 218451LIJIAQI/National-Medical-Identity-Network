@@ -68,19 +68,24 @@ export default function MainLayout() {
   const navItems = getNavItems()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50/30">
+      {/* Premium Background Pattern */}
+      <div className="fixed inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+      
       {/* Mobile sidebar toggle */}
-      <button
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-white rounded-lg shadow-md"
+      <motion.button
+        className="fixed top-4 left-4 z-50 lg:hidden p-2.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100"
         onClick={() => setSidebarOpen(!sidebarOpen)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
       >
-        {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
+        {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+      </motion.button>
 
-      {/* Sidebar - Premium Design */}
+      {/* Sidebar - Ultra Premium Design */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-white/95 backdrop-blur-xl border-r border-gray-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0 shadow-xl shadow-gray-200/50",
+          "fixed inset-y-0 left-0 z-40 w-72 bg-white/95 backdrop-blur-2xl border-r border-gray-100/80 transform transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:translate-x-0 shadow-2xl shadow-gray-300/30",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -212,16 +217,25 @@ export default function MainLayout() {
 
       {/* Overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main content */}
-      <main className="lg:pl-64">
-        <div className="p-6 lg:p-8">
-          <Outlet />
+      {/* Main content - Enhanced */}
+      <main className="lg:pl-72 relative z-10">
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <Outlet />
+          </motion.div>
         </div>
       </main>
     </div>

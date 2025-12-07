@@ -9,9 +9,12 @@ import { useAuthStore } from '@/store/auth'
 import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
-  Zap, Sparkles, Star
+  Zap, Sparkles, Star, Users, Pill, FlaskConical,
+  Calendar, ArrowRightLeft, ScanLine, Stethoscope, Receipt,
+  ChevronLeft, ChevronRight, Bell, Clock, CheckCircle, AlertCircle,
+  Building2, Bed, Package, DollarSign
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getHospitalTheme } from '@/lib/hospital-themes'
@@ -21,6 +24,25 @@ export default function JohorSpecialistLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const navScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const formatTime = () => currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+
+  const scrollNav = (direction: 'left' | 'right') => {
+    if (navScrollRef.current) {
+      const scrollAmount = 200
+      navScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      })
+    }
+  }
   
   const theme = getHospitalTheme(user?.hospitalId)
 
@@ -33,11 +55,23 @@ export default function JohorSpecialistLayout() {
     { icon: Home, label: 'Home', path: '/doctor' },
     { icon: Search, label: 'Search', path: '/doctor/search' },
     { icon: FileText, label: 'Record', path: '/doctor/new-record' },
-    { icon: User, label: 'Profile', path: '#profile' },
+    { icon: Users, label: 'Queue', path: '/doctor/queue' },
+    { icon: Pill, label: 'Rx', path: '/doctor/prescription' },
+    { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
+    { icon: ScanLine, label: 'Imaging', path: '/doctor/radiology' },
+    { icon: FileText, label: 'MC', path: '/doctor/mc' },
+    { icon: ArrowRightLeft, label: 'Refer', path: '/doctor/referral' },
+    { icon: Calendar, label: 'Appt', path: '/doctor/appointments' },
+    { icon: Stethoscope, label: 'Nurse', path: '/doctor/nursing' },
+    { icon: Receipt, label: 'Bill', path: '/doctor/billing' },
   ] : [
     { icon: Home, label: 'Home', path: '/admin/hospital' },
+    { icon: Users, label: 'Staff', path: '/admin/staff' },
+    { icon: Building2, label: 'Dept', path: '/admin/departments' },
+    { icon: Bed, label: 'Beds', path: '/admin/beds' },
+    { icon: Package, label: 'Stock', path: '/admin/inventory' },
+    { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
     { icon: Activity, label: 'Audit', path: '/admin/audit' },
-    { icon: User, label: 'Profile', path: '#profile' },
   ]
 
   return (
@@ -79,11 +113,78 @@ export default function JohorSpecialistLayout() {
               </div>
             </div>
 
-            {/* Center Badge */}
-            <div className="hidden md:block">
-              <Badge className="bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 border-amber-200 px-4 py-1.5 text-sm font-bold rounded-full shadow-sm">
+            {/* Center Stats & Info */}
+            <div className="hidden lg:flex items-center gap-4">
+              {/* Date & Time */}
+              <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2.5 rounded-xl border border-amber-100">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <div>
+                  <p className="text-xs text-amber-600 font-medium">{currentTime.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                  <p className="text-sm font-mono font-bold text-amber-800">{formatTime()}</p>
+                </div>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              </div>
+              
+              {/* Quick Stats */}
+              <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl border border-amber-100 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-500" />
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-amber-600">12</p>
+                    <p className="text-[10px] text-gray-500">Queue</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-amber-200" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-green-600">8</p>
+                    <p className="text-[10px] text-gray-500">Done</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-amber-200" />
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-orange-500" />
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-orange-600">4</p>
+                    <p className="text-[10px] text-gray-500">Pending</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Today's Appointments */}
+              <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <div>
+                  <p className="text-lg font-bold text-blue-600">5</p>
+                  <p className="text-[10px] text-gray-500">Appointments</p>
+                </div>
+              </div>
+
+              {/* Prescriptions Today */}
+              <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-100">
+                <Pill className="w-4 h-4 text-purple-600" />
+                <div>
+                  <p className="text-lg font-bold text-purple-600">18</p>
+                  <p className="text-[10px] text-gray-500">Rx Today</p>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <motion.button 
+                className="relative p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5 text-amber-600" />
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">3</span>
+              </motion.button>
+
+              {/* Portal Badge */}
+              <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 px-4 py-1.5 text-sm font-bold rounded-full shadow-md">
                 <Sparkles className="w-4 h-4 mr-2" />
-                {user?.role === 'doctor' ? 'Doctor Portal' : 'Admin Portal'}
+                {user?.role === 'doctor' ? 'Doctor' : 'Admin'}
               </Badge>
             </div>
 
@@ -161,13 +262,23 @@ export default function JohorSpecialistLayout() {
       {/* BOTTOM NAVIGATION - Floating Card Style */}
       {/* ================================================================== */}
       <motion.nav 
-        className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4"
+        className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 flex justify-center"
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        <div className="bg-white rounded-3xl shadow-2xl shadow-amber-300/30 border border-amber-100/50 px-2 py-3">
-          <div className="flex items-center justify-around">
+        <div className="bg-white rounded-3xl shadow-2xl shadow-amber-300/30 border border-amber-100/50 px-3 py-4 overflow-hidden max-w-6xl">
+          <div className="flex items-center">
+            {/* Left Arrow */}
+            <button
+              onClick={() => scrollNav('left')}
+              className="flex-shrink-0 p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
+              title="Scroll Left"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            
+            <div ref={navScrollRef} className="flex items-center gap-5 overflow-x-auto px-4 scrollbar-hide flex-1">
             {navItems.map((item, index) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -179,8 +290,8 @@ export default function JohorSpecialistLayout() {
                     key={item.path}
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className={cn(
-                      "flex flex-col items-center gap-1 p-3 rounded-2xl min-w-[60px] transition-all",
-                      "text-amber-400 hover:text-amber-600"
+                      "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
+                      "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
                     )}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
@@ -195,7 +306,7 @@ export default function JohorSpecialistLayout() {
                 <Link key={item.path} to={item.path}>
                   <motion.div
                     className={cn(
-                      "flex flex-col items-center gap-1 p-3 rounded-2xl min-w-[60px] transition-all",
+                      "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
                       isActive 
                         ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
                         : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
@@ -218,6 +329,16 @@ export default function JohorSpecialistLayout() {
                 </Link>
               )
             })}
+            </div>
+            
+            {/* Right Arrow */}
+            <button
+              onClick={() => scrollNav('right')}
+              className="flex-shrink-0 p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
+              title="Scroll Right"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </motion.nav>

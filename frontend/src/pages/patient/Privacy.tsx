@@ -212,8 +212,8 @@ export default function PatientPrivacy() {
           </div>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button 
-              variant="outline" 
-              className="gap-2 border-white/30 text-white hover:bg-white/10 rounded-xl h-12 px-6"
+              variant="ghost" 
+              className="gap-2 border border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 rounded-xl h-12 px-6"
               onClick={handleDownloadData}
             >
               <Download className="w-5 h-5" />
@@ -283,141 +283,231 @@ export default function PatientPrivacy() {
         </Card>
       </motion.div>
 
-      {/* Hospital Access Control */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Hospital Access Control
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-600 mb-4">
-            Control which hospitals can access your medical records. Blocked hospitals will not be able to view your data.
-          </p>
-          <div className="space-y-3">
-            {hospitals.map((hospital) => (
-              <div 
-                key={hospital.id} 
-                className={`flex items-center justify-between p-4 rounded-lg border ${
-                  hospital.allowed ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full ${hospital.allowed ? 'bg-green-100' : 'bg-gray-200'}`}>
-                    {hospital.allowed ? (
-                      <Unlock className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <Lock className="w-4 h-4 text-gray-500" />
+      {/* Hospital Access Control - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500" />
+          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white border-b border-gray-100">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/25">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
+              Hospital Access Control
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="text-gray-600 mb-6">
+              Control which hospitals can access your medical records. Blocked hospitals will not be able to view your data.
+            </p>
+            <div className="space-y-3">
+              {hospitals.map((hospital, index) => (
+                <motion.div 
+                  key={hospital.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 + index * 0.05 }}
+                  whileHover={{ scale: 1.01, x: 4 }}
+                  className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all duration-300 ${
+                    hospital.allowed 
+                      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-lg shadow-emerald-100/50' 
+                      : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <motion.div 
+                      className={`p-3 rounded-xl shadow-md ${
+                        hospital.allowed 
+                          ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-emerald-200' 
+                          : 'bg-gradient-to-br from-gray-300 to-gray-400 shadow-gray-200'
+                      }`}
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                    >
+                      {hospital.allowed ? (
+                        <Unlock className="w-5 h-5 text-white" />
+                      ) : (
+                        <Lock className="w-5 h-5 text-white" />
+                      )}
+                    </motion.div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{hospital.name}</p>
+                      <p className="text-sm text-gray-500">{hospital.city}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {hospital.lastAccess && (
+                      <span className="text-xs text-gray-400 bg-white/80 px-3 py-1.5 rounded-full">Last: {hospital.lastAccess}</span>
                     )}
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant={hospital.allowed ? "destructive" : "default"}
+                        size="sm"
+                        onClick={() => toggleHospitalAccess(hospital.id)}
+                        className={`rounded-xl px-5 h-10 font-medium ${
+                          hospital.allowed 
+                            ? 'bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 shadow-lg shadow-red-200' 
+                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-200'
+                        }`}
+                      >
+                        {hospital.allowed ? 'Revoke Access' : 'Grant Access'}
+                      </Button>
+                    </motion.div>
                   </div>
-                  <div>
-                    <p className="font-medium">{hospital.name}</p>
-                    <p className="text-sm text-gray-500">{hospital.city}</p>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Sensitive Records Protection - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
+          <CardHeader className="bg-gradient-to-r from-amber-50/50 to-white border-b border-gray-100">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl shadow-lg shadow-amber-500/25">
+                <Shield className="h-5 w-5 text-white" />
+              </div>
+              Sensitive Records Protection
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="text-gray-600 mb-6">
+              Choose which types of sensitive records require additional consent before access.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[
+                { key: 'mentalHealth' as const, label: 'Mental Health Records', icon: '🧠', color: 'purple' },
+                { key: 'reproductiveHealth' as const, label: 'Reproductive Health', icon: '🩺', color: 'pink' },
+                { key: 'substanceAbuse' as const, label: 'Substance Abuse Treatment', icon: '💊', color: 'blue' },
+                { key: 'hivStatus' as const, label: 'HIV/AIDS Status', icon: '🔬', color: 'red' },
+              ].map((item, index) => (
+                <motion.div 
+                  key={item.key}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 + index * 0.05 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`flex items-center justify-between p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${
+                    sensitiveRecords[item.key] 
+                      ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300 shadow-lg shadow-amber-100/50' 
+                      : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => toggleSensitiveRecord(item.key)}
+                >
+                  <div className="flex items-center gap-4">
+                    <motion.span 
+                      className="text-3xl"
+                      animate={sensitiveRecords[item.key] ? { scale: [1, 1.1, 1] } : {}}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      {item.icon}
+                    </motion.span>
+                    <span className="font-semibold text-gray-900">{item.label}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  {hospital.lastAccess && (
-                    <span className="text-xs text-gray-500">Last access: {hospital.lastAccess}</span>
-                  )}
-                  <Button
-                    variant={hospital.allowed ? "destructive" : "default"}
-                    size="sm"
-                    onClick={() => toggleHospitalAccess(hospital.id)}
+                  <Badge 
+                    className={`rounded-full px-4 py-1 font-medium ${
+                      sensitiveRecords[item.key] 
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200' 
+                        : 'bg-gray-200 text-gray-600'
+                    }`}
                   >
-                    {hospital.allowed ? 'Revoke Access' : 'Grant Access'}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                    {sensitiveRecords[item.key] ? '🔒 Protected' : 'Visible'}
+                  </Badge>
+                </motion.div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-      {/* Sensitive Records Protection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Sensitive Records Protection
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-600 mb-4">
-            Choose which types of sensitive records require additional consent before access.
-          </p>
-          <div className="grid md:grid-cols-2 gap-4">
-            {[
-              { key: 'mentalHealth' as const, label: 'Mental Health Records', icon: '🧠' },
-              { key: 'reproductiveHealth' as const, label: 'Reproductive Health', icon: '🩺' },
-              { key: 'substanceAbuse' as const, label: 'Substance Abuse Treatment', icon: '💊' },
-              { key: 'hivStatus' as const, label: 'HIV/AIDS Status', icon: '🔬' },
-            ].map((item) => (
-              <div 
-                key={item.key}
-                className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all ${
-                  sensitiveRecords[item.key] 
-                    ? 'bg-amber-50 border-amber-200' 
-                    : 'bg-gray-50 border-gray-200'
-                }`}
-                onClick={() => toggleSensitiveRecord(item.key)}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{item.icon}</span>
-                  <span className="font-medium">{item.label}</span>
-                </div>
-                <Badge variant={sensitiveRecords[item.key] ? "default" : "secondary"}>
-                  {sensitiveRecords[item.key] ? 'Protected' : 'Visible'}
-                </Badge>
+      {/* Access Log - Premium Design */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500" />
+          <CardHeader className="bg-gradient-to-r from-violet-50/50 to-white border-b border-gray-100">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-500/25">
+                <Eye className="h-5 w-5 text-white" />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Access Log */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            Recent Access Log
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {accessLogs.map((log) => (
-              <div 
-                key={log.id} 
-                className={`flex items-center justify-between p-3 rounded-lg ${
-                  log.status === 'blocked' ? 'bg-red-50' : 'bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {log.status === 'success' ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                  )}
-                  <div>
-                    <p className="font-medium text-sm">{log.doctor}</p>
-                    <p className="text-xs text-gray-500">{log.hospital}</p>
+              Recent Access Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              {accessLogs.map((log, index) => (
+                <motion.div 
+                  key={log.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.6 + index * 0.03 }}
+                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 hover:shadow-md ${
+                    log.status === 'blocked' 
+                      ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-200' 
+                      : 'bg-gradient-to-r from-gray-50 to-white border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <motion.div
+                      className={`p-2.5 rounded-xl ${
+                        log.status === 'success' 
+                          ? 'bg-gradient-to-br from-emerald-400 to-green-500' 
+                          : 'bg-gradient-to-br from-red-400 to-rose-500'
+                      }`}
+                      whileHover={{ scale: 1.1 }}
+                    >
+                      {log.status === 'success' ? (
+                        <CheckCircle className="h-5 w-5 text-white" />
+                      ) : (
+                        <AlertTriangle className="h-5 w-5 text-white" />
+                      )}
+                    </motion.div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{log.doctor}</p>
+                      <p className="text-sm text-gray-500">{log.hospital}</p>
+                    </div>
                   </div>
+                  <div className="text-right mr-4">
+                    <p className="text-sm font-medium text-gray-700">{log.action}</p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1 justify-end mt-1">
+                      <Clock className="h-3 w-3" />
+                      {log.time}
+                    </p>
+                  </div>
+                  <Badge 
+                    className={`rounded-full px-4 py-1.5 font-medium ${
+                      log.status === 'success' 
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                        : 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-200'
+                    }`}
+                  >
+                    {log.status === 'success' ? '✓ Allowed' : '✕ Blocked'}
+                  </Badge>
+                </motion.div>
+              ))}
+              {accessLogs.length === 0 && (
+                <div className="text-center py-12 text-gray-500">
+                  <Eye className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No access logs to display</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm">{log.action}</p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1 justify-end">
-                    <Clock className="h-3 w-3" />
-                    {log.time}
-                  </p>
-                </div>
-                <Badge variant={log.status === 'success' ? 'outline' : 'destructive'}>
-                  {log.status === 'success' ? 'Allowed' : 'Blocked'}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   )
 }

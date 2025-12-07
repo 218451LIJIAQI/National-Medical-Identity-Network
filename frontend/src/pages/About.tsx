@@ -81,9 +81,9 @@ export default function AboutPage() {
               for seamless cross-hospital medical record access.
             </p>
             <div className="flex items-center justify-center gap-3 mt-6">
-              <Badge className="bg-emerald-100 text-emerald-700 border-0 px-4 py-1">Federated Architecture</Badge>
-              <Badge className="bg-blue-100 text-blue-700 border-0 px-4 py-1">Privacy-First</Badge>
-              <Badge className="bg-purple-100 text-purple-700 border-0 px-4 py-1">Real-time Access</Badge>
+              <Badge variant="success" className="px-4 py-1.5">Federated Architecture</Badge>
+              <Badge variant="info" className="px-4 py-1.5">Privacy-First</Badge>
+              <Badge className="border-purple-200/50 bg-gradient-to-r from-purple-50 to-violet-50 text-purple-700 px-4 py-1.5">Real-time Access</Badge>
             </div>
           </motion.div>
 
@@ -209,24 +209,29 @@ export default function AboutPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.9 }}
           >
-            <Card className="bg-gradient-to-br from-gray-900 via-slate-900 to-zinc-900 text-white border-0 shadow-2xl overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
+            <Card className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border-0 shadow-2xl overflow-hidden">
+              <div className="h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500" />
               <CardContent className="p-10 text-center relative">
                 <motion.div
-                  className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"
+                  className="absolute -top-20 -right-20 w-40 h-40 bg-amber-200/30 rounded-full blur-3xl"
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 5, repeat: Infinity }}
                 />
-                <h2 className="text-3xl font-bold mb-4 flex items-center justify-center gap-2">
-                  <span className="text-2xl">🏆</span> Built for GoDamLah 2.0
+                <motion.div
+                  className="absolute -bottom-20 -left-20 w-32 h-32 bg-orange-200/30 rounded-full blur-3xl"
+                  animate={{ scale: [1.2, 1, 1.2] }}
+                  transition={{ duration: 6, repeat: Infinity }}
+                />
+                <h2 className="text-3xl font-bold mb-4 flex items-center justify-center gap-2 text-gray-900">
+                  <span className="text-3xl">🏆</span> Built for GoDamLah 2.0
                 </h2>
-                <p className="text-gray-300 mb-8 max-w-lg mx-auto">
+                <p className="text-gray-600 mb-8 max-w-lg mx-auto">
                   This prototype was created for the Identity Hackathon,
                   demonstrating how Malaysia's IC system can revolutionize healthcare.
                 </p>
               <Link to="/login">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button variant="secondary" size="lg" className="gap-2">
+                  <Button size="lg" className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25">
                     Try the Demo
                     <ArrowRight className="w-4 h-4" />
                   </Button>

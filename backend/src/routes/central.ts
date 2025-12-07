@@ -62,10 +62,41 @@ router.get('/stats', async (_req: Request, res: Response) => {
 // Emergency Access Route (No Authentication Required)
 // ============================================================================
 
+// Rate limiting for emergency access - 1 query per IP per minute
+const emergencyRateLimits: Map<string, number> = new Map();
+const EMERGENCY_RATE_LIMIT_MS = 60000; // 1 minute
+
+// Clean up old rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, timestamp] of emergencyRateLimits.entries()) {
+    if (now - timestamp > EMERGENCY_RATE_LIMIT_MS) {
+      emergencyRateLimits.delete(ip);
+    }
+  }
+}, 300000);
+
 // Emergency query - provides critical patient information without login
 // This is for emergency situations where healthcare providers need immediate access
 router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   const { icNumber } = req.params;
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  
+  // Check rate limit
+  const lastAccess = emergencyRateLimits.get(clientIp);
+  if (lastAccess && Date.now() - lastAccess < EMERGENCY_RATE_LIMIT_MS) {
+    const remainingSeconds = Math.ceil((EMERGENCY_RATE_LIMIT_MS - (Date.now() - lastAccess)) / 1000);
+    res.status(429).json({
+      success: false,
+      error: `Rate limit exceeded. Please wait ${remainingSeconds} seconds before next query.`,
+      rateLimited: true,
+      retryAfter: remainingSeconds,
+    });
+    return;
+  }
+  
+  // Update rate limit timestamp
+  emergencyRateLimits.set(clientIp, Date.now());
   
   try {
     // Look up patient in central index

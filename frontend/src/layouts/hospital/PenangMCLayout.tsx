@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
-  Menu, X, Leaf, Heart, Sun
+  Menu, X, Leaf, Heart, Sun, Users, Pill, FlaskConical,
+  Calendar, ArrowRightLeft, ScanLine, Stethoscope, Receipt,
+  Building2, Bed, Package, DollarSign
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -35,8 +37,22 @@ export default function PenangMCLayout() {
     { icon: Home, label: 'Dashboard', path: '/doctor' },
     { icon: Search, label: 'Search', path: '/doctor/search' },
     { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
+    { icon: Users, label: 'Queue', path: '/doctor/queue' },
+    { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
+    { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
+    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
+    { icon: FileText, label: 'MC', path: '/doctor/mc' },
+    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
+    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments' },
+    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
+    { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
+    { icon: Users, label: 'Staff', path: '/admin/staff' },
+    { icon: Building2, label: 'Dept', path: '/admin/departments' },
+    { icon: Bed, label: 'Beds', path: '/admin/beds' },
+    { icon: Package, label: 'Inventory', path: '/admin/inventory' },
+    { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
     { icon: Activity, label: 'Audit', path: '/admin/audit' },
   ]
 
@@ -95,7 +111,7 @@ export default function PenangMCLayout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-6 flex flex-col items-center gap-3">
+        <nav className="flex-1 py-6 flex flex-col items-center gap-3 overflow-y-auto scrollbar-hide">
           {navItems.map((item, index) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,11 @@ export default function LoginPage() {
   const [chipScanPhase, setChipScanPhase] = useState<'detecting' | 'reading' | 'success'>('detecting')
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [pendingLogin, setPendingLogin] = useState<{ ic: string; password: string; roles: string[] } | null>(null)
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
