@@ -1,6 +1,6 @@
 // ============================================================================
-// Central Database - Now using Prisma
-// Re-exports from central-prisma.ts for backward compatibility
+// Central Database - Multi-Database Version
+// 使用独立的中心 PostgreSQL 数据库
 // ============================================================================
 
 export {
@@ -20,7 +20,8 @@ export {
   getBlockedHospitals,
   setHospitalAccess,
   getPrivacySettings,
-} from './central-prisma';
+} from './central-multi';
 
-import prisma from './prisma';
-export default prisma;
+// 导出中心数据库客户端
+import { getCentralDb } from './multi-db-manager';
+export default getCentralDb();

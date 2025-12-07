@@ -1,6 +1,7 @@
 // ============================================================================
-// Hospital Database - Now using Prisma
-// Re-exports from hospital-prisma.ts for backward compatibility
+// Hospital Database - Multi-Database Version
+// 每个医院使用独立的 PostgreSQL 数据库
 // ============================================================================
 
-export { HospitalDatabase, getHospitalDb } from './hospital-prisma';
+// 使用多数据库版本
+export { HospitalDatabaseMulti as HospitalDatabase, getHospitalDb } from './hospital-multi';

@@ -1,0 +1,114 @@
+// ============================================================================
+// Central Database Schema - 中心数据库
+// 只存储: 患者索引、用户账户、医院注册信息、审计日志
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client/central"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_CENTRAL")
+}
+
+// ============================================================================
+// Hospital Registry - 医院注册表
+// ============================================================================
+model Hospital {
+  id          String  @id
+  name        String
+  shortName   String
+  city        String
+  state       String
+  address     String
+  phone       String
+  email       String
+  apiEndpoint String
+  isActive    Boolean @default(true)
+
+  // Relations
+  users          User[]
+  patientIndexes PatientIndexHospital[]
+}
+
+// ============================================================================
+// PatientIndex - 患者索引（只记录患者在哪些医院有记录）
+// ============================================================================
+model PatientIndex {
+  icNumber    String   @id
+  lastUpdated DateTime @default(now())
+
+  // Relations
+  hospitals PatientIndexHospital[]
+}
+
+// ============================================================================
+// PatientIndexHospital - 患者索引与医院的关联表
+// ============================================================================
+model PatientIndexHospital {
+  id         String @id @default(uuid())
+  icNumber   String
+  hospitalId String
+
+  patientIndex PatientIndex @relation(fields: [icNumber], references: [icNumber])
+  hospital     Hospital     @relation(fields: [hospitalId], references: [id])
+
+  @@unique([icNumber, hospitalId])
+}
+
+// ============================================================================
+// User - 用户账户（认证用）
+// ============================================================================
+model User {
+  id           String    @id @default(uuid())
+  icNumber     String
+  role         String // patient, doctor, hospital_admin, central_admin
+  passwordHash String
+  lastLogin    DateTime?
+  isActive     Boolean   @default(true)
+
+  // Relations (optional - only for hospital staff)
+  hospitalId String?
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id])
+
+  auditLogsAsActor AuditLog[]
+
+  @@index([icNumber, role])
+}
+
+// ============================================================================
+// PatientPrivacySetting - 患者隐私设置
+// ============================================================================
+model PatientPrivacySetting {
+  id         String  @id @default(uuid())
+  icNumber   String
+  hospitalId String
+  isBlocked  Boolean @default(false)
+
+  @@unique([icNumber, hospitalId])
+}
+
+// ============================================================================
+// AuditLog - 审计日志
+// ============================================================================
+model AuditLog {
+  id               String   @id @default(uuid())
+  timestamp        DateTime @default(now())
+  action           String // query, view, create, update, login, logout
+  actorType        String // doctor, patient, hospital_admin, central_admin, system
+  actorHospitalId  String?
+  targetIcNumber   String?
+  targetHospitalId String?
+  details          String?
+  ipAddress        String?
+  success          Boolean  @default(true)
+
+  // Relations
+  actorId String
+  actor   User   @relation(fields: [actorId], references: [id])
+
+  @@index([timestamp])
+  @@index([targetIcNumber])
+}
