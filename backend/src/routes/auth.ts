@@ -83,6 +83,12 @@ router.post('/login', async (req: Request, res: Response) => {
         ...userInfo,
         fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
       };
+    } else if (user.role === 'central_admin') {
+      // Central admin display name
+      userInfo = {
+        ...userInfo,
+        fullName: 'Central Administrator',
+      };
     } else if (user.role === 'patient') {
       // Try to find patient info from any hospital that has their records
       const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
@@ -142,12 +148,13 @@ router.post('/register', async (req: Request, res: Response) => {
       return;
     }
     
-    // Check if user already exists
-    const existingUser = await getUserByIc(icNumber);
+    // Check if user already exists with this IC number AND role
+    // (Same person can have multiple roles - e.g., doctor can also be patient)
+    const existingUser = await getUserByIc(icNumber, role);
     if (existingUser) {
       res.status(400).json({
         success: false,
-        error: 'User with this IC number already exists',
+        error: 'User with this IC number and role already exists',
       });
       return;
     }
@@ -204,7 +211,9 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       return;
     }
     
-    const user = await getUserByIc(req.user.icNumber);
+    // Use the role from the JWT token to get the correct user record
+    // This ensures multi-role users get the correct account info
+    const user = await getUserByIc(req.user.icNumber, req.user.role);
     if (!user) {
       res.status(404).json({
         success: false,
@@ -244,6 +253,12 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       userInfo = {
         ...userInfo,
         fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
+      };
+    } else if (user.role === 'central_admin') {
+      // Central admin display name
+      userInfo = {
+        ...userInfo,
+        fullName: 'Central Administrator',
       };
     } else if (user.role === 'patient') {
       // Try to find patient info from any hospital that has their records

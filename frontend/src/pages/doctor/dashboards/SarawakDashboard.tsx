@@ -13,7 +13,7 @@ import {
   Search, FileText, Activity, ArrowRight, 
   Users, Zap, Sparkles, Plus,
   Clock, TrendingUp, Globe,
-  Building2, ChevronRight, Heart, Cpu, Wifi
+  ChevronRight, Heart, Cpu, Wifi
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -364,7 +364,7 @@ export default function SarawakDashboard() {
               </div>
             </div>
             <div className="space-y-2">
-              {['Central Hub', 'Hospital Network', 'Auth Service'].map((service, i) => (
+              {['Central Hub', 'Hospital Network', 'Auth Service'].map((service) => (
                 <div key={service} className="flex items-center justify-between p-2 bg-white/60 rounded-lg">
                   <span className="text-sm text-gray-600">{service}</span>
                   <div className="flex items-center gap-1.5">

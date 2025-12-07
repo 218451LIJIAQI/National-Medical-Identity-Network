@@ -137,6 +137,7 @@ export default function HospitalVerification() {
       return () => clearTimeout(timer)
     }
     // localStorage has user, wait for zustand to sync
+    return undefined
   }, [user, navigate, _hasHydrated])
   
   // Show loading while hydrating or waiting for user data

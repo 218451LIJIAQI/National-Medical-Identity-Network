@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getHospitalDb } from '../database/hospital';
 import { updatePatientIndex, createAuditLog } from '../database/central';
-import { authenticate, authorize, authorizeHospital } from '../middleware/auth';
+import { authenticate, authorizeHospital } from '../middleware/auth';
 import { HOSPITALS } from '../config';
 import { MedicalRecord, Patient } from '../types';
 

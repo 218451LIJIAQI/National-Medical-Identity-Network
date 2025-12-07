@@ -77,9 +77,9 @@ model MedicalRecord {
 
   // Relations
   icNumber      String
-  patient       Patient       @relation(fields: [icNumber], references: [icNumber])
+  patient       Patient        @relation(fields: [icNumber], references: [icNumber])
   doctorId      String
-  doctor        Doctor        @relation(fields: [doctorId], references: [id])
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
   prescriptions Prescription[]
   labReports    LabReport[]
 

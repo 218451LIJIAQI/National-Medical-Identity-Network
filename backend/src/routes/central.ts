@@ -25,7 +25,7 @@ const router = Router();
 // ============================================================================
 
 // Get list of all hospitals
-router.get('/hospitals', async (req: Request, res: Response) => {
+router.get('/hospitals', async (_req: Request, res: Response) => {
   try {
     const hospitals = await getHospitals();
     res.json({
@@ -42,7 +42,7 @@ router.get('/hospitals', async (req: Request, res: Response) => {
 });
 
 // Get central platform statistics
-router.get('/stats', async (req: Request, res: Response) => {
+router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const stats = await getCentralStats();
     res.json({
@@ -460,7 +460,7 @@ router.post('/drug-interactions', authenticate, async (req: Request, res: Respon
 // ============================================================================
 
 // Get all patient indexes (central admin only)
-router.get('/indexes', authenticate, authorize('central_admin'), async (req: Request, res: Response) => {
+router.get('/indexes', authenticate, authorize('central_admin'), async (_req: Request, res: Response) => {
   try {
     const indexes = await getAllPatientIndexes();
     res.json({

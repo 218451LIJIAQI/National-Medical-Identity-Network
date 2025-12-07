@@ -3,7 +3,6 @@
 // 使用独立的中心 PostgreSQL 数据库
 // ============================================================================
 
-import { v4 as uuidv4 } from 'uuid';
 import { PatientIndex, AuditLog, Hospital, User } from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
-  Menu, X, Hexagon, Shield, Cpu, Wifi, Zap
+  Menu, X, Hexagon, Shield, Wifi, Zap
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
