@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { 
   LayoutDashboard, Users, Search, FileText, Pill,
-  FlaskConical, Calendar, ArrowRightLeft, ClipboardList,
+  FlaskConical, Calendar, ArrowRightLeft,
   Building2, ChevronRight, Bell, Settings, LogOut,
   Globe, Activity, Clock, TrendingUp
 } from 'lucide-react'

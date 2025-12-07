@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
-  DollarSign, TrendingUp, TrendingDown, PieChart,
+  TrendingUp, TrendingDown,
   FileText, Download, Calendar, Building2, Users,
   CreditCard, Wallet, ArrowUpRight, ArrowDownRight
 } from 'lucide-react'

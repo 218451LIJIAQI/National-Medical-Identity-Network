@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Stethoscope, Plus, Clock, FileText, CheckCircle2,
-  AlertTriangle, Heart, Thermometer, Activity, Droplets,
+  AlertTriangle, Heart, Droplets,
   User, Save, History, Edit3
 } from 'lucide-react'
 

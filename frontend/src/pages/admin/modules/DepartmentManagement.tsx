@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
   Building2, Users, Stethoscope, Activity, Plus,
-  Phone, Mail, Clock, MapPin, Edit, Settings
+  Phone, Clock, MapPin, Edit, Settings
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 

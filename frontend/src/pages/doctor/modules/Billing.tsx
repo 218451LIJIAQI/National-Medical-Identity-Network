@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { 
-  Receipt, CreditCard, Wallet, BadgeCheck, Gift,
+  Receipt, CreditCard, BadgeCheck, Gift,
   Building2, User, FileText, CheckCircle2, AlertCircle,
   Calculator, Percent, Shield, Heart, Printer
 } from 'lucide-react'

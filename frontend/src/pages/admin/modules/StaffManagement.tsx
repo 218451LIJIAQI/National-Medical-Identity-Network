@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { 
-  Users, Search, Plus, Filter, UserCheck, UserX, 
+  Users, Search, Plus, UserCheck,
   Stethoscope, Syringe, ClipboardList, Building2,
-  Phone, Mail, Calendar, MoreVertical, Edit, Trash2
+  Phone, Mail, Calendar, Edit, Trash2
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 

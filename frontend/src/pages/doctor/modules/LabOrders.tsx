@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   FlaskConical, Plus, Trash2, Search, Clock, 
   FileText, CheckCircle2, AlertCircle, Printer,
-  Droplets, Heart, Activity, Microscope, TestTube
+  Droplets, Activity, Microscope, TestTube
 } from 'lucide-react'
 
 interface LabTest {

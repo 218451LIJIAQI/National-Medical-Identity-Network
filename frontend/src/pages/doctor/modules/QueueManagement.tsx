@@ -6,9 +6,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Users, Clock, AlertCircle, CheckCircle2, 
-  PhoneCall, Mic, ChevronRight, Search,
-  User, Calendar, Stethoscope, Timer
+  Users, Clock, CheckCircle2, 
+  PhoneCall, Mic, Search,
+  User, Stethoscope, Timer
 } from 'lucide-react'
 
 interface QueuePatient {
@@ -47,7 +47,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
   const [queue, setQueue] = useState<QueuePatient[]>(mockQueue)
   const [filter, setFilter] = useState<'all' | 'waiting' | 'called' | 'in-progress'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPatient, setSelectedPatient] = useState<QueuePatient | null>(null)
+  const [_selectedPatient, _setSelectedPatient] = useState<QueuePatient | null>(null)
 
   const colors = hospitalTheme || {
     primary: 'blue',

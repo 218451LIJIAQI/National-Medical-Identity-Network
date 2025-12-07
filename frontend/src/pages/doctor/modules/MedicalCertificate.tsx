@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 import { 
   FileText, Calendar, Clock, Printer, Send, 
   User, Building2, CheckCircle2, AlertTriangle,
-  Download, Eye
+  Eye
 } from 'lucide-react'
 
 interface MCData {

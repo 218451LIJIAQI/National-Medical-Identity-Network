@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Pill, Plus, Trash2, Search, AlertTriangle,
   CheckCircle2, Printer, Send, Clock, Package,
-  FileText, Info, ChevronDown
+  FileText, ChevronDown
 } from 'lucide-react'
 
 interface Medication {

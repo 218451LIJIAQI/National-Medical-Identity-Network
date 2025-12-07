@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
   Bed, User, AlertTriangle, CheckCircle, Clock,
-  Building2, Search, Filter, RefreshCw
+  RefreshCw
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 

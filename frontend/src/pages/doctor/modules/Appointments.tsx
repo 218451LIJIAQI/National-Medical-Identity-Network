@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, Clock, User, Phone, Search,
   Plus, ChevronLeft, ChevronRight, Check,
-  X, Bell, Filter, MapPin
+  X, Bell, Filter
 } from 'lucide-react'
 
 interface Appointment {
@@ -45,12 +45,12 @@ interface AppointmentsProps {
   doctorName?: string
 }
 
-export default function Appointments({ doctorName = 'Dr. Lee Wei Ming' }: AppointmentsProps) {
+export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Ming' }: AppointmentsProps) {
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments)
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'list'>('day')
+  const [_viewMode, _setViewMode] = useState<'day' | 'week' | 'list'>('day')
   const [searchQuery, setSearchQuery] = useState('')
-  const [showNewAppointment, setShowNewAppointment] = useState(false)
+  const [_showNewAppointment, _setShowNewAppointment] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
   const formatDate = (date: Date) => {
@@ -127,7 +127,7 @@ export default function Appointments({ doctorName = 'Dr. Lee Wei Ming' }: Appoin
           <p className="text-gray-500">Appointment Management • Jadual Temujanji</p>
         </div>
         <motion.button
-          onClick={() => setShowNewAppointment(true)}
+          onClick={() => _setShowNewAppointment(true)}
           className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-semibold shadow-lg hover:bg-teal-700"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}

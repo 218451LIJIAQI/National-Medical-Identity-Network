@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ScanLine, Plus, Trash2, Search, Clock, 
   FileText, CheckCircle2, AlertCircle, Printer,
-  Scan, Monitor, CircleDot, Bone, Brain, Heart
+  Scan, Monitor, CircleDot, Bone, Brain
 } from 'lucide-react'
 
 interface RadiologyOrder {
