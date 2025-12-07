@@ -20,7 +20,7 @@
     "multi:generate:central": "prisma generate --schema=prisma/schema.central.prisma",
     "multi:generate:hospital": "prisma generate --schema=prisma/schema.hospital.prisma",
     "multi:generate": "npm run multi:generate:central && npm run multi:generate:hospital",
-    "multi:push:central": "prisma db push --schema=prisma/schema.central.prisma",
+    "multi:push:central": "prisma db push --schema=prisma/schema.central.prisma --accept-data-loss",
     "multi:push:hospitals": "tsx scripts/push-hospital-schemas.ts",
     "multi:push": "npm run multi:push:central && npm run multi:push:hospitals",
     "multi:seed": "tsx prisma/seed-multi.ts",
