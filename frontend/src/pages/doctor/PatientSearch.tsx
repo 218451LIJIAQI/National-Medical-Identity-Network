@@ -223,81 +223,72 @@ export default function PatientSearch() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header - Hospital Themed */}
+      {/* Premium Header - Elegant Light Theme */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.bgLight} border ${theme.borderColor}/30 p-8 shadow-xl ${theme.shadowColor}/20`}
       >
-        <motion.div 
-          className={`absolute -top-20 -right-20 w-60 h-60 bg-gradient-to-br ${theme.backgroundGlow} rounded-full blur-3xl`}
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 10, repeat: Infinity }}
-        />
-        <motion.div 
-          className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"
-          animate={{ scale: [1.2, 1, 1.2] }}
-          transition={{ duration: 15, repeat: Infinity }}
-        />
+        {/* Decorative Orbs */}
+        <div className={`absolute top-0 right-0 w-72 h-72 bg-gradient-to-br ${theme.bgMedium}/40 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4`} />
+        <div className={`absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr ${theme.bgLight}/60 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4`} />
+        
         <div className="relative z-10">
           {/* Hospital Badge */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <motion.div 
-                className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 flex items-center justify-center font-bold text-lg"
-                whileHover={{ scale: 1.1, rotate: 5 }}
+                className={`w-14 h-14 bg-gradient-to-br ${theme.buttonGradient} rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-lg ${theme.shadowColor}/30`}
+                whileHover={{ scale: 1.05, rotate: 3 }}
               >
                 {theme.shortName}
               </motion.div>
               <div>
-                <p className="text-sm text-white/80 font-medium">{theme.name}</p>
-                <div className="flex items-center gap-1.5 text-xs text-white/60">
-                  <MapPin className="w-3 h-3" />
+                <p className="font-semibold text-gray-800">{theme.name}</p>
+                <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <MapPin className="w-3.5 h-3.5" />
                   {theme.city}
                 </div>
               </div>
             </div>
-            <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
-              <Stethoscope className="w-3 h-3 mr-1" />
+            <Badge className={`${theme.bgMedium} ${theme.textColor} border ${theme.borderColor}/50 px-4 py-1.5`}>
+              <Stethoscope className="w-3.5 h-3.5 mr-1.5" />
               Cross-Hospital Query
             </Badge>
           </div>
           
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-start gap-4">
             <motion.div 
-              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm"
-              whileHover={{ scale: 1.1, rotate: 5 }}
+              className={`p-4 bg-gradient-to-br ${theme.buttonGradient} rounded-2xl shadow-lg ${theme.shadowColor}/30`}
+              whileHover={{ scale: 1.05, rotate: 3 }}
             >
-              <Search className="w-7 h-7" />
+              <Search className="w-8 h-8 text-white" />
             </motion.div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">Patient Search</h1>
+              <p className="text-gray-600 text-lg">Search patient records across the National Medical Network</p>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold mb-2 drop-shadow-lg">Patient Search</h1>
-          <p className="text-white/80 text-lg">Search patient records across the National Medical Network</p>
         </div>
       </motion.div>
 
-      {/* Search Form - Premium Design */}
+      {/* Search Form - Refined Design */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <motion.div 
-            className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`}
-            style={{ backgroundSize: '200% 100%' }}
-            animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          />
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className={`p-2 ${theme.bgLight} rounded-lg`}>
+        <Card className="border border-gray-100 shadow-xl shadow-gray-100/50 rounded-2xl overflow-hidden">
+          <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
+          <CardHeader className={`bg-gradient-to-r ${theme.bgLight}/30 to-white border-b border-gray-100 p-6`}>
+            <CardTitle className="flex items-center gap-3 text-xl text-gray-800">
+              <div className={`p-2.5 ${theme.bgMedium} rounded-xl`}>
                 <CreditCard className={`w-5 h-5 ${theme.iconColor}`} />
               </div>
               Enter Patient IC Number
             </CardTitle>
-            <CardDescription className="text-base">
+            <CardDescription className="text-base text-gray-500 mt-2">
               The system will securely query all connected hospitals for matching records
             </CardDescription>
           </CardHeader>
@@ -305,7 +296,7 @@ export default function PatientSearch() {
             <form onSubmit={handleSearch} className="flex gap-4">
               <div className="flex-1 relative group">
                 <motion.div
-                  className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-violet-500 rounded-xl opacity-0 blur transition-all duration-300 group-hover:opacity-40"
+                  className={`absolute -inset-0.5 bg-gradient-to-r ${theme.buttonGradient} rounded-xl opacity-0 blur transition-all duration-300 group-hover:opacity-30 group-focus-within:opacity-40`}
                 />
                 <div className="relative">
                   <Input
@@ -313,16 +304,16 @@ export default function PatientSearch() {
                     value={icNumber}
                     onChange={(e) => setIcNumber(e.target.value)}
                     disabled={isSearching}
-                    className="text-lg h-14 px-5 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className={`text-lg h-14 px-5 rounded-xl border-gray-200 bg-white focus:border-${theme.iconColor.replace('text-', '')} focus:ring-2 focus:ring-${theme.iconColor.replace('text-', '')}/20 transition-all`}
                   />
                 </div>
               </div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   type="submit" 
                   disabled={isSearching} 
                   size="lg"
-                  className={`h-14 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor} font-semibold`}
+                  className={`h-14 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor}/40 hover:shadow-xl font-semibold transition-all`}
                 >
                   {isSearching ? (
                     <>
@@ -405,52 +396,71 @@ export default function PatientSearch() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
           >
-            {/* Summary */}
-            <Card className="border-green-200 bg-green-50">
-              <CardContent className="pt-6">
+            {/* Summary - Refined Success Card */}
+            <Card className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-lg shadow-emerald-100/30 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-400" />
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-green-900">
-                      Patient Found: {formatIC(icNumber)}
-                    </h3>
-                    <p className="text-green-700">
-                      {totalRecords} records found across {hospitalResults.filter(h => h.recordCount > 0).length} hospitals
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200/50">
+                      <Search className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        Patient Found: {formatIC(icNumber)}
+                      </h3>
+                      <p className="text-emerald-700">
+                        {totalRecords} records found across {hospitalResults.filter(h => h.recordCount > 0).length} hospitals
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-green-600">Query completed in</p>
-                    <p className="text-2xl font-bold text-green-900">{queryTime}ms</p>
+                  <div className="text-right p-4 bg-white/60 rounded-xl border border-emerald-100">
+                    <p className="text-sm text-emerald-600 font-medium">Query completed in</p>
+                    <p className="text-3xl font-bold text-emerald-700">{queryTime}ms</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Hospital Results */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Hospital Records</CardTitle>
-                <CardDescription>Records found at each connected hospital</CardDescription>
+            {/* Hospital Results - Refined Grid */}
+            <Card className="border border-gray-100 rounded-2xl shadow-lg shadow-gray-100/40 overflow-hidden">
+              <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
+              <CardHeader className={`bg-gradient-to-r ${theme.bgLight}/30 to-white border-b border-gray-100 p-5`}>
+                <CardTitle className="flex items-center gap-3 text-gray-800">
+                  <div className={`p-2 ${theme.bgMedium} rounded-lg`}>
+                    <Building2 className={`w-5 h-5 ${theme.iconColor}`} />
+                  </div>
+                  Hospital Records
+                </CardTitle>
+                <CardDescription className="text-gray-500">Records found at each connected hospital</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-5">
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {hospitalResults.map((hospital) => (
+                  {hospitalResults.map((hospital, index) => (
                     <motion.div
                       key={hospital.hospitalId}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="p-4 border rounded-lg"
-                      style={{ borderLeftColor: getHospitalColor(hospital.hospitalId), borderLeftWidth: 4 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.08 }}
+                      className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all"
+                      style={{ borderLeftColor: getHospitalColor(hospital.hospitalId), borderLeftWidth: 3 }}
+                      whileHover={{ y: -2 }}
                     >
                       <div className="flex items-start gap-3">
-                        <Building2 
-                          className="h-5 w-5 mt-0.5" 
-                          style={{ color: getHospitalColor(hospital.hospitalId) }}
-                        />
+                        <div 
+                          className="w-10 h-10 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: `${getHospitalColor(hospital.hospitalId)}15` }}
+                        >
+                          <Building2 
+                            className="h-5 w-5" 
+                            style={{ color: getHospitalColor(hospital.hospitalId) }}
+                          />
+                        </div>
                         <div className="flex-1">
-                          <h4 className="font-medium">{hospital.hospitalName}</h4>
-                          <div className="flex items-center gap-2 mt-1">
+                          <h4 className="font-semibold text-gray-800">{hospital.hospitalName}</h4>
+                          <div className="flex items-center gap-2 mt-1.5">
                             <FileText className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm font-medium text-gray-600">
                               {hospital.recordCount} records
                             </span>
                           </div>
@@ -468,22 +478,22 @@ export default function PatientSearch() {
               </CardContent>
             </Card>
 
-            {/* Action Buttons */}
-            <div className="flex justify-center gap-4">
-              <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
+            {/* Action Buttons - Refined */}
+            <div className="flex justify-center gap-4 pt-2">
+              <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   onClick={viewPatientTimeline} 
                   size="lg"
-                  className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor} font-semibold`}
+                  className={`h-13 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor}/40 hover:shadow-xl font-semibold transition-all`}
                 >
                   View Complete Timeline
                 </Button>
               </motion.div>
-              <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
+              <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   variant="outline" 
                   size="lg"
-                  className={`h-12 px-6 rounded-xl ${theme.textColor} ${theme.borderColor} hover:${theme.bgLight}`}
+                  className={`h-13 px-6 rounded-xl ${theme.textColor} border-2 ${theme.borderColor} hover:${theme.bgLight} font-semibold transition-all`}
                   onClick={() => navigate(`/doctor/patient/${encodeURIComponent(icNumber)}/new-record`)}
                 >
                   Create New Record

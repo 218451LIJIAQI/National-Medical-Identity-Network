@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { CONFIG } from '../config';
 import { getUserById } from '../database/central';
@@ -122,7 +123,6 @@ export function authorizeHospital(req: Request, res: Response, next: NextFunctio
 // Simple password hashing (for demo - use bcrypt in production)
 export function hashPassword(password: string): string {
   // Simple hash for demo purposes - use bcrypt in production!
-  const crypto = require('crypto');
   return crypto.createHash('sha256').update(password + CONFIG.jwt.secret).digest('hex');
 }
 

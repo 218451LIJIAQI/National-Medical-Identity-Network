@@ -7,11 +7,12 @@ import { Building2 } from 'lucide-react'
 // Layouts
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
+import HospitalLayout from '@/layouts/hospital'
 
 // Pages
 import LandingPage from '@/pages/LandingV2'
 import LoginPage from '@/pages/Login'
-import DoctorDashboard from '@/pages/doctor/Dashboard'
+import DoctorDashboard from '@/pages/doctor/dashboards'
 import PatientSearch from '@/pages/doctor/PatientSearch'
 import PatientTimeline from '@/pages/doctor/PatientTimeline'
 import NewRecord from '@/pages/doctor/NewRecord'
@@ -118,8 +119,8 @@ function App() {
         {/* Hospital Verification - Second layer authentication (standalone, no AuthLayout redirect) */}
         <Route path="/verify" element={<HospitalVerification />} />
 
-        {/* Doctor routes */}
-        <Route element={<MainLayout />}>
+        {/* Doctor routes - Using Hospital-specific layouts */}
+        <Route element={<HospitalLayout />}>
           <Route
             path="/doctor"
             element={
@@ -161,7 +162,27 @@ function App() {
             }
           />
 
-          {/* Patient routes */}
+          {/* Hospital Admin routes - Also use hospital-specific layouts */}
+          <Route
+            path="/admin/hospital"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
+                <HospitalAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute allowedRoles={['central_admin', 'hospital_admin']}>
+                <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
+        {/* Patient routes - Standard layout */}
+        <Route element={<MainLayout />}>
           <Route
             path="/patient"
             element={
@@ -187,30 +208,12 @@ function App() {
             }
           />
 
-          {/* Hospital Admin routes */}
-          <Route
-            path="/admin/hospital"
-            element={
-              <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <HospitalAdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Central Admin routes */}
+          {/* Central Admin routes - Standard layout */}
           <Route
             path="/admin/central"
             element={
               <ProtectedRoute allowedRoles={['central_admin']}>
                 <CentralAdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/audit"
-            element={
-              <ProtectedRoute allowedRoles={['central_admin', 'hospital_admin']}>
-                <AuditLogs />
               </ProtectedRoute>
             }
           />
