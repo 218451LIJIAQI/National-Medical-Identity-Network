@@ -5,18 +5,13 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && prisma db push --accept-data-loss && tsc && npx tsx prisma/seed.ts",
     "start": "node dist/index.js",
-    "postinstall": "prisma generate",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio",
-    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "render:build": "prisma generate && prisma db push --accept-data-loss && tsc",
-    "render:seed": "node dist/prisma/seed.js",
-    
+    "postinstall": "npm run multi:generate",
+    "db:generate": "npm run multi:generate",
+    "db:push": "npm run multi:push",
+    "db:seed": "npm run multi:seed",
+    "db:setup": "npm run multi:setup",
+    "db:reset": "npm run multi:reset",
     "multi:generate:central": "prisma generate --schema=prisma/schema.central.prisma",
     "multi:generate:hospital": "prisma generate --schema=prisma/schema.hospital.prisma",
     "multi:generate": "npm run multi:generate:central && npm run multi:generate:hospital",
@@ -26,12 +21,8 @@
     "multi:seed": "tsx prisma/seed-multi.ts",
     "multi:setup": "npm run multi:generate && npm run multi:push && npm run multi:seed",
     "multi:reset": "npm run multi:push && npm run multi:seed",
-    
-    "render:multi:build": "npm run multi:generate && npm run multi:push && tsc",
-    "render:multi:start": "npm run multi:seed && node dist/index.js"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "render:build": "npm run multi:generate && npm run multi:push && tsc",
+    "render:start": "npm run multi:seed && node dist/index.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
