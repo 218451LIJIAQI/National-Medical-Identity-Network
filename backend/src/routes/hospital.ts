@@ -303,7 +303,6 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      console.log(`Auto-created patient record for IC: ${recordData.icNumber}`);
     }
     
     // Create the record

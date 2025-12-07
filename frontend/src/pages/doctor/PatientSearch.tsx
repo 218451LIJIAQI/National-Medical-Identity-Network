@@ -484,12 +484,7 @@ export default function PatientSearch() {
                   variant="outline" 
                   size="lg"
                   className={`h-12 px-6 rounded-xl ${theme.textColor} ${theme.borderColor} hover:${theme.bgLight}`}
-                  onClick={() => {
-                    const targetUrl = `/doctor/patient/${encodeURIComponent(icNumber)}/new-record`
-                    console.log('[PatientSearch] Navigating to:', targetUrl)
-                    console.log('[PatientSearch] Current user:', user)
-                    navigate(targetUrl)
-                  }}
+                  onClick={() => navigate(`/doctor/patient/${encodeURIComponent(icNumber)}/new-record`)}
                 >
                   Create New Record
                 </Button>
