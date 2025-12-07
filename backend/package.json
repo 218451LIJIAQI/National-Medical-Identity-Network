@@ -22,7 +22,9 @@
     "multi:setup": "npm run multi:generate && npm run multi:push && npm run multi:seed",
     "multi:reset": "npm run multi:push && npm run multi:seed",
     "render:build": "npm run multi:generate && npm run multi:push && tsc",
-    "render:start": "npm run multi:seed && node dist/index.js"
+    "render:start": "npm run multi:seed && node dist/index.js",
+    "render:multi:build": "npm run render:build",
+    "render:multi:start": "npm run render:start"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
