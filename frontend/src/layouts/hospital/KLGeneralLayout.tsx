@@ -260,9 +260,12 @@ export default function KLGeneralLayout() {
               ))
             ) : (
               adminNavSections.map((section, sectionIndex) => (
-                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-slate-100' : ''}>
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-5 pt-5 border-t border-slate-200' : ''}>
                   {sidebarOpen && (
-                    <p className="text-xs text-slate-400 uppercase tracking-wider font-medium px-3 mb-2">{section.title}</p>
+                    <div className="flex items-center gap-2 px-3 mb-3">
+                      <div className={`w-2 h-2 rounded-full ${section.title === 'Main' ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                      <p className={`text-xs uppercase tracking-wider font-bold ${section.title === 'Main' ? 'text-blue-600' : 'text-amber-600'}`}>{section.title}</p>
+                    </div>
                   )}
                   {section.items.map((item, index) => {
                     const Icon = item.icon

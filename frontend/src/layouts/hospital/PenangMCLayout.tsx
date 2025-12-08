@@ -194,9 +194,12 @@ export default function PenangMCLayout() {
           ) : (
             <div className="px-3">
               {adminNavSections.map((section, sectionIndex) => (
-                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-white/10' : ''}>
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-5 pt-5 border-t border-white/20' : ''}>
                   {sidebarExpanded && (
-                    <p className="text-xs text-white/50 uppercase tracking-widest font-medium mb-2">{section.title}</p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className={`w-2 h-2 rounded-full ${section.title === 'Main' ? 'bg-white' : 'bg-amber-400'}`} />
+                      <p className={`text-xs uppercase tracking-widest font-bold ${section.title === 'Main' ? 'text-white' : 'text-amber-300'}`}>{section.title}</p>
+                    </div>
                   )}
                   {section.items.map((item, index) => {
                     const Icon = item.icon

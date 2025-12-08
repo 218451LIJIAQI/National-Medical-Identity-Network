@@ -228,9 +228,12 @@ export default function SarawakGeneralLayout() {
               ))
             ) : (
               adminNavSections.map((section, sectionIndex) => (
-                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-violet-100' : ''}>
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-5 pt-5 border-t border-violet-200' : ''}>
                   {sidebarOpen && (
-                    <p className="text-xs text-violet-500 uppercase tracking-widest font-medium px-3 mb-3">{section.title}</p>
+                    <div className="flex items-center gap-2 px-3 mb-3">
+                      <div className={`w-2 h-2 rounded-full ${section.title === 'Main' ? 'bg-violet-500' : 'bg-amber-500'}`} />
+                      <p className={`text-xs uppercase tracking-widest font-bold ${section.title === 'Main' ? 'text-violet-600' : 'text-amber-600'}`}>{section.title}</p>
+                    </div>
                   )}
                   {section.items.map((item, index) => {
                     const Icon = item.icon

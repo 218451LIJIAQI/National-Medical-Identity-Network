@@ -328,8 +328,10 @@ export default function JohorSpecialistLayout() {
               ) : (
                 adminNavSections.map((section, sectionIndex) => (
                   <div key={section.title} className="flex items-center gap-2">
-                    {sectionIndex > 0 && <div className="w-px h-12 bg-gradient-to-b from-transparent via-amber-200 to-transparent mx-1" />}
-                    <span className="text-xs text-amber-500 uppercase font-bold mr-1">{section.title}</span>
+                    {sectionIndex > 0 && <div className="w-px h-12 bg-gradient-to-b from-transparent via-amber-300 to-transparent mx-2" />}
+                    <div className={`px-3 py-1.5 rounded-lg mr-2 ${section.title === 'Main' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className="text-xs uppercase font-bold tracking-wide">{section.title}</span>
+                    </div>
                     {section.items.map((item, index) => {
                       const Icon = item.icon
                       const isActive = location.pathname === item.path

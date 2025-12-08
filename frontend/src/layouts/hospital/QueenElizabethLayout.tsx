@@ -229,8 +229,10 @@ export default function QueenElizabethLayout() {
                   ) : (
                     adminNavSections.map((section, sectionIndex) => (
                       <div key={section.title} className="flex items-center gap-2">
-                        {sectionIndex > 0 && <div className="w-px h-6 bg-white/20 mx-2" />}
-                        <span className="text-xs text-white/50 uppercase mr-1">{section.title}:</span>
+                        {sectionIndex > 0 && <div className="w-px h-6 bg-white/30 mx-3" />}
+                      <div className={`px-2.5 py-1 rounded-lg mr-2 ${section.title === 'Main' ? 'bg-white text-red-700' : 'bg-white/20 text-white'}`}>
+                        <span className="text-xs uppercase font-bold tracking-wide">{section.title}</span>
+                      </div>
                         {section.items.map((item) => {
                           const Icon = item.icon
                           const isActive = location.pathname === item.path
