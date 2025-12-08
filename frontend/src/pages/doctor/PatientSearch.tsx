@@ -458,7 +458,7 @@ export default function PatientSearch() {
               </CardContent>
             </Card>
 
-                        <div className="flex justify-center gap-4 pt-2">
+                        <div className="flex justify-center gap-4 pt-2 pb-8">
               <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   onClick={viewPatientTimeline} 
