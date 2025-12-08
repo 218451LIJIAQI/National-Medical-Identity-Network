@@ -148,52 +148,80 @@ function ICCardDemo() {
   )
 }
 function NetworkVisualization() {
+  const [activeStep, setActiveStep] = useState(0)
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % 4)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+  
+  const steps = [
+    { icon: CreditCard, label: 'Scan MyKad', color: 'blue' },
+    { icon: Database, label: 'Query Index', color: 'cyan' },
+    { icon: Network, label: 'Fetch Records', color: 'violet' },
+    { icon: CheckCircle, label: 'Complete', color: 'emerald' },
+  ]
+  
   return (
     <div className="w-full max-w-md mx-auto">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-                <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-2xl mb-4">
-            <Network className="w-8 h-8 text-blue-600" />
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mb-4">
+            <Activity className="w-8 h-8 text-white" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900">Connected Network</h3>
-          <p className="text-gray-500 text-sm mt-1">5 hospitals linked in real-time</p>
+          <h3 className="text-xl font-bold text-gray-900">Query Flow</h3>
+          <p className="text-gray-500 text-sm mt-1">Real-time data retrieval process</p>
         </div>
         
-                <div className="space-y-3">
-          {hospitals.map((hospital, i) => (
-            <motion.div
-              key={hospital.id}
-              className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer group"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              whileHover={{ x: 4 }}
-            >
-                            <div 
-                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
-                style={{ backgroundColor: hospital.color + '15' }}
+        <div className="space-y-4">
+          {steps.map((step, i) => {
+            const Icon = step.icon
+            const isActive = i === activeStep
+            const isCompleted = i < activeStep
+            return (
+              <motion.div
+                key={step.label}
+                className={`flex items-center gap-4 p-4 rounded-xl transition-all ${
+                  isActive ? `bg-${step.color}-50 ring-2 ring-${step.color}-200` : 
+                  isCompleted ? 'bg-gray-50' : 'bg-gray-50/50'
+                }`}
+                animate={{ scale: isActive ? 1.02 : 1 }}
               >
-                <Building2 className="w-6 h-6" style={{ color: hospital.color }} />
-              </div>
-              
-                            <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 truncate">{hospital.name}</p>
-                <p className="text-sm text-gray-500">{hospital.city}</p>
-              </div>
-              
-                            <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs font-medium text-emerald-600">Online</span>
-              </div>
-            </motion.div>
-          ))}
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  isActive ? `bg-${step.color}-500` : 
+                  isCompleted ? 'bg-emerald-500' : 'bg-gray-200'
+                }`}>
+                  {isCompleted ? (
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  ) : (
+                    <Icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>{step.label}</p>
+                  {isActive && (
+                    <motion.div 
+                      className="flex items-center gap-2 mt-1"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      <span className="text-xs text-blue-600">Processing...</span>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
         
-                <div className="mt-6 pt-6 border-t border-gray-100">
+        <div className="mt-6 pt-6 border-t border-gray-100">
           <div className="flex items-center justify-center gap-3 text-gray-600">
-            <Database className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-medium">Secured by Central Index</span>
             <Shield className="w-5 h-5 text-emerald-600" />
+            <span className="text-sm font-medium">End-to-end encrypted</span>
+            <Lock className="w-5 h-5 text-blue-600" />
           </div>
         </div>
       </div>
