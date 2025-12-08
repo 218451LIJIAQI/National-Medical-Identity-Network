@@ -136,7 +136,7 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'emergency_access',
-        actorId: 'system',
+        actorId: undefined,  // System-generated log, no user actor
         actorType: 'system',
         targetIcNumber: icNumber,
         details: `Emergency access from IP: ${req.ip || 'unknown'}`,
@@ -587,7 +587,7 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
       }
       
       try {
-        const user = await getUserById(log.actorId);
+        const user = log.actorId ? await getUserById(log.actorId) : null;
         if (user && user.icNumber) {
           if (log.actorType === 'doctor' && log.actorHospitalId) {
             try {

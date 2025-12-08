@@ -82,9 +82,9 @@ model AuditLog {
   ipAddress        String?
   success          Boolean  @default(true)
 
-  // Relations
-  actorId String
-  actor   User   @relation(fields: [actorId], references: [id])
+  // Relations (optional for system-generated logs)
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id])
 
   @@index([timestamp])
   @@index([targetIcNumber])
