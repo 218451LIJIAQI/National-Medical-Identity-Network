@@ -720,12 +720,30 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
     
     const logs = await getAuditLogs({
       actorId: userId,
-      limit: requestedLimit * 3,
+      limit: requestedLimit * 5,
     });
     
-    const patientLogs = logs
-      .filter(log => log.action !== 'login' && log.action !== 'logout' && log.targetIcNumber)
-      .slice(0, requestedLimit);
+    const filteredLogs = logs.filter(log => 
+      log.action !== 'login' && log.action !== 'logout' && log.targetIcNumber
+    );
+    
+    // Deduplicate consecutive logs for the same patient within 5 minutes
+    const deduplicatedLogs: typeof filteredLogs = [];
+    for (const log of filteredLogs) {
+      const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1];
+      if (lastLog && 
+          lastLog.targetIcNumber === log.targetIcNumber && 
+          lastLog.action === log.action) {
+        const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime());
+        // Skip if same patient, same action within 5 minutes
+        if (timeDiff < 5 * 60 * 1000) {
+          continue;
+        }
+      }
+      deduplicatedLogs.push(log);
+    }
+    
+    const patientLogs = deduplicatedLogs.slice(0, requestedLimit);
     
     const enrichedLogs = await Promise.all(patientLogs.map(async (log) => {
       let patientName = 'Unknown Patient';
