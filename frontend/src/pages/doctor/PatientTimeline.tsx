@@ -7,6 +7,7 @@ import { centralApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { ArrowLeft, Plus, Building2, Calendar, User, AlertTriangle, FileText, Pill, Loader2, Shield } from 'lucide-react'
 import { formatDate, formatIC, getHospitalColor, getHospitalBadgeClass } from '@/lib/utils'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 import { motion } from 'framer-motion'
 
 interface PatientInfo {
@@ -119,7 +120,7 @@ export default function PatientTimeline() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className={`h-8 w-8 animate-spin ${getHospitalTheme(user?.hospitalId || 'hospital-kl').iconColor}`} />
       </div>
     )
   }
@@ -134,7 +135,7 @@ export default function PatientTimeline() {
             <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-700 p-8 text-white shadow-2xl shadow-blue-500/25"
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${getHospitalTheme(user?.hospitalId || 'hospital-kl').headerGradient} p-8 text-white shadow-2xl ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor}`}
       >
         <motion.div 
           className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
@@ -142,7 +143,7 @@ export default function PatientTimeline() {
           transition={{ duration: 10, repeat: Infinity }}
         />
         <motion.div 
-          className="absolute -bottom-20 -left-20 w-40 h-40 bg-cyan-300/20 rounded-full blur-3xl"
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
@@ -167,12 +168,12 @@ export default function PatientTimeline() {
                 <Shield className="w-3 h-3 mr-1" /> Patient Timeline
               </Badge>
               <h1 className="text-3xl font-bold drop-shadow-lg">{patient.fullName}</h1>
-              <p className="text-blue-100 font-mono">{formatIC(patient.icNumber)}</p>
+              <p className="text-white/80 font-mono">{formatIC(patient.icNumber)}</p>
             </div>
           </div>
           <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
             <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-              <Button className="bg-white text-blue-600 hover:bg-blue-50 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
+              <Button className={`bg-white ${getHospitalTheme(user?.hospitalId || 'hospital-kl').textColor} hover:bg-white/90 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold`}>
                 <Plus className="h-5 w-5" />
                 New Record
               </Button>
@@ -187,7 +188,7 @@ export default function PatientTimeline() {
         transition={{ delay: 0.2 }}
       >
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500" />
+          <div className={`h-1 bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient}`} />
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
