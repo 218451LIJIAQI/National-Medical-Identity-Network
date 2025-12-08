@@ -19,7 +19,7 @@ export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string 
   } as jwt.SignOptions);
 }
 
-export function verifyToken(token: string): JwtPayload | null {
+function verifyToken(token: string): JwtPayload | null {
   try {
     return jwt.verify(token, CONFIG.jwt.secret) as JwtPayload;
   } catch {

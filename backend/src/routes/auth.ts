@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getUserByIc, createUser, updateUserLastLogin, createAuditLog } from '../database/central-multi';
+import { getUserByIc, createUser, updateUserLastLogin, createAuditLog, getPatientIndex } from '../database/central-multi';
 import { generateToken, hashPassword, verifyPassword, authenticate } from '../middleware/auth';
 import { getHospitalDb } from '../database/hospital-multi';
 
@@ -82,7 +82,7 @@ router.post('/login', async (req: Request, res: Response) => {
         fullName: 'Central Administrator',
       };
     } else if (user.role === 'patient') {
-      const patientIndex = await (await import('../database/central-multi')).getPatientIndex(user.icNumber);
+      const patientIndex = await getPatientIndex(user.icNumber);
       if (patientIndex && patientIndex.hospitals.length > 0) {
         for (const hospitalId of patientIndex.hospitals) {
           const hospitalDb = getHospitalDb(hospitalId);
@@ -241,7 +241,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
         fullName: 'Central Administrator',
       };
     } else if (user.role === 'patient') {
-      const patientIndex = await (await import('../database/central-multi')).getPatientIndex(user.icNumber);
+      const patientIndex = await getPatientIndex(user.icNumber);
       if (patientIndex && patientIndex.hospitals.length > 0) {
         for (const hospitalId of patientIndex.hospitals) {
           const hospitalDb = getHospitalDb(hospitalId);

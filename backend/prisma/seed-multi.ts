@@ -1,4 +1,3 @@
-
 import { PrismaClient as CentralPrismaClient } from '../node_modules/.prisma/client/central';
 import { PrismaClient as HospitalPrismaClient } from '../node_modules/.prisma/client/hospital';
 import { v4 as uuidv4 } from 'uuid';

@@ -257,8 +257,8 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
       return;
     }
     
-    let patient = await hospitalDb.getPatient(recordData.icNumber);
-    if (!patient) {
+    const existingPatient = await hospitalDb.getPatient(recordData.icNumber);
+    if (!existingPatient) {
       const patientName = recordData.patientName || `Patient ${recordData.icNumber}`;
       await hospitalDb.createPatient({
         icNumber: recordData.icNumber,
