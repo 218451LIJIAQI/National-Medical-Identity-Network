@@ -82,30 +82,30 @@ export default function PatientRecords() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-            <motion.div 
+            <motion.div
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
       >
-        <motion.div 
+        <motion.div
           className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
-            <motion.div 
+            <motion.div
               className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg"
               whileHover={{ scale: 1.1, rotate: 5 }}
             >
@@ -125,7 +125,7 @@ export default function PatientRecords() {
           <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
           <CardContent className="pt-5">
             <div className="flex items-center gap-4">
-              <motion.div 
+              <motion.div
                 className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200"
                 whileHover={{ scale: 1.1, rotate: 5 }}
               >
@@ -142,7 +142,7 @@ export default function PatientRecords() {
           <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
           <CardContent className="pt-5">
             <div className="flex items-center gap-4">
-              <motion.div 
+              <motion.div
                 className="p-3 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-200"
                 whileHover={{ scale: 1.1, rotate: 5 }}
               >
@@ -159,7 +159,7 @@ export default function PatientRecords() {
           <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
           <CardContent className="pt-5">
             <div className="flex items-center gap-4">
-              <motion.div 
+              <motion.div
                 className="p-3 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200"
                 whileHover={{ scale: 1.1, rotate: 5 }}
               >
@@ -200,8 +200,8 @@ export default function PatientRecords() {
                 {records.map((record, i) => {
                   const color = hospitalColors[record.hospitalName] || '#6B7280'
                   return (
-                    <motion.div 
-                      key={record.id} 
+                    <motion.div
+                      key={record.id}
                       className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -209,7 +209,7 @@ export default function PatientRecords() {
                       whileHover={{ x: 4 }}
                     >
                       <div className="flex items-start gap-4">
-                        <div 
+                        <div
                           className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                           style={{ backgroundColor: color + '20' }}
                         >
@@ -233,10 +233,10 @@ export default function PatientRecords() {
                                 </div>
                               </div>
                             </div>
-                            <Badge 
+                            <Badge
                               className={`flex-shrink-0 ${
-                                record.visitType === 'emergency' 
-                                  ? 'bg-red-100 text-red-700' 
+                                record.visitType === 'emergency'
+                                  ? 'bg-red-100 text-red-700'
                                   : record.visitType === 'outpatient'
                                   ? 'bg-blue-100 text-blue-700'
                                   : 'bg-gray-100 text-gray-700'

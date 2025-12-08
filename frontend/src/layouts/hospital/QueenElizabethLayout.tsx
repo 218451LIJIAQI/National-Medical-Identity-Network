@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Home, Search, FileText, LogOut, User, Activity,
-  Menu, X, Crown, Clock, Calendar, Award, MapPin, 
+  Menu, X, Crown, Clock, Calendar, Award, MapPin,
   Sparkles, Shield, Heart, Users, Pill, FlaskConical,
   ArrowRightLeft, ScanLine, Stethoscope, Receipt,
   ChevronLeft, ChevronRight, Building2, Bed, Package, DollarSign
@@ -31,7 +31,7 @@ export default function QueenElizabethLayout() {
       })
     }
   }
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
@@ -94,11 +94,11 @@ export default function QueenElizabethLayout() {
   ]
 
   const formatDate = () => {
-    return currentTime.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return currentTime.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     })
   }
 
@@ -130,7 +130,7 @@ export default function QueenElizabethLayout() {
 
                         <header className="relative z-20">
                 <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-        
+
                 <div className="bg-gradient-to-r from-red-700 via-rose-700 to-red-800 text-white shadow-2xl">
                     <div className="border-b border-white/10">
             <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
@@ -160,7 +160,7 @@ export default function QueenElizabethLayout() {
                     <div className="max-w-7xl mx-auto px-6 py-5">
             <div className="flex items-center justify-between">
                             <div className="flex items-center gap-5">
-                <motion.div 
+                <motion.div
                   className="relative"
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: 'spring', stiffness: 300 }}
@@ -266,7 +266,7 @@ export default function QueenElizabethLayout() {
               </nav>
 
                             <div className="flex items-center gap-4">
-                                <motion.div 
+                                <motion.div
                   className="hidden md:flex items-center gap-3 bg-gradient-to-r from-white/15 to-white/10 backdrop-blur-sm rounded-2xl px-4 py-2.5 border border-white/20"
                   whileHover={{ scale: 1.02 }}
                 >
@@ -380,7 +380,7 @@ export default function QueenElizabethLayout() {
 
                         <main className="relative z-10 flex-1">
         <div className="max-w-7xl mx-auto px-6 py-8">
-                    <motion.div 
+                    <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -391,7 +391,7 @@ export default function QueenElizabethLayout() {
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-red-500 via-rose-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-200">
                     {(() => {
-                      const allItems = user?.role === 'doctor' 
+                      const allItems = user?.role === 'doctor'
                         ? doctorNavSections.flatMap(s => s.items)
                         : adminNavSections.flatMap(s => s.items)
                       const currentNav = allItems.find(item => item.path === location.pathname)
@@ -405,7 +405,7 @@ export default function QueenElizabethLayout() {
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
                       {(() => {
-                        const allItems = user?.role === 'doctor' 
+                        const allItems = user?.role === 'doctor'
                           ? doctorNavSections.flatMap(s => s.items)
                           : adminNavSections.flatMap(s => s.items)
                         return allItems.find(item => item.path === location.pathname)?.label || 'Dashboard'
@@ -430,7 +430,7 @@ export default function QueenElizabethLayout() {
             </div>
           </motion.div>
 
-                    <motion.div 
+                    <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}

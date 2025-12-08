@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
-import { 
-  User, Heart, FileText, Building2, 
+import {
+  User, Heart, FileText, Building2,
   Activity, AlertTriangle, Shield, ArrowRight,
   CreditCard, Pill, Calendar
 } from 'lucide-react'
@@ -56,22 +56,22 @@ export default function PatientDashboard() {
           centralApi.queryPatient(user.icNumber),
           centralApi.getPatient(user.icNumber),
         ])
-        
+
         let hospitalsCount = 0
         let recordsCount = 0
         let lastVisit = '-'
-        
+
         if (queryRes.success && queryRes.data) {
           const hospitalsWithRecords = queryRes.data.hospitals.filter((h: any) => h.recordCount > 0)
           hospitalsCount = hospitalsWithRecords.length
           recordsCount = queryRes.data.totalRecords
           lastVisit = hospitalsWithRecords.length > 0 ? 'Recent' : '-'
         }
-        
+
         let allergies: string[] = []
         let bloodType = ''
         let fullName = ''
-        
+
         if (patientRes.success && patientRes.data) {
           const p = patientRes.data.patient as any
           if (p) {
@@ -80,7 +80,7 @@ export default function PatientDashboard() {
             fullName = p.fullName || ''
           }
         }
-        
+
         setPatientData({
           hospitalsCount,
           recordsCount,
@@ -124,27 +124,27 @@ export default function PatientDashboard() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-            <motion.div 
+            <motion.div
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-8 text-white shadow-2xl shadow-emerald-500/25"
       >
-                <motion.div 
+                <motion.div
           className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-32 -left-32 w-96 h-96 bg-teal-300/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2], rotate: [0, -90, 0] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
-        <motion.div 
+        <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] opacity-30"
           style={{
             background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
@@ -152,9 +152,9 @@ export default function PatientDashboard() {
           animate={{ scale: [0.8, 1.2, 0.8] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-                    <motion.div 
+                    <motion.div
             className="relative"
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 300 }}
@@ -168,9 +168,9 @@ export default function PatientDashboard() {
               <User className="w-12 h-12 drop-shadow-lg" />
             </div>
           </motion.div>
-          
+
           <div className="flex-1">
-            <motion.h1 
+            <motion.h1
               className="text-4xl font-bold mb-2 drop-shadow-lg"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -178,7 +178,7 @@ export default function PatientDashboard() {
             >
               {patientData.fullName || user?.fullName || 'Patient'}
             </motion.h1>
-            <motion.div 
+            <motion.div
               className="flex flex-wrap items-center gap-4"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -191,15 +191,15 @@ export default function PatientDashboard() {
               {patientData.bloodType && (
                 <motion.div whileHover={{ scale: 1.05 }}>
                   <Badge className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30 px-4 py-2 text-sm">
-                    <Heart className="w-4 h-4 mr-2 text-red-300" /> 
+                    <Heart className="w-4 h-4 mr-2 text-red-300" />
                     Blood Type: {patientData.bloodType}
                   </Badge>
                 </motion.div>
               )}
             </motion.div>
           </div>
-          
-          <motion.div 
+
+          <motion.div
             className="flex gap-3"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -261,31 +261,31 @@ export default function PatientDashboard() {
 
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { 
-            label: 'Hospitals Visited', 
-            value: loading ? '-' : patientData.hospitalsCount, 
-            icon: Building2, 
+          {
+            label: 'Hospitals Visited',
+            value: loading ? '-' : patientData.hospitalsCount,
+            icon: Building2,
             gradient: 'from-blue-500 to-blue-600',
             bgLight: 'bg-blue-50'
           },
-          { 
-            label: 'Medical Records', 
-            value: loading ? '-' : patientData.recordsCount, 
-            icon: FileText, 
+          {
+            label: 'Medical Records',
+            value: loading ? '-' : patientData.recordsCount,
+            icon: FileText,
             gradient: 'from-emerald-500 to-emerald-600',
             bgLight: 'bg-emerald-50'
           },
-          { 
-            label: 'Active Medications', 
-            value: '3', 
-            icon: Pill, 
+          {
+            label: 'Active Medications',
+            value: '3',
+            icon: Pill,
             gradient: 'from-violet-500 to-violet-600',
             bgLight: 'bg-violet-50'
           },
-          { 
-            label: 'Last Visit', 
-            value: loading ? '-' : patientData.lastVisit, 
-            icon: Calendar, 
+          {
+            label: 'Last Visit',
+            value: loading ? '-' : patientData.lastVisit,
+            icon: Calendar,
             gradient: 'from-amber-500 to-amber-600',
             bgLight: 'bg-amber-50'
           },
@@ -390,7 +390,7 @@ export default function PatientDashboard() {
                   const diffMins = Math.floor(diffMs / 60000)
                   const diffHours = Math.floor(diffMs / 3600000)
                   const diffDays = Math.floor(diffMs / 86400000)
-                  
+
                   let timeAgo = ''
                   if (diffMins < 60) {
                     timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} minutes ago`
@@ -399,7 +399,7 @@ export default function PatientDashboard() {
                   } else {
                     timeAgo = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`
                   }
-                  const avatar = log.actorType === 'doctor' ? '👨‍⚕️' : 
+                  const avatar = log.actorType === 'doctor' ? '👨‍⚕️' :
                                  log.actorType === 'hospital_admin' ? '🏥' :
                                  log.actorType === 'patient' ? '👤' : '🏥'
                   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -415,9 +415,9 @@ export default function PatientDashboard() {
                       displayName = 'System User'
                     }
                   }
-                  
+
                   return (
-                    <motion.div 
+                    <motion.div
                       key={log.id}
                       className="p-4 hover:bg-gray-50 transition-colors"
                       initial={{ opacity: 0, x: -20 }}

@@ -5,9 +5,9 @@ import { getHospitalTheme } from '@/lib/hospital-themes'
 export default function ReferralPage() {
   const { user } = useAuthStore()
   const theme = getHospitalTheme(user?.hospitalId)
-  
+
   return (
-    <Referral 
+    <Referral
       fromHospital={theme.name}
     />
   )

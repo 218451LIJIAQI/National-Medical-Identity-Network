@@ -15,13 +15,13 @@ export default function NewRecordSearch() {
   const { toast } = useToast()
   const { user } = useAuthStore()
   const theme = getHospitalTheme(user?.hospitalId)
-  
+
   const [icNumber, setIcNumber] = useState('')
   const [isChecking, setIsChecking] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const cleanIC = icNumber.trim()
     if (!cleanIC) {
       toast({
@@ -33,10 +33,10 @@ export default function NewRecordSearch() {
     }
 
     setIsChecking(true)
-    
+
     try {
       const response = await centralApi.queryPatient(cleanIC)
-      
+
       if (response.success && response.data?.hospitals && response.data.hospitals.length > 0) {
         toast({
           title: 'Patient Found',
@@ -55,7 +55,7 @@ export default function NewRecordSearch() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-[80vh] flex items-center justify-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -67,7 +67,7 @@ export default function NewRecordSearch() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <motion.div 
+          <motion.div
             className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${theme.buttonGradient} mb-4`}
             whileHover={{ scale: 1.05, rotate: 5 }}
           >
@@ -83,7 +83,7 @@ export default function NewRecordSearch() {
           transition={{ delay: 0.1 }}
         >
           <Card className="border-0 shadow-2xl shadow-gray-200/50 overflow-hidden">
-            <motion.div 
+            <motion.div
               className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`}
               style={{ backgroundSize: '200% 100%' }}
               animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
@@ -120,9 +120,9 @@ export default function NewRecordSearch() {
 
                 <div className="flex gap-4 pt-2">
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => navigate(-1)}
                       disabled={isChecking}
                       className="w-full h-14 rounded-xl border-2 font-semibold"
@@ -132,8 +132,8 @@ export default function NewRecordSearch() {
                     </Button>
                   </motion.div>
                   <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }} className="flex-[2]">
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       disabled={isChecking || !icNumber.trim()}
                       className={`w-full h-14 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-xl ${theme.shadowColor}/40 hover:shadow-2xl font-semibold transition-all text-base`}
                     >

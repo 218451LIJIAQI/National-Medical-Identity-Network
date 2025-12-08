@@ -9,9 +9,9 @@ export async function getPatientIndex(icNumber: string): Promise<PatientIndex | 
     where: { icNumber },
     include: { hospitals: { include: { hospital: true } } },
   });
-  
+
   if (!index) return null;
-  
+
   return {
     icNumber: index.icNumber,
     hospitals: index.hospitals.map((h: { hospitalId: string }) => h.hospitalId),
@@ -50,7 +50,7 @@ export async function getAllPatientIndexes(): Promise<PatientIndex[]> {
   const indexes = await prisma.patientIndex.findMany({
     include: { hospitals: true },
   });
-  
+
   return indexes.map((idx: { icNumber: string; hospitals: { hospitalId: string }[]; lastUpdated: Date }) => ({
     icNumber: idx.icNumber,
     hospitals: idx.hospitals.map((h: { hospitalId: string }) => h.hospitalId),
@@ -62,7 +62,7 @@ export async function getHospitals(): Promise<Hospital[]> {
   const hospitals = await prisma.hospital.findMany({
     where: { isActive: true },
   });
-  
+
   return hospitals.map((h: any) => ({
     id: h.id,
     name: h.name,
@@ -109,21 +109,21 @@ export async function initializeHospitals(): Promise<void> {
 }
 
 export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
-  const where: { icNumber: string; isActive: boolean; role?: string } = { 
-    icNumber, 
-    isActive: true 
+  const where: { icNumber: string; isActive: boolean; role?: string } = {
+    icNumber,
+    isActive: true
   };
-  
+
   if (role) {
     where.role = role;
   }
-  
+
   const user = await prisma.user.findFirst({
     where,
   });
-  
+
   if (!user) return null;
-  
+
   return {
     id: user.id,
     icNumber: user.icNumber,
@@ -139,9 +139,9 @@ export async function getUserById(id: string): Promise<User | null> {
   const user = await prisma.user.findUnique({
     where: { id },
   });
-  
+
   if (!user || !user.isActive) return null;
-  
+
   return {
     id: user.id,
     icNumber: user.icNumber,
@@ -151,19 +151,6 @@ export async function getUserById(id: string): Promise<User | null> {
     lastLogin: user.lastLogin?.toISOString(),
     isActive: user.isActive,
   };
-}
-
-export async function createUser(user: User): Promise<void> {
-  await prisma.user.create({
-    data: {
-      id: user.id,
-      icNumber: user.icNumber,
-      role: user.role,
-      hospitalId: user.hospitalId,
-      passwordHash: user.passwordHash,
-      isActive: true,
-    },
-  });
 }
 
 export async function updateUserLastLogin(id: string): Promise<void> {
@@ -225,7 +212,7 @@ export async function getAuditLogs(filters?: {
   limit?: number;
 }): Promise<AuditLog[]> {
   const where: Record<string, unknown> = {};
-  
+
   if (filters?.actorId) where.actorId = filters.actorId;
   if (filters?.targetIcNumber) where.targetIcNumber = filters.targetIcNumber;
   if (filters?.startDate || filters?.endDate) {
@@ -263,8 +250,8 @@ export async function getCentralStats() {
   yesterday.setDate(yesterday.getDate() - 1);
 
   const [
-    totalPatients, 
-    activeHospitals, 
+    totalPatients,
+    activeHospitals,
     todayQueries,
     yesterdayQueries,
   ] = await Promise.all([
@@ -291,9 +278,9 @@ export async function getCentralStats() {
     queryChangePercent = 100;
   }
 
-  return { 
-    totalPatients, 
-    activeHospitals, 
+  return {
+    totalPatients,
+    activeHospitals,
     todayQueries,
     yesterdayQueries,
     queryChangePercent,

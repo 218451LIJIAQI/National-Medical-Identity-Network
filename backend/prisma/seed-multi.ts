@@ -41,20 +41,17 @@ const HOSPITALS = [
 ];
 
 const ALL_PATIENTS = [
-  // 普通患者
   { icNumber: '880101-14-5678', fullName: 'Ahmad bin Abdullah', dob: '1988-01-01', gender: 'male', bloodType: 'O+', phone: '+60 12-345 6789', email: 'ahmad@email.com', address: '123 Jalan Bukit Bintang, KL', emergencyContact: 'Fatimah binti Hassan', emergencyPhone: '+60 12-111 2222', allergies: ['Penicillin', 'Shellfish'], conditions: ['Hypertension', 'Type 2 Diabetes'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-jb', 'hospital-kuching', 'hospital-kk'] },
   { icNumber: '950320-10-1234', fullName: 'Siti Nurhaliza binti Mohd', dob: '1995-03-20', gender: 'female', bloodType: 'A+', phone: '+60 17-987 6543', email: 'siti.n@email.com', address: '45 Lorong Masjid, George Town', emergencyContact: 'Mohd Yusof', emergencyPhone: '+60 17-333 4444', allergies: ['Aspirin'], conditions: ['Asthma'], hospitals: ['hospital-penang', 'hospital-kl', 'hospital-jb'] },
   { icNumber: '550715-07-9999', fullName: 'Tan Ah Kow', dob: '1955-07-15', gender: 'male', bloodType: 'B+', phone: '+60 16-555 6666', email: 'tan.ak@email.com', address: '88 Jalan Danga, JB', emergencyContact: 'Tan Mei Ling', emergencyPhone: '+60 16-777 8888', allergies: ['Sulfa drugs'], conditions: ['Coronary Heart Disease', 'CKD'], hospitals: ['hospital-jb', 'hospital-kl', 'hospital-kuching', 'hospital-kk'] },
   { icNumber: '900808-01-5555', fullName: 'Raj Kumar a/l Muthu', dob: '1990-08-08', gender: 'male', bloodType: 'AB+', phone: '+60 19-222 3333', email: 'raj.kumar@email.com', address: '25 Jalan Padungan, Kuching', emergencyContact: 'Priya Muthu', emergencyPhone: '+60 19-444 5555', allergies: [], conditions: ['Epilepsy'], hospitals: ['hospital-kuching', 'hospital-kk', 'hospital-kl'] },
   { icNumber: '820425-12-7777', fullName: 'Aishah binti Mohd Yusof', dob: '1982-04-25', gender: 'female', bloodType: 'O-', phone: '+60 13-888 9999', email: 'aishah.y@email.com', address: '10 Jalan Gaya, Kota Kinabalu', emergencyContact: 'Mohd Yusof', emergencyPhone: '+60 13-111 2222', allergies: ['Latex'], conditions: ['Asthma'], hospitals: ['hospital-kk', 'hospital-kuching', 'hospital-penang'] },
   { icNumber: '780312-14-2345', fullName: 'Lee Mei Fong', dob: '1978-03-12', gender: 'female', bloodType: 'AB+', phone: '+60 16-789 1234', email: 'leemf@email.com', address: '88 Jalan Petaling, KL', emergencyContact: 'Lee Ah Kow', emergencyPhone: '+60 16-222 3333', allergies: ['Aspirin'], conditions: ['Rheumatoid Arthritis'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-jb'] },
-  // 医生也是患者
   { icNumber: '750101-14-5001', fullName: 'Dr. Lim Wei Ming', dob: '1975-01-01', gender: 'male', bloodType: 'A+', phone: '+60 12-100 1001', email: 'dr.lim@klgeneral.gov.my', address: '50 Jalan Ampang, KL', emergencyContact: 'Mrs. Lim', emergencyPhone: '+60 12-200 2002', allergies: [], conditions: ['Hyperlipidemia'], hospitals: ['hospital-penang', 'hospital-jb', 'hospital-kuching'] },
   { icNumber: '760612-07-5001', fullName: 'Dr. Tan Mei Ling', dob: '1976-06-12', gender: 'female', bloodType: 'B-', phone: '+60 17-300 3003', email: 'dr.tan@penangmc.gov.my', address: '20 Gurney Drive, Penang', emergencyContact: 'Mr. Tan', emergencyPhone: '+60 17-400 4004', allergies: [], conditions: ['Migraine'], hospitals: ['hospital-kl', 'hospital-jb', 'hospital-kk'] },
   { icNumber: '770808-01-5001', fullName: 'Dr. Siti Aishah', dob: '1977-08-08', gender: 'female', bloodType: 'O+', phone: '+60 7-111 2222', email: 'dr.siti@johorspecialist.gov.my', address: '15 Jalan Tebrau, JB', emergencyContact: 'Ahmad', emergencyPhone: '+60 7-333 4444', allergies: ['Codeine'], conditions: ['Mild Hypertension'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-kuching'] },
   { icNumber: '790303-13-5001', fullName: 'Dr. James Wong', dob: '1979-03-03', gender: 'male', bloodType: 'A-', phone: '+60 82-111 2222', email: 'dr.james@sarawakgeneral.gov.my', address: '30 Jalan Tunku Abdul Rahman, Kuching', emergencyContact: 'Mrs. Wong', emergencyPhone: '+60 82-333 4444', allergies: [], conditions: ['Gout'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-kk'] },
   { icNumber: '810707-12-5001', fullName: 'Dr. Maria Gonzales', dob: '1981-07-07', gender: 'female', bloodType: 'B+', phone: '+60 88-111 2222', email: 'dr.maria@qehkk.gov.my', address: '5 Jalan Gaya, KK', emergencyContact: 'Mr. Gonzales', emergencyPhone: '+60 88-333 4444', allergies: ['NSAIDs'], conditions: ['Allergic Rhinitis'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-jb'] },
-  // 第二位医生也是患者
   { icNumber: '800515-14-5002', fullName: 'Dr. Sarah Tan', dob: '1980-05-15', gender: 'female', bloodType: 'O+', phone: '+60 3-555 6666', email: 'dr.sarah@klgeneral.gov.my', address: '100 KLCC, KL', emergencyContact: 'Mr. Tan', emergencyPhone: '+60 3-777 8888', allergies: [], conditions: [], hospitals: ['hospital-penang', 'hospital-jb'] },
   { icNumber: '820310-07-5002', fullName: 'Dr. Raj Kumar', dob: '1982-03-10', gender: 'male', bloodType: 'AB-', phone: '+60 4-555 6666', email: 'dr.raj@penangmc.gov.my', address: '50 Jalan Burma, Penang', emergencyContact: 'Mrs. Kumar', emergencyPhone: '+60 4-777 8888', allergies: [], conditions: [], hospitals: ['hospital-kl', 'hospital-kuching'] },
   { icNumber: '830920-01-5002', fullName: 'Dr. Ahmad Faiz', dob: '1983-09-20', gender: 'male', bloodType: 'A+', phone: '+60 7-555 6666', email: 'dr.faiz@johorspecialist.gov.my', address: '25 Jalan Stulang, JB', emergencyContact: 'Mrs. Faiz', emergencyPhone: '+60 7-777 8888', allergies: [], conditions: [], hospitals: ['hospital-kl', 'hospital-kk'] },
@@ -88,11 +85,9 @@ const DOCTORS: Record<string, { id: string; icNumber: string; fullName: string; 
 async function main() {
   console.log('🌱 Starting complete multi-database seeding...\n');
 
-  // 1. 种子中心数据库
   console.log('📦 Seeding Central Database...');
   const centralDb = getCentralClient();
   
-  // 清理
   await centralDb.auditLog.deleteMany();
   await centralDb.patientPrivacySetting.deleteMany();
   await centralDb.patientIndexHospital.deleteMany();
@@ -100,19 +95,14 @@ async function main() {
   await centralDb.user.deleteMany();
   await centralDb.hospital.deleteMany();
 
-  // 创建医院
   for (const hospital of HOSPITALS) {
     await centralDb.hospital.create({ data: { ...hospital, isActive: true } });
     console.log(`  ✓ Hospital: ${hospital.shortName}`);
   }
 
-  // 创建所有用户账户
   const allUsers = [
-    // 中央管理员
     { icNumber: 'central-admin', role: 'central_admin', hospitalId: null, password: 'central123' },
-    // 医院管理员
     ...HOSPITALS.map(h => ({ icNumber: `admin-${h.id.replace('hospital-', '')}`, role: 'hospital_admin', hospitalId: h.id, password: 'admin123' })),
-    // 所有医生
     { icNumber: '750101-14-5001', role: 'doctor', hospitalId: 'hospital-kl', password: 'doctor123' },
     { icNumber: '760612-07-5001', role: 'doctor', hospitalId: 'hospital-penang', password: 'doctor123' },
     { icNumber: '770808-01-5001', role: 'doctor', hospitalId: 'hospital-jb', password: 'doctor123' },
@@ -123,7 +113,6 @@ async function main() {
     { icNumber: '830920-01-5002', role: 'doctor', hospitalId: 'hospital-jb', password: 'doctor123' },
     { icNumber: '850115-13-5002', role: 'doctor', hospitalId: 'hospital-kuching', password: 'doctor123' },
     { icNumber: '860420-12-5002', role: 'doctor', hospitalId: 'hospital-kk', password: 'doctor123' },
-    // 所有患者 (包括医生的患者身份)
     ...ALL_PATIENTS.map(p => ({ icNumber: p.icNumber, role: 'patient', hospitalId: null, password: p.icNumber.includes('500') ? 'doctor123' : 'patient123' })),
   ];
 
@@ -141,7 +130,6 @@ async function main() {
   }
   console.log(`  ✓ Created ${allUsers.length} user accounts`);
 
-  // 创建所有患者索引 - 确保每个患者都能被搜索到
   for (const patient of ALL_PATIENTS) {
     await centralDb.patientIndex.create({
       data: {
@@ -157,19 +145,16 @@ async function main() {
   await centralDb.$disconnect();
   console.log('✅ Central Database seeded!\n');
 
-  // 2. 种子各医院数据库
   for (const hospital of HOSPITALS) {
     console.log(`📦 Seeding ${hospital.shortName} Database...`);
     const hospitalDb = getHospitalClient(hospital.id);
 
-    // 清理
     await hospitalDb.labReport.deleteMany();
     await hospitalDb.prescription.deleteMany();
     await hospitalDb.medicalRecord.deleteMany();
     await hospitalDb.patient.deleteMany();
     await hospitalDb.doctor.deleteMany();
 
-    // 创建医生
     const doctors = DOCTORS[hospital.id] || [];
     for (const doctor of doctors) {
       await hospitalDb.doctor.create({
@@ -184,7 +169,6 @@ async function main() {
     }
     console.log(`  ✓ Created ${doctors.length} doctors`);
 
-    // 创建在该医院有记录的患者
     const hospitalPatients = ALL_PATIENTS.filter(p => p.hospitals.includes(hospital.id));
     for (const patient of hospitalPatients) {
       await hospitalDb.patient.create({
@@ -206,7 +190,6 @@ async function main() {
     }
     console.log(`  ✓ Created ${hospitalPatients.length} patients`);
 
-    // 为每个患者创建病历
     const visitTypes = ['outpatient', 'inpatient', 'emergency'];
     const complaints = ['Routine checkup', 'Follow-up visit', 'Chronic condition management', 'Annual physical', 'Specialist consultation'];
     

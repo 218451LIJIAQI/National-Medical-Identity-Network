@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ScanLine, Plus, Trash2, Search, Clock, 
+import {
+  ScanLine, Plus, Trash2, Search, Clock,
   FileText, CheckCircle2, AlertCircle, Printer,
   Scan, Monitor, CircleDot, Bone, Brain
 } from 'lucide-react'
@@ -50,10 +50,10 @@ interface RadiologyProps {
   onSubmit?: (orders: RadiologyOrder[]) => void
 }
 
-export default function Radiology({ 
+export default function Radiology({
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
-  onSubmit 
+  onSubmit
 }: RadiologyProps) {
   const [selectedOrders, setSelectedOrders] = useState<RadiologyOrder[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -84,7 +84,7 @@ export default function Radiology({
   }
 
   const toggleUrgent = (id: string) => {
-    setSelectedOrders(selectedOrders.map(o => 
+    setSelectedOrders(selectedOrders.map(o =>
       o.id === id ? { ...o, urgent: !o.urgent } : o
     ))
   }
@@ -182,7 +182,7 @@ export default function Radiology({
           <div>
             <p className="font-semibold text-amber-800">Attention: Contrast Examination</p>
             <p className="text-sm text-amber-700 mt-1">
-              Please ensure RFT (Renal Function Test) is up to date and no contrast allergy. 
+              Please ensure RFT (Renal Function Test) is up to date and no contrast allergy.
               Patient must fast according to instructions.
             </p>
           </div>
@@ -209,8 +209,8 @@ export default function Radiology({
                   key={mod}
                   onClick={() => setSelectedModality(mod)}
                   className={`px-3 py-1 text-sm rounded-full transition-all ${
-                    selectedModality === mod 
-                      ? 'bg-indigo-100 text-indigo-700 font-medium' 
+                    selectedModality === mod
+                      ? 'bg-indigo-100 text-indigo-700 font-medium'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -219,13 +219,13 @@ export default function Radiology({
               ))}
             </div>
           </div>
-          
+
           <div className="max-h-96 overflow-y-auto">
             {filteredExams.map((exam) => {
               const isSelected = selectedOrders.some(o => o.code === exam.code)
               const Icon = getModalityIcon(exam.modality)
               const color = getModalityColor(exam.modality)
-              
+
               return (
                 <motion.button
                   key={exam.code}
@@ -339,8 +339,8 @@ export default function Radiology({
                             <button
                               onClick={() => toggleUrgent(order.id)}
                               className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                                order.urgent 
-                                  ? 'bg-red-500 text-white' 
+                                order.urgent
+                                  ? 'bg-red-500 text-white'
                                   : 'bg-gray-200 text-gray-600 hover:bg-red-100 hover:text-red-600'
                               }`}
                               title="Toggle urgent"
@@ -372,7 +372,7 @@ export default function Radiology({
                   <p className="text-sm text-gray-600">
                     {selectedOrders.filter(o => o.urgent).length > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedOrders.filter(o => o.urgent).length} urgent • 
+                        {selectedOrders.filter(o => o.urgent).length} urgent •
                       </span>
                     )}
                     {' '}{selectedOrders.filter(o => o.contrast).length > 0 && (

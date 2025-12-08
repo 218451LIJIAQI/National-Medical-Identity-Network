@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { 
-  Search, FileText, Activity, ArrowRight, 
+import {
+  Search, FileText, Activity, ArrowRight,
   Users, Zap, Sparkles, Plus,
   Star, Clock, TrendingUp, Award,
   Building2, ChevronRight, Heart
@@ -20,9 +20,9 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20, scale: 0.98 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
+  visible: {
+    opacity: 1,
+    y: 0,
     scale: 1,
     transition: { duration: 0.5, type: "spring", stiffness: 100 }
   }
@@ -38,9 +38,9 @@ interface RecentActivity {
 
 export default function JohorDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState({ 
-    totalPatients: 0, 
-    activeHospitals: 0, 
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeHospitals: 0,
     todayQueries: 0,
   })
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
@@ -61,18 +61,18 @@ export default function JohorDashboard() {
           centralApi.getStats(),
           centralApi.getMyActivityLogs(4),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data)
         }
-        
+
         if (logsRes.success && logsRes.data) {
           const activities = logsRes.data.map((log) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
             const diffMins = Math.floor(diffMs / 60000)
-            
+
             return {
               patient: log.patientName || 'Patient',
               ic: log.targetIcNumber?.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3') || 'N/A',
@@ -100,19 +100,19 @@ export default function JohorDashboard() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6 max-w-6xl mx-auto font-poppins"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100/60 shadow-xl shadow-amber-100/30"
       >
                 <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-200/40 to-orange-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
         <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-gradient-to-tr from-yellow-200/30 to-transparent rounded-full blur-2xl translate-y-1/2" />
-        
+
                 <motion.div
           className="absolute top-12 right-20"
           animate={{ rotate: 360, scale: [1, 1.2, 1] }}
@@ -127,7 +127,7 @@ export default function JohorDashboard() {
         >
           <Sparkles className="w-5 h-5 text-orange-300/50" />
         </motion.div>
-        
+
         <div className="relative z-10 p-8">
                     <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
@@ -142,8 +142,8 @@ export default function JohorDashboard() {
                 <span className="text-sm font-semibold text-amber-700">Specialist Portal</span>
               </div>
             </div>
-            
-                        <motion.div 
+
+                        <motion.div
               className="hidden md:flex items-center gap-3 px-5 py-3 bg-white/90 backdrop-blur-sm rounded-2xl border border-amber-100 shadow-lg"
               whileHover={{ scale: 1.02, y: -2 }}
             >
@@ -172,7 +172,7 @@ export default function JohorDashboard() {
               <p className="text-amber-700/70 text-lg max-w-md">
                 {theme.tagline}
               </p>
-              
+
                             <div className="flex gap-3 pt-2">
                 <Link to="/doctor/search">
                   <motion.button
@@ -197,7 +197,7 @@ export default function JohorDashboard() {
               </div>
             </div>
 
-                        <motion.div 
+                        <motion.div
               className="hidden lg:grid grid-cols-2 gap-3"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -218,32 +218,32 @@ export default function JohorDashboard() {
 
                         <motion.div variants={itemVariants} className="grid md:grid-cols-4 gap-4">
         {[
-          { 
-            label: 'Hospitals', 
+          {
+            label: 'Hospitals',
             value: loading ? '—' : stats.activeHospitals,
             icon: Building2,
             bg: 'from-amber-50 to-orange-50',
             iconBg: 'from-amber-400 to-amber-500',
             iconShadow: 'shadow-amber-200/60'
           },
-          { 
-            label: 'Queries', 
+          {
+            label: 'Queries',
             value: loading ? '—' : stats.todayQueries,
             icon: Activity,
             bg: 'from-orange-50 to-amber-50',
             iconBg: 'from-orange-400 to-orange-500',
             iconShadow: 'shadow-orange-200/60'
           },
-          { 
-            label: 'Patients', 
+          {
+            label: 'Patients',
             value: loading ? '—' : stats.totalPatients.toLocaleString(),
             icon: Users,
             bg: 'from-yellow-50 to-amber-50',
             iconBg: 'from-yellow-400 to-amber-400',
             iconShadow: 'shadow-yellow-200/60'
           },
-          { 
-            label: 'Excellence', 
+          {
+            label: 'Excellence',
             value: 'A+',
             icon: Award,
             bg: 'from-amber-50 to-yellow-50',
@@ -260,7 +260,7 @@ export default function JohorDashboard() {
             whileHover={{ y: -4, boxShadow: '0 25px 50px -12px rgba(251, 191, 36, 0.25)' }}
           >
             <div className="flex items-center justify-between mb-3">
-              <motion.div 
+              <motion.div
                 className={`w-11 h-11 bg-gradient-to-br ${stat.iconBg} rounded-xl flex items-center justify-center shadow-lg ${stat.iconShadow}`}
                 whileHover={{ scale: 1.1, rotate: 10 }}
               >
@@ -268,8 +268,8 @@ export default function JohorDashboard() {
               </motion.div>
               <TrendingUp className="w-4 h-4 text-amber-400" />
             </div>
-            
-            <motion.p 
+
+            <motion.p
               className="text-3xl font-bold text-gray-800 mb-1"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -283,7 +283,7 @@ export default function JohorDashboard() {
       </motion.div>
 
                         <div className="grid lg:grid-cols-3 gap-6">
-                <motion.div 
+                <motion.div
           variants={itemVariants}
           className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >
@@ -298,7 +298,7 @@ export default function JohorDashboard() {
                   <p className="text-sm text-gray-500">Latest patient interactions</p>
                 </div>
               </div>
-              <Link 
+              <Link
                 to="/doctor/search"
                 className="flex items-center gap-1 text-sm font-medium text-amber-600 hover:text-amber-700"
               >
@@ -329,25 +329,25 @@ export default function JohorDashboard() {
                       whileHover={{ x: 4 }}
                     >
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        activity.type === 'view' 
-                          ? 'bg-amber-100 text-amber-600' 
+                        activity.type === 'view'
+                          ? 'bg-amber-100 text-amber-600'
                           : 'bg-orange-100 text-orange-600'
                       }`}>
                         {activity.type === 'view' ? <FileText className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-800 truncate">{activity.patient}</p>
                         <p className="text-sm text-gray-500 truncate">{activity.action}</p>
                       </div>
-                      
+
                       <div className="text-right">
                         <p className="text-xs text-gray-400">{activity.time}</p>
                         <code className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded mt-1 inline-block">
                           {activity.ic}
                         </code>
                       </div>
-                      
+
                       <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
                     </motion.div>
                   ))}
@@ -357,7 +357,7 @@ export default function JohorDashboard() {
           </div>
         </motion.div>
 
-                <motion.div 
+                <motion.div
           variants={itemVariants}
           className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >
@@ -372,7 +372,7 @@ export default function JohorDashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="p-5">
             <div className="space-y-2.5">
               {theme.specialties.map((specialty, index) => (

@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme, type HospitalTheme } from '@/lib/hospital-themes'
-import { 
-  Loader2, Lock, Shield, Building2, Stethoscope, 
+import {
+  Loader2, Lock, Shield, Building2, Stethoscope,
   Heart, Brain, Activity, CheckCircle2,
   MapPin, Clock, Users, Fingerprint, CreditCard, ArrowRight
 } from 'lucide-react'
@@ -56,7 +56,7 @@ export default function HospitalVerification() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user: storeUser, _hasHydrated } = useAuthStore()
-  
+
   const [isLoading, setIsLoading] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -74,9 +74,9 @@ export default function HospitalVerification() {
     }
     return null
   }
-  
+
   const [localUser, setLocalUser] = useState<typeof storeUser>(() => getStoredUser())
-  
+
   useEffect(() => {
     if (storeUser) {
       setLocalUser(storeUser)
@@ -88,7 +88,7 @@ export default function HospitalVerification() {
     }
   }, [storeUser, localUser])
   const user = storeUser || localUser
-  
+
   const theme: HospitalTheme = getHospitalTheme(user?.hospitalId)
   const decoration = hospitalDecorations[user?.hospitalId || 'hospital-kl'] || hospitalDecorations['hospital-kl']
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function HospitalVerification() {
     if (!storedUser) {
       const timer = setTimeout(() => {
         navigate('/login')
-      }, 500) // Give more time for state to sync
+      }, 500)
       return () => clearTimeout(timer)
     }
     return undefined
@@ -121,7 +121,7 @@ export default function HospitalVerification() {
   if (!_hasHydrated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-        <motion.div 
+        <motion.div
           className="flex flex-col items-center gap-4"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -149,24 +149,24 @@ export default function HospitalVerification() {
     await new Promise(resolve => setTimeout(resolve, 1500))
     setChipPhase('success')
     await new Promise(resolve => setTimeout(resolve, 800))
-    
+
     setShowChipScan(false)
     setShowSuccess(true)
-    
+
     toast({
       title: '✓ IC Card Verified',
       description: `Access granted to ${theme.name}`,
     })
-    
+
     await new Promise(resolve => setTimeout(resolve, 1200))
-    
+
     const redirectPath = user?.role === 'doctor' ? '/doctor' : '/admin/hospital'
     navigate(redirectPath)
   }
 
   const handleVerification = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!username || !password) {
       toast({
         title: 'Verification Required',
@@ -178,15 +178,15 @@ export default function HospitalVerification() {
 
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
-    
+
     setShowSuccess(true)
-    
+
     toast({
       title: '✓ Hospital Verification Complete',
       description: `Access granted to ${theme.name}`,
     })
     await new Promise(resolve => setTimeout(resolve, 1200))
-    
+
     const redirectPath = user?.role === 'doctor' ? '/doctor' : '/admin/hospital'
     navigate(redirectPath)
   }
@@ -225,13 +225,13 @@ export default function HospitalVerification() {
                     ))}
                   </div>
                 </motion.div>
-                
+
                                 <div className="absolute top-5 right-5 text-white/60 text-xs font-mono">{theme.shortName}</div>
                 <div className="absolute bottom-5 left-5 right-5 space-y-2">
                   <div className="h-2 bg-white/20 rounded" />
                   <div className="h-2 bg-white/20 rounded w-2/3" />
                 </div>
-                
+
                                 {chipPhase === 'reading' && (
                   <motion.div
                     className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent"
@@ -239,7 +239,7 @@ export default function HospitalVerification() {
                     transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                   />
                 )}
-                
+
                                 {chipPhase === 'success' && (
                   <motion.div
                     initial={{ scale: 0, opacity: 0 }}
@@ -257,7 +257,7 @@ export default function HospitalVerification() {
                   </motion.div>
                 )}
               </motion.div>
-              
+
                             <motion.div
                 className="mt-8 text-center"
                 key={chipPhase}
@@ -275,13 +275,13 @@ export default function HospitalVerification() {
                   {chipPhase === 'success' && 'Entering hospital system...'}
                 </p>
               </motion.div>
-              
+
                             <div className="flex gap-2 mt-6">
                 {['detecting', 'reading', 'success'].map((phase, i) => (
                   <motion.div
                     key={phase}
                     className={`w-2 h-2 rounded-full ${
-                      chipPhase === phase ? 'bg-white' : 
+                      chipPhase === phase ? 'bg-white' :
                       i < ['detecting', 'reading', 'success'].indexOf(chipPhase) ? 'bg-green-400' : 'bg-white/30'
                     }`}
                     animate={chipPhase === phase ? { scale: [1, 1.3, 1] } : {}}
@@ -295,18 +295,18 @@ export default function HospitalVerification() {
       </AnimatePresence>
 
       <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-              <div 
+              <div
         className="absolute inset-0 transition-all duration-1000"
-        style={{ 
+        style={{
           background: `linear-gradient(135deg, ${theme.primaryColor}08 0%, ${theme.secondaryColor}05 50%, ${theme.accentColor}08 100%)`,
         }}
       />
-      
-            <div 
+
+            <div
         className="absolute inset-0"
         style={{ background: decoration.pattern }}
       />
-      
+
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(6)].map((_, i) => {
           const IconComponent = decoration.icons[i % decoration.icons.length]
@@ -330,7 +330,7 @@ export default function HospitalVerification() {
                 delay: i * 0.5,
               }}
             >
-              <IconComponent 
+              <IconComponent
                 className="w-12 h-12"
                 style={{ color: theme.primaryColor }}
               />
@@ -361,8 +361,8 @@ export default function HospitalVerification() {
                     <div className={`relative p-8 bg-gradient-to-r ${theme.headerGradient} text-white overflow-hidden`}>
                         <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-white/10" />
             <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full bg-white/5" />
-            
-                        <motion.div 
+
+                        <motion.div
               className="relative flex items-center gap-4"
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -371,7 +371,7 @@ export default function HospitalVerification() {
               <div className="relative">
                 <motion.div
                   className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl"
-                  animate={{ 
+                  animate={{
                     boxShadow: [
                       '0 10px 30px rgba(0,0,0,0.2)',
                       '0 20px 40px rgba(0,0,0,0.3)',
@@ -404,7 +404,7 @@ export default function HospitalVerification() {
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              <Badge 
+              <Badge
                 className={`${theme.badgeClass} border shadow-lg px-4 py-2 text-sm font-medium`}
               >
                 <Shield className="w-4 h-4 mr-2" />
@@ -431,7 +431,7 @@ export default function HospitalVerification() {
               transition={{ delay: 0.5 }}
             >
               <div className="flex items-center gap-4">
-                <div 
+                <div
                   className={`w-14 h-14 rounded-xl bg-gradient-to-br ${theme.buttonGradient} flex items-center justify-center shadow-lg`}
                 >
                   {user.role === 'doctor' ? (
@@ -448,11 +448,11 @@ export default function HospitalVerification() {
                   <div className="flex items-center gap-2 mt-1">
                     <Clock className="w-3 h-3 text-gray-400" />
                     <span className="text-xs text-gray-500">
-                      {new Date().toLocaleDateString('en-MY', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
+                      {new Date().toLocaleDateString('en-MY', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
                       })}
                     </span>
                   </div>
@@ -462,7 +462,7 @@ export default function HospitalVerification() {
 
                         <AnimatePresence mode="wait">
               {!showSuccess ? (
-                <motion.form 
+                <motion.form
                   onSubmit={handleVerification}
                   className="space-y-5"
                   initial={{ opacity: 1 }}
@@ -484,7 +484,7 @@ export default function HospitalVerification() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className={`pl-12 h-14 text-lg rounded-xl border-2 ${theme.borderColor} focus:ring-2 focus:ring-offset-0 bg-white/80`}
-                        style={{ 
+                        style={{
                           '--tw-ring-color': theme.primaryColor,
                         } as React.CSSProperties}
                         placeholder="Enter Staff ID"
@@ -513,7 +513,7 @@ export default function HospitalVerification() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className={`pl-12 h-14 text-lg rounded-xl border-2 ${theme.borderColor} focus:ring-2 focus:ring-offset-0 bg-white/80`}
-                        style={{ 
+                        style={{
                           '--tw-ring-color': theme.primaryColor,
                         } as React.CSSProperties}
                         placeholder="Enter Password"
@@ -549,7 +549,7 @@ export default function HospitalVerification() {
                     </Button>
                   </motion.div>
 
-                                    <motion.div 
+                                    <motion.div
                     className="relative flex items-center gap-4 py-1"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}

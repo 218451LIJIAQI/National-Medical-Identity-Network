@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
+import {
   Receipt, CreditCard, BadgeCheck, Gift,
   Building2, User, FileText, CheckCircle2, AlertCircle,
   Calculator, Percent, Shield, Heart, Printer
@@ -44,7 +44,7 @@ interface BillingProps {
   subsidyStatus?: 'eligible' | 'not-eligible' | 'pending'
 }
 
-export default function Billing({ 
+export default function Billing({
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
   subsidyStatus = 'eligible'
@@ -156,7 +156,7 @@ export default function Billing({
             <p className="text-blue-100">Healthcare protection for Malaysians</p>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-4 gap-3">
           {subsidyPrograms.map((program, idx) => (
             <motion.div
@@ -186,7 +186,7 @@ export default function Billing({
               Charges List
             </h3>
           </div>
-          
+
           <div className="divide-y divide-gray-100">
             {billingItems.map((item) => {
               const Icon = getCategoryIcon(item.category)
@@ -202,7 +202,7 @@ export default function Billing({
                         <p className="text-xs text-gray-500">{item.category}</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-6 text-right">
                       <div>
                         <p className="text-sm text-gray-400 line-through">RM {item.originalPrice.toFixed(2)}</p>
@@ -244,7 +244,7 @@ export default function Billing({
         </div>
 
                 <div className="space-y-4">
-                    <motion.div 
+                    <motion.div
             className="p-5 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl text-white"
             whileHover={{ scale: 1.02 }}
           >
@@ -274,8 +274,8 @@ export default function Billing({
                   key={method.id}
                   onClick={() => setSelectedPayment(method.id as typeof selectedPayment)}
                   className={`w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4 ${
-                    selectedPayment === method.id 
-                      ? 'border-blue-500 bg-blue-50' 
+                    selectedPayment === method.id
+                      ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -304,7 +304,7 @@ export default function Billing({
               <div>
                 <p className="text-sm font-medium text-blue-800">Subsidy Information</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Healthcare subsidy provided by the Ministry of Health Malaysia (MOH) for all citizens. 
+                  Healthcare subsidy provided by the Ministry of Health Malaysia (MOH) for all citizens.
                   Charges are subject to the <strong>Fees Act 1951</strong>.
                 </p>
               </div>
@@ -319,7 +319,7 @@ export default function Billing({
           <div>
             <h3 className="font-bold text-amber-800">Malaysian Government Hospital Charges Schedule</h3>
             <p className="text-sm text-amber-700 mt-1">
-              Malaysian Citizens: Class 3 (Free for most services) | 
+              Malaysian Citizens: Class 3 (Free for most services) |
               Non-Citizens: Full rate according to MOH fee schedule
             </p>
           </div>

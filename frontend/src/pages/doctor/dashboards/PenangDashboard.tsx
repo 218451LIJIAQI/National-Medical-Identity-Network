@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { 
-  Search, FileText, Activity, ArrowRight, 
+import {
+  Search, FileText, Activity, ArrowRight,
   Users, Heart, Sparkles, Plus,
   Stethoscope, Calendar, Clock, TrendingUp,
   Building2, Shield, ChevronRight, Leaf
@@ -20,9 +20,9 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
+  visible: {
+    opacity: 1,
+    y: 0,
     transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }
   }
 }
@@ -37,9 +37,9 @@ interface RecentActivity {
 
 export default function PenangDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState({ 
-    totalPatients: 0, 
-    activeHospitals: 0, 
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeHospitals: 0,
     todayQueries: 0,
   })
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
@@ -60,18 +60,18 @@ export default function PenangDashboard() {
           centralApi.getStats(),
           centralApi.getMyActivityLogs(4),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data)
         }
-        
+
         if (logsRes.success && logsRes.data) {
           const activities = logsRes.data.map((log) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
             const diffMins = Math.floor(diffMs / 60000)
-            
+
             return {
               patient: log.patientName || 'Patient',
               ic: log.targetIcNumber?.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3') || 'N/A',
@@ -100,19 +100,19 @@ export default function PenangDashboard() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6 font-nunito"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-100/60 shadow-lg shadow-emerald-100/30"
       >
                 <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-200/30 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-teal-200/20 to-transparent rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
-        
+
                 <motion.div
           className="absolute top-8 right-12 text-emerald-300/40"
           animate={{ y: [-5, 5, -5], rotate: [-5, 5, -5] }}
@@ -127,7 +127,7 @@ export default function PenangDashboard() {
         >
           <Leaf className="w-6 h-6" />
         </motion.div>
-        
+
         <div className="relative z-10 p-8">
                     <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
@@ -149,7 +149,7 @@ export default function PenangDashboard() {
                     <div className="flex items-start justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.div
                   className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200/50"
                   whileHover={{ scale: 1.05, rotate: 3 }}
                 >
@@ -167,7 +167,7 @@ export default function PenangDashboard() {
               </p>
             </div>
 
-                        <motion.div 
+                        <motion.div
               className="hidden lg:flex flex-col items-end gap-2"
               whileHover={{ scale: 1.02 }}
             >
@@ -193,7 +193,7 @@ export default function PenangDashboard() {
             whileTap={{ scale: 0.98 }}
           >
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            
+
             <div className="relative z-10 flex items-start gap-4">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200/50 group-hover:scale-110 transition-transform">
                 <Search className="w-7 h-7 text-white" />
@@ -218,7 +218,7 @@ export default function PenangDashboard() {
             whileTap={{ scale: 0.98 }}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-teal-50 to-cyan-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            
+
             <div className="relative z-10 flex items-start gap-4">
               <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-200/50 group-hover:scale-110 transition-transform">
                 <Plus className="w-7 h-7 text-white" />
@@ -239,8 +239,8 @@ export default function PenangDashboard() {
 
                         <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-5">
         {[
-          { 
-            label: 'Connected Hospitals', 
+          {
+            label: 'Connected Hospitals',
             value: loading ? '—' : stats.activeHospitals,
             icon: Building2,
             gradient: 'from-emerald-50 to-teal-50',
@@ -248,8 +248,8 @@ export default function PenangDashboard() {
             iconShadow: 'shadow-emerald-200/50',
             trend: '+2 this month'
           },
-          { 
-            label: 'Queries Today', 
+          {
+            label: 'Queries Today',
             value: loading ? '—' : stats.todayQueries,
             icon: Activity,
             gradient: 'from-teal-50 to-cyan-50',
@@ -257,8 +257,8 @@ export default function PenangDashboard() {
             iconShadow: 'shadow-teal-200/50',
             trend: 'Active now'
           },
-          { 
-            label: 'Network Patients', 
+          {
+            label: 'Network Patients',
             value: loading ? '—' : stats.totalPatients.toLocaleString(),
             icon: Users,
             gradient: 'from-cyan-50 to-sky-50',
@@ -276,7 +276,7 @@ export default function PenangDashboard() {
             whileHover={{ y: -3, boxShadow: '0 20px 40px -15px rgba(16, 185, 129, 0.15)' }}
           >
             <div className="flex items-start justify-between mb-4">
-              <motion.div 
+              <motion.div
                 className={`w-12 h-12 bg-gradient-to-br ${stat.iconBg} rounded-xl flex items-center justify-center shadow-lg ${stat.iconShadow}`}
                 whileHover={{ scale: 1.1, rotate: 5 }}
               >
@@ -287,9 +287,9 @@ export default function PenangDashboard() {
                 <span className="text-xs font-medium">{stat.trend}</span>
               </div>
             </div>
-            
+
             <p className="text-sm font-medium text-gray-600 mb-1">{stat.label}</p>
-            <motion.p 
+            <motion.p
               className="text-3xl font-bold text-gray-800"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -301,7 +301,7 @@ export default function PenangDashboard() {
         ))}
       </motion.div>
 
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/30 overflow-hidden"
       >
@@ -316,7 +316,7 @@ export default function PenangDashboard() {
                 <p className="text-sm text-gray-500">Your latest patient interactions</p>
               </div>
             </div>
-            <Link 
+            <Link
               to="/doctor/search"
               className="flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
             >
@@ -329,7 +329,7 @@ export default function PenangDashboard() {
                 <div className="p-6">
           <AnimatePresence mode="wait">
             {recentActivity.length === 0 ? (
-              <motion.div 
+              <motion.div
                 className="text-center py-12"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -352,8 +352,8 @@ export default function PenangDashboard() {
                     whileHover={{ x: 4 }}
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      activity.type === 'view' 
-                        ? 'bg-emerald-100 text-emerald-600' 
+                      activity.type === 'view'
+                        ? 'bg-emerald-100 text-emerald-600'
                         : 'bg-teal-100 text-teal-600'
                     }`}>
                       {activity.type === 'view' ? (
@@ -362,19 +362,19 @@ export default function PenangDashboard() {
                         <Heart className="w-5 h-5" />
                       )}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-800 truncate">{activity.patient}</p>
                       <p className="text-sm text-gray-500 truncate">{activity.action}</p>
                     </div>
-                    
+
                     <div className="text-right">
                       <p className="text-xs text-gray-400">{activity.time}</p>
                       <code className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block">
                         {activity.ic}
                       </code>
                     </div>
-                    
+
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-500 transition-colors" />
                   </motion.div>
                 ))}
@@ -384,7 +384,7 @@ export default function PenangDashboard() {
         </div>
       </motion.div>
 
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/30 overflow-hidden"
       >
@@ -399,7 +399,7 @@ export default function PenangDashboard() {
             </div>
           </div>
         </div>
-        
+
         <div className="p-6">
           <div className="flex flex-wrap gap-3">
             {theme.specialties.map((specialty, index) => (

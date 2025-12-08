@@ -9,8 +9,8 @@ import hospitalRoutes from './routes/hospital';
 const app = express();
 
 app.use(cors({
-  origin: CONFIG.isProduction 
-    ? CONFIG.cors.origins 
+  origin: CONFIG.isProduction
+    ? CONFIG.cors.origins
     : true,
   credentials: true,
 }));

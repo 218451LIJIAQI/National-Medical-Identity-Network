@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
-import { 
-  Database, Search, Loader2, Users, Building2, 
+import {
+  Database, Search, Loader2, Users, Building2,
   TrendingUp, RefreshCw, FileText
 } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -44,7 +44,7 @@ export default function PatientIndexPage() {
         centralApi.getAllPatientIndexes(),
         centralApi.getHospitals()
       ])
-      
+
       if (indexesRes.success && indexesRes.data) {
         setPatientIndexes(indexesRes.data)
       }
@@ -67,11 +67,11 @@ export default function PatientIndexPage() {
     setRefreshing(true)
     loadData()
   }
-  const filteredIndexes = patientIndexes.filter(idx => 
+  const filteredIndexes = patientIndexes.filter(idx =>
     idx.icNumber.toLowerCase().includes(searchTerm.toLowerCase())
   )
   const multiHospitalPatients = patientIndexes.filter(idx => idx.hospitals.length > 1).length
-  const avgHospitalsPerPatient = patientIndexes.length > 0 
+  const avgHospitalsPerPatient = patientIndexes.length > 0
     ? Math.round(patientIndexes.reduce((sum, idx) => sum + idx.hospitals.length, 0) / patientIndexes.length * 10) / 10
     : 0
   const hospitalCounts = hospitals.map(h => ({
@@ -91,7 +91,7 @@ export default function PatientIndexPage() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -102,7 +102,7 @@ export default function PatientIndexPage() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <motion.div 
+          <motion.div
             className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-500/30"
             whileHover={{ scale: 1.05, rotate: 5 }}
           >
@@ -114,8 +114,8 @@ export default function PatientIndexPage() {
           </div>
         </div>
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2 h-11 px-5 rounded-xl"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -170,8 +170,8 @@ export default function PatientIndexPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {hospitalCounts.map((hospital) => {
                 const color = hospitalColors[hospital.id] || '#6B7280'
-                const percentage = patientIndexes.length > 0 
-                  ? Math.round(hospital.count / patientIndexes.length * 100) 
+                const percentage = patientIndexes.length > 0
+                  ? Math.round(hospital.count / patientIndexes.length * 100)
                   : 0
                 return (
                   <div
@@ -180,7 +180,7 @@ export default function PatientIndexPage() {
                     style={{ borderColor: color + '40' }}
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <div 
+                      <div
                         className="p-2 rounded-lg"
                         style={{ backgroundColor: color + '20' }}
                       >
@@ -198,7 +198,7 @@ export default function PatientIndexPage() {
                       </Badge>
                     </div>
                     <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${percentage}%`, backgroundColor: color }}
                       />
@@ -240,7 +240,7 @@ export default function PatientIndexPage() {
                 />
               </div>
             </div>
-            
+
                         <div className="border rounded-xl overflow-hidden">
               <div className="bg-gray-50 px-4 py-3 border-b grid grid-cols-12 gap-4 text-sm font-medium text-gray-600">
                 <div className="col-span-4">IC Number</div>

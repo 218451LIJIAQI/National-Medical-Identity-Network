@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
-import { 
+import {
   Search, Shield, Eye, Download, Building2, Clock, AlertTriangle, CheckCircle, Loader2,
   Activity, FileText, Zap, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, X, Siren, User
 } from 'lucide-react'
@@ -40,7 +40,7 @@ export default function AuditLogs() {
 
   const loadLogs = async () => {
     try {
-      const response = await centralApi.getAuditLogs({ 
+      const response = await centralApi.getAuditLogs({
         limit: 100,
         startDate: startDate || undefined,
         endDate: endDate || undefined
@@ -53,7 +53,7 @@ export default function AuditLogs() {
           else if (log.action === 'login') action = 'LOGIN'
           else if (log.action === 'logout') action = 'LOGOUT'
           else if (log.action === 'emergency' || log.action === 'emergency_access') action = 'EMERGENCY_ACCESS'
-          
+
           return {
             id: log.id,
             timestamp: log.timestamp,
@@ -88,13 +88,13 @@ export default function AuditLogs() {
   }
 
   const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
+    const matchesSearch =
       log.targetIcNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.sourceHospital.toLowerCase().includes(searchTerm.toLowerCase())
-    
+
     const matchesFilter = filterAction === 'all' || log.action === filterAction
-    
+
     return matchesSearch && matchesFilter
   })
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE)
@@ -136,32 +136,32 @@ export default function AuditLogs() {
     )
   }
   const stats = [
-    { 
-      label: 'Cross-Hospital Queries', 
+    {
+      label: 'Cross-Hospital Queries',
       value: logs.filter(l => l.action === 'CROSS_HOSPITAL_QUERY').length,
       icon: Eye,
       color: 'from-blue-500 to-cyan-500',
       bgColor: 'bg-blue-50',
       iconColor: 'text-blue-600'
     },
-    { 
-      label: 'Successful Actions', 
+    {
+      label: 'Successful Actions',
       value: logs.filter(l => l.status === 'success').length,
       icon: CheckCircle,
       color: 'from-emerald-500 to-green-500',
       bgColor: 'bg-emerald-50',
       iconColor: 'text-emerald-600'
     },
-    { 
-      label: 'Blocked Attempts', 
+    {
+      label: 'Blocked Attempts',
       value: logs.filter(l => l.status === 'denied').length,
       icon: AlertTriangle,
       color: 'from-red-500 to-rose-500',
       bgColor: 'bg-red-50',
       iconColor: 'text-red-600'
     },
-    { 
-      label: 'Emergency Access', 
+    {
+      label: 'Emergency Access',
       value: logs.filter(l => l.action === 'EMERGENCY_ACCESS').length,
       icon: Zap,
       color: 'from-amber-500 to-orange-500',
@@ -171,7 +171,7 @@ export default function AuditLogs() {
   ]
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -183,7 +183,7 @@ export default function AuditLogs() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <motion.div 
+          <motion.div
             className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-500/30"
             whileHover={{ scale: 1.05, rotate: 5 }}
           >
@@ -196,8 +196,8 @@ export default function AuditLogs() {
         </div>
         <div className="flex items-center gap-3">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="gap-2 h-11 px-5 rounded-xl"
               onClick={handleRefresh}
               disabled={refreshing}
@@ -276,7 +276,7 @@ export default function AuditLogs() {
                   </select>
                 </div>
               </div>
-              
+
                             <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-violet-50 rounded-xl">
                 <div className="flex items-center gap-2 text-violet-700">
                   <Calendar className="w-5 h-5" />
@@ -366,10 +366,10 @@ export default function AuditLogs() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.03 }}
                       className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                        log.action === 'EMERGENCY_ACCESS' 
-                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-l-4 border-orange-500 hover:from-orange-100 hover:to-red-100' 
-                          : log.status === 'denied' 
-                            ? 'bg-red-50/50' 
+                        log.action === 'EMERGENCY_ACCESS'
+                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-l-4 border-orange-500 hover:from-orange-100 hover:to-red-100'
+                          : log.status === 'denied'
+                            ? 'bg-red-50/50'
                             : ''
                       }`}
                       onClick={() => log.action === 'EMERGENCY_ACCESS' && setSelectedEmergency(log)}
@@ -378,15 +378,15 @@ export default function AuditLogs() {
                                                 <div className={`mt-1 p-2 rounded-full ${
                           log.action === 'EMERGENCY_ACCESS'
                             ? 'bg-gradient-to-br from-orange-400 to-red-500 animate-pulse'
-                            : log.status === 'success' 
-                              ? 'bg-emerald-100' 
+                            : log.status === 'success'
+                              ? 'bg-emerald-100'
                               : 'bg-red-100'
                         }`}>
-                          {log.action === 'EMERGENCY_ACCESS' 
+                          {log.action === 'EMERGENCY_ACCESS'
                             ? <Siren className="w-4 h-4 text-white" />
                             : getStatusIcon(log.status)}
                         </div>
-                        
+
                                                 <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             {getActionBadge(log.action)}
@@ -404,7 +404,7 @@ export default function AuditLogs() {
                               </>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
                             <span className="flex items-center gap-1.5">
                               <Building2 className="w-4 h-4" />
@@ -416,12 +416,12 @@ export default function AuditLogs() {
                               </span>
                             )}
                           </div>
-                          
+
                           {log.details && (
                             <p className="text-sm text-gray-600 mt-2 line-clamp-1">{log.details}</p>
                           )}
                         </div>
-                        
+
                                                 <div className="text-right shrink-0">
                           <div className="flex items-center gap-1.5 text-sm text-gray-600">
                             <Clock className="w-4 h-4" />
@@ -437,7 +437,7 @@ export default function AuditLogs() {
                 </div>
               )}
             </AnimatePresence>
-            
+
                         {totalPages > 1 && (
               <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500">
@@ -454,12 +454,12 @@ export default function AuditLogs() {
                     <ChevronLeft className="w-4 h-4 mr-1" />
                     Prev
                   </Button>
-                  
+
                   <div className="flex items-center gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1)
                       .filter(page => {
-                        return page === 1 || 
-                               page === totalPages || 
+                        return page === 1 ||
+                               page === totalPages ||
                                Math.abs(page - currentPage) <= 1
                       })
                       .map((page, idx, arr) => (
@@ -472,8 +472,8 @@ export default function AuditLogs() {
                             size="sm"
                             onClick={() => setCurrentPage(page)}
                             className={`h-9 w-9 p-0 rounded-lg ${
-                              currentPage === page 
-                                ? 'bg-violet-600 hover:bg-violet-700' 
+                              currentPage === page
+                                ? 'bg-violet-600 hover:bg-violet-700'
                                 : ''
                             }`}
                           >
@@ -482,7 +482,7 @@ export default function AuditLogs() {
                         </div>
                       ))}
                   </div>
-                  
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -537,7 +537,7 @@ export default function AuditLogs() {
                   </button>
                 </div>
               </div>
-              
+
                             <div className="p-6 space-y-4">
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
                   <div className="flex items-center gap-2 text-orange-700 font-medium mb-2">
@@ -573,7 +573,7 @@ export default function AuditLogs() {
                       <p className="text-xs text-gray-500 font-mono">{selectedEmergency.userId}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start gap-3">
                     <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
@@ -604,7 +604,7 @@ export default function AuditLogs() {
                   </div>
                 </div>
               </div>
-              
+
                             <div className="px-6 pb-6">
                 <Button
                   className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700"

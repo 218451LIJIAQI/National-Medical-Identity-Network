@@ -1,4 +1,4 @@
-import { Patient, MedicalRecord, Prescription, Doctor, VitalSigns } from '../types';
+import { Patient, MedicalRecord, Doctor, VitalSigns } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
 import { PrismaClient as HospitalPrismaClient } from '../../node_modules/.prisma/client/hospital';
 
@@ -45,27 +45,6 @@ export class HospitalDatabaseMulti {
     };
   }
 
-  async getAllPatients(): Promise<Patient[]> {
-    const patients = await this.prisma.patient.findMany();
-
-    return patients.map(p => ({
-      icNumber: p.icNumber,
-      fullName: p.fullName,
-      dateOfBirth: p.dateOfBirth.toISOString().split('T')[0],
-      gender: p.gender as 'male' | 'female',
-      bloodType: p.bloodType || '',
-      phone: p.phone || '',
-      email: p.email || '',
-      address: p.address || '',
-      emergencyContact: p.emergencyContact || '',
-      emergencyPhone: p.emergencyPhone || '',
-      allergies: parseJson<string[]>(p.allergies, []),
-      chronicConditions: parseJson<string[]>(p.chronicConditions, []),
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
-    }));
-  }
-
   async createPatient(patient: Patient): Promise<Patient> {
     const created = await this.prisma.patient.create({
       data: {
@@ -89,21 +68,6 @@ export class HospitalDatabaseMulti {
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
     };
-  }
-
-  async getRecordById(id: string): Promise<MedicalRecord | null> {
-    const record = await this.prisma.medicalRecord.findUnique({
-      where: { id },
-      include: {
-        doctor: true,
-        prescriptions: true,
-        labReports: true,
-      },
-    });
-
-    if (!record) return null;
-
-    return this.formatRecord(record);
   }
 
   async getRecordsByPatient(icNumber: string): Promise<MedicalRecord[]> {
@@ -236,34 +200,6 @@ export class HospitalDatabaseMulti {
     return names[this.hospitalId] || this.hospitalId;
   }
 
-  async getActivePrescriptions(icNumber: string): Promise<Prescription[]> {
-    const records = await this.prisma.medicalRecord.findMany({
-      where: { icNumber },
-      select: { id: true },
-    });
-
-    const recordIds = records.map(r => r.id);
-
-    const prescriptions = await this.prisma.prescription.findMany({
-      where: {
-        recordId: { in: recordIds },
-        isActive: true,
-      },
-    });
-
-    return prescriptions.map(p => ({
-      id: p.id,
-      recordId: p.recordId,
-      medicationName: p.medicationName,
-      dosage: p.dosage,
-      frequency: p.frequency,
-      duration: p.duration || '',
-      quantity: p.quantity || 0,
-      instructions: p.instructions || '',
-      isActive: p.isActive,
-    }));
-  }
-
   async getDoctor(id: string): Promise<Doctor | null> {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id },
@@ -304,43 +240,6 @@ export class HospitalDatabaseMulti {
       email: doctor.email || '',
       isActive: doctor.isActive,
     };
-  }
-
-  async getAllDoctors(): Promise<Doctor[]> {
-    const doctors = await this.prisma.doctor.findMany({
-      where: { isActive: true },
-    });
-
-    return doctors.map(d => ({
-      id: d.id,
-      icNumber: d.icNumber,
-      fullName: d.fullName,
-      specialization: d.specialization,
-      licenseNumber: d.licenseNumber || '',
-      hospitalId: this.hospitalId,
-      department: d.department || '',
-      phone: d.phone || '',
-      email: d.email || '',
-      isActive: d.isActive,
-    }));
-  }
-
-  async createDoctor(doctor: Doctor): Promise<Doctor> {
-    await this.prisma.doctor.create({
-      data: {
-        id: doctor.id,
-        icNumber: doctor.icNumber,
-        fullName: doctor.fullName,
-        specialization: doctor.specialization,
-        licenseNumber: doctor.licenseNumber,
-        department: doctor.department,
-        phone: doctor.phone,
-        email: doctor.email,
-        isActive: doctor.isActive,
-      },
-    });
-
-    return doctor;
   }
 
   async getStats() {

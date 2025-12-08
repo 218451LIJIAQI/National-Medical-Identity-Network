@@ -20,8 +20,8 @@ export default function AboutPage() {
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
         />
       </div>
-      
-      <motion.div 
+
+      <motion.div
         className="container mx-auto max-w-4xl relative z-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -37,22 +37,22 @@ export default function AboutPage() {
         </Link>
 
         <div className="space-y-10">
-                    <motion.div 
+                    <motion.div
             className="text-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <motion.div 
+            <motion.div
               className="flex items-center justify-center gap-4 mb-6"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 200, delay: 0.3 }}
             >
-              <motion.div 
+              <motion.div
                 className="relative w-16 h-16 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30"
                 whileHover={{ scale: 1.1, rotate: 5 }}
-                animate={{ 
+                animate={{
                   boxShadow: [
                     '0 10px 40px -10px rgba(59, 130, 246, 0.5)',
                     '0 10px 40px -10px rgba(6, 182, 212, 0.5)',
@@ -108,7 +108,7 @@ export default function AboutPage() {
                     'Emergency delays when records aren\'t available',
                     'Inefficient healthcare resource utilization'
                   ].map((item, i) => (
-                    <motion.li 
+                    <motion.li
                       key={i}
                       className="flex items-center gap-3"
                       initial={{ opacity: 0, x: -20 }}
@@ -146,7 +146,7 @@ export default function AboutPage() {
                     { icon: Globe, color: 'emerald', title: 'Nationwide Coverage', desc: 'Connected hospitals across Malaysia' },
                     { icon: Users, color: 'violet', title: 'Patient-Centric', desc: 'Patients control access to their records' },
                   ].map((item, i) => (
-                    <motion.div 
+                    <motion.div
                       key={i}
                       className={`flex items-start gap-4 p-4 rounded-xl bg-${item.color}-50 border border-${item.color}-100`}
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -186,7 +186,7 @@ export default function AboutPage() {
                     { title: 'Read-Only Access', desc: 'Cross-hospital access is strictly read-only. Only the originating hospital can modify records.', color: 'amber' },
                     { title: 'Audit Trail', desc: 'Every access is logged with timestamps, accessor identity, and purpose for transparency.', color: 'purple' },
                   ].map((item, i) => (
-                    <motion.div 
+                    <motion.div
                       key={i}
                       className="p-4 rounded-xl bg-gray-50 border border-gray-100"
                       initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}

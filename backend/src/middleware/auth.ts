@@ -29,7 +29,7 @@ function verifyToken(token: string): JwtPayload | null {
 
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({
       success: false,
@@ -37,10 +37,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     });
     return;
   }
-  
+
   const token = authHeader.split(' ')[1];
   const payload = verifyToken(token);
-  
+
   if (!payload) {
     res.status(401).json({
       success: false,
@@ -48,7 +48,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     });
     return;
   }
-  
+
   const user = await getUserById(payload.userId);
   if (!user || !user.isActive) {
     res.status(401).json({
@@ -57,7 +57,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     });
     return;
   }
-  
+
   req.user = payload;
   next();
 }
@@ -71,7 +71,7 @@ export function authorize(...roles: string[]) {
       });
       return;
     }
-    
+
     if (!roles.includes(req.user.role)) {
       res.status(403).json({
         success: false,
@@ -79,7 +79,7 @@ export function authorize(...roles: string[]) {
       });
       return;
     }
-    
+
     next();
   };
 }
@@ -92,14 +92,14 @@ export function authorizeHospital(req: Request, res: Response, next: NextFunctio
     });
     return;
   }
-  
+
   const hospitalId = req.params.hospitalId || req.body.hospitalId;
-  
+
   if (req.user.role === 'central_admin') {
     next();
     return;
   }
-  
+
   if (req.user.hospitalId !== hospitalId) {
     res.status(403).json({
       success: false,
@@ -107,11 +107,11 @@ export function authorizeHospital(req: Request, res: Response, next: NextFunctio
     });
     return;
   }
-  
+
   next();
 }
 
-export function hashPassword(password: string): string {
+function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password + CONFIG.jwt.secret).digest('hex');
 }
 

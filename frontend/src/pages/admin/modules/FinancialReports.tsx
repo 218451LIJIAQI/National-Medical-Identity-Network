@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
+import {
   TrendingUp, TrendingDown,
   FileText, Download, Calendar, Building2, Users,
   CreditCard, Wallet, ArrowUpRight, ArrowDownRight
@@ -199,7 +199,7 @@ export default function FinancialReports() {
                     </div>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="h-2 rounded-full bg-gradient-to-r from-green-400 to-emerald-500"
                       style={{ width: `${item.percentage}%` }}
                     />
@@ -238,7 +238,7 @@ export default function FinancialReports() {
                     </div>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="h-2 rounded-full bg-gradient-to-r from-red-400 to-rose-500"
                       style={{ width: `${item.percentage}%` }}
                     />

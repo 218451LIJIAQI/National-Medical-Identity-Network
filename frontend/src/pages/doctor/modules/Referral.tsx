@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  ArrowRightLeft, Building2, User, FileText, 
+import {
+  ArrowRightLeft, Building2, User, FileText,
   Send, Search, CheckCircle2, AlertCircle,
   MapPin, ChevronRight
 } from 'lucide-react'
@@ -150,9 +150,9 @@ export default function Referral({
             <motion.button
               onClick={() => setStep(s.num)}
               className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-                step === s.num 
-                  ? 'bg-indigo-600 text-white shadow-lg' 
-                  : step > s.num 
+                step === s.num
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : step > s.num
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-gray-100 text-gray-500'
               }`}
@@ -188,7 +188,7 @@ export default function Referral({
                 <Building2 className="w-5 h-5 text-indigo-600" />
                 Referral Hospital
               </h3>
-              
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
@@ -202,7 +202,7 @@ export default function Referral({
                   onFocus={() => setShowHospitalList(true)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
-                
+
                 {showHospitalList && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-gray-200 shadow-xl z-50 max-h-64 overflow-y-auto">
                     {filteredHospitals.map(hospital => (
@@ -244,7 +244,7 @@ export default function Referral({
                 <FileText className="w-5 h-5 text-indigo-600" />
                 Department
               </h3>
-              
+
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {departments.map(dept => (
                   <button
@@ -347,7 +347,7 @@ export default function Referral({
             className="bg-white rounded-xl border border-gray-200 shadow-lg p-8"
           >
             <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Referral Confirmation</h3>
-            
+
             <div className="max-w-2xl mx-auto space-y-6">
                             <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                 <div className="grid grid-cols-2 gap-6">

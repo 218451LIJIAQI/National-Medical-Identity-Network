@@ -121,7 +121,7 @@ export interface AuditLog {
   id: string;
   timestamp: string;
   action: 'query' | 'view' | 'create' | 'update' | 'login' | 'logout' | 'emergency_access';
-  actorId?: string;  // Optional for system-generated logs
+  actorId?: string;
   actorType: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin' | 'system' | 'emergency';
   actorHospitalId?: string;
   targetIcNumber?: string;
@@ -159,16 +159,6 @@ export interface HospitalQueryResult {
   status: 'success' | 'error' | 'timeout';
   responseTime: number;
   error?: string;
-}
-
-export interface DrugInteraction {
-  drug1: string;
-  drug2: string;
-  severity: 'low' | 'moderate' | 'high' | 'critical';
-  description: string;
-  recommendation: string;
-  sourceHospital?: string;
-  sourceDate?: string;
 }
 
 export interface JwtPayload {

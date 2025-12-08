@@ -46,7 +46,7 @@ export default function HospitalAdminDashboard() {
           hospitalApi.getHospital(user.hospitalId),
           centralApi.getAuditLogs({ limit: 20 }),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats({
             totalPatients: statsRes.data.totalPatients || 0,
@@ -55,7 +55,7 @@ export default function HospitalAdminDashboard() {
             todayVisits: statsRes.data.todayVisits || 0,
           })
         }
-        
+
         if (hospitalRes.success && hospitalRes.data) {
           const h = hospitalRes.data as any
           setHospitalInfo({
@@ -64,21 +64,19 @@ export default function HospitalAdminDashboard() {
             city: h.city,
           })
         }
-        
+
         if (logsRes.success && logsRes.data) {
-          // Filter logs for this hospital and deduplicate
           const hospitalLogs = (logsRes.data as any[])
-            .filter((log: any) => 
-              log.actorHospitalId === user.hospitalId || 
-              !log.actorHospitalId // Include central logs
+            .filter((log: any) =>
+              log.actorHospitalId === user.hospitalId ||
+              !log.actorHospitalId
             )
-          
-          // Deduplicate consecutive similar logs within 5 minutes
+
           const deduplicatedLogs: any[] = []
           for (const log of hospitalLogs) {
             const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1]
-            if (lastLog && 
-                lastLog.actorId === log.actorId && 
+            if (lastLog &&
+                lastLog.actorId === log.actorId &&
                 lastLog.action === log.action &&
                 lastLog.targetIcNumber === log.targetIcNumber) {
               const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime())
@@ -88,14 +86,14 @@ export default function HospitalAdminDashboard() {
             }
             deduplicatedLogs.push(log)
           }
-          
+
           const activities = deduplicatedLogs.slice(0, 4).map((log: any) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
             const diffMins = Math.floor(diffMs / 60000)
             const diffHours = Math.floor(diffMs / 3600000)
-            
+
             let timeAgo = ''
             if (diffMins < 1) {
               timeAgo = 'Just now'
@@ -106,15 +104,14 @@ export default function HospitalAdminDashboard() {
             } else {
               timeAgo = `${Math.floor(diffHours / 24)} days ago`
             }
-            
-            // Get action description
+
             let actionDesc = log.details || 'System action'
             if (log.action === 'login') actionDesc = `${log.actorName || 'User'} logged in successfully`
             else if (log.action === 'logout') actionDesc = `${log.actorName || 'User'} logged out`
             else if (log.action === 'query') actionDesc = log.details || 'Cross-hospital query'
             else if (log.action === 'view') actionDesc = log.details || 'Viewed patient record'
             else if (log.action === 'create') actionDesc = log.details || 'Created new record'
-            
+
             return {
               action: actionDesc,
               user: log.actorName || 'System',
@@ -155,30 +152,30 @@ export default function HospitalAdminDashboard() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-            <motion.div 
+            <motion.div
         variants={itemVariants}
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
-        <motion.div 
+        <motion.div
           className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-4">
-            <motion.div 
+            <motion.div
               className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg"
               whileHover={{ scale: 1.1, rotate: 5 }}
             >
@@ -206,34 +203,34 @@ export default function HospitalAdminDashboard() {
 
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { 
-            label: 'Total Patients', 
-            value: stats.totalPatients.toLocaleString(), 
-            icon: Users, 
+          {
+            label: 'Total Patients',
+            value: stats.totalPatients.toLocaleString(),
+            icon: Users,
             gradient: 'from-blue-500 to-blue-600',
             change: '+12 this week',
             changeType: 'up'
           },
-          { 
-            label: 'Medical Records', 
-            value: stats.totalRecords.toLocaleString(), 
-            icon: FileText, 
+          {
+            label: 'Medical Records',
+            value: stats.totalRecords.toLocaleString(),
+            icon: FileText,
             gradient: 'from-emerald-500 to-emerald-600',
             change: '+45 this week',
             changeType: 'up'
           },
-          { 
-            label: 'Visits Today', 
-            value: stats.todayVisits || 0, 
-            icon: Activity, 
+          {
+            label: 'Visits Today',
+            value: stats.todayVisits || 0,
+            icon: Activity,
             gradient: 'from-violet-500 to-violet-600',
             change: 'Today\'s activity',
             changeType: 'up'
           },
-          { 
-            label: 'Active Doctors', 
-            value: stats.totalDoctors, 
-            icon: Users, 
+          {
+            label: 'Active Doctors',
+            value: stats.totalDoctors,
+            icon: Users,
             gradient: 'from-amber-500 to-amber-600',
             change: 'Currently online',
             changeType: 'status'
@@ -331,7 +328,7 @@ export default function HospitalAdminDashboard() {
                     No recent activity
                   </div>
                 ) : recentActivity.map((activity, i) => (
-                  <motion.div 
+                  <motion.div
                     key={i}
                     className="p-4 hover:bg-gray-50 transition-colors"
                     initial={{ opacity: 0, x: -20 }}

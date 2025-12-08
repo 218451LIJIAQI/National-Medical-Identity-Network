@@ -8,7 +8,7 @@ export default function AuthLayout() {
   if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-        <motion.div 
+        <motion.div
           className="flex flex-col items-center gap-4"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -32,24 +32,24 @@ export default function AuthLayout() {
       hospital_admin: '/admin/hospital',
       central_admin: '/admin/central',
     }[user.role] || '/'
-    
+
     return <Navigate to={redirectPath} replace />
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex">
             <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
-                <motion.div 
+                <motion.div
           className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 0] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
-        
+
                 {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
@@ -69,14 +69,14 @@ export default function AuthLayout() {
             }}
           />
         ))}
-        
-        <motion.div 
+
+        <motion.div
           className="flex items-center gap-3 relative z-10"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <motion.div 
+          <motion.div
             className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30 shadow-xl"
             whileHover={{ scale: 1.1, rotate: 5 }}
           >
@@ -88,7 +88,7 @@ export default function AuthLayout() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="space-y-12 relative z-10 flex-1"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -100,7 +100,7 @@ export default function AuthLayout() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-emerald-200">Universal Medical Key</span>
             </h2>
             <p className="mt-10 text-blue-100 text-xl max-w-lg leading-loose">
-              Access your complete medical history from any hospital in Malaysia. 
+              Access your complete medical history from any hospital in Malaysia.
               One identity, all your health records.
             </p>
           </div>
@@ -112,7 +112,7 @@ export default function AuthLayout() {
               { value: '100%', label: 'Data Sovereignty', icon: Shield },
               { value: '🔒', label: 'Read-Only Access', icon: Lock },
             ].map((stat, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -130,7 +130,7 @@ export default function AuthLayout() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="text-blue-100 text-lg font-medium relative z-10 flex items-center gap-3 mt-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -141,12 +141,12 @@ export default function AuthLayout() {
       </div>
 
             <div className="flex-1 flex items-center justify-center p-8 relative">
-        <motion.div 
+        <motion.div
           className="absolute top-10 right-10 w-32 h-32 bg-blue-100/50 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 8, repeat: Infinity }}
         />
-        <motion.div 
+        <motion.div
           className="w-full max-w-md relative z-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

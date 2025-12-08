@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { 
+import {
   Users, Search, Plus, UserCheck,
   Stethoscope, Syringe, ClipboardList, Building2,
   Phone, Mail, Calendar, Edit, Trash2

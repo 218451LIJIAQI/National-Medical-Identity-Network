@@ -19,7 +19,7 @@ export default function SarawakGeneralLayout() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export default function SarawakGeneralLayout() {
         <div className="flex flex-col h-full overflow-hidden">
                     <div className="p-6 border-b border-violet-100">
             <div className="flex items-center gap-4">
-              <motion.div 
+              <motion.div
                 className="relative"
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.3 }}
@@ -119,7 +119,7 @@ export default function SarawakGeneralLayout() {
                   <Hexagon className="w-7 h-7 text-white" />
                 </div>
               </motion.div>
-              
+
               {sidebarOpen && (
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}
@@ -133,7 +133,7 @@ export default function SarawakGeneralLayout() {
           </div>
 
                     {sidebarOpen && (
-            <motion.div 
+            <motion.div
               className="px-6 py-4 border-b border-violet-100"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -202,8 +202,8 @@ export default function SarawakGeneralLayout() {
                             <motion.div
                               className={cn(
                                 "p-2.5 rounded-lg transition-all",
-                                isActive 
-                                  ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
+                                isActive
+                                  ? "bg-violet-500 text-white shadow-md shadow-violet-200"
                                   : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
                               )}
                               whileHover={{ scale: 1.1 }}
@@ -257,8 +257,8 @@ export default function SarawakGeneralLayout() {
                           <motion.div
                             className={cn(
                               "p-2.5 rounded-lg transition-all",
-                              isActive 
-                                ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
+                              isActive
+                                ? "bg-violet-500 text-white shadow-md shadow-violet-200"
                                 : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
                             )}
                             whileHover={{ scale: 1.1 }}
@@ -285,7 +285,7 @@ export default function SarawakGeneralLayout() {
 
                     {sidebarOpen && (
             <div className="p-4 border-t border-violet-100">
-              <motion.div 
+              <motion.div
                 className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100"
                 whileHover={{ borderColor: 'rgb(167, 139, 250)' }}
               >
@@ -333,7 +333,7 @@ export default function SarawakGeneralLayout() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-                        <main 
+                        <main
         className={cn(
           "min-h-screen transition-all duration-500 relative z-10",
           sidebarOpen ? "lg:pl-72" : "lg:pl-20"

@@ -70,7 +70,7 @@ export default function MainLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50/30">
             <div className="fixed inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
-      
+
             <motion.button
         className="fixed top-4 left-4 z-50 lg:hidden p-2.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -87,7 +87,7 @@ export default function MainLayout() {
         )}
       >
         <div className="flex flex-col h-full">
-                    <motion.div 
+                    <motion.div
             className={`p-5 border-b ${isHospitalUser ? `bg-gradient-to-br ${theme.headerGradient}` : 'border-gray-100'}`}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -95,7 +95,7 @@ export default function MainLayout() {
             {isHospitalUser ? (
               <div className="text-white">
                 <div className="flex items-center gap-3 mb-3">
-                  <motion.div 
+                  <motion.div
                     className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 flex items-center justify-center shadow-lg font-bold text-lg"
                     whileHover={{ scale: 1.1, rotate: 5 }}
                   >
@@ -122,7 +122,7 @@ export default function MainLayout() {
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.div
                   className="w-11 h-11 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30"
                   whileHover={{ scale: 1.1, rotate: 5 }}
                 >
@@ -136,7 +136,7 @@ export default function MainLayout() {
             )}
           </motion.div>
 
-                    <motion.div 
+                    <motion.div
             className={`p-4 border-b border-gray-100 ${isHospitalUser ? theme.bgLight : 'bg-gradient-to-r from-gray-50 to-white'}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -176,7 +176,7 @@ export default function MainLayout() {
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
                       isActive
-                        ? isHospitalUser 
+                        ? isHospitalUser
                           ? `bg-gradient-to-r ${theme.buttonGradient} text-white shadow-lg ${theme.shadowColor}`
                           : "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/25"
                         : `text-gray-600 hover:${isHospitalUser ? theme.bgLight : 'bg-gray-50'} hover:text-gray-900`

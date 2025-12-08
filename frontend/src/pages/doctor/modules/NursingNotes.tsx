@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
+import {
   Stethoscope, Plus, Clock, FileText, CheckCircle2,
   AlertTriangle, Heart, Droplets,
   User, Save, History, Edit3
@@ -46,7 +46,7 @@ interface NursingNotesProps {
   bedNumber?: string
 }
 
-export default function NursingNotes({ 
+export default function NursingNotes({
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
   ward = 'Ward 5A',
@@ -57,7 +57,7 @@ export default function NursingNotes({
   const [activeTab, setActiveTab] = useState<'vitals' | 'notes' | 'io'>('vitals')
   const [showNewVitals, setShowNewVitals] = useState(false)
   const [showNewNote, setShowNewNote] = useState(false)
-  
+
   const [newVitals, setNewVitals] = useState<Partial<VitalSigns>>({
     bp: '',
     pulse: 0,
@@ -151,7 +151,7 @@ export default function NursingNotes({
               </div>
             </div>
           </div>
-          
+
                     {latestVitals && (
             <div className="flex items-center gap-4">
               <div className="text-center px-3 py-2 bg-white rounded-lg">
@@ -185,8 +185,8 @@ export default function NursingNotes({
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
-              activeTab === tab.id 
-                ? 'bg-white text-pink-600 shadow-sm' 
+              activeTab === tab.id
+                ? 'bg-white text-pink-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
@@ -519,7 +519,7 @@ export default function NursingNotes({
               <Droplets className="w-5 h-5 text-blue-500" />
               Input/Output Chart (24 Hours)
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-6">
                             <div className="p-4 bg-blue-50 rounded-xl">
                 <h4 className="font-semibold text-blue-800 mb-3">INPUT</h4>

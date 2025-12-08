@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { 
+import {
   Package, Search, Plus, AlertTriangle,
   Pill, Syringe, Thermometer, Stethoscope, TrendingDown,
   TrendingUp, Clock, RefreshCw, FileText
@@ -212,7 +212,7 @@ export default function InventoryManagement() {
           const categoryInfo = categoryConfig[item.category]
           const CategoryIcon = categoryInfo.icon
           const stockPercentage = Math.min((item.currentStock / item.maxStock) * 100, 100)
-          
+
           return (
             <motion.div
               key={item.id}
@@ -253,14 +253,14 @@ export default function InventoryManagement() {
                       <span className="text-gray-500">SKU: {item.sku}</span>
                       <span className="font-medium">RM {item.pricePerUnit.toFixed(2)}/{item.unit}</span>
                     </div>
-                    
+
                                         <div>
                       <div className="flex justify-between text-xs mb-1">
                         <span>Current: {item.currentStock.toLocaleString()} {item.unit}</span>
                         <span className="text-gray-400">Max: {item.maxStock.toLocaleString()}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className={`h-2 rounded-full ${
                             status === 'critical' ? 'bg-red-500' :
                             status === 'low' ? 'bg-yellow-500' :

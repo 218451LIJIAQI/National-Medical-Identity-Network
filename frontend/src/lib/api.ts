@@ -12,10 +12,10 @@ interface ApiResponse<T> {
 function getToken(): string | null {
   const storeToken = useAuthStore.getState().token
   if (storeToken) return storeToken
-  
+
   const directToken = localStorage.getItem('medlink-token')
   if (directToken) return directToken
-  
+
   try {
     const stored = localStorage.getItem('medlink-auth')
     if (stored) {
@@ -23,7 +23,7 @@ function getToken(): string | null {
       return parsed.state?.token || null
     }
   } catch { /* ignore invalid JSON */ }
-  
+
   return null
 }
 
@@ -85,7 +85,7 @@ export const centralApi = {
     fetchApi<Array<Record<string, unknown>>>('/central/hospitals'),
 
   getStats: () =>
-    fetchApi<{ 
+    fetchApi<{
       totalPatients: number
       activeHospitals: number
       todayQueries: number

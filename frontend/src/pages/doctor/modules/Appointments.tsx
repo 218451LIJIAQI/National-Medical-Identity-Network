@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
+import {
   Calendar, Clock, User, Phone, Search,
   ChevronLeft, ChevronRight, Check,
   X, Bell, Filter
@@ -42,11 +42,11 @@ export default function Appointments() {
   }
 
   const formatDisplayDate = (date: Date) => {
-    return date.toLocaleDateString('ms-MY', { 
-      weekday: 'long', 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
+    return date.toLocaleDateString('ms-MY', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     })
   }
 
@@ -90,7 +90,7 @@ export default function Appointments() {
   }
 
   const updateStatus = (id: string, status: Appointment['status']) => {
-    setAppointments(appointments.map(apt => 
+    setAppointments(appointments.map(apt =>
       apt.id === id ? { ...apt, status } : apt
     ))
   }
@@ -117,7 +117,7 @@ export default function Appointments() {
         >
           <ChevronLeft className="w-5 h-5 text-gray-600" />
         </button>
-        
+
         <div className="flex items-center gap-4">
           <Calendar className="w-5 h-5 text-teal-600" />
           <div className="text-center">
@@ -164,7 +164,7 @@ export default function Appointments() {
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
           />
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Filter className="w-5 h-5 text-gray-400" />
           {['all', 'confirmed', 'pending', 'cancelled'].map(status => (
@@ -172,8 +172,8 @@ export default function Appointments() {
               key={status}
               onClick={() => setFilterStatus(status)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                filterStatus === status 
-                  ? 'bg-teal-100 text-teal-700' 
+                filterStatus === status
+                  ? 'bg-teal-100 text-teal-700'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -239,8 +239,8 @@ export default function Appointments() {
 
                 <div className="col-span-2 flex items-center">
                   <span className={`px-3 py-1 text-xs font-medium rounded-full ${getTypeColor(apt.type)}`}>
-                    {apt.type === 'new' ? 'New' : 
-                     apt.type === 'follow-up' ? 'Follow-up' : 
+                    {apt.type === 'new' ? 'New' :
+                     apt.type === 'follow-up' ? 'Follow-up' :
                      apt.type === 'procedure' ? 'Procedure' : 'Review'}
                   </span>
                 </div>
@@ -306,8 +306,8 @@ export default function Appointments() {
               <div
                 key={slot}
                 className={`p-3 rounded-lg text-center text-sm font-medium ${
-                  isBooked 
-                    ? 'bg-red-50 text-red-400 border border-red-200' 
+                  isBooked
+                    ? 'bg-red-50 text-red-400 border border-red-200'
                     : 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-pointer hover:bg-emerald-100'
                 }`}
               >

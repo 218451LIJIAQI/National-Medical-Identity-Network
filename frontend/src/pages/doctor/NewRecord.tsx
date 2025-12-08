@@ -29,7 +29,7 @@ export default function NewRecord() {
     allergies: string[]
     chronicConditions: string[]
   } | null>(null)
-  
+
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split('T')[0],
     visitType: 'outpatient',
@@ -76,7 +76,7 @@ export default function NewRecord() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.diagnosis.trim()) {
       toast({
         title: 'Validation Error',
@@ -143,7 +143,7 @@ export default function NewRecord() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -154,22 +154,22 @@ export default function NewRecord() {
         animate={{ opacity: 1, y: 0 }}
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
-        <motion.div 
+        <motion.div
           className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
-        
+
         <div className="relative z-10 flex items-center gap-4">
           <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => navigate(-1)}
               className="bg-white/20 hover:bg-white/30 rounded-xl"
             >
@@ -177,7 +177,7 @@ export default function NewRecord() {
             </Button>
           </motion.div>
           <div className="flex items-center gap-4">
-            <motion.div 
+            <motion.div
               className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30"
               whileHover={{ scale: 1.1, rotate: 5 }}
             >
@@ -261,7 +261,7 @@ export default function NewRecord() {
         transition={{ delay: 0.2 }}
       >
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <motion.div 
+          <motion.div
             className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`}
             style={{ backgroundSize: '200% 100%' }}
             animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
@@ -280,16 +280,16 @@ export default function NewRecord() {
                         <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visitDate">Visit Date</Label>
-                <Input 
+                <Input
                   id="visitDate"
-                  type="date" 
+                  type="date"
                   value={formData.visitDate}
                   onChange={(e) => setFormData({ ...formData, visitDate: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="visitType">Visit Type</Label>
-                <select 
+                <select
                   id="visitType"
                   title="Visit Type"
                   className="w-full h-12 px-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none cursor-pointer"
@@ -306,9 +306,9 @@ export default function NewRecord() {
                         {!patientExists && (
               <div className="space-y-2">
                 <Label htmlFor="patientName">Patient Full Name *</Label>
-                <Input 
+                <Input
                   id="patientName"
-                  placeholder="Enter patient's full name" 
+                  placeholder="Enter patient's full name"
                   value={formData.patientName}
                   onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
                   required={!patientExists}
@@ -327,16 +327,16 @@ export default function NewRecord() {
                     <Heart className="w-3 h-3" /> Blood Pressure
                   </Label>
                   <div className="flex items-center gap-1">
-                    <Input 
+                    <Input
                       id="bp"
-                      placeholder="120" 
+                      placeholder="120"
                       value={formData.bloodPressureSystolic}
                       onChange={(e) => setFormData({ ...formData, bloodPressureSystolic: e.target.value })}
                       className="w-16 text-center"
                     />
                     <span>/</span>
-                    <Input 
-                      placeholder="80" 
+                    <Input
+                      placeholder="80"
                       value={formData.bloodPressureDiastolic}
                       onChange={(e) => setFormData({ ...formData, bloodPressureDiastolic: e.target.value })}
                       className="w-16 text-center"
@@ -347,9 +347,9 @@ export default function NewRecord() {
                 <div className="space-y-1">
                   <Label htmlFor="hr" className="text-xs text-gray-500">Heart Rate</Label>
                   <div className="flex items-center gap-1">
-                    <Input 
+                    <Input
                       id="hr"
-                      placeholder="72" 
+                      placeholder="72"
                       value={formData.heartRate}
                       onChange={(e) => setFormData({ ...formData, heartRate: e.target.value })}
                       className="w-20"
@@ -362,9 +362,9 @@ export default function NewRecord() {
                     <Thermometer className="w-3 h-3" /> Temperature
                   </Label>
                   <div className="flex items-center gap-1">
-                    <Input 
+                    <Input
                       id="temp"
-                      placeholder="36.5" 
+                      placeholder="36.5"
                       value={formData.temperature}
                       onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                       className="w-20"
@@ -375,9 +375,9 @@ export default function NewRecord() {
                 <div className="space-y-1">
                   <Label htmlFor="weight" className="text-xs text-gray-500">Weight</Label>
                   <div className="flex items-center gap-1">
-                    <Input 
+                    <Input
                       id="weight"
-                      placeholder="70" 
+                      placeholder="70"
                       value={formData.weight}
                       onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                       className="w-20"
@@ -388,9 +388,9 @@ export default function NewRecord() {
                 <div className="space-y-1">
                   <Label htmlFor="height" className="text-xs text-gray-500">Height</Label>
                   <div className="flex items-center gap-1">
-                    <Input 
+                    <Input
                       id="height"
-                      placeholder="170" 
+                      placeholder="170"
                       value={formData.height}
                       onChange={(e) => setFormData({ ...formData, height: e.target.value })}
                       className="w-20"
@@ -403,10 +403,10 @@ export default function NewRecord() {
 
                         <div className="space-y-2">
               <Label htmlFor="chiefComplaint">Chief Complaint</Label>
-              <textarea 
+              <textarea
                 id="chiefComplaint"
-                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400" 
-                rows={2} 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400"
+                rows={2}
                 placeholder="Patient's main reason for visit..."
                 value={formData.chiefComplaint}
                 onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
@@ -415,9 +415,9 @@ export default function NewRecord() {
 
                         <div className="space-y-2">
               <Label htmlFor="symptoms">Symptoms</Label>
-              <Input 
+              <Input
                 id="symptoms"
-                placeholder="e.g., Headache, Fever, Fatigue (comma-separated)" 
+                placeholder="e.g., Headache, Fever, Fatigue (comma-separated)"
                 value={formData.symptoms}
                 onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
               />
@@ -425,9 +425,9 @@ export default function NewRecord() {
 
                         <div className="space-y-2">
               <Label htmlFor="diagnosis">Diagnosis * (comma-separated for multiple)</Label>
-              <Input 
+              <Input
                 id="diagnosis"
-                placeholder="e.g., Essential Hypertension, Type 2 Diabetes" 
+                placeholder="e.g., Essential Hypertension, Type 2 Diabetes"
                 value={formData.diagnosis}
                 onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
                 required
@@ -436,10 +436,10 @@ export default function NewRecord() {
 
                         <div className="space-y-2">
               <Label htmlFor="notes">Clinical Notes</Label>
-              <textarea 
+              <textarea
                 id="notes"
-                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400" 
-                rows={4} 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl bg-white/80 backdrop-blur-sm text-sm font-medium text-gray-900 transition-all duration-300 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none resize-none placeholder:text-gray-400"
+                rows={4}
                 placeholder="Detailed clinical notes, examination findings, treatment plan..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -448,10 +448,10 @@ export default function NewRecord() {
 
                         <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => navigate(-1)} 
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate(-1)}
                   disabled={saving}
                   className="h-12 px-6 rounded-xl border-2 font-semibold"
                 >
@@ -459,8 +459,8 @@ export default function NewRecord() {
                 </Button>
               </motion.div>
               <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={saving}
                   className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-xl ${theme.shadowColor}/40 hover:shadow-2xl font-semibold transition-all`}
                 >

@@ -3,8 +3,6 @@ generator client {
   output   = "../node_modules/.prisma/client/hospital"
 }
 
-// 注意: 这个 URL 会在运行时被动态替换
-// 每个医院使用不同的 DATABASE_URL_HOSPITAL_xxx
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL_HOSPITAL")
@@ -21,12 +19,11 @@ model Patient {
   address           String?
   emergencyContact  String?
   emergencyPhone    String?
-  allergies         String? // JSON array stored as string
-  chronicConditions String? // JSON array stored as string
+  allergies         String?
+  chronicConditions String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  // Relations
   medicalRecords MedicalRecord[]
 }
 
@@ -41,7 +38,6 @@ model Doctor {
   email          String?
   isActive       Boolean @default(true)
 
-  // Relations
   medicalRecords MedicalRecord[]
 
   @@index([icNumber])
@@ -50,18 +46,17 @@ model Doctor {
 model MedicalRecord {
   id             String    @id @default(uuid())
   visitDate      DateTime
-  visitType      String // outpatient, inpatient, emergency
+  visitType      String
   chiefComplaint String?
-  diagnosis      String? // JSON array stored as string
-  diagnosisCodes String? // JSON array stored as string (ICD-10)
-  symptoms       String? // JSON array stored as string
+  diagnosis      String?
+  diagnosisCodes String?
+  symptoms       String?
   notes          String?
-  vitalSigns     String? // JSON object stored as string
+  vitalSigns     String?
   followUpDate   DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  // Relations
   icNumber      String
   patient       Patient        @relation(fields: [icNumber], references: [icNumber])
   doctorId      String
@@ -83,7 +78,6 @@ model Prescription {
   instructions   String?
   isActive       Boolean @default(true)
 
-  // Relations
   recordId      String
   medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
 }
@@ -99,7 +93,6 @@ model LabReport {
   reportDate     DateTime
   notes          String?
 
-  // Relations
   recordId      String
   medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
 }

@@ -23,12 +23,12 @@ function ICCardDemo() {
   const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [queryStep, setQueryStep] = useState(0)
-  
+
   const startScan = () => {
     setScanning(true)
     setScanned(false)
     setQueryStep(0)
-    
+
     setTimeout(() => {
       setScanning(false)
       setScanned(true)
@@ -60,7 +60,7 @@ function ICCardDemo() {
       >
                 <div className="absolute inset-0 p-4">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-600 via-white to-blue-900" />
-          
+
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs text-gray-400 tracking-wider">MALAYSIA</p>
@@ -70,7 +70,7 @@ function ICCardDemo() {
               <CreditCard className="w-6 h-6 text-yellow-900" />
             </div>
           </div>
-          
+
           <div className="mt-6">
             <div className="flex items-center gap-3">
               <div className="w-16 h-20 bg-gray-700 rounded flex items-center justify-center">
@@ -83,15 +83,15 @@ function ICCardDemo() {
               </div>
             </div>
           </div>
-          
+
                     <div className="absolute bottom-4 left-4 w-10 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-sm" />
-          
+
                     <div className="absolute bottom-4 right-4 text-xs text-cyan-400 flex items-center gap-1">
             <Scan className="w-4 h-4" />
             Click to scan
           </div>
         </div>
-        
+
                 <AnimatePresence>
           {scanning && (
             <motion.div
@@ -110,7 +110,7 @@ function ICCardDemo() {
           )}
         </AnimatePresence>
       </motion.div>
-      
+
             <AnimatePresence>
         {scanned && (
           <motion.div
@@ -129,8 +129,8 @@ function ICCardDemo() {
               <motion.div
                 key={i}
                 className={`flex items-center gap-3 p-2 rounded-lg transition-all ${
-                  queryStep >= item.step 
-                    ? 'bg-green-50 text-green-700' 
+                  queryStep >= item.step
+                    ? 'bg-green-50 text-green-700'
                     : 'bg-gray-50 text-gray-400'
                 }`}
                 initial={{ opacity: 0, x: -20 }}
@@ -149,21 +149,21 @@ function ICCardDemo() {
 }
 function NetworkVisualization() {
   const [activeStep, setActiveStep] = useState(0)
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % 4)
     }, 2000)
     return () => clearInterval(interval)
   }, [])
-  
+
   const steps = [
     { icon: CreditCard, label: 'Scan MyKad', color: 'blue' },
     { icon: Database, label: 'Query Index', color: 'cyan' },
     { icon: Network, label: 'Fetch Records', color: 'violet' },
     { icon: CheckCircle, label: 'Complete', color: 'emerald' },
   ]
-  
+
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
@@ -174,7 +174,7 @@ function NetworkVisualization() {
           <h3 className="text-xl font-bold text-gray-900">Query Flow</h3>
           <p className="text-gray-500 text-sm mt-1">Real-time data retrieval process</p>
         </div>
-        
+
         <div className="space-y-4">
           {steps.map((step, i) => {
             const Icon = step.icon
@@ -184,13 +184,13 @@ function NetworkVisualization() {
               <motion.div
                 key={step.label}
                 className={`flex items-center gap-4 p-4 rounded-xl transition-all ${
-                  isActive ? `bg-${step.color}-50 ring-2 ring-${step.color}-200` : 
+                  isActive ? `bg-${step.color}-50 ring-2 ring-${step.color}-200` :
                   isCompleted ? 'bg-gray-50' : 'bg-gray-50/50'
                 }`}
                 animate={{ scale: isActive ? 1.02 : 1 }}
               >
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  isActive ? `bg-${step.color}-500` : 
+                  isActive ? `bg-${step.color}-500` :
                   isCompleted ? 'bg-emerald-500' : 'bg-gray-200'
                 }`}>
                   {isCompleted ? (
@@ -202,7 +202,7 @@ function NetworkVisualization() {
                 <div className="flex-1">
                   <p className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>{step.label}</p>
                   {isActive && (
-                    <motion.div 
+                    <motion.div
                       className="flex items-center gap-2 mt-1"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -216,7 +216,7 @@ function NetworkVisualization() {
             )
           })}
         </div>
-        
+
         <div className="mt-6 pt-6 border-t border-gray-100">
           <div className="flex items-center justify-center gap-3 text-gray-600">
             <Shield className="w-5 h-5 text-emerald-600" />
@@ -238,7 +238,7 @@ export default function LandingPageV2() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
-  
+
   const fontSizeClass = {
     normal: 'text-base',
     large: 'text-lg',
@@ -247,10 +247,10 @@ export default function LandingPageV2() {
 
   return (
     <div className={`min-h-screen ${highContrast ? 'bg-black text-white' : 'bg-gradient-to-b from-slate-50 via-white to-blue-50/30'} ${fontSizeClass}`}>
-            <motion.header 
+            <motion.header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled 
-            ? highContrast ? 'bg-gray-900/95' : 'bg-white/80 shadow-lg shadow-gray-200/50' 
+          scrolled
+            ? highContrast ? 'bg-gray-900/95' : 'bg-white/80 shadow-lg shadow-gray-200/50'
             : highContrast ? 'bg-transparent' : 'bg-transparent'
         } backdrop-blur-xl`}
         initial={{ y: -100 }}
@@ -259,11 +259,11 @@ export default function LandingPageV2() {
       >
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-                        <motion.div 
+                        <motion.div
               className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >
-              <motion.div 
+              <motion.div
                 className="relative w-12 h-12 bg-gradient-to-br from-blue-600 via-cyan-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30"
                 whileHover={{ rotate: 5 }}
                 transition={{ type: "spring", stiffness: 400 }}
@@ -280,15 +280,15 @@ export default function LandingPageV2() {
                 <p className="text-xs text-gray-500 -mt-0.5">Healthcare Network</p>
               </div>
             </motion.div>
-            
+
                         <div className="flex items-center gap-3">
                             <div className="hidden sm:flex items-center gap-1 bg-gray-100/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200/50">
                 {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
                   <motion.button
                     key={lang}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-300 ${
-                      language === lang 
-                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/25' 
+                      language === lang
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/25'
                         : 'hover:bg-white/80 text-gray-600'
                     }`}
                     onClick={() => setLanguage(lang)}
@@ -299,7 +299,7 @@ export default function LandingPageV2() {
                   </motion.button>
                 ))}
               </div>
-              
+
                             <motion.button
                 className="p-2.5 hover:bg-gray-100/80 rounded-xl transition-colors border border-transparent hover:border-gray-200"
                 onClick={() => setFontSize(fontSize === 'normal' ? 'large' : fontSize === 'large' ? 'xlarge' : 'normal')}
@@ -309,7 +309,7 @@ export default function LandingPageV2() {
               >
                 <Type className="w-5 h-5 text-gray-600" />
               </motion.button>
-              
+
               <motion.button
                 className="p-2.5 hover:bg-gray-100/80 rounded-xl transition-colors border border-transparent hover:border-gray-200"
                 onClick={toggleHighContrast}
@@ -319,7 +319,7 @@ export default function LandingPageV2() {
               >
                 {highContrast ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-gray-600" />}
               </motion.button>
-              
+
                             <Link to="/login">
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-500/25 px-6 h-11 rounded-xl font-semibold">
@@ -350,9 +350,9 @@ export default function LandingPageV2() {
             animate={{ scale: [1, 1.2, 1], y: [0, 30, 0] }}
             transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
           />
-          
+
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
-          
+
                     {[...Array(12)].map((_, i) => (
             <motion.div
               key={i}
@@ -367,7 +367,7 @@ export default function LandingPageV2() {
               transition={{ duration: 5 + i * 0.5, repeat: Infinity, delay: i * 0.3 }}
             />
           ))}
-          
+
                     <motion.div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px]"
             style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 50%)' }}
@@ -375,7 +375,7 @@ export default function LandingPageV2() {
             transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
         </div>
-        
+
         <div className="container mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -399,7 +399,7 @@ export default function LandingPageV2() {
                   <ChevronRight className="w-4 h-4 ml-2 text-emerald-500" />
                 </Badge>
               </motion.div>
-              
+
                             <h1 className={`font-extrabold mb-8 leading-[1.1] tracking-tight ${fontSize === 'xlarge' ? 'text-4xl' : fontSize === 'large' ? 'text-5xl' : 'text-5xl md:text-7xl'}`}>
                 <motion.span
                   initial={{ opacity: 0, y: 30 }}
@@ -409,12 +409,12 @@ export default function LandingPageV2() {
                 >
                   {t.heroTitle1}
                 </motion.span>
-                <motion.span 
+                <motion.span
                   className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 bg-clip-text text-transparent"
                   style={{ backgroundSize: '200% auto' }}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0, backgroundPosition: ['0%', '100%', '0%'] }}
-                  transition={{ 
+                  transition={{
                     opacity: { delay: 0.4, duration: 0.6 },
                     y: { delay: 0.4, duration: 0.6 },
                     backgroundPosition: { duration: 5, repeat: Infinity, ease: 'linear' }
@@ -423,8 +423,8 @@ export default function LandingPageV2() {
                   {t.heroTitle2}
                 </motion.span>
               </h1>
-              
-                            <motion.p 
+
+                            <motion.p
                 className={`text-gray-600 mb-10 max-w-xl leading-relaxed ${fontSize === 'xlarge' ? 'text-xl' : 'text-lg'}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -432,16 +432,16 @@ export default function LandingPageV2() {
               >
                 {t.heroSubtitle}
               </motion.p>
-              
-                            <motion.div 
+
+                            <motion.div
                 className="flex flex-wrap gap-4"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
               >
                 <Link to="/login">
-                  <motion.div 
-                    whileHover={{ scale: 1.03, y: -3 }} 
+                  <motion.div
+                    whileHover={{ scale: 1.03, y: -3 }}
                     whileTap={{ scale: 0.97 }}
                     className="relative group"
                   >
@@ -464,7 +464,7 @@ export default function LandingPageV2() {
                   </motion.div>
                 </Link>
               </motion.div>
-              
+
                             <motion.div
                 className="flex items-center gap-6 mt-10 pt-10 border-t border-gray-200/60"
                 initial={{ opacity: 0 }}
@@ -483,7 +483,7 @@ export default function LandingPageV2() {
                 ))}
               </motion.div>
             </motion.div>
-            
+
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -501,31 +501,31 @@ export default function LandingPageV2() {
           <p className={`text-center ${highContrast ? 'text-gray-300' : 'text-gray-600'} mb-12`}>
             {t.howItWorksSubtitle}
           </p>
-          
+
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="flex justify-center">
               <NetworkVisualization />
             </div>
-            
+
             <div className="space-y-6">
               {[
-                { 
-                  step: 1, 
-                  title: t.step1Title, 
+                {
+                  step: 1,
+                  title: t.step1Title,
                   desc: t.step1Desc,
                   icon: CreditCard,
                   color: 'blue'
                 },
-                { 
-                  step: 2, 
-                  title: t.step2Title, 
+                {
+                  step: 2,
+                  title: t.step2Title,
                   desc: t.step2Desc,
                   icon: Database,
                   color: 'cyan'
                 },
-                { 
-                  step: 3, 
-                  title: t.step3Title, 
+                {
+                  step: 3,
+                  title: t.step3Title,
                   desc: t.step3Desc,
                   icon: Network,
                   color: 'green'
@@ -559,7 +559,7 @@ export default function LandingPageV2() {
           <p className={`text-center ${highContrast ? 'text-gray-400' : 'text-gray-600'} mb-12`}>
             {t.featuresSubtitle}
           </p>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: Shield, title: t.dataSovereigntyTitle, desc: t.dataSovereigntyDesc, color: 'blue' },
@@ -586,9 +586,9 @@ export default function LandingPageV2() {
 
             <section className="py-24 px-4 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/30 to-white pointer-events-none" />
-        
+
         <div className="container mx-auto relative z-10">
-          <motion.div 
+          <motion.div
             className="text-center mb-16"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -603,7 +603,7 @@ export default function LandingPageV2() {
               Seamlessly connected healthcare facilities across Malaysia
             </p>
           </motion.div>
-          
+
           <div className="grid md:grid-cols-5 gap-5">
             {hospitals.map((hospital, index) => (
               <motion.div
@@ -617,27 +617,27 @@ export default function LandingPageV2() {
               >
                 <Card className={`relative text-center overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-500 ${highContrast ? 'bg-gray-800' : 'bg-white'}`}>
                                     <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${hospital.gradient}`} />
-                  
+
                   <CardContent className="pt-8 pb-6">
-                                        <motion.div 
+                                        <motion.div
                       className="relative w-16 h-16 mx-auto mb-4"
                       whileHover={{ scale: 1.1, rotate: 5 }}
                     >
-                      <div 
+                      <div
                         className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${hospital.gradient} opacity-20 blur-lg group-hover:opacity-40 transition-opacity`}
                       />
-                      <div 
+                      <div
                         className={`relative w-full h-full rounded-2xl bg-gradient-to-br ${hospital.gradient} flex items-center justify-center shadow-lg`}
                       >
                         <Building2 className="w-8 h-8 text-white" />
                       </div>
                     </motion.div>
-                    
+
                     <h3 className="font-bold text-sm mb-1 text-gray-900 group-hover:text-blue-600 transition-colors">{hospital.name}</h3>
                     <p className="text-xs text-gray-500 mb-3">{hospital.city}</p>
-                    
+
                                         <div className="flex items-center justify-center gap-2 py-2 px-3 bg-emerald-50 rounded-full mx-auto w-fit">
-                      <motion.div 
+                      <motion.div
                         className="w-2 h-2 bg-emerald-500 rounded-full"
                         animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
                         transition={{ duration: 1.5, repeat: Infinity }}
@@ -664,7 +664,7 @@ export default function LandingPageV2() {
                 {t.securityByDesignDesc}
               </p>
             </div>
-            
+
                         <div className="grid md:grid-cols-2 gap-6">
               {[
                 { icon: Lock, label: t.readOnly, desc: 'Other hospitals can only view, never modify your records', color: 'blue' },
@@ -696,7 +696,7 @@ export default function LandingPageV2() {
                 </motion.div>
               ))}
             </div>
-            
+
                         <div className="mt-10 flex flex-wrap justify-center gap-6">
               {[
                 { icon: CheckCircle, text: 'HIPAA Compliant' },
@@ -715,7 +715,7 @@ export default function LandingPageV2() {
 
             <section className="py-24 px-4 relative overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white">
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
-        
+
                 <motion.div
           className="absolute top-10 left-10 w-64 h-64 bg-gradient-to-br from-blue-100/50 to-cyan-100/50 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], x: [0, 20, 0] }}
@@ -726,7 +726,7 @@ export default function LandingPageV2() {
           animate={{ scale: [1.2, 1, 1.2], y: [0, -20, 0] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
-        
+
         <div className="container mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -742,8 +742,8 @@ export default function LandingPageV2() {
               {t.ctaSubtitle}
             </p>
             <Link to="/login">
-              <motion.div 
-                whileHover={{ scale: 1.05, y: -3 }} 
+              <motion.div
+                whileHover={{ scale: 1.05, y: -3 }}
                 whileTap={{ scale: 0.95 }}
                 className="inline-block"
               >
@@ -772,14 +772,14 @@ export default function LandingPageV2() {
                 <p className="text-xs text-gray-500">Healthcare Network</p>
               </div>
             </div>
-            
+
                         <div className="flex items-center gap-8">
               <Link to="/about" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">{t.about}</Link>
               <Link to="/emergency" className="text-gray-600 hover:text-red-600 transition-colors font-medium text-sm">Emergency Access</Link>
               <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">Sign In</Link>
             </div>
           </div>
-          
+
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">
               {t.builtFor}

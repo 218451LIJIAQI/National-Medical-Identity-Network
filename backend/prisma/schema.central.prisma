@@ -20,7 +20,6 @@ model Hospital {
   apiEndpoint String
   isActive    Boolean @default(true)
 
-  // Relations
   users          User[]
   patientIndexes PatientIndexHospital[]
 }
@@ -29,7 +28,6 @@ model PatientIndex {
   icNumber    String   @id
   lastUpdated DateTime @default(now())
 
-  // Relations
   hospitals PatientIndexHospital[]
 }
 
@@ -47,12 +45,11 @@ model PatientIndexHospital {
 model User {
   id           String    @id @default(uuid())
   icNumber     String
-  role         String // patient, doctor, hospital_admin, central_admin
+  role         String
   passwordHash String
   lastLogin    DateTime?
   isActive     Boolean   @default(true)
 
-  // Relations (optional - only for hospital staff)
   hospitalId String?
   hospital   Hospital? @relation(fields: [hospitalId], references: [id])
 
@@ -73,8 +70,8 @@ model PatientPrivacySetting {
 model AuditLog {
   id               String   @id @default(uuid())
   timestamp        DateTime @default(now())
-  action           String // query, view, create, update, login, logout
-  actorType        String // doctor, patient, hospital_admin, central_admin, system
+  action           String
+  actorType        String
   actorHospitalId  String?
   targetIcNumber   String?
   targetHospitalId String?
@@ -82,7 +79,6 @@ model AuditLog {
   ipAddress        String?
   success          Boolean  @default(true)
 
-  // Relations (optional for system-generated logs)
   actorId String?
   actor   User?   @relation(fields: [actorId], references: [id])
 

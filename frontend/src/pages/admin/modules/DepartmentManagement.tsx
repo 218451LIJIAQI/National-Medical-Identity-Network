@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
+import {
   Building2, Users, Stethoscope, Activity, Plus,
   Phone, Clock, MapPin, Edit, Settings
 } from 'lucide-react'
@@ -25,14 +25,14 @@ interface Department {
 }
 
 const mockDepartments: Department[] = [
-  { 
-    id: '1', 
-    name: 'Emergency Department', 
-    nameMY: 'Jabatan Kecemasan', 
-    head: 'Dr. Ahmad Razak', 
+  {
+    id: '1',
+    name: 'Emergency Department',
+    nameMY: 'Jabatan Kecemasan',
+    head: 'Dr. Ahmad Razak',
     headTitle: 'Head of Emergency',
-    staffCount: 45, 
-    doctorCount: 12, 
+    staffCount: 45,
+    doctorCount: 12,
     nurseCount: 28,
     location: 'Ground Floor, Block A',
     extension: '1001',
@@ -40,14 +40,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['Trauma', 'Critical Care', 'Resuscitation']
   },
-  { 
-    id: '2', 
-    name: 'Internal Medicine', 
-    nameMY: 'Perubatan Dalaman', 
-    head: 'Dr. Fatimah Zahra', 
+  {
+    id: '2',
+    name: 'Internal Medicine',
+    nameMY: 'Perubatan Dalaman',
+    head: 'Dr. Fatimah Zahra',
     headTitle: 'Senior Consultant',
-    staffCount: 38, 
-    doctorCount: 10, 
+    staffCount: 38,
+    doctorCount: 10,
     nurseCount: 22,
     location: '2nd Floor, Block B',
     extension: '2001',
@@ -55,14 +55,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['Cardiology', 'Gastroenterology', 'Nephrology']
   },
-  { 
-    id: '3', 
-    name: 'Surgery Department', 
-    nameMY: 'Jabatan Pembedahan', 
-    head: 'Dr. Lee Wei Kang', 
+  {
+    id: '3',
+    name: 'Surgery Department',
+    nameMY: 'Jabatan Pembedahan',
+    head: 'Dr. Lee Wei Kang',
     headTitle: 'Chief Surgeon',
-    staffCount: 52, 
-    doctorCount: 15, 
+    staffCount: 52,
+    doctorCount: 15,
     nurseCount: 30,
     location: '3rd Floor, Block A',
     extension: '3001',
@@ -70,14 +70,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['General Surgery', 'Orthopedic', 'Neurosurgery']
   },
-  { 
-    id: '4', 
-    name: 'Obstetrics & Gynecology', 
-    nameMY: 'Obstetrik & Ginekologi', 
-    head: 'Dr. Siti Aminah', 
+  {
+    id: '4',
+    name: 'Obstetrics & Gynecology',
+    nameMY: 'Obstetrik & Ginekologi',
+    head: 'Dr. Siti Aminah',
     headTitle: 'Head of O&G',
-    staffCount: 35, 
-    doctorCount: 8, 
+    staffCount: 35,
+    doctorCount: 8,
     nurseCount: 24,
     location: '4th Floor, Block C',
     extension: '4001',
@@ -85,14 +85,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['Maternal Care', 'High-Risk Pregnancy', 'Gynecology']
   },
-  { 
-    id: '5', 
-    name: 'Pediatric Department', 
-    nameMY: 'Jabatan Pediatrik', 
-    head: 'Dr. Nurul Huda', 
+  {
+    id: '5',
+    name: 'Pediatric Department',
+    nameMY: 'Jabatan Pediatrik',
+    head: 'Dr. Nurul Huda',
     headTitle: 'Pediatric Specialist',
-    staffCount: 30, 
-    doctorCount: 7, 
+    staffCount: 30,
+    doctorCount: 7,
     nurseCount: 20,
     location: '2nd Floor, Block C',
     extension: '2501',
@@ -100,14 +100,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['Neonatal', 'Child Health', 'Immunization']
   },
-  { 
-    id: '6', 
-    name: 'Radiology Department', 
-    nameMY: 'Jabatan Radiologi', 
-    head: 'Dr. Rajan Kumar', 
+  {
+    id: '6',
+    name: 'Radiology Department',
+    nameMY: 'Jabatan Radiologi',
+    head: 'Dr. Rajan Kumar',
     headTitle: 'Chief Radiologist',
-    staffCount: 20, 
-    doctorCount: 5, 
+    staffCount: 20,
+    doctorCount: 5,
     nurseCount: 8,
     location: 'Ground Floor, Block B',
     extension: '1501',
@@ -115,14 +115,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['X-Ray', 'CT Scan', 'MRI', 'Ultrasound']
   },
-  { 
-    id: '7', 
-    name: 'Pathology Laboratory', 
-    nameMY: 'Makmal Patologi', 
-    head: 'Dr. Chen Wei Lin', 
+  {
+    id: '7',
+    name: 'Pathology Laboratory',
+    nameMY: 'Makmal Patologi',
+    head: 'Dr. Chen Wei Lin',
     headTitle: 'Chief Pathologist',
-    staffCount: 25, 
-    doctorCount: 4, 
+    staffCount: 25,
+    doctorCount: 4,
     nurseCount: 0,
     location: '1st Floor, Block B',
     extension: '1201',
@@ -130,14 +130,14 @@ const mockDepartments: Department[] = [
     status: 'active',
     specialties: ['Hematology', 'Biochemistry', 'Microbiology']
   },
-  { 
-    id: '8', 
-    name: 'Pharmacy', 
-    nameMY: 'Farmasi', 
-    head: 'Pn. Halimah Yusof', 
+  {
+    id: '8',
+    name: 'Pharmacy',
+    nameMY: 'Farmasi',
+    head: 'Pn. Halimah Yusof',
     headTitle: 'Chief Pharmacist',
-    staffCount: 18, 
-    doctorCount: 0, 
+    staffCount: 18,
+    doctorCount: 0,
     nurseCount: 0,
     location: 'Ground Floor, Main Building',
     extension: '1101',
@@ -235,7 +235,7 @@ export default function DepartmentManagement() {
         {mockDepartments.map((dept, index) => {
           const statusInfo = statusConfig[dept.status]
           const isSelected = selectedDept === dept.id
-          
+
           return (
             <motion.div
               key={dept.id}
@@ -243,7 +243,7 @@ export default function DepartmentManagement() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
             >
-              <Card 
+              <Card
                 className={`cursor-pointer transition-all hover:shadow-lg ${
                   isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''
                 }`}

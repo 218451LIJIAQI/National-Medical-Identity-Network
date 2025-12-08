@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  FlaskConical, Plus, Trash2, Search, Clock, 
+import {
+  FlaskConical, Plus, Trash2, Search, Clock,
   FileText, CheckCircle2, AlertCircle, Printer,
   Droplets, Activity, Microscope, TestTube
 } from 'lucide-react'
@@ -50,10 +50,10 @@ interface LabOrdersProps {
   onSubmit?: (orders: LabTest[]) => void
 }
 
-export default function LabOrders({ 
+export default function LabOrders({
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
-  onSubmit 
+  onSubmit
 }: LabOrdersProps) {
   const [selectedTests, setSelectedTests] = useState<LabTest[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -83,7 +83,7 @@ export default function LabOrders({
   }
 
   const toggleUrgent = (id: string) => {
-    setSelectedTests(selectedTests.map(t => 
+    setSelectedTests(selectedTests.map(t =>
       t.id === id ? { ...t, urgent: !t.urgent } : t
     ))
   }
@@ -179,8 +179,8 @@ export default function LabOrders({
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1 text-sm rounded-full transition-all ${
-                    selectedCategory === cat 
-                      ? 'bg-purple-100 text-purple-700 font-medium' 
+                    selectedCategory === cat
+                      ? 'bg-purple-100 text-purple-700 font-medium'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -189,12 +189,12 @@ export default function LabOrders({
               ))}
             </div>
           </div>
-          
+
           <div className="max-h-96 overflow-y-auto">
             {filteredTests.map((test) => {
               const isSelected = selectedTests.some(t => t.code === test.code)
               const Icon = getCategoryIcon(test.category)
-              
+
               return (
                 <motion.button
                   key={test.code}
@@ -295,8 +295,8 @@ export default function LabOrders({
                           <button
                             onClick={() => toggleUrgent(test.id)}
                             className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                              test.urgent 
-                                ? 'bg-red-500 text-white' 
+                              test.urgent
+                                ? 'bg-red-500 text-white'
                                 : 'bg-gray-200 text-gray-600 hover:bg-red-100 hover:text-red-600'
                             }`}
                             title="Toggle urgent status"
@@ -327,7 +327,7 @@ export default function LabOrders({
                   <p className="text-sm text-gray-600">
                     {selectedTests.filter(t => t.urgent).length > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedTests.filter(t => t.urgent).length} urgent • 
+                        {selectedTests.filter(t => t.urgent).length} urgent •
                       </span>
                     )}
                     {' '}{selectedTests.filter(t => t.fasting).length > 0 && (

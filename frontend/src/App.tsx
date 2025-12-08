@@ -40,25 +40,25 @@ import HospitalVerification from '@/pages/HospitalVerification'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
-  
+
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [pathname])
-  
+
   return null
 }
 
 function PremiumLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-      <motion.div 
+      <motion.div
         className="flex flex-col items-center gap-6"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
       >
         <motion.div
           className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/30"
-          animate={{ 
+          animate={{
             rotate: [0, 10, -10, 0],
             scale: [1, 1.05, 1]
           }}
@@ -72,7 +72,7 @@ function PremiumLoader() {
           />
         </motion.div>
         <div className="text-center">
-          <motion.p 
+          <motion.p
             className="text-gray-600 font-medium"
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 1.5, repeat: Infinity }}
@@ -91,7 +91,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
   let effectiveUser = user
   let effectiveAuth = isAuthenticated
-  
+
   if (!user) {
     const storedUser = localStorage.getItem('medlink-user')
     if (storedUser) {
@@ -125,11 +125,11 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/emergency" element={<EmergencyAccess />} />
-        
+
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>
-        
+
         <Route path="/verify" element={<HospitalVerification />} />
 
         <Route
@@ -241,7 +241,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/doctor/queue"
             element={

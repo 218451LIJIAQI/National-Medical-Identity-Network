@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Users, Clock, CheckCircle2, 
+import {
+  Users, Clock, CheckCircle2,
   PhoneCall, Mic, Search, User,
   Stethoscope, Timer
 } from 'lucide-react'
@@ -83,14 +83,14 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
   const callNextPatient = () => {
     const nextPatient = queue.find(p => p.status === 'waiting')
     if (nextPatient) {
-      setQueue(queue.map(p => 
+      setQueue(queue.map(p =>
         p.queueNo === nextPatient.queueNo ? { ...p, status: 'called' } : p
       ))
     }
   }
 
   const startConsultation = (queueNo: string) => {
-    setQueue(queue.map(p => 
+    setQueue(queue.map(p =>
       p.queueNo === queueNo ? { ...p, status: 'in-progress' } : p
     ))
     const patient = queue.find(p => p.queueNo === queueNo)
@@ -157,8 +157,8 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filter === f 
-                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                filter === f
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
               }`}
             >

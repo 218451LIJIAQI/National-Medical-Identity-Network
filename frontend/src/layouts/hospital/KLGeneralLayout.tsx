@@ -20,7 +20,7 @@ export default function KLGeneralLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function KLGeneralLayout() {
             >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            
+
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                 <span className="text-white font-bold text-sm">{theme.shortName}</span>
@@ -137,7 +137,7 @@ export default function KLGeneralLayout() {
               </div>
             </div>
 
-                        <button 
+                        <button
               className="relative p-2 hover:bg-slate-100 rounded-md transition-colors"
               aria-label="View notifications"
             >
@@ -146,7 +146,7 @@ export default function KLGeneralLayout() {
             </button>
 
                         <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-md transition-colors"
               >
@@ -178,7 +178,7 @@ export default function KLGeneralLayout() {
                       <Settings className="w-4 h-4" />
                       Settings
                     </button>
-                    <button 
+                    <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                     >
@@ -324,7 +324,7 @@ export default function KLGeneralLayout() {
         </div>
       </aside>
 
-                        <main 
+                        <main
         className={cn(
           "pt-16 min-h-screen transition-all duration-300",
           sidebarOpen ? "lg:pl-64" : "lg:pl-16"

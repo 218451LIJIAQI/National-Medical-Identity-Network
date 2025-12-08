@@ -19,7 +19,7 @@ export default function PenangMCLayout() {
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   const handleLogout = () => {
@@ -109,7 +109,7 @@ export default function PenangMCLayout() {
         onMouseLeave={() => setSidebarExpanded(false)}
       >
                 <div className="p-4 flex items-center justify-center">
-          <motion.div 
+          <motion.div
             className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 shadow-lg"
             whileHover={{ rotate: 10, scale: 1.1 }}
             transition={{ type: "spring", stiffness: 300 }}
@@ -249,7 +249,7 @@ export default function PenangMCLayout() {
         </nav>
 
                 <div className="p-4 space-y-3">
-                    <motion.div 
+                    <motion.div
             className={cn(
               "p-3 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20",
               sidebarExpanded ? "flex items-center gap-3" : "flex justify-center"
@@ -329,8 +329,8 @@ export default function PenangMCLayout() {
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-xl mb-1",
-                          isActive 
-                            ? "bg-emerald-100 text-emerald-700" 
+                          isActive
+                            ? "bg-emerald-100 text-emerald-700"
                             : "text-gray-600 hover:bg-gray-50"
                         )}
                       >
@@ -355,8 +355,8 @@ export default function PenangMCLayout() {
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-xl mb-2",
-                          isActive 
-                            ? "bg-emerald-100 text-emerald-700" 
+                          isActive
+                            ? "bg-emerald-100 text-emerald-700"
                             : "text-gray-600 hover:bg-gray-50"
                         )}
                       >
@@ -382,7 +382,7 @@ export default function PenangMCLayout() {
 
                         <main className="lg:pl-20 pt-16 lg:pt-0 min-h-screen relative z-10">
         <div className="p-6 lg:p-10">
-                    <motion.div 
+                    <motion.div
             className="mb-8 flex items-center justify-between"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -393,7 +393,7 @@ export default function PenangMCLayout() {
                 <span className="text-sm text-emerald-600 font-medium">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}</span>
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Welcome, Dr. {user?.fullName?.split(' ').pop()} 
+                Welcome, Dr. {user?.fullName?.split(' ').pop()}
                 <motion.span
                   className="inline-block ml-2"
                   animate={{ rotate: [0, 10, -10, 0] }}

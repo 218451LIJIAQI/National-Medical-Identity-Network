@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  FileText, Calendar, Clock, Printer, Send, 
+import {
+  FileText, Calendar, Clock, Printer, Send,
   User, Building2, CheckCircle2, AlertTriangle,
   Eye
 } from 'lucide-react'
@@ -55,19 +55,19 @@ export default function MedicalCertificate({
     if (field === 'daysOff' && typeof value === 'number') {
       const start = new Date(formData.startDate)
       const end = new Date(start.getTime() + (value - 1) * 86400000)
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         [field]: value,
-        endDate: end.toISOString().split('T')[0] 
+        endDate: end.toISOString().split('T')[0]
       }))
     }
     if (field === 'startDate' && typeof value === 'string') {
       const start = new Date(value)
       const end = new Date(start.getTime() + (formData.daysOff - 1) * 86400000)
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         [field]: value,
-        endDate: end.toISOString().split('T')[0] 
+        endDate: end.toISOString().split('T')[0]
       }))
     }
   }
@@ -80,10 +80,10 @@ export default function MedicalCertificate({
 
   const formatMalaysianDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('ms-MY', { 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
+    return date.toLocaleDateString('ms-MY', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     })
   }
 
@@ -233,7 +233,7 @@ export default function MedicalCertificate({
               <User className="w-5 h-5 text-blue-600" />
               Patient Information
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
@@ -244,7 +244,7 @@ export default function MedicalCertificate({
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">IC Number</label>
                 <input
@@ -273,7 +273,7 @@ export default function MedicalCertificate({
               <Calendar className="w-5 h-5 text-blue-600" />
               Sick Leave Details
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Number of Days</label>
@@ -360,7 +360,7 @@ export default function MedicalCertificate({
       )}
 
             <div className="grid grid-cols-3 gap-4">
-        <motion.div 
+        <motion.div
           className="p-4 bg-blue-50 rounded-xl border border-blue-100"
           whileHover={{ y: -2 }}
         >
@@ -372,8 +372,8 @@ export default function MedicalCertificate({
             </div>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="p-4 bg-emerald-50 rounded-xl border border-emerald-100"
           whileHover={{ y: -2 }}
         >
@@ -385,8 +385,8 @@ export default function MedicalCertificate({
             </div>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="p-4 bg-amber-50 rounded-xl border border-amber-100"
           whileHover={{ y: -2 }}
         >

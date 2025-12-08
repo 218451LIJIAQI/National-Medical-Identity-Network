@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
+import {
   Pill, Plus, Trash2, Search, AlertTriangle,
   CheckCircle2, Printer, Send, Clock, Package,
   FileText, ChevronDown
@@ -64,11 +64,11 @@ interface EPrescriptionProps {
   onSubmit?: (medications: Medication[]) => void
 }
 
-export default function EPrescription({ 
+export default function EPrescription({
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
   existingMedications = ['Metformin 500mg', 'Amlodipine 5mg'],
-  onSubmit 
+  onSubmit
 }: EPrescriptionProps) {
   const [medications, setMedications] = useState<Medication[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -101,7 +101,7 @@ export default function EPrescription({
 
   const checkInteractions = (newDrug: string) => {
     const mockInteractions: DrugInteraction[] = []
-    
+
     if (newDrug.includes('Ibuprofen') && existingMedications.some(m => m.includes('Aspirin'))) {
       mockInteractions.push({
         severity: 'high',
@@ -110,7 +110,7 @@ export default function EPrescription({
         description: 'Increased risk of GI bleeding when NSAIDs combined with Aspirin'
       })
     }
-    
+
     if (newDrug.includes('Aspirin') && medications.some(m => m.name.includes('Clopidogrel'))) {
       mockInteractions.push({
         severity: 'medium',
@@ -128,7 +128,7 @@ export default function EPrescription({
   }
 
   const updateMedication = (id: string, field: keyof Medication, value: string | number) => {
-    setMedications(medications.map(m => 
+    setMedications(medications.map(m =>
       m.id === id ? { ...m, [field]: value } : m
     ))
   }
@@ -185,7 +185,7 @@ export default function EPrescription({
           </div>
         </div>
 
-        <motion.div 
+        <motion.div
           className="p-4 bg-red-50 rounded-xl border border-red-200"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}

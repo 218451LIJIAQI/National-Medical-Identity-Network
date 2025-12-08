@@ -37,7 +37,7 @@ export default function JohorSpecialistLayout() {
       })
     }
   }
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   const handleLogout = () => {
@@ -110,7 +110,7 @@ export default function JohorSpecialistLayout() {
         </svg>
       </div>
 
-                        <motion.header 
+                        <motion.header
         className="sticky top-0 z-40 mx-4 mt-4"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -118,7 +118,7 @@ export default function JohorSpecialistLayout() {
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl shadow-amber-200/30 border border-amber-100/50 px-6 py-4">
           <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-              <motion.div 
+              <motion.div
                 className="w-12 h-12 bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300/40"
                 whileHover={{ rotate: 10, scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
@@ -140,7 +140,7 @@ export default function JohorSpecialistLayout() {
                 </div>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               </div>
-              
+
                             <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl border border-amber-100 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-amber-500" />
@@ -183,7 +183,7 @@ export default function JohorSpecialistLayout() {
                 </div>
               </div>
 
-                            <motion.button 
+                            <motion.button
                 className="relative p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -243,7 +243,7 @@ export default function JohorSpecialistLayout() {
                       </div>
                     </div>
                     <div className="px-3 py-2 border-t border-amber-100">
-                      <motion.button 
+                      <motion.button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-xl font-medium transition-colors"
                         whileHover={{ x: 4 }}
@@ -264,7 +264,7 @@ export default function JohorSpecialistLayout() {
         <Outlet />
       </main>
 
-                        <motion.nav 
+                        <motion.nav
         className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 flex justify-center"
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -279,7 +279,7 @@ export default function JohorSpecialistLayout() {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            
+
             <div ref={navScrollRef} className="flex items-center gap-2 overflow-x-auto px-4 scrollbar-hide flex-1">
               {user?.role === 'doctor' ? (
                 doctorNavSections.map((section, sectionIndex) => (
@@ -298,8 +298,8 @@ export default function JohorSpecialistLayout() {
                           <motion.div
                             className={cn(
                               "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
-                              isActive 
-                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
+                              isActive
+                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40"
                                 : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
                             )}
                             whileHover={{ scale: 1.05 }}
@@ -340,8 +340,8 @@ export default function JohorSpecialistLayout() {
                           <motion.div
                             className={cn(
                               "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
-                              isActive 
-                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
+                              isActive
+                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40"
                                 : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
                             )}
                             whileHover={{ scale: 1.05 }}
@@ -366,7 +366,7 @@ export default function JohorSpecialistLayout() {
                 ))
               )}
             </div>
-            
+
                         <button
               onClick={() => scrollNav('right')}
               className="flex-shrink-0 p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
@@ -379,8 +379,8 @@ export default function JohorSpecialistLayout() {
       </motion.nav>
 
             {showUserMenu && (
-        <div 
-          className="fixed inset-0 z-30" 
+        <div
+          className="fixed inset-0 z-30"
           onClick={() => setShowUserMenu(false)}
         />
       )}

@@ -15,9 +15,9 @@ const hospitalDashboardMap: Record<string, React.ComponentType> = {
 
 export default function DashboardSelector() {
   const { user } = useAuthStore()
-  
+
   const hospitalId = user?.hospitalId || 'hospital-kl'
   const DashboardComponent = hospitalDashboardMap[hospitalId] || KLGeneralDashboard
-  
+
   return <DashboardComponent />
 }

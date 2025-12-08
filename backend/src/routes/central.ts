@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { 
-  getPatientIndex, 
-  getAllPatientIndexes, 
-  getHospitals, 
+import {
+  getPatientIndex,
+  getAllPatientIndexes,
+  getHospitals,
   getCentralStats,
   getAuditLogs,
   createAuditLog,
-  updatePatientIndex,
   getUserById,
   getBlockedHospitals,
   setHospitalAccess,
@@ -14,8 +13,8 @@ import {
 } from '../database/central-multi';
 import { getHospitalDb } from '../database/hospital-multi';
 import { authenticate, authorize } from '../middleware/auth';
-import { HOSPITALS, DRUG_INTERACTIONS } from '../config';
-import { CrossHospitalQueryResult, QueryFlowStep, HospitalQueryResult, DrugInteraction } from '../types';
+import { HOSPITALS } from '../config';
+import { CrossHospitalQueryResult, QueryFlowStep, HospitalQueryResult } from '../types';
 const router = Router();
 
 router.get('/hospitals', async (_req: Request, res: Response) => {
@@ -65,7 +64,7 @@ setInterval(() => {
 router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   const { icNumber } = req.params;
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-  
+
   const lastAccess = emergencyRateLimits.get(clientIp);
   if (lastAccess && Date.now() - lastAccess < EMERGENCY_RATE_LIMIT_MS) {
     const remainingSeconds = Math.ceil((EMERGENCY_RATE_LIMIT_MS - (Date.now() - lastAccess)) / 1000);
@@ -77,12 +76,12 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     });
     return;
   }
-  
+
   emergencyRateLimits.set(clientIp, Date.now());
-  
+
   try {
     const patientIndex = await getPatientIndex(icNumber);
-    
+
     if (!patientIndex || patientIndex.hospitals.length === 0) {
       res.json({
         success: true,
@@ -94,7 +93,7 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       });
       return;
     }
-    
+
     let patientInfo: {
       fullName: string;
       bloodType: string;
@@ -103,7 +102,7 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       emergencyContact: string;
       emergencyPhone: string;
     } | null = null;
-    
+
     for (const hospitalId of patientIndex.hospitals) {
       const hospitalDb = getHospitalDb(hospitalId);
       const patient = await hospitalDb.getPatient(icNumber);
@@ -119,7 +118,7 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
         break;
       }
     }
-    
+
     if (!patientInfo) {
       res.json({
         success: true,
@@ -131,12 +130,12 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       });
       return;
     }
-    
+
     try {
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'emergency_access',
-        actorId: undefined,  // System-generated log, no user actor
+        actorId: undefined,
         actorType: 'system',
         targetIcNumber: icNumber,
         details: `Emergency access from IP: ${req.ip || 'unknown'}`,
@@ -146,7 +145,7 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     } catch (logError) {
       console.warn('Failed to log emergency access:', logError);
     }
-    
+
     res.json({
       success: true,
       data: {
@@ -171,7 +170,7 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
   const startTime = Date.now();
   const { icNumber } = req.params;
   const querySteps: QueryFlowStep[] = [];
-  
+
   try {
     querySteps.push({
       step: 1,
@@ -181,12 +180,12 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
       status: 'in_progress',
       timestamp: new Date().toISOString(),
     });
-    
+
     const patientIndex = await getPatientIndex(icNumber);
-    
+
     querySteps[0].status = 'completed';
     querySteps[0].data = patientIndex ? { hospitalsFound: patientIndex.hospitals.length } : { hospitalsFound: 0 };
-    
+
     if (!patientIndex) {
       const result: CrossHospitalQueryResult = {
         icNumber,
@@ -195,21 +194,21 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         totalRecords: 0,
         queryTime: Date.now() - startTime,
       };
-      
+
       res.json({
         success: true,
         data: result,
       });
       return;
     }
-    
+
     const requestingHospitalId = req.user?.hospitalId;
     if (requestingHospitalId) {
       const blockedHospitals = await getBlockedHospitals(icNumber);
       if (blockedHospitals.includes(requestingHospitalId)) {
         querySteps[0].status = 'completed';
         querySteps[0].data = { hospitalsFound: 0, accessDenied: true };
-        
+
         const result: CrossHospitalQueryResult = {
           icNumber,
           querySteps,
@@ -219,7 +218,7 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
           accessDenied: true,
           message: 'Patient has blocked access from your hospital',
         };
-        
+
         res.json({
           success: true,
           data: result,
@@ -227,12 +226,12 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         return;
       }
     }
-    
+
     const hospitalResults: HospitalQueryResult[] = [];
     const hospitalPromises = patientIndex.hospitals.map(async (hospitalId, index) => {
       const hospital = HOSPITALS.find(h => h.id === hospitalId);
       const hospitalName = hospital?.name || hospitalId;
-      
+
       querySteps.push({
         step: index + 2,
         action: `Querying ${hospitalName}`,
@@ -241,13 +240,13 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         status: 'in_progress',
         timestamp: new Date().toISOString(),
       });
-      
+
       const hospitalStartTime = Date.now();
-      
+
       try {
         const hospitalDb = getHospitalDb(hospitalId);
         const records = await hospitalDb.getRecordsByPatient(icNumber);
-        
+
         const isOwnHospital = req.user?.hospitalId === hospitalId;
         const markedRecords = records.map(r => ({
           ...r,
@@ -256,13 +255,13 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
           isReadOnly: !isOwnHospital,
           sourceHospital: hospitalName,
         }));
-        
+
         const stepIndex = querySteps.findIndex(s => s.to === hospitalName);
         if (stepIndex !== -1) {
           querySteps[stepIndex].status = 'completed';
           querySteps[stepIndex].data = { recordCount: records.length };
         }
-        
+
         hospitalResults.push({
           hospitalId,
           hospitalName,
@@ -276,7 +275,7 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         if (stepIndex !== -1) {
           querySteps[stepIndex].status = 'error';
         }
-        
+
         hospitalResults.push({
           hospitalId,
           hospitalName,
@@ -288,11 +287,11 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         });
       }
     });
-    
+
     await Promise.all(hospitalPromises);
-    
+
     const totalRecords = hospitalResults.reduce((sum, h) => sum + h.recordCount, 0);
-    
+
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'query',
@@ -304,7 +303,7 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
       ipAddress: req.ip || 'unknown',
       success: true,
     });
-    
+
     const result: CrossHospitalQueryResult = {
       icNumber,
       querySteps,
@@ -312,7 +311,7 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
       totalRecords,
       queryTime: Date.now() - startTime,
     };
-    
+
     res.json({
       success: true,
       data: result,
@@ -330,7 +329,7 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
   try {
     const { icNumber } = req.params;
     const patientIndex = await getPatientIndex(icNumber);
-    
+
     if (!patientIndex) {
       res.status(404).json({
         success: false,
@@ -338,7 +337,7 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
       });
       return;
     }
-    
+
     let patientInfo = null;
     for (const hospitalId of patientIndex.hospitals) {
       const hospitalDb = getHospitalDb(hospitalId);
@@ -348,7 +347,7 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
         break;
       }
     }
-    
+
     res.json({
       success: true,
       data: {
@@ -362,85 +361,6 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
     res.status(500).json({
       success: false,
       error: 'Failed to fetch patient information',
-    });
-  }
-});
-
-router.post('/drug-interactions', authenticate, async (req: Request, res: Response) => {
-  try {
-    const { icNumber, newMedication } = req.body;
-    
-    if (!icNumber || !newMedication) {
-      res.status(400).json({
-        success: false,
-        error: 'IC number and new medication are required',
-      });
-      return;
-    }
-    
-    const patientIndex = await getPatientIndex(icNumber);
-    if (!patientIndex) {
-      res.json({
-        success: true,
-        data: {
-          interactions: [],
-          currentMedications: [],
-        },
-      });
-      return;
-    }
-    
-    const currentMedications: Array<{ medication: string; hospital: string; date: string }> = [];
-    
-    for (const hospitalId of patientIndex.hospitals) {
-      const hospitalDb = getHospitalDb(hospitalId);
-      const prescriptions = await hospitalDb.getActivePrescriptions(icNumber);
-      const hospital = HOSPITALS.find(h => h.id === hospitalId);
-      
-      prescriptions.forEach(p => {
-        currentMedications.push({
-          medication: p.medicationName,
-          hospital: hospital?.name || hospitalId,
-          date: new Date().toISOString(),
-        });
-      });
-    }
-    
-    const interactions: DrugInteraction[] = [];
-    const newMedLower = newMedication.toLowerCase();
-    
-    for (const current of currentMedications) {
-      const currentLower = current.medication.toLowerCase();
-      
-      for (const interaction of DRUG_INTERACTIONS) {
-        const drug1Lower = interaction.drug1.toLowerCase();
-        const drug2Lower = interaction.drug2.toLowerCase();
-        
-        if (
-          (newMedLower.includes(drug1Lower) && currentLower.includes(drug2Lower)) ||
-          (newMedLower.includes(drug2Lower) && currentLower.includes(drug1Lower))
-        ) {
-          interactions.push({
-            ...interaction,
-            sourceHospital: current.hospital,
-            sourceDate: current.date,
-          });
-        }
-      }
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        interactions,
-        currentMedications,
-      },
-    });
-  } catch (error) {
-    console.error('Drug interaction check error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check drug interactions',
     });
   }
 });
@@ -465,7 +385,7 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
   try {
     const { icNumber } = req.params;
     const patientIndex = await getPatientIndex(icNumber);
-    
+
     if (!patientIndex) {
       res.status(404).json({
         success: false,
@@ -473,13 +393,13 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
       });
       return;
     }
-    
+
     const hospitalDetails = await Promise.all(
       patientIndex.hospitals.map(async (hospitalId) => {
         const hospital = HOSPITALS.find(h => h.id === hospitalId);
         const hospitalDb = getHospitalDb(hospitalId);
         const recordCount = (await hospitalDb.getRecordsByPatient(icNumber)).length;
-        
+
         return {
           hospitalId,
           hospitalName: hospital?.name || hospitalId,
@@ -490,7 +410,7 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
         };
       })
     );
-    
+
     let patientInfo = null;
     for (const hospitalId of patientIndex.hospitals) {
       const hospitalDb = getHospitalDb(hospitalId);
@@ -508,7 +428,7 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
         break;
       }
     }
-    
+
     res.json({
       success: true,
       data: {
@@ -532,7 +452,7 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
 router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_admin'), async (req: Request, res: Response) => {
   try {
     const { actorId, targetIcNumber, startDate, endDate, limit } = req.query;
-    
+
     const logs = await getAuditLogs({
       actorId: actorId as string,
       targetIcNumber: targetIcNumber as string,
@@ -540,19 +460,16 @@ router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_adm
       endDate: endDate as string,
       limit: limit ? parseInt(limit as string) : 100,
     });
-    
-    // Enrich logs with user and hospital names
+
     const enrichedLogs = await Promise.all(logs.map(async (log) => {
       let actorName = 'System';
       let hospitalName = log.actorHospitalId || 'Central Hub';
-      
-      // Get hospital name
+
       const hospital = HOSPITALS.find(h => h.id === log.actorHospitalId);
       if (hospital) {
         hospitalName = hospital.name;
       }
-      
-      // Get actor name
+
       if (log.actorId) {
         try {
           const user = await getUserById(log.actorId);
@@ -577,14 +494,14 @@ router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_adm
           actorName = log.actorType === 'system' ? 'System' : 'Unknown';
         }
       }
-      
+
       return {
         ...log,
         actorName,
         hospitalName,
       };
     }));
-    
+
     res.json({
       success: true,
       data: enrichedLogs,
@@ -601,7 +518,7 @@ router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_adm
 router.get('/my-access-logs', authenticate, async (req: Request, res: Response) => {
   try {
     const userIcNumber = req.user?.icNumber;
-    
+
     if (!userIcNumber) {
       res.status(400).json({
         success: false,
@@ -609,46 +526,44 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
       });
       return;
     }
-    
+
     const { limit } = req.query;
     const userId = req.user?.userId;
-    
+
     const allLogs = await getAuditLogs({
       targetIcNumber: userIcNumber,
       limit: limit ? parseInt(limit as string) * 2 : 40,
     });
-    
+
     const requestedLimit = limit ? parseInt(limit as string) : 20;
     const filteredLogs = allLogs.filter(log => log.actorId !== userId);
-    
-    // Deduplicate consecutive logs from the same actor within 5 minutes
+
     const deduplicatedLogs: typeof filteredLogs = [];
     for (const log of filteredLogs) {
       const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1];
-      if (lastLog && 
-          lastLog.actorId === log.actorId && 
+      if (lastLog &&
+          lastLog.actorId === log.actorId &&
           lastLog.action === log.action &&
           lastLog.actorHospitalId === log.actorHospitalId) {
         const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime());
-        // Skip if same actor, same action, same hospital within 5 minutes
         if (timeDiff < 5 * 60 * 1000) {
           continue;
         }
       }
       deduplicatedLogs.push(log);
     }
-    
+
     const logs = deduplicatedLogs.slice(0, requestedLimit);
-    
+
     const enrichedLogs = await Promise.all(logs.map(async (log) => {
       let actorName = log.actorId;
       let hospitalName = log.actorHospitalId || 'Unknown Hospital';
-      
+
       const hospital = HOSPITALS.find(h => h.id === log.actorHospitalId);
       if (hospital) {
         hospitalName = hospital.name;
       }
-      
+
       try {
         const user = log.actorId ? await getUserById(log.actorId) : null;
         if (user && user.icNumber) {
@@ -682,14 +597,14 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
           actorName = log.actorType || 'Unknown';
         }
       }
-      
+
       return {
         ...log,
         actorName,
         hospitalName,
       };
     }));
-    
+
     res.json({
       success: true,
       data: enrichedLogs,
@@ -706,7 +621,7 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
 router.get('/my-activity-logs', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
-    
+
     if (!userId) {
       res.status(400).json({
         success: false,
@@ -714,40 +629,38 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
       });
       return;
     }
-    
+
     const { limit } = req.query;
     const requestedLimit = limit ? parseInt(limit as string) : 10;
-    
+
     const logs = await getAuditLogs({
       actorId: userId,
       limit: requestedLimit * 5,
     });
-    
-    const filteredLogs = logs.filter(log => 
+
+    const filteredLogs = logs.filter(log =>
       log.action !== 'login' && log.action !== 'logout' && log.targetIcNumber
     );
-    
-    // Deduplicate consecutive logs for the same patient within 5 minutes
+
     const deduplicatedLogs: typeof filteredLogs = [];
     for (const log of filteredLogs) {
       const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1];
-      if (lastLog && 
-          lastLog.targetIcNumber === log.targetIcNumber && 
+      if (lastLog &&
+          lastLog.targetIcNumber === log.targetIcNumber &&
           lastLog.action === log.action) {
         const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime());
-        // Skip if same patient, same action within 5 minutes
         if (timeDiff < 5 * 60 * 1000) {
           continue;
         }
       }
       deduplicatedLogs.push(log);
     }
-    
+
     const patientLogs = deduplicatedLogs.slice(0, requestedLimit);
-    
+
     const enrichedLogs = await Promise.all(patientLogs.map(async (log) => {
       let patientName = 'Unknown Patient';
-      
+
       if (log.targetIcNumber) {
         try {
           const patientIndex = await getPatientIndex(log.targetIcNumber);
@@ -758,15 +671,15 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
               patientName = patient.fullName;
             }
           }
-        } catch { /* patient lookup optional, ignore errors */ }
+        } catch {}
       }
-      
+
       return {
         ...log,
         patientName,
       };
     }));
-    
+
     res.json({
       success: true,
       data: enrichedLogs,
@@ -780,37 +693,10 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
   }
 });
 
-router.post('/index/update', authenticate, authorize('hospital_admin', 'central_admin'), async (req: Request, res: Response) => {
-  try {
-    const { icNumber, hospitalId } = req.body;
-    
-    if (!icNumber || !hospitalId) {
-      res.status(400).json({
-        success: false,
-        error: 'IC number and hospital ID are required',
-      });
-      return;
-    }
-    
-    await updatePatientIndex(icNumber, hospitalId);
-    
-    res.json({
-      success: true,
-      message: 'Patient index updated successfully',
-    });
-  } catch (error) {
-    console.error('Update index error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update patient index',
-    });
-  }
-});
-
 router.get('/privacy-settings', authenticate, async (req: Request, res: Response) => {
   try {
     const userIcNumber = req.user?.icNumber;
-    
+
     if (!userIcNumber) {
       res.status(400).json({
         success: false,
@@ -818,10 +704,10 @@ router.get('/privacy-settings', authenticate, async (req: Request, res: Response
       });
       return;
     }
-    
+
     const settings = await getPrivacySettings(userIcNumber);
     const hospitals = await getHospitals();
-    
+
     const result = hospitals.map(h => {
       const setting = settings.find(s => s.hospitalId === h.id);
       return {
@@ -831,7 +717,7 @@ router.get('/privacy-settings', authenticate, async (req: Request, res: Response
         isBlocked: setting?.isBlocked || false,
       };
     });
-    
+
     res.json({
       success: true,
       data: result,
@@ -849,7 +735,7 @@ router.post('/privacy-settings/hospital-access', authenticate, async (req: Reque
   try {
     const userIcNumber = req.user?.icNumber;
     const { hospitalId, isBlocked } = req.body;
-    
+
     if (!userIcNumber) {
       res.status(400).json({
         success: false,
@@ -857,7 +743,7 @@ router.post('/privacy-settings/hospital-access', authenticate, async (req: Reque
       });
       return;
     }
-    
+
     if (!hospitalId || typeof isBlocked !== 'boolean') {
       res.status(400).json({
         success: false,
@@ -865,9 +751,9 @@ router.post('/privacy-settings/hospital-access', authenticate, async (req: Reque
       });
       return;
     }
-    
+
     await setHospitalAccess(userIcNumber, hospitalId, isBlocked);
-    
+
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'update',
@@ -879,7 +765,7 @@ router.post('/privacy-settings/hospital-access', authenticate, async (req: Reque
       ipAddress: req.ip || 'unknown',
       success: true,
     });
-    
+
     res.json({
       success: true,
       message: `Hospital access ${isBlocked ? 'blocked' : 'granted'} successfully`,

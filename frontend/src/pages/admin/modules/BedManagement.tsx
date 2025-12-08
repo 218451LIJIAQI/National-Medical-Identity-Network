@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
+import {
   Bed, User, AlertTriangle, CheckCircle, Clock,
   RefreshCw
 } from 'lucide-react'
@@ -151,9 +151,9 @@ export default function BedManagement() {
             </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-4">
-            <div 
+            <div
               className={`h-4 rounded-full transition-all ${
-                occupancyRate > 90 ? 'bg-red-500' : 
+                occupancyRate > 90 ? 'bg-red-500' :
                 occupancyRate > 75 ? 'bg-yellow-500' : 'bg-green-500'
               }`}
               style={{ width: `${occupancyRate}%` }}
@@ -173,7 +173,7 @@ export default function BedManagement() {
           const available = ward.totalBeds - ward.occupied - ward.reserved - ward.maintenance
           const occupancy = Math.round((ward.occupied / ward.totalBeds) * 100)
           const typeConfig = wardTypeConfig[ward.type]
-          
+
           return (
             <motion.div
               key={ward.id}
@@ -181,7 +181,7 @@ export default function BedManagement() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
             >
-              <Card 
+              <Card
                 className={`cursor-pointer transition-all hover:shadow-lg ${
                   selectedWard === ward.id ? 'ring-2 ring-blue-500' : ''
                 }`}
@@ -201,7 +201,7 @@ export default function BedManagement() {
                       if (i < ward.occupied) status = 'occupied'
                       else if (i < ward.occupied + ward.reserved) status = 'reserved'
                       else if (i < ward.occupied + ward.reserved + ward.maintenance) status = 'maintenance'
-                      
+
                       return (
                         <div
                           key={i}
@@ -215,7 +215,7 @@ export default function BedManagement() {
                       )
                     })}
                   </div>
-                  
+
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-red-400 rounded-full" />
@@ -244,7 +244,7 @@ export default function BedManagement() {
                       }>{occupancy}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
+                      <div
                         className={`h-2 rounded-full ${
                           occupancy > 90 ? 'bg-red-500' :
                           occupancy > 75 ? 'bg-yellow-500' : 'bg-green-500'

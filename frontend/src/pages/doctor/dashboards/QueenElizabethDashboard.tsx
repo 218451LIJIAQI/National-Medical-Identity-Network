@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { 
-  Search, FileText, Activity, ArrowRight, 
+import {
+  Search, FileText, Activity, ArrowRight,
   Users, Plus, Crown, Award, Sparkles,
-  TrendingUp, MapPin, Building2, ChevronRight, 
+  TrendingUp, MapPin, Building2, ChevronRight,
   Heart, BookOpen, History, Star
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -20,9 +20,9 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
+  visible: {
+    opacity: 1,
+    y: 0,
     transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
   }
 }
@@ -37,9 +37,9 @@ interface RecentActivity {
 
 export default function QueenElizabethDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState({ 
-    totalPatients: 0, 
-    activeHospitals: 0, 
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeHospitals: 0,
     todayQueries: 0,
   })
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
@@ -60,18 +60,18 @@ export default function QueenElizabethDashboard() {
           centralApi.getStats(),
           centralApi.getMyActivityLogs(5),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data)
         }
-        
+
         if (logsRes.success && logsRes.data) {
           const activities = logsRes.data.map((log) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
             const diffMins = Math.floor(diffMs / 60000)
-            
+
             return {
               patient: log.patientName || 'Patient',
               ic: log.targetIcNumber?.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3') || 'N/A',
@@ -92,34 +92,34 @@ export default function QueenElizabethDashboard() {
   }, [])
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     })
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6 w-full"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="relative overflow-hidden bg-gradient-to-br from-white via-amber-50/30 to-rose-50/50 rounded-3xl border border-amber-200/60 shadow-xl"
       >
                 <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-        
+
                 <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-amber-100/40 to-transparent rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-rose-100/40 to-transparent rounded-full blur-3xl" />
-        
+
         <div className="relative p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div className="flex items-start gap-5">
-              <motion.div 
+              <motion.div
                 className="relative"
                 whileHover={{ scale: 1.05, rotate: 3 }}
                 transition={{ type: 'spring', stiffness: 300 }}
@@ -147,7 +147,7 @@ export default function QueenElizabethDashboard() {
                 </p>
               </div>
             </div>
-            
+
                         <div className="flex flex-wrap gap-3">
               <Link to="/doctor/search">
                 <motion.button
@@ -173,7 +173,7 @@ export default function QueenElizabethDashboard() {
             </div>
           </div>
         </div>
-        
+
                 <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent" />
       </motion.div>
 
@@ -192,12 +192,12 @@ export default function QueenElizabethDashboard() {
             whileHover={{ y: -4 }}
           >
                         <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-            
+
             <div className="p-6">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500 mb-2">{stat.label}</p>
-                  <motion.p 
+                  <motion.p
                     className="text-4xl font-bold text-gray-900"
                     initial={{ scale: 0.5 }}
                     animate={{ scale: 1 }}
@@ -207,7 +207,7 @@ export default function QueenElizabethDashboard() {
                   </motion.p>
                   <p className="text-xs text-gray-400 mt-2">{stat.desc}</p>
                 </div>
-                <motion.div 
+                <motion.div
                   className="p-4 bg-gradient-to-br from-amber-100 to-amber-50 rounded-2xl border border-amber-200/50"
                   whileHover={{ scale: 1.1, rotate: 5 }}
                 >
@@ -226,12 +226,12 @@ export default function QueenElizabethDashboard() {
         ))}
       </motion.div>
 
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="relative bg-white rounded-2xl border border-amber-100 shadow-xl overflow-hidden"
       >
                 <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-        
+
                 <div className="p-6 border-b border-amber-100 bg-gradient-to-r from-amber-50/50 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -243,7 +243,7 @@ export default function QueenElizabethDashboard() {
                 <p className="text-sm text-gray-500">Recent patient record access</p>
               </div>
             </div>
-            <Link 
+            <Link
               to="/doctor/search"
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
             >
@@ -262,7 +262,7 @@ export default function QueenElizabethDashboard() {
                 <p className="text-lg font-semibold text-gray-700">No recent activity</p>
                 <p className="text-sm text-gray-400 mt-2">Start by searching for patient records</p>
                 <Link to="/doctor/search">
-                  <motion.button 
+                  <motion.button
                     className="mt-6 px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-semibold shadow-lg"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -283,10 +283,10 @@ export default function QueenElizabethDashboard() {
                     whileHover={{ x: 4 }}
                   >
                     <div className="flex items-center gap-4">
-                                            <motion.div 
+                                            <motion.div
                         className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
-                          activity.type === 'view' 
-                            ? 'bg-gradient-to-br from-amber-400 to-amber-600' 
+                          activity.type === 'view'
+                            ? 'bg-gradient-to-br from-amber-400 to-amber-600'
                             : 'bg-gradient-to-br from-red-500 to-rose-600'
                         }`}
                         whileHover={{ scale: 1.1, rotate: 5 }}
@@ -319,12 +319,12 @@ export default function QueenElizabethDashboard() {
         </div>
       </motion.div>
 
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="relative bg-white rounded-2xl border border-amber-100 shadow-lg overflow-hidden"
       >
                 <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
-        
+
         <div className="p-6">
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl shadow-lg shadow-amber-200/50">
@@ -335,7 +335,7 @@ export default function QueenElizabethDashboard() {
               <p className="text-sm text-gray-500">Our specialized medical departments</p>
             </div>
           </div>
-          
+
           <div className="flex flex-wrap gap-3">
             {theme.specialties.map((specialty, index) => (
               <motion.div

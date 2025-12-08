@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
-import { 
-  Siren, Search, Loader2, AlertTriangle, Building2, Clock, User, 
+import {
+  Siren, Search, Loader2, AlertTriangle, Building2, Clock, User,
   FileText, RefreshCw, Shield, X, ChevronRight, Activity, Video, Download
 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
@@ -90,7 +90,7 @@ export default function EmergencyManagement() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -101,7 +101,7 @@ export default function EmergencyManagement() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <motion.div 
+          <motion.div
             className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl shadow-lg shadow-orange-500/30"
             whileHover={{ scale: 1.05, rotate: 5 }}
             animate={{ scale: [1, 1.05, 1] }}
@@ -115,8 +115,8 @@ export default function EmergencyManagement() {
           </div>
         </div>
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2 h-11 px-5 rounded-xl"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -137,7 +137,7 @@ export default function EmergencyManagement() {
           <div>
             <h3 className="font-semibold text-orange-800">Emergency Access Protocol</h3>
             <p className="text-sm text-orange-700 mt-1">
-              Emergency access allows medical personnel to view patient data without standard consent in life-threatening situations. 
+              Emergency access allows medical personnel to view patient data without standard consent in life-threatening situations.
               All emergency accesses are logged and subject to audit review.
             </p>
           </div>
@@ -234,7 +234,7 @@ export default function EmergencyManagement() {
                       <div className="p-2 bg-gradient-to-br from-orange-400 to-red-500 rounded-full">
                         <Siren className="w-4 h-4 text-white" />
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge className="bg-orange-100 text-orange-700">Emergency Access</Badge>
@@ -243,7 +243,7 @@ export default function EmergencyManagement() {
                             Patient: <span className="font-mono font-medium">{log.targetIcNumber}</span>
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
                           <span className="flex items-center gap-1.5">
                             <Building2 className="w-4 h-4" />
@@ -255,7 +255,7 @@ export default function EmergencyManagement() {
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="text-right shrink-0">
                         <Badge className={log.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
                           {log.success ? 'Granted' : 'Denied'}
@@ -268,7 +268,7 @@ export default function EmergencyManagement() {
                           {formatDate(log.timestamp)}
                         </p>
                       </div>
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -279,7 +279,6 @@ export default function EmergencyManagement() {
                             title: "Recording Download",
                             description: `Downloading emergency access video recording for patient ${log.targetIcNumber}...`,
                           })
-                          // Demo: simulate download after delay
                           setTimeout(() => {
                             toast({
                               title: "Download Complete",
@@ -292,7 +291,7 @@ export default function EmergencyManagement() {
                         <Video className="w-4 h-4" />
                         <Download className="w-3 h-3" />
                       </Button>
-                      
+
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </div>
                   </motion.div>
@@ -340,7 +339,7 @@ export default function EmergencyManagement() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-6 space-y-4">
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
                   <div className="flex items-center gap-2 text-orange-700 font-medium mb-2">
@@ -374,7 +373,7 @@ export default function EmergencyManagement() {
                       <p className="text-xs text-gray-500 font-mono">{selectedLog.actorId}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start gap-3">
                     <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div>
@@ -403,7 +402,7 @@ export default function EmergencyManagement() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="px-6 pb-6">
                 <Button
                   className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700"

@@ -17,6 +17,6 @@ export default function HospitalLayout() {
   const { user } = useAuthStore()
   const hospitalId = user?.hospitalId || 'hospital-kl'
   const LayoutComponent = hospitalLayoutMap[hospitalId] || KLGeneralLayout
-  
+
   return <LayoutComponent />
 }

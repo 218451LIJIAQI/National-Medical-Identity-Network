@@ -85,7 +85,7 @@ export default function CentralAdminDashboard() {
           centralApi.getHospitals(),
           centralApi.getAuditLogs({ limit: 20 }),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data)
         }
@@ -100,7 +100,7 @@ export default function CentralAdminDashboard() {
               const now = new Date()
               const diffMs = now.getTime() - logDate.getTime()
               const diffMins = Math.floor(diffMs / 60000)
-              
+
               let timeAgo = ''
               if (diffMins < 60) {
                 timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
@@ -108,11 +108,11 @@ export default function CentralAdminDashboard() {
                 const diffHours = Math.floor(diffMs / 3600000)
                 timeAgo = diffHours < 24 ? `${diffHours} hours ago` : `${Math.floor(diffHours/24)} days ago`
               }
-              
-              const icMasked = log.targetIcNumber 
+
+              const icMasked = log.targetIcNumber
                 ? log.targetIcNumber.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3')
                 : 'System'
-              
+
               const getActionType = (action: string) => {
                 switch (action) {
                   case 'query': return 'Patient Query'
@@ -122,7 +122,7 @@ export default function CentralAdminDashboard() {
                   default: return 'Record Access'
                 }
               }
-              
+
               return {
                 from: log.actorHospitalId || 'Central Hub',
                 to: 'Network',
@@ -144,11 +144,11 @@ export default function CentralAdminDashboard() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!searchIC.trim()) return
-    
+
     setSearching(true)
     setSearchError('')
     setSearchResult(null)
-    
+
     try {
       const response = await centralApi.searchPatientIndex(searchIC.trim())
       if (response.success && response.data) {
@@ -186,19 +186,19 @@ export default function CentralAdminDashboard() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-            <motion.div 
+            <motion.div
         variants={itemVariants}
         className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-700 p-8 text-white"
       >
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-cyan-300/20 rounded-full blur-3xl" />
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
@@ -226,34 +226,34 @@ export default function CentralAdminDashboard() {
 
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { 
-            label: 'Connected Hospitals', 
-            value: stats.activeHospitals, 
-            icon: Building2, 
+          {
+            label: 'Connected Hospitals',
+            value: stats.activeHospitals,
+            icon: Building2,
             gradient: 'from-blue-500 to-blue-600',
             change: 'All operational',
             changeType: 'status'
           },
-          { 
-            label: 'Network Patients', 
-            value: stats.totalPatients.toLocaleString(), 
-            icon: Users, 
+          {
+            label: 'Network Patients',
+            value: stats.totalPatients.toLocaleString(),
+            icon: Users,
             gradient: 'from-emerald-500 to-emerald-600',
             change: '+1,234 this month',
             changeType: 'up'
           },
-          { 
-            label: 'Queries Today', 
-            value: stats.todayQueries, 
-            icon: Activity, 
+          {
+            label: 'Queries Today',
+            value: stats.todayQueries,
+            icon: Activity,
             gradient: 'from-violet-500 to-violet-600',
             change: '+15% vs yesterday',
             changeType: 'up'
           },
-          { 
-            label: 'Network Uptime', 
-            value: '99.9%', 
-            icon: Globe, 
+          {
+            label: 'Network Uptime',
+            value: '99.9%',
+            icon: Globe,
             gradient: 'from-cyan-500 to-cyan-600',
             change: 'Last 30 days',
             changeType: 'status'
@@ -311,8 +311,8 @@ export default function CentralAdminDashboard() {
                   className="h-12 text-base"
                 />
               </div>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={searching}
                 className="h-12 px-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
               >
@@ -379,7 +379,7 @@ export default function CentralAdminDashboard() {
                       <p className="text-sm font-medium">Central Index</p>
                     </div>
                     <div className="flex-1 relative h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-500 rounded">
-                      <motion.div 
+                      <motion.div
                         className="absolute w-3 h-3 bg-white rounded-full top-1/2 -translate-y-1/2"
                         animate={{ left: ['0%', '100%', '0%'] }}
                         transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -410,7 +410,7 @@ export default function CentralAdminDashboard() {
                           style={{ borderColor: color + '40', backgroundColor: color + '10' }}
                         >
                           <div className="flex items-start gap-3">
-                            <div 
+                            <div
                               className="p-2 rounded-lg"
                               style={{ backgroundColor: color + '30' }}
                             >
@@ -486,7 +486,7 @@ export default function CentralAdminDashboard() {
                     style={{ borderColor: color + '40' }}
                   >
                     <div className="flex items-start gap-3">
-                      <div 
+                      <div
                         className="p-3 rounded-xl"
                         style={{ backgroundColor: color + '20' }}
                       >
@@ -536,7 +536,7 @@ export default function CentralAdminDashboard() {
               className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-                            <div 
+                            <div
                 className="p-6 text-white"
                 style={{ backgroundColor: hospitalColors[selectedHospital.id] || '#6B7280' }}
               >
@@ -560,7 +560,7 @@ export default function CentralAdminDashboard() {
                   </button>
                 </div>
               </div>
-              
+
                             <div className="p-6 space-y-4">
                 <div className="flex items-start gap-3">
                   <MapPinned className="w-5 h-5 text-gray-400 mt-0.5" />
@@ -570,7 +570,7 @@ export default function CentralAdminDashboard() {
                     <p className="text-gray-600">{selectedHospital.city}, {selectedHospital.state}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
@@ -578,7 +578,7 @@ export default function CentralAdminDashboard() {
                     <p className="text-gray-900">{selectedHospital.phone}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
@@ -586,7 +586,7 @@ export default function CentralAdminDashboard() {
                     <p className="text-gray-900">{selectedHospital.email}</p>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${selectedHospital.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -596,7 +596,7 @@ export default function CentralAdminDashboard() {
                   </div>
                 </div>
               </div>
-              
+
                             <div className="px-6 pb-6">
                 <Button
                   className="w-full"
@@ -623,7 +623,7 @@ export default function CentralAdminDashboard() {
                   No recent network activity
                 </div>
               ) : networkActivity.map((activity, i) => (
-                <motion.div 
+                <motion.div
                   key={i}
                   className="p-4 hover:bg-gray-50 transition-colors"
                   initial={{ opacity: 0, x: -20 }}

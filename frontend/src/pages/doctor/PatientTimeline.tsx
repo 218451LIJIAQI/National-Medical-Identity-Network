@@ -61,11 +61,11 @@ export default function PatientTimeline() {
           centralApi.queryPatient(icNumber),
           centralApi.getPatient(icNumber),
         ])
-        
+
         if (queryRes.success && queryRes.data) {
           const allRecords: MedicalRecord[] = []
           const allMeds: Medication[] = []
-          
+
           queryRes.data.hospitals.forEach((hospital: any) => {
             hospital.records?.forEach((record: any) => {
               allRecords.push({
@@ -89,7 +89,7 @@ export default function PatientTimeline() {
               })
             })
           })
-          
+
           allRecords.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
           setRecords(allRecords)
           setMedications(allMeds)
@@ -126,7 +126,7 @@ export default function PatientTimeline() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -137,17 +137,17 @@ export default function PatientTimeline() {
         animate={{ opacity: 1, y: 0 }}
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${getHospitalTheme(user?.hospitalId || 'hospital-kl').headerGradient} p-8 text-white shadow-2xl ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor}`}
       >
-        <motion.div 
+        <motion.div
           className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
-        <motion.div 
+        <motion.div
           className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
-        
+
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/doctor/search">
@@ -157,7 +157,7 @@ export default function PatientTimeline() {
                 </Button>
               </motion.div>
             </Link>
-            <motion.div 
+            <motion.div
               className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30"
               whileHover={{ scale: 1.1, rotate: 5 }}
             >
@@ -273,27 +273,27 @@ export default function PatientTimeline() {
                   transition={{ delay: 0.4 + index * 0.05 }}
                   whileHover={{ scale: 1.01, x: 4 }}
                   className={`p-5 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
-                    record.isReadOnly 
-                      ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200' 
+                    record.isReadOnly
+                      ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
                       : `bg-gradient-to-r from-white ${getHospitalTheme(user?.hospitalId || 'hospital-kl').bgLight}/30 ${getHospitalTheme(user?.hospitalId || 'hospital-kl').borderColor}`
                   }`}
                   style={{ borderLeftWidth: 4, borderLeftColor: getHospitalColor(record.hospitalId) }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
-                      <motion.div 
+                      <motion.div
                         className="p-3 rounded-xl shadow-md"
                         style={{ backgroundColor: `${getHospitalColor(record.hospitalId)}15` }}
                         whileHover={{ scale: 1.1, rotate: 5 }}
                       >
-                        <Building2 
-                          className="h-6 w-6" 
+                        <Building2
+                          className="h-6 w-6"
                           style={{ color: getHospitalColor(record.hospitalId) }}
                         />
                       </motion.div>
                       <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <span 
+                          <span
                             className={`px-3 py-1 rounded-full text-xs font-semibold ${getHospitalBadgeClass(record.hospitalId)}`}
                           >
                             {record.hospitalName}
@@ -313,10 +313,10 @@ export default function PatientTimeline() {
                         <Calendar className="h-4 w-4" />
                         {formatDate(record.visitDate)}
                       </div>
-                      <Badge 
+                      <Badge
                         className={`mt-2 rounded-full px-4 ${
-                          record.visitType === 'emergency' 
-                            ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-200' 
+                          record.visitType === 'emergency'
+                            ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-200'
                             : 'bg-gray-200 text-gray-700'
                         }`}
                       >
@@ -355,7 +355,7 @@ export default function PatientTimeline() {
                 </div>
               ) : (
                 medications.map((med, i) => (
-                  <motion.div 
+                  <motion.div
                     key={i}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}

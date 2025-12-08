@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { 
-  Search, FileText, Activity, ArrowRight, 
+import {
+  Search, FileText, Activity, ArrowRight,
   Users, Zap, Sparkles, Plus,
   Clock, TrendingUp, Globe,
   ChevronRight, Heart, Cpu, Wifi
@@ -20,9 +20,9 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
+  visible: {
+    opacity: 1,
+    y: 0,
     transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }
   }
 }
@@ -37,9 +37,9 @@ interface RecentActivity {
 
 export default function SarawakDashboard() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState({ 
-    totalPatients: 0, 
-    activeHospitals: 0, 
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeHospitals: 0,
     todayQueries: 0,
   })
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
@@ -60,18 +60,18 @@ export default function SarawakDashboard() {
           centralApi.getStats(),
           centralApi.getMyActivityLogs(4),
         ])
-        
+
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data)
         }
-        
+
         if (logsRes.success && logsRes.data) {
           const activities = logsRes.data.map((log) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
             const diffMins = Math.floor(diffMs / 60000)
-            
+
             return {
               patient: log.patientName || 'Patient',
               ic: log.targetIcNumber?.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3') || 'N/A',
@@ -92,13 +92,13 @@ export default function SarawakDashboard() {
   }, [])
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6 font-space"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-                        <motion.div 
+                        <motion.div
         variants={itemVariants}
         className="flex items-center justify-between p-4 bg-gradient-to-r from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl border border-violet-100/60 shadow-sm"
       >
@@ -126,13 +126,13 @@ export default function SarawakDashboard() {
 
                         <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                    <motion.div 
+                    <motion.div
             variants={itemVariants}
             className="relative overflow-hidden p-8 bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-3xl border border-violet-100/60 shadow-xl shadow-violet-100/30"
           >
                         <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-violet-200/40 to-fuchsia-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
-            
+
                         <div className="absolute inset-0 opacity-[0.03]">
               <svg className="w-full h-full">
                 <defs>
@@ -143,13 +143,13 @@ export default function SarawakDashboard() {
                 <rect width="100%" height="100%" fill="url(#grid)" className="text-violet-500" />
               </svg>
             </div>
-            
+
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
                 <Cpu className="w-5 h-5 text-violet-500" />
                 <span className="text-sm font-medium text-violet-600 uppercase tracking-wider">Doctor Interface</span>
               </div>
-              
+
               <div className="flex items-start justify-between">
                 <div className="space-y-4">
                   <div>
@@ -158,7 +158,7 @@ export default function SarawakDashboard() {
                     </h1>
                     <p className="text-violet-600/80 text-lg mt-1">{theme.tagline}</p>
                   </div>
-                  
+
                                     <div className="flex gap-3 pt-2">
                     <Link to="/doctor/search">
                       <motion.button
@@ -184,7 +184,7 @@ export default function SarawakDashboard() {
                   </div>
                 </div>
 
-                                <motion.div 
+                                <motion.div
                   className="hidden lg:block"
                   whileHover={{ scale: 1.02 }}
                 >
@@ -229,13 +229,13 @@ export default function SarawakDashboard() {
                 transition={{ delay: 0.2 + index * 0.08 }}
                 whileHover={{ y: -3, boxShadow: '0 20px 40px -15px rgba(139, 92, 246, 0.15)' }}
               >
-                <motion.div 
+                <motion.div
                   className={`w-10 h-10 bg-gradient-to-br ${stat.iconBg} rounded-xl flex items-center justify-center shadow-md shadow-violet-200/50 mb-3`}
                   whileHover={{ scale: 1.1, rotate: 5 }}
                 >
                   <stat.icon className="w-5 h-5 text-white" />
                 </motion.div>
-                <motion.p 
+                <motion.p
                   className="text-2xl font-bold text-gray-800"
                   initial={{ scale: 0.5 }}
                   animate={{ scale: 1 }}
@@ -248,7 +248,7 @@ export default function SarawakDashboard() {
             ))}
           </motion.div>
 
-                    <motion.div 
+                    <motion.div
             variants={itemVariants}
             className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
           >
@@ -292,25 +292,25 @@ export default function SarawakDashboard() {
                         whileHover={{ x: 4 }}
                       >
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          activity.type === 'view' 
-                            ? 'bg-violet-100 text-violet-600' 
+                          activity.type === 'view'
+                            ? 'bg-violet-100 text-violet-600'
                             : 'bg-purple-100 text-purple-600'
                         }`}>
                           {activity.type === 'view' ? <FileText className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
                         </div>
-                        
+
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-800 truncate">{activity.patient}</p>
                           <p className="text-sm text-gray-500 truncate">{activity.action}</p>
                         </div>
-                        
+
                         <div className="text-right">
                           <code className="text-xs text-violet-600 bg-violet-50 px-2 py-0.5 rounded font-mono">
                             {activity.ic}
                           </code>
                           <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
                         </div>
-                        
+
                         <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-violet-500 transition-colors" />
                       </motion.div>
                     ))}
@@ -322,7 +322,7 @@ export default function SarawakDashboard() {
         </div>
 
                 <div className="space-y-6">
-                    <motion.div 
+                    <motion.div
             variants={itemVariants}
             className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100/60 shadow-md"
           >
@@ -352,7 +352,7 @@ export default function SarawakDashboard() {
             </div>
           </motion.div>
 
-                    <motion.div 
+                    <motion.div
             variants={itemVariants}
             className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
           >
@@ -367,7 +367,7 @@ export default function SarawakDashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="p-5 space-y-2">
               {theme.specialties.map((specialty, index) => (
                 <motion.div

@@ -3,19 +3,19 @@ import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { 
+import {
   LayoutDashboard, Users, Search, FileText, Pill,
   FlaskConical, Calendar, ArrowRightLeft,
   Building2, ChevronRight, Bell, Settings, LogOut,
   Globe, Activity, Clock, TrendingUp
 } from 'lucide-react'
-import { 
-  QueueManagement, 
-  EPrescription, 
-  LabOrders, 
-  MedicalCertificate, 
-  Referral, 
-  Appointments 
+import {
+  QueueManagement,
+  EPrescription,
+  LabOrders,
+  MedicalCertificate,
+  Referral,
+  Appointments
 } from './modules'
 
 type ModuleType = 'dashboard' | 'queue' | 'search' | 'prescription' | 'lab' | 'mc' | 'referral' | 'appointments'
@@ -43,7 +43,7 @@ export default function HospitalWorkstation() {
   const { user, logout } = useAuthStore()
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  
+
   const theme = getHospitalTheme(user?.hospitalId)
 
   const renderModule = () => {
@@ -53,8 +53,8 @@ export default function HospitalWorkstation() {
       case 'search':
         return (
           <div className="text-center py-12">
-            <Link 
-              to="/doctor/search" 
+            <Link
+              to="/doctor/search"
               className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold shadow-lg hover:bg-purple-700"
             >
               <Globe className="w-5 h-5" />
@@ -87,11 +87,11 @@ export default function HospitalWorkstation() {
         className="bg-white border-r border-gray-200 flex flex-col shadow-lg"
       >
                 <div className="p-4 border-b border-gray-100">
-          <motion.div 
+          <motion.div
             className="flex items-center gap-3"
             animate={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
           >
-            <div 
+            <div
               className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
               style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
             >
@@ -120,8 +120,8 @@ export default function HospitalWorkstation() {
                 key={item.id}
                 onClick={() => setActiveModule(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive 
-                    ? `bg-${item.color}-50 text-${item.color}-700 border border-${item.color}-200 shadow-sm` 
+                  isActive
+                    ? `bg-${item.color}-50 text-${item.color}-700 border border-${item.color}-200 shadow-sm`
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
                 whileHover={{ x: isActive ? 0 : 4 }}
@@ -162,7 +162,7 @@ export default function HospitalWorkstation() {
               </div>
             )}
           </div>
-          
+
           {!sidebarCollapsed && (
             <div className="flex gap-2 mt-2">
               <button className="flex-1 p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
@@ -171,7 +171,7 @@ export default function HospitalWorkstation() {
               <button className="flex-1 p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
                 <Bell className="w-5 h-5 mx-auto" />
               </button>
-              <button 
+              <button
                 onClick={logout}
                 className="flex-1 p-2 text-red-500 hover:bg-red-50 rounded-lg"
               >
@@ -200,14 +200,14 @@ export default function HospitalWorkstation() {
                 {navItems.find(n => n.id === activeModule)?.labelMY}
               </p>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-xl">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 <span className="text-sm font-medium text-emerald-700">Online</span>
               </div>
-              
-              <Link 
+
+              <Link
                 to="/doctor/search"
                 className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors"
               >
@@ -238,7 +238,7 @@ export default function HospitalWorkstation() {
 function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof getHospitalTheme>, setActiveModule: (m: ModuleType) => void }) {
   return (
     <div className="space-y-6">
-            <div 
+            <div
         className="relative overflow-hidden rounded-2xl p-8 text-white"
         style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
       >
@@ -247,7 +247,7 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
           <p className="text-white/80 mb-2">Welcome to</p>
           <h2 className="text-3xl font-bold mb-2">{theme.name}</h2>
           <p className="text-white/70">{theme.tagline}</p>
-          
+
           <div className="grid grid-cols-4 gap-4 mt-6">
             {[
               { label: 'Patients Today', value: '47', icon: Users },
@@ -321,7 +321,7 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
       </div>
 
             <Link to="/doctor/search">
-        <motion.div 
+        <motion.div
           className="p-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-white flex items-center justify-between"
           whileHover={{ scale: 1.01 }}
         >

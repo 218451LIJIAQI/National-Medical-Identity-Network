@@ -33,10 +33,10 @@ function QueryNetworkVisualization({ step }: { step: number }) {
             >
               <motion.div
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
-                  step > s.id 
-                    ? 'bg-emerald-100 text-emerald-600' 
-                    : step === s.id 
-                      ? 'bg-blue-100 text-blue-600 ring-4 ring-blue-50' 
+                  step > s.id
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : step === s.id
+                      ? 'bg-blue-100 text-blue-600 ring-4 ring-blue-50'
                       : 'bg-gray-100 text-gray-400'
                 }`}
                 animate={step === s.id ? { scale: [1, 1.1, 1] } : {}}
@@ -50,7 +50,7 @@ function QueryNetworkVisualization({ step }: { step: number }) {
                 {s.label}
               </span>
             </motion.div>
-            
+
                         {i < steps.length - 1 && (
               <div className="flex-1 mx-2 h-0.5 bg-gray-200 relative overflow-hidden">
                 <motion.div
@@ -64,42 +64,42 @@ function QueryNetworkVisualization({ step }: { step: number }) {
           </div>
         ))}
       </div>
-      
+
             <div className="flex justify-center gap-3 py-4 border-t border-gray-100">
         {[1, 2, 3, 4, 5].map((i) => (
           <motion.div
             key={i}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
-              step >= 3 
-                ? step >= 5 
-                  ? 'bg-emerald-100' 
-                  : 'bg-blue-100' 
+              step >= 3
+                ? step >= 5
+                  ? 'bg-emerald-100'
+                  : 'bg-blue-100'
                 : 'bg-gray-100'
             }`}
             initial={{ opacity: 0.5, scale: 0.9 }}
-            animate={{ 
+            animate={{
               opacity: step >= 3 ? 1 : 0.5,
               scale: step >= 3 && step < 5 ? [0.9, 1, 0.9] : 1,
             }}
-            transition={{ 
+            transition={{
               delay: i * 0.1,
               duration: 0.8,
-              repeat: step >= 3 && step < 5 ? Infinity : 0 
+              repeat: step >= 3 && step < 5 ? Infinity : 0
             }}
           >
             <Building2 className={`w-5 h-5 ${
-              step >= 3 
-                ? step >= 5 
-                  ? 'text-emerald-600' 
-                  : 'text-blue-600' 
+              step >= 3
+                ? step >= 5
+                  ? 'text-emerald-600'
+                  : 'text-blue-600'
                 : 'text-gray-400'
             }`} />
           </motion.div>
         ))}
       </div>
-      
+
             <div className="text-center pt-4 border-t border-gray-100">
-        <motion.p 
+        <motion.p
           className={`text-sm font-medium ${step >= 5 ? 'text-emerald-600' : 'text-blue-600'}`}
           key={step}
           initial={{ opacity: 0, y: 5 }}
@@ -148,7 +148,7 @@ export default function PatientSearch() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!icNumber.trim()) {
       toast({
         title: 'Error',
@@ -175,7 +175,7 @@ export default function PatientSearch() {
 
     try {
       const response = await centralApi.queryPatient(icNumber)
-      
+
       if (response.success && response.data) {
         setQuerySteps(prev => prev.map(s => ({ ...s, status: 'completed' })))
         setHospitalResults(response.data.hospitals as HospitalResult[])
@@ -207,7 +207,7 @@ export default function PatientSearch() {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-8"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -221,11 +221,11 @@ export default function PatientSearch() {
       >
                 <div className={`absolute top-0 right-0 w-72 h-72 bg-gradient-to-br ${theme.bgMedium}/40 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4`} />
         <div className={`absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr ${theme.bgLight}/60 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4`} />
-        
+
         <div className="relative z-10">
                     <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <motion.div 
+              <motion.div
                 className={`w-14 h-14 bg-gradient-to-br ${theme.buttonGradient} rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-lg ${theme.shadowColor}/30`}
                 whileHover={{ scale: 1.05, rotate: 3 }}
               >
@@ -244,9 +244,9 @@ export default function PatientSearch() {
               Cross-Hospital Query
             </Badge>
           </div>
-          
+
           <div className="flex items-start gap-4">
-            <motion.div 
+            <motion.div
               className={`p-4 bg-gradient-to-br ${theme.buttonGradient} rounded-2xl shadow-lg ${theme.shadowColor}/30`}
               whileHover={{ scale: 1.05, rotate: 3 }}
             >
@@ -295,9 +295,9 @@ export default function PatientSearch() {
                 </div>
               </div>
               <motion.div whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  type="submit" 
-                  disabled={isSearching} 
+                <Button
+                  type="submit"
+                  disabled={isSearching}
                   size="lg"
                   className={`h-14 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor}/40 hover:shadow-xl font-semibold transition-all`}
                 >
@@ -427,12 +427,12 @@ export default function PatientSearch() {
                       whileHover={{ y: -2 }}
                     >
                       <div className="flex items-start gap-3">
-                        <div 
+                        <div
                           className="w-10 h-10 rounded-lg flex items-center justify-center"
                           style={{ backgroundColor: `${getHospitalColor(hospital.hospitalId)}15` }}
                         >
-                          <Building2 
-                            className="h-5 w-5" 
+                          <Building2
+                            className="h-5 w-5"
                             style={{ color: getHospitalColor(hospital.hospitalId) }}
                           />
                         </div>
@@ -460,8 +460,8 @@ export default function PatientSearch() {
 
                         <div className="flex justify-center gap-4 pt-2 pb-8">
               <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  onClick={viewPatientTimeline} 
+                <Button
+                  onClick={viewPatientTimeline}
                   size="lg"
                   className={`h-13 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-lg ${theme.shadowColor}/40 hover:shadow-xl font-semibold transition-all`}
                 >
@@ -469,8 +469,8 @@ export default function PatientSearch() {
                 </Button>
               </motion.div>
               <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   className={`h-13 px-6 rounded-xl ${theme.textColor} border-2 ${theme.borderColor} hover:${theme.bgLight} font-semibold transition-all`}
                   onClick={() => navigate(`/doctor/patient/${encodeURIComponent(icNumber)}/new-record`)}
