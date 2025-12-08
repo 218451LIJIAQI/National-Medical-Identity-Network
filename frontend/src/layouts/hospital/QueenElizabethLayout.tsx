@@ -73,15 +73,26 @@ export default function QueenElizabethLayout() {
     }
   ]
 
-  const adminNavItems = [
-    { icon: Home, label: 'Dashboard', path: '/admin/hospital', status: 'main' as const },
-    { icon: Activity, label: 'Audit', path: '/admin/audit', status: 'main' as const },
-    { icon: Users, label: 'Staff', path: '/admin/staff', status: 'demo' as const },
-    { icon: Building2, label: 'Departments', path: '/admin/departments', status: 'demo' as const },
-    { icon: Bed, label: 'Beds', path: '/admin/beds', status: 'demo' as const },
-    { icon: Package, label: 'Inventory', path: '/admin/inventory', status: 'demo' as const },
-    { icon: DollarSign, label: 'Finance', path: '/admin/finance', status: 'demo' as const },
+  const adminNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
+        { icon: Activity, label: 'Audit', path: '/admin/audit' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: Users, label: 'Staff', path: '/admin/staff' },
+        { icon: Building2, label: 'Departments', path: '/admin/departments' },
+        { icon: Bed, label: 'Beds', path: '/admin/beds' },
+        { icon: Package, label: 'Inventory', path: '/admin/inventory' },
+        { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
+      ]
+    }
   ]
+  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   const formatDate = () => {
     return currentTime.toLocaleDateString('en-US', { 
@@ -233,9 +244,6 @@ export default function QueenElizabethLayout() {
                         >
                           <Icon className="w-4 h-4" />
                           <span className="text-sm">{item.label}</span>
-                          {item.status === 'demo' && (
-                            <span className="px-1 py-0.5 text-[8px] font-bold bg-white/20 rounded">Demo</span>
-                          )}
                         </Link>
                       )
                     })

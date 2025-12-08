@@ -61,15 +61,26 @@ export default function SarawakGeneralLayout() {
     }
   ]
 
-  const adminNavItems = [
-    { icon: Home, label: 'Dashboard', path: '/admin/hospital', desc: 'Overview', status: 'main' as const },
-    { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity', status: 'main' as const },
-    { icon: Users, label: 'Staff', path: '/admin/staff', desc: 'Kakitangan', status: 'demo' as const },
-    { icon: Building2, label: 'Departments', path: '/admin/departments', desc: 'Jabatan', status: 'demo' as const },
-    { icon: Bed, label: 'Beds', path: '/admin/beds', desc: 'Katil', status: 'demo' as const },
-    { icon: Package, label: 'Inventory', path: '/admin/inventory', desc: 'Inventori', status: 'demo' as const },
-    { icon: DollarSign, label: 'Finance', path: '/admin/finance', desc: 'Kewangan', status: 'demo' as const },
+  const adminNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/admin/hospital', desc: 'Overview' },
+        { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: Users, label: 'Staff', path: '/admin/staff', desc: 'Kakitangan' },
+        { icon: Building2, label: 'Departments', path: '/admin/departments', desc: 'Jabatan' },
+        { icon: Bed, label: 'Beds', path: '/admin/beds', desc: 'Katil' },
+        { icon: Package, label: 'Inventory', path: '/admin/inventory', desc: 'Inventori' },
+        { icon: DollarSign, label: 'Finance', path: '/admin/finance', desc: 'Kewangan' },
+      ]
+    }
   ]
+  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 
@@ -253,12 +264,7 @@ export default function SarawakGeneralLayout() {
                         </motion.div>
                         {sidebarOpen && (
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{item.label}</span>
-                              {item.status === 'demo' && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 rounded">Demo</span>
-                              )}
-                            </div>
+                            <span className="font-medium block">{item.label}</span>
                             <span className="text-xs text-gray-400">{item.desc}</span>
                           </div>
                         )}

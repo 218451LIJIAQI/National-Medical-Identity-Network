@@ -62,17 +62,25 @@ export default function KLGeneralLayout() {
     }
   ]
 
-  const adminNavItems = [
-    { icon: Home, label: 'Dashboard', labelMY: 'Papan Pemuka', path: '/admin/hospital', status: 'main' as const },
-    { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit', status: 'main' as const },
-    { icon: Users, label: 'Staff', labelMY: 'Kakitangan', path: '/admin/staff', status: 'demo' as const },
-    { icon: Building, label: 'Departments', labelMY: 'Jabatan', path: '/admin/departments', status: 'demo' as const },
-    { icon: Bed, label: 'Beds', labelMY: 'Katil', path: '/admin/beds', status: 'demo' as const },
-    { icon: Package, label: 'Inventory', labelMY: 'Inventori', path: '/admin/inventory', status: 'demo' as const },
-    { icon: DollarSign, label: 'Finance', labelMY: 'Kewangan', path: '/admin/finance', status: 'demo' as const },
+  const adminNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', labelMY: 'Papan Pemuka', path: '/admin/hospital' },
+        { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit' },
+      ]
+    },
+    {
+      title: 'Hospital Management',
+      items: [
+        { icon: Users, label: 'Staff', labelMY: 'Kakitangan', path: '/admin/staff' },
+        { icon: Building, label: 'Departments', labelMY: 'Jabatan', path: '/admin/departments' },
+        { icon: Bed, label: 'Beds', labelMY: 'Katil', path: '/admin/beds' },
+        { icon: Package, label: 'Inventory', labelMY: 'Inventori', path: '/admin/inventory' },
+        { icon: DollarSign, label: 'Finance', labelMY: 'Kewangan', path: '/admin/finance' },
+      ]
+    }
   ]
-
-  const navItems = user?.role === 'doctor' ? [] : adminNavItems
 
   const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 
@@ -251,47 +259,49 @@ export default function KLGeneralLayout() {
                 </div>
               ))
             ) : (
-              navItems.map((item, index) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <motion.div
-                    key={item.path}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.05 * index }}
-                  >
-                    <Link
-                      to={item.path}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group",
-                        isActive
-                          ? "bg-blue-50 text-blue-700 border-l-3 border-blue-600"
-                          : "text-slate-600 hover:bg-slate-50"
-                      )}
-                      title={!sidebarOpen ? item.label : undefined}
-                    >
-                      <div className={cn(
-                        "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
-                        isActive ? "bg-blue-100" : "bg-slate-100"
-                      )}>
-                        <Icon className={cn("w-5 h-5", isActive ? "text-blue-600" : "text-slate-500")} />
-                      </div>
-                      {sidebarOpen && (
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{item.label}</span>
-                            {item.status === 'demo' && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Demo</span>
-                            )}
+              adminNavSections.map((section, sectionIndex) => (
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-slate-100' : ''}>
+                  {sidebarOpen && (
+                    <p className="text-xs text-slate-400 uppercase tracking-wider font-medium px-3 mb-2">{section.title}</p>
+                  )}
+                  {section.items.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <motion.div
+                        key={item.path}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.05 * (sectionIndex * 3 + index) }}
+                      >
+                        <Link
+                          to={item.path}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group",
+                            isActive
+                              ? "bg-blue-50 text-blue-700 border-l-3 border-blue-600"
+                              : "text-slate-600 hover:bg-slate-50"
+                          )}
+                          title={!sidebarOpen ? item.label : undefined}
+                        >
+                          <div className={cn(
+                            "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                            isActive ? "bg-blue-100" : "bg-slate-100"
+                          )}>
+                            <Icon className={cn("w-5 h-5", isActive ? "text-blue-600" : "text-slate-500")} />
                           </div>
-                          <p className="text-xs text-slate-400 truncate">{item.labelMY}</p>
-                        </div>
-                      )}
-                    </Link>
-                  </motion.div>
-                )
-              })
+                          {sidebarOpen && (
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium">{item.label}</span>
+                              <p className="text-xs text-slate-400 truncate">{item.labelMY}</p>
+                            </div>
+                          )}
+                        </Link>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              ))
             )}
           </nav>
 

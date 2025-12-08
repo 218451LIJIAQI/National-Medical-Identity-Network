@@ -59,15 +59,26 @@ export default function PenangMCLayout() {
     }
   ]
 
-  const adminNavItems = [
-    { icon: Home, label: 'Dashboard', path: '/admin/hospital', status: 'main' as const },
-    { icon: Activity, label: 'Audit', path: '/admin/audit', status: 'main' as const },
-    { icon: Users, label: 'Staff', path: '/admin/staff', status: 'demo' as const },
-    { icon: Building2, label: 'Dept', path: '/admin/departments', status: 'demo' as const },
-    { icon: Bed, label: 'Beds', path: '/admin/beds', status: 'demo' as const },
-    { icon: Package, label: 'Inventory', path: '/admin/inventory', status: 'demo' as const },
-    { icon: DollarSign, label: 'Finance', path: '/admin/finance', status: 'demo' as const },
+  const adminNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
+        { icon: Activity, label: 'Audit', path: '/admin/audit' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: Users, label: 'Staff', path: '/admin/staff' },
+        { icon: Building2, label: 'Dept', path: '/admin/departments' },
+        { icon: Bed, label: 'Beds', path: '/admin/beds' },
+        { icon: Package, label: 'Inventory', path: '/admin/inventory' },
+        { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
+      ]
+    }
   ]
+  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
@@ -215,12 +226,9 @@ export default function PenangMCLayout() {
                         <motion.span
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="font-medium whitespace-nowrap flex items-center gap-2"
+                          className="font-medium whitespace-nowrap"
                         >
                           {item.label}
-                          {item.status === 'demo' && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-white/20 rounded">Demo</span>
-                          )}
                         </motion.span>
                       )}
                     </Link>

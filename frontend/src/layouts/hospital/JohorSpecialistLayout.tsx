@@ -77,15 +77,26 @@ export default function JohorSpecialistLayout() {
     }
   ]
 
-  const adminNavItems = [
-    { icon: Home, label: 'Home', path: '/admin/hospital', status: 'main' as const },
-    { icon: Activity, label: 'Audit', path: '/admin/audit', status: 'main' as const },
-    { icon: Users, label: 'Staff', path: '/admin/staff', status: 'demo' as const },
-    { icon: Building2, label: 'Dept', path: '/admin/departments', status: 'demo' as const },
-    { icon: Bed, label: 'Beds', path: '/admin/beds', status: 'demo' as const },
-    { icon: Package, label: 'Stock', path: '/admin/inventory', status: 'demo' as const },
-    { icon: DollarSign, label: 'Finance', path: '/admin/finance', status: 'demo' as const },
+  const adminNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Home', path: '/admin/hospital' },
+        { icon: Activity, label: 'Audit', path: '/admin/audit' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: Users, label: 'Staff', path: '/admin/staff' },
+        { icon: Building2, label: 'Dept', path: '/admin/departments' },
+        { icon: Bed, label: 'Beds', path: '/admin/beds' },
+        { icon: Package, label: 'Stock', path: '/admin/inventory' },
+        { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
+      ]
+    }
   ]
+  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 pb-28">
@@ -334,12 +345,7 @@ export default function JohorSpecialistLayout() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 * index }}
                       >
-                        <div className="relative">
-                          <Icon className="w-6 h-6" />
-                          {item.status === 'demo' && (
-                            <span className="absolute -top-1 -right-2 w-2 h-2 bg-amber-400 rounded-full" title="Demo" />
-                          )}
-                        </div>
+                        <Icon className="w-6 h-6" />
                         <span className="text-xs font-bold">{item.label}</span>
                         {isActive && (
                           <motion.div
