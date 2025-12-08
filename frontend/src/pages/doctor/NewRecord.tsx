@@ -152,7 +152,7 @@ export default function NewRecord() {
             <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-8 text-white shadow-2xl shadow-emerald-500/25"
+        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
         <motion.div 
           className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
@@ -160,7 +160,7 @@ export default function NewRecord() {
           transition={{ duration: 10, repeat: Infinity }}
         />
         <motion.div 
-          className="absolute -bottom-20 -left-20 w-40 h-40 bg-teal-300/20 rounded-full blur-3xl"
+          className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
@@ -188,7 +188,7 @@ export default function NewRecord() {
                 <Stethoscope className="w-3 h-3 mr-1" /> New Record
               </Badge>
               <h1 className="text-3xl font-bold drop-shadow-lg">New Medical Record</h1>
-              <p className="text-emerald-100">Patient IC: <span className="font-mono font-semibold">{icNumber}</span></p>
+              <p className="text-white/80">Patient IC: <span className="font-mono font-semibold">{icNumber}</span></p>
             </div>
           </div>
         </div>
