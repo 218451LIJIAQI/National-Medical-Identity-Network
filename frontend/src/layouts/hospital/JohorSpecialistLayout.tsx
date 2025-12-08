@@ -96,7 +96,6 @@ export default function JohorSpecialistLayout() {
       ]
     }
   ]
-  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 pb-28">
@@ -327,36 +326,42 @@ export default function JohorSpecialistLayout() {
                   </div>
                 ))
               ) : (
-                adminNavItems.map((item, index) => {
-                  const Icon = item.icon
-                  const isActive = location.pathname === item.path
-                  return (
-                    <Link key={item.path} to={item.path}>
-                      <motion.div
-                        className={cn(
-                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
-                          isActive 
-                            ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
-                            : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
-                        )}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 * index }}
-                      >
-                        <Icon className="w-6 h-6" />
-                        <span className="text-xs font-bold">{item.label}</span>
-                        {isActive && (
+                adminNavSections.map((section, sectionIndex) => (
+                  <div key={section.title} className="flex items-center gap-2">
+                    {sectionIndex > 0 && <div className="w-px h-12 bg-gradient-to-b from-transparent via-amber-200 to-transparent mx-1" />}
+                    <span className="text-xs text-amber-500 uppercase font-bold mr-1">{section.title}</span>
+                    {section.items.map((item, index) => {
+                      const Icon = item.icon
+                      const isActive = location.pathname === item.path
+                      return (
+                        <Link key={item.path} to={item.path}>
                           <motion.div
-                            className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
-                            layoutId="activeIndicator"
-                          />
-                        )}
-                      </motion.div>
-                    </Link>
-                  )
-                })
+                            className={cn(
+                              "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
+                              isActive 
+                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
+                                : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
+                            )}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 * (sectionIndex * 3 + index) }}
+                          >
+                            <Icon className="w-6 h-6" />
+                            <span className="text-xs font-bold">{item.label}</span>
+                            {isActive && (
+                              <motion.div
+                                className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
+                                layoutId="activeIndicator"
+                              />
+                            )}
+                          </motion.div>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                ))
               )}
             </div>
             

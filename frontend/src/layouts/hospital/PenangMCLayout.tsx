@@ -78,7 +78,6 @@ export default function PenangMCLayout() {
       ]
     }
   ]
-  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
@@ -194,47 +193,54 @@ export default function PenangMCLayout() {
             ))
           ) : (
             <div className="px-3">
-              {adminNavItems.map((item, index) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <motion.div
-                    key={item.path}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 * index }}
-                  >
-                    <Link
-                      to={item.path}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group",
-                        isActive
-                          ? "bg-white/25 text-white shadow-lg backdrop-blur-sm"
-                          : "text-white/70 hover:bg-white/10 hover:text-white"
-                      )}
-                    >
+              {adminNavSections.map((section, sectionIndex) => (
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-white/10' : ''}>
+                  {sidebarExpanded && (
+                    <p className="text-xs text-white/50 uppercase tracking-widest font-medium mb-2">{section.title}</p>
+                  )}
+                  {section.items.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
                       <motion.div
-                        whileHover={{ scale: 1.2, rotate: 5 }}
-                        className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
-                          isActive ? "bg-white/20" : "group-hover:bg-white/10"
-                        )}
+                        key={item.path}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.1 * (sectionIndex * 3 + index) }}
                       >
-                        <Icon className="w-5 h-5" />
-                      </motion.div>
-                      {sidebarExpanded && (
-                        <motion.span
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="font-medium whitespace-nowrap"
+                        <Link
+                          to={item.path}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group",
+                            isActive
+                              ? "bg-white/25 text-white shadow-lg backdrop-blur-sm"
+                              : "text-white/70 hover:bg-white/10 hover:text-white"
+                          )}
                         >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </Link>
-                  </motion.div>
-                )
-              })}
+                          <motion.div
+                            whileHover={{ scale: 1.2, rotate: 5 }}
+                            className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
+                              isActive ? "bg-white/20" : "group-hover:bg-white/10"
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                          </motion.div>
+                          {sidebarExpanded && (
+                            <motion.span
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="font-medium whitespace-nowrap"
+                            >
+                              {item.label}
+                            </motion.span>
+                          )}
+                        </Link>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </nav>
@@ -333,26 +339,31 @@ export default function PenangMCLayout() {
                 </div>
               ))
             ) : (
-              adminNavItems.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl mb-2",
-                      isActive 
-                        ? "bg-emerald-100 text-emerald-700" 
-                        : "text-gray-600 hover:bg-gray-50"
-                    )}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                )
-              })
+              adminNavSections.map((section) => (
+                <div key={section.title} className="mb-4">
+                  <p className="text-xs text-gray-400 uppercase font-medium mb-2">{section.title}</p>
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl mb-2",
+                          isActive 
+                            ? "bg-emerald-100 text-emerald-700" 
+                            : "text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ))
             )}
             <Button
               onClick={handleLogout}

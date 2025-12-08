@@ -92,7 +92,6 @@ export default function QueenElizabethLayout() {
       ]
     }
   ]
-  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   const formatDate = () => {
     return currentTime.toLocaleDateString('en-US', { 
@@ -228,25 +227,31 @@ export default function QueenElizabethLayout() {
                       </div>
                     ))
                   ) : (
-                    adminNavItems.map((item) => {
-                      const Icon = item.icon
-                      const isActive = location.pathname === item.path
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
-                            isActive
-                              ? "bg-white text-red-700 font-semibold shadow-lg"
-                              : "text-rose-100 hover:bg-white/10 hover:text-white"
-                          )}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="text-sm">{item.label}</span>
-                        </Link>
-                      )
-                    })
+                    adminNavSections.map((section, sectionIndex) => (
+                      <div key={section.title} className="flex items-center gap-2">
+                        {sectionIndex > 0 && <div className="w-px h-6 bg-white/20 mx-2" />}
+                        <span className="text-xs text-white/50 uppercase mr-1">{section.title}:</span>
+                        {section.items.map((item) => {
+                          const Icon = item.icon
+                          const isActive = location.pathname === item.path
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
+                                isActive
+                                  ? "bg-white text-red-700 font-semibold shadow-lg"
+                                  : "text-rose-100 hover:bg-white/10 hover:text-white"
+                              )}
+                            >
+                              <Icon className="w-4 h-4" />
+                              <span className="text-sm">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    ))
                   )}
                 </div>
                 <button
@@ -339,26 +344,31 @@ export default function QueenElizabethLayout() {
                     </div>
                   ))
                 ) : (
-                  adminNavItems.map((item) => {
-                    const Icon = item.icon
-                    const isActive = location.pathname === item.path
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={cn(
-                          "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all",
-                          isActive
-                            ? "bg-gradient-to-r from-red-500 to-rose-500 text-white font-medium shadow-lg"
-                            : "text-gray-700 hover:bg-amber-50"
-                        )}
-                      >
-                        <Icon className="w-5 h-5" />
-                        <span>{item.label}</span>
-                      </Link>
-                    )
-                  })
+                  adminNavSections.map((section) => (
+                    <div key={section.title} className="mb-4">
+                      <p className="text-xs text-gray-400 uppercase font-medium mb-2">{section.title}</p>
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        const isActive = location.pathname === item.path
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all",
+                              isActive
+                                ? "bg-gradient-to-r from-red-500 to-rose-500 text-white font-medium shadow-lg"
+                                : "text-gray-700 hover:bg-amber-50"
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  ))
                 )}
               </nav>
             </motion.div>
@@ -381,7 +391,7 @@ export default function QueenElizabethLayout() {
                     {(() => {
                       const allItems = user?.role === 'doctor' 
                         ? doctorNavSections.flatMap(s => s.items)
-                        : adminNavItems
+                        : adminNavSections.flatMap(s => s.items)
                       const currentNav = allItems.find(item => item.path === location.pathname)
                       if (currentNav) {
                         const Icon = currentNav.icon
@@ -395,7 +405,7 @@ export default function QueenElizabethLayout() {
                       {(() => {
                         const allItems = user?.role === 'doctor' 
                           ? doctorNavSections.flatMap(s => s.items)
-                          : adminNavItems
+                          : adminNavSections.flatMap(s => s.items)
                         return allItems.find(item => item.path === location.pathname)?.label || 'Dashboard'
                       })()}
                     </h2>

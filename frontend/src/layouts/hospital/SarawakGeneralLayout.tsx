@@ -80,7 +80,6 @@ export default function SarawakGeneralLayout() {
       ]
     }
   ]
-  const adminNavItems = adminNavSections.flatMap(s => s.items)
 
   const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 
@@ -228,54 +227,56 @@ export default function SarawakGeneralLayout() {
                 </div>
               ))
             ) : (
-              <>
-                {sidebarOpen && (
-                  <p className="text-xs text-violet-500 uppercase tracking-widest font-medium px-3 mb-4">Navigation</p>
-                )}
-                {adminNavItems.map((item, index) => {
-                  const Icon = item.icon
-                  const isActive = location.pathname === item.path
-                  return (
-                    <motion.div
-                      key={item.path}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 * index }}
-                    >
-                      <Link
-                        to={item.path}
-                        className={cn(
-                          "flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group",
-                          isActive
-                            ? "bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-3 border-violet-500 shadow-md shadow-violet-100/50"
-                            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
-                        )}
+              adminNavSections.map((section, sectionIndex) => (
+                <div key={section.title} className={sectionIndex > 0 ? 'mt-4 pt-4 border-t border-violet-100' : ''}>
+                  {sidebarOpen && (
+                    <p className="text-xs text-violet-500 uppercase tracking-widest font-medium px-3 mb-3">{section.title}</p>
+                  )}
+                  {section.items.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <motion.div
+                        key={item.path}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 * (sectionIndex * 3 + index) }}
                       >
-                        <motion.div
+                        <Link
+                          to={item.path}
                           className={cn(
-                            "p-2.5 rounded-lg transition-all",
-                            isActive 
-                              ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
-                              : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
+                            "flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group",
+                            isActive
+                              ? "bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-3 border-violet-500 shadow-md shadow-violet-100/50"
+                              : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
                           )}
-                          whileHover={{ scale: 1.1 }}
                         >
-                          <Icon className="w-5 h-5" />
-                        </motion.div>
-                        {sidebarOpen && (
-                          <div className="flex-1">
-                            <span className="font-medium block">{item.label}</span>
-                            <span className="text-xs text-gray-400">{item.desc}</span>
-                          </div>
-                        )}
-                        {isActive && sidebarOpen && (
-                          <div className="w-2 h-2 bg-violet-500 rounded-full" />
-                        )}
-                      </Link>
-                    </motion.div>
-                  )
-                })}
-              </>
+                          <motion.div
+                            className={cn(
+                              "p-2.5 rounded-lg transition-all",
+                              isActive 
+                                ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
+                                : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
+                            )}
+                            whileHover={{ scale: 1.1 }}
+                          >
+                            <Icon className="w-5 h-5" />
+                          </motion.div>
+                          {sidebarOpen && (
+                            <div className="flex-1">
+                              <span className="font-medium block">{item.label}</span>
+                              <span className="text-xs text-gray-400">{item.desc}</span>
+                            </div>
+                          )}
+                          {isActive && sidebarOpen && (
+                            <div className="w-2 h-2 bg-violet-500 rounded-full" />
+                          )}
+                        </Link>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              ))
             )}
           </nav>
 
