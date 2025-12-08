@@ -1,8 +1,3 @@
-// ============================================================================
-// Queue Management Module - 排队管理 (Giliran)
-// Malaysian public hospital queue management system
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -21,17 +16,14 @@ interface QueuePatient {
   waitTime: string
   status: 'waiting' | 'in-progress' | 'called' | 'completed'
   complaint: string
-  registeredAt: string
 }
-
-// Mock data - Malaysian names
 const mockQueue: QueuePatient[] = [
-  { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', age: 36, gender: 'M', category: 'Green', waitTime: '45 min', status: 'waiting', complaint: 'Demam & batuk', registeredAt: '08:30' },
-  { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', age: 32, gender: 'F', category: 'Yellow', waitTime: '30 min', status: 'waiting', complaint: 'Sakit kepala kronik', registeredAt: '08:45' },
-  { queueNo: 'A003', name: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', age: 49, gender: 'M', category: 'Red', waitTime: '15 min', status: 'called', complaint: 'Sakit dada', registeredAt: '09:00' },
-  { queueNo: 'A004', name: 'Lee Wei Ming', icNumber: '850303-07-8888', age: 39, gender: 'M', category: 'Green', waitTime: '20 min', status: 'waiting', complaint: 'Pemeriksaan kesihatan', registeredAt: '09:15' },
-  { queueNo: 'A005', name: 'Fatimah binti Hassan', icNumber: '680712-02-3333', age: 56, gender: 'F', category: 'Yellow', waitTime: '10 min', status: 'waiting', complaint: 'Tekanan darah tinggi', registeredAt: '09:30' },
-  { queueNo: 'A006', name: 'Tan Mei Ling', icNumber: '950505-14-6666', age: 29, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Sakit perut', registeredAt: '09:45' },
+  { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', age: 36, gender: 'M', category: 'Green', waitTime: '45 min', status: 'waiting', complaint: 'Demam & batuk' },
+  { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', age: 32, gender: 'F', category: 'Yellow', waitTime: '30 min', status: 'waiting', complaint: 'Sakit kepala kronik' },
+  { queueNo: 'A003', name: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', age: 49, gender: 'M', category: 'Red', waitTime: '15 min', status: 'called', complaint: 'Sakit dada' },
+  { queueNo: 'A004', name: 'Lee Wei Ming', icNumber: '850303-07-8888', age: 39, gender: 'M', category: 'Green', waitTime: '20 min', status: 'waiting', complaint: 'Pemeriksaan kesihatan' },
+  { queueNo: 'A005', name: 'Fatimah binti Hassan', icNumber: '680712-02-3333', age: 56, gender: 'F', category: 'Yellow', waitTime: '10 min', status: 'waiting', complaint: 'Tekanan darah tinggi' },
+  { queueNo: 'A006', name: 'Tan Mei Ling', icNumber: '950505-14-6666', age: 29, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Sakit perut' },
 ]
 
 interface QueueManagementProps {
@@ -109,8 +101,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Giliran Pesakit</h2>
           <p className="text-gray-500">Queue Management • Today's Patients</p>
@@ -128,8 +119,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4">
         {[
           { label: 'Menunggu', value: stats.waiting, icon: Clock, color: 'slate' },
           { label: 'Dipanggil', value: stats.called, icon: PhoneCall, color: 'blue' },
@@ -150,8 +140,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
         ))}
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -179,8 +168,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
         </div>
       </div>
 
-      {/* Queue List */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
           <div className="col-span-1">No.</div>
           <div className="col-span-3">Nama Pesakit</div>

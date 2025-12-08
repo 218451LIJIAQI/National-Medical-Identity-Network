@@ -35,8 +35,6 @@ export default function HospitalAdminDashboard() {
   const [hospitalInfo, setHospitalInfo] = useState<HospitalInfo | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
-  
-  // Get hospital theme for dynamic styling
   const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
@@ -130,8 +128,7 @@ export default function HospitalAdminDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* Header with Hospital Info - Premium Design */}
-      <motion.div 
+            <motion.div 
         variants={itemVariants}
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
       >
@@ -174,8 +171,7 @@ export default function HospitalAdminDashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { 
             label: 'Total Patients', 
@@ -239,10 +235,8 @@ export default function HospitalAdminDashboard() {
         ))}
       </motion.div>
 
-      {/* System Status & Quick Actions */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* System Status */}
-        <motion.div variants={itemVariants}>
+            <div className="grid lg:grid-cols-2 gap-6">
+                <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-lg h-full">
             <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
               <div className="flex items-center gap-2">
@@ -291,8 +285,7 @@ export default function HospitalAdminDashboard() {
           </Card>
         </motion.div>
 
-        {/* Recent Activity */}
-        <motion.div variants={itemVariants}>
+                <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-lg h-full">
             <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
               <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>

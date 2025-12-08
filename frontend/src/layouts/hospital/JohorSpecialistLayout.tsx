@@ -1,9 +1,3 @@
-// ============================================================================
-// Johor Specialist Hospital Layout - Modern Card-Based Style
-// Bottom navigation with floating cards dashboard
-// Touch-friendly, modular, contemporary design
-// ============================================================================
-
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Badge } from '@/components/ui/badge'
@@ -50,21 +44,40 @@ export default function JohorSpecialistLayout() {
     logout()
     navigate('/login')
   }
+  const doctorNavSections = [
+    {
+      title: 'Main',
+      color: 'amber',
+      items: [
+        { icon: Home, label: 'Home', path: '/doctor' },
+        { icon: Search, label: 'Search', path: '/doctor/search' },
+        { icon: FileText, label: 'Record', path: '/doctor/new-record' },
+      ]
+    },
+    {
+      title: 'Clinical',
+      color: 'orange',
+      items: [
+        { icon: Users, label: 'Queue', path: '/doctor/queue' },
+        { icon: Pill, label: 'Rx', path: '/doctor/prescription' },
+        { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
+        { icon: ScanLine, label: 'Imaging', path: '/doctor/radiology' },
+        { icon: FileText, label: 'MC', path: '/doctor/mc' },
+      ]
+    },
+    {
+      title: 'Management',
+      color: 'yellow',
+      items: [
+        { icon: ArrowRightLeft, label: 'Refer', path: '/doctor/referral' },
+        { icon: Calendar, label: 'Appt', path: '/doctor/appointments' },
+        { icon: Stethoscope, label: 'Nurse', path: '/doctor/nursing' },
+        { icon: Receipt, label: 'Bill', path: '/doctor/billing' },
+      ]
+    }
+  ]
 
-  const navItems = user?.role === 'doctor' ? [
-    { icon: Home, label: 'Home', path: '/doctor' },
-    { icon: Search, label: 'Search', path: '/doctor/search' },
-    { icon: FileText, label: 'Record', path: '/doctor/new-record' },
-    { icon: Users, label: 'Queue', path: '/doctor/queue' },
-    { icon: Pill, label: 'Rx', path: '/doctor/prescription' },
-    { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
-    { icon: ScanLine, label: 'Imaging', path: '/doctor/radiology' },
-    { icon: FileText, label: 'MC', path: '/doctor/mc' },
-    { icon: ArrowRightLeft, label: 'Refer', path: '/doctor/referral' },
-    { icon: Calendar, label: 'Appt', path: '/doctor/appointments' },
-    { icon: Stethoscope, label: 'Nurse', path: '/doctor/nursing' },
-    { icon: Receipt, label: 'Bill', path: '/doctor/billing' },
-  ] : [
+  const adminNavItems = [
     { icon: Home, label: 'Home', path: '/admin/hospital' },
     { icon: Activity, label: 'Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', path: '/admin/staff' },
@@ -76,8 +89,7 @@ export default function JohorSpecialistLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 pb-28">
-      {/* Background Mesh Pattern */}
-      <div className="fixed inset-0 pointer-events-none opacity-30">
+            <div className="fixed inset-0 pointer-events-none opacity-30">
         <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="mesh" width="60" height="60" patternUnits="userSpaceOnUse">
@@ -88,18 +100,14 @@ export default function JohorSpecialistLayout() {
         </svg>
       </div>
 
-      {/* ================================================================== */}
-      {/* FLOATING TOP HEADER */}
-      {/* ================================================================== */}
-      <motion.header 
+                        <motion.header 
         className="sticky top-0 z-40 mx-4 mt-4"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl shadow-amber-200/30 border border-amber-100/50 px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Logo & Hospital */}
-            <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
               <motion.div 
                 className="w-12 h-12 bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-300/40"
                 whileHover={{ rotate: 10, scale: 1.1 }}
@@ -113,10 +121,8 @@ export default function JohorSpecialistLayout() {
               </div>
             </div>
 
-            {/* Center Stats & Info */}
-            <div className="hidden lg:flex items-center gap-4">
-              {/* Date & Time */}
-              <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2.5 rounded-xl border border-amber-100">
+                        <div className="hidden lg:flex items-center gap-4">
+                            <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2.5 rounded-xl border border-amber-100">
                 <Clock className="w-4 h-4 text-amber-600" />
                 <div>
                   <p className="text-xs text-amber-600 font-medium">{currentTime.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
@@ -125,8 +131,7 @@ export default function JohorSpecialistLayout() {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               </div>
               
-              {/* Quick Stats */}
-              <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl border border-amber-100 shadow-sm">
+                            <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl border border-amber-100 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-amber-500" />
                   <div className="text-center">
@@ -152,8 +157,7 @@ export default function JohorSpecialistLayout() {
                 </div>
               </div>
 
-              {/* Today's Appointments */}
-              <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
+                            <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
                 <Calendar className="w-4 h-4 text-blue-600" />
                 <div>
                   <p className="text-lg font-bold text-blue-600">5</p>
@@ -161,8 +165,7 @@ export default function JohorSpecialistLayout() {
                 </div>
               </div>
 
-              {/* Prescriptions Today */}
-              <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-100">
+                            <div className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-xl border border-purple-100">
                 <Pill className="w-4 h-4 text-purple-600" />
                 <div>
                   <p className="text-lg font-bold text-purple-600">18</p>
@@ -170,8 +173,7 @@ export default function JohorSpecialistLayout() {
                 </div>
               </div>
 
-              {/* Notifications */}
-              <motion.button 
+                            <motion.button 
                 className="relative p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -181,15 +183,13 @@ export default function JohorSpecialistLayout() {
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">3</span>
               </motion.button>
 
-              {/* Portal Badge */}
-              <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 px-4 py-1.5 text-sm font-bold rounded-full shadow-md">
+                            <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 px-4 py-1.5 text-sm font-bold rounded-full shadow-md">
                 <Sparkles className="w-4 h-4 mr-2" />
                 {user?.role === 'doctor' ? 'Doctor' : 'Admin'}
               </Badge>
             </div>
 
-            {/* User Profile */}
-            <div className="relative">
+                        <div className="relative">
               <motion.button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-3 p-2 hover:bg-amber-50 rounded-2xl transition-colors"
@@ -206,8 +206,7 @@ export default function JohorSpecialistLayout() {
                 </div>
               </motion.button>
 
-              {/* User Dropdown */}
-              <AnimatePresence>
+                            <AnimatePresence>
                 {showUserMenu && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -251,17 +250,11 @@ export default function JohorSpecialistLayout() {
         </div>
       </motion.header>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT */}
-      {/* ================================================================== */}
-      <main className="relative z-10 px-4 pt-6">
+                        <main className="relative z-10 px-4 pt-6">
         <Outlet />
       </main>
 
-      {/* ================================================================== */}
-      {/* BOTTOM NAVIGATION - Floating Card Style */}
-      {/* ================================================================== */}
-      <motion.nav 
+                        <motion.nav 
         className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 flex justify-center"
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -269,8 +262,7 @@ export default function JohorSpecialistLayout() {
       >
         <div className="bg-white rounded-3xl shadow-2xl shadow-amber-300/30 border border-amber-100/50 px-3 py-4 overflow-hidden max-w-6xl">
           <div className="flex items-center">
-            {/* Left Arrow */}
-            <button
+                        <button
               onClick={() => scrollNav('left')}
               className="flex-shrink-0 p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
               title="Scroll Left"
@@ -278,61 +270,86 @@ export default function JohorSpecialistLayout() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             
-            <div ref={navScrollRef} className="flex items-center gap-5 overflow-x-auto px-4 scrollbar-hide flex-1">
-            {navItems.map((item, index) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-              const isProfile = item.path === '#profile'
-              
-              if (isProfile) {
-                return (
-                  <motion.button
-                    key={item.path}
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
-                      "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
+            <div ref={navScrollRef} className="flex items-center gap-2 overflow-x-auto px-4 scrollbar-hide flex-1">
+              {user?.role === 'doctor' ? (
+                doctorNavSections.map((section, sectionIndex) => (
+                  <div key={section.title} className="flex items-center gap-2">
+                                        <div className="flex flex-col items-center justify-center px-3 h-[76px] min-w-[60px] bg-gradient-to-b from-amber-100/80 to-amber-50/50 rounded-xl border border-amber-200/50">
+                      <span className="text-[11px] font-black text-amber-600 uppercase tracking-wide whitespace-nowrap">
+                        {section.title}
+                      </span>
+                      <div className="w-6 h-1 bg-gradient-to-r from-amber-400 to-orange-400 rounded-full mt-1.5" />
+                    </div>
+                                        {section.items.map((item, index) => {
+                      const Icon = item.icon
+                      const isActive = location.pathname === item.path
+                      return (
+                        <Link key={item.path} to={item.path}>
+                          <motion.div
+                            className={cn(
+                              "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
+                              isActive 
+                                ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
+                                : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
+                            )}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.05 * (sectionIndex * 3 + index) }}
+                          >
+                            <Icon className="w-6 h-6" />
+                            <span className="text-xs font-bold">{item.label}</span>
+                            {isActive && (
+                              <motion.div
+                                className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
+                                layoutId="activeIndicator"
+                              />
+                            )}
+                          </motion.div>
+                        </Link>
+                      )
+                    })}
+                                        {sectionIndex < doctorNavSections.length - 1 && (
+                      <div className="w-px h-12 bg-gradient-to-b from-transparent via-amber-200 to-transparent mx-1" />
                     )}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Icon className="w-6 h-6" />
-                    <span className="text-xs font-medium">{item.label}</span>
-                  </motion.button>
-                )
-              }
-
-              return (
-                <Link key={item.path} to={item.path}>
-                  <motion.div
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
-                      isActive 
-                        ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
-                        : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
-                    )}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 * index }}
-                  >
-                    <Icon className="w-6 h-6" />
-                    <span className="text-xs font-bold">{item.label}</span>
-                    {isActive && (
+                  </div>
+                ))
+              ) : (
+                adminNavItems.map((item, index) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link key={item.path} to={item.path}>
                       <motion.div
-                        className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
-                        layoutId="activeIndicator"
-                      />
-                    )}
-                  </motion.div>
-                </Link>
-              )
-            })}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl min-w-[80px] h-[76px] transition-all",
+                          isActive 
+                            ? "bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-300/40" 
+                            : "text-amber-400 hover:text-amber-600 hover:bg-amber-50"
+                        )}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 * index }}
+                      >
+                        <Icon className="w-6 h-6" />
+                        <span className="text-xs font-bold">{item.label}</span>
+                        {isActive && (
+                          <motion.div
+                            className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"
+                            layoutId="activeIndicator"
+                          />
+                        )}
+                      </motion.div>
+                    </Link>
+                  )
+                })
+              )}
             </div>
             
-            {/* Right Arrow */}
-            <button
+                        <button
               onClick={() => scrollNav('right')}
               className="flex-shrink-0 p-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
               title="Scroll Right"
@@ -343,8 +360,7 @@ export default function JohorSpecialistLayout() {
         </div>
       </motion.nav>
 
-      {/* Click outside to close menu */}
-      {showUserMenu && (
+            {showUserMenu && (
         <div 
           className="fixed inset-0 z-30" 
           onClick={() => setShowUserMenu(false)}

@@ -98,8 +98,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
       try {
         effectiveUser = JSON.parse(storedUser)
         effectiveAuth = true
-      } catch {
-      }
+      } catch { /* ignore invalid JSON */ }
     }
   }
 

@@ -1,13 +1,8 @@
-// ============================================================================
-// Appointments Module - 预约管理
-// Malaysian hospital appointment management (Temujanji)
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Calendar, Clock, User, Phone, Search,
-  Plus, ChevronLeft, ChevronRight, Check,
+  ChevronLeft, ChevronRight, Check,
   X, Bell, Filter
 } from 'lucide-react'
 
@@ -19,21 +14,16 @@ interface Appointment {
   date: string
   time: string
   type: 'follow-up' | 'new' | 'procedure' | 'review'
-  department: string
-  doctor: string
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed'
-  notes?: string
 }
-
-// Mock appointments
 const mockAppointments: Appointment[] = [
-  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', phone: '012-3456789', date: '2024-01-15', time: '09:00', type: 'follow-up', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'confirmed', notes: 'Review BP' },
-  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', phone: '013-9876543', date: '2024-01-15', time: '09:30', type: 'new', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'pending' },
-  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', phone: '016-5551234', date: '2024-01-15', time: '10:00', type: 'review', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'confirmed', notes: 'Diabetic review' },
-  { id: '4', patientName: 'Lee Mei Ling', icNumber: '850303-07-8888', phone: '011-2223333', date: '2024-01-15', time: '10:30', type: 'procedure', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'confirmed', notes: 'Minor procedure' },
-  { id: '5', patientName: 'Fatimah binti Hassan', icNumber: '680712-02-3333', phone: '019-8887777', date: '2024-01-15', time: '11:00', type: 'follow-up', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'cancelled' },
-  { id: '6', patientName: 'Tan Wei Jie', icNumber: '950505-14-6666', phone: '017-6665555', date: '2024-01-16', time: '09:00', type: 'new', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'pending' },
-  { id: '7', patientName: 'Muthu a/l Krishnan', icNumber: '780808-10-1111', phone: '012-1112222', date: '2024-01-16', time: '09:30', type: 'follow-up', department: 'Perubatan Am', doctor: 'Dr. Lee Wei Ming', status: 'confirmed' },
+  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', phone: '012-3456789', date: '2024-01-15', time: '09:00', type: 'follow-up', status: 'confirmed' },
+  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', phone: '013-9876543', date: '2024-01-15', time: '09:30', type: 'new', status: 'pending' },
+  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', phone: '016-5551234', date: '2024-01-15', time: '10:00', type: 'review', status: 'confirmed' },
+  { id: '4', patientName: 'Lee Mei Ling', icNumber: '850303-07-8888', phone: '011-2223333', date: '2024-01-15', time: '10:30', type: 'procedure', status: 'confirmed' },
+  { id: '5', patientName: 'Fatimah binti Hassan', icNumber: '680712-02-3333', phone: '019-8887777', date: '2024-01-15', time: '11:00', type: 'follow-up', status: 'cancelled' },
+  { id: '6', patientName: 'Tan Wei Jie', icNumber: '950505-14-6666', phone: '017-6665555', date: '2024-01-16', time: '09:00', type: 'new', status: 'pending' },
+  { id: '7', patientName: 'Muthu a/l Krishnan', icNumber: '780808-10-1111', phone: '012-1112222', date: '2024-01-16', time: '09:30', type: 'follow-up', status: 'confirmed' },
 ]
 
 const timeSlots = [
@@ -41,16 +31,10 @@ const timeSlots = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
 ]
 
-interface AppointmentsProps {
-  doctorName?: string
-}
-
-export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Ming' }: AppointmentsProps) {
+export default function Appointments() {
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments)
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [_viewMode, _setViewMode] = useState<'day' | 'week' | 'list'>('day')
   const [searchQuery, setSearchQuery] = useState('')
-  const [_showNewAppointment, _setShowNewAppointment] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
   const formatDate = (date: Date) => {
@@ -120,28 +104,16 @@ export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Mi
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+            <div>
           <h2 className="text-2xl font-bold text-gray-800">Temujanji</h2>
           <p className="text-gray-500">Appointment Management • Jadual Temujanji</p>
         </div>
-        <motion.button
-          onClick={() => _setShowNewAppointment(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-semibold shadow-lg hover:bg-teal-700"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Plus className="w-5 h-5" />
-          Temujanji Baru
-        </motion.button>
-      </div>
 
-      {/* Date Navigation */}
-      <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <button
           onClick={() => navigateDate('prev')}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Previous day"
         >
           <ChevronLeft className="w-5 h-5 text-gray-600" />
         </button>
@@ -157,13 +129,13 @@ export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Mi
         <button
           onClick={() => navigateDate('next')}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Next day"
         >
           <ChevronRight className="w-5 h-5 text-gray-600" />
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4">
         {[
           { label: 'Jumlah', value: stats.total, color: 'blue' },
           { label: 'Disahkan', value: stats.confirmed, color: 'emerald' },
@@ -181,8 +153,7 @@ export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Mi
         ))}
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -212,8 +183,7 @@ export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Mi
         </div>
       </div>
 
-      {/* Appointments List */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
           <div className="col-span-1">Masa</div>
           <div className="col-span-3">Pesakit</div>
@@ -327,8 +297,7 @@ export default function Appointments({ doctorName: _doctorName = 'Dr. Lee Wei Mi
         </AnimatePresence>
       </div>
 
-      {/* Time Slots Overview */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h3 className="font-semibold text-gray-800 mb-4">Slot Masa Tersedia</h3>
         <div className="grid grid-cols-7 gap-3">
           {timeSlots.map(slot => {

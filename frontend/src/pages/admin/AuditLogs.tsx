@@ -33,12 +33,8 @@ export default function AuditLogs() {
   const [filterAction, setFilterAction] = useState<string>('all')
   const [refreshing, setRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  
-  // Date range filter
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  
-  // Emergency access detail modal
   const [selectedEmergency, setSelectedEmergency] = useState<AuditLog | null>(null)
 
   const loadLogs = async () => {
@@ -50,7 +46,6 @@ export default function AuditLogs() {
       })
       if (response.success && response.data) {
         const apiLogs = (response.data as any[]).map((log: any) => {
-          // Map action types
           let action = 'RECORD_VIEW'
           if (log.action === 'query') action = 'CROSS_HOSPITAL_QUERY'
           else if (log.action === 'create') action = 'RECORD_CREATE'
@@ -99,13 +94,9 @@ export default function AuditLogs() {
     
     return matchesSearch && matchesFilter
   })
-
-  // Pagination
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-
-  // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1)
   }, [searchTerm, filterAction])
@@ -141,8 +132,6 @@ export default function AuditLogs() {
       </div>
     )
   }
-
-  // Stats data
   const stats = [
     { 
       label: 'Cross-Hospital Queries', 
@@ -185,8 +174,7 @@ export default function AuditLogs() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Modern Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
@@ -224,8 +212,7 @@ export default function AuditLogs() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, index) => (
           <motion.div
             key={stat.label}
@@ -251,8 +238,7 @@ export default function AuditLogs() {
         ))}
       </div>
 
-      {/* Search & Filter Bar */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -260,8 +246,7 @@ export default function AuditLogs() {
         <Card className="border-0 shadow-lg">
           <CardContent className="py-4">
             <div className="flex flex-col gap-4">
-              {/* Row 1: Search and Action Filter */}
-              <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <Input
@@ -289,8 +274,7 @@ export default function AuditLogs() {
                 </div>
               </div>
               
-              {/* Row 2: Date Range Filter */}
-              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-violet-50 rounded-xl">
+                            <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-violet-50 rounded-xl">
                 <div className="flex items-center gap-2 text-violet-700">
                   <Calendar className="w-5 h-5" />
                   <span className="font-medium text-sm">Date Range:</span>
@@ -345,8 +329,7 @@ export default function AuditLogs() {
         </Card>
       </motion.div>
 
-      {/* Activity Timeline */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -389,8 +372,7 @@ export default function AuditLogs() {
                       onClick={() => log.action === 'EMERGENCY_ACCESS' && setSelectedEmergency(log)}
                     >
                       <div className="flex items-start gap-4">
-                        {/* Status Icon */}
-                        <div className={`mt-1 p-2 rounded-full ${
+                                                <div className={`mt-1 p-2 rounded-full ${
                           log.action === 'EMERGENCY_ACCESS'
                             ? 'bg-gradient-to-br from-orange-400 to-red-500 animate-pulse'
                             : log.status === 'success' 
@@ -402,8 +384,7 @@ export default function AuditLogs() {
                             : getStatusIcon(log.status)}
                         </div>
                         
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
+                                                <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             {getActionBadge(log.action)}
                             <span className="text-gray-400">•</span>
@@ -437,8 +418,7 @@ export default function AuditLogs() {
                           )}
                         </div>
                         
-                        {/* Timestamp */}
-                        <div className="text-right shrink-0">
+                                                <div className="text-right shrink-0">
                           <div className="flex items-center gap-1.5 text-sm text-gray-600">
                             <Clock className="w-4 h-4" />
                             {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -454,8 +434,7 @@ export default function AuditLogs() {
               )}
             </AnimatePresence>
             
-            {/* Pagination */}
-            {totalPages > 1 && (
+                        {totalPages > 1 && (
               <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50/50">
                 <p className="text-sm text-gray-500">
                   Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length}
@@ -475,7 +454,6 @@ export default function AuditLogs() {
                   <div className="flex items-center gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1)
                       .filter(page => {
-                        // Show first, last, current, and neighbors
                         return page === 1 || 
                                page === totalPages || 
                                Math.abs(page - currentPage) <= 1
@@ -518,8 +496,7 @@ export default function AuditLogs() {
         </Card>
       </motion.div>
 
-      {/* Emergency Access Detail Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {selectedEmergency && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -535,8 +512,7 @@ export default function AuditLogs() {
               className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="p-6 bg-gradient-to-r from-orange-500 to-red-600 text-white">
+                            <div className="p-6 bg-gradient-to-r from-orange-500 to-red-600 text-white">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-white/20 rounded-xl animate-pulse">
@@ -558,8 +534,7 @@ export default function AuditLogs() {
                 </div>
               </div>
               
-              {/* Content */}
-              <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-4">
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
                   <div className="flex items-center gap-2 text-orange-700 font-medium mb-2">
                     <AlertTriangle className="w-5 h-5" />
@@ -626,8 +601,7 @@ export default function AuditLogs() {
                 </div>
               </div>
               
-              {/* Actions */}
-              <div className="px-6 pb-6">
+                            <div className="px-6 pb-6">
                 <Button
                   className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700"
                   onClick={() => setSelectedEmergency(null)}

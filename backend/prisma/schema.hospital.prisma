@@ -1,7 +1,3 @@
-// ============================================================================
-// Hospital Database Schema - 医院数据库（每家医院独立使用）
-// 存储: 患者详情、病历记录、处方、化验报告、医生信息
-// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -15,9 +11,6 @@ datasource db {
   url      = env("DATABASE_URL_HOSPITAL")
 }
 
-// ============================================================================
-// Patient - 患者信息（本院副本）
-// ============================================================================
 model Patient {
   icNumber          String   @id
   fullName          String
@@ -38,9 +31,6 @@ model Patient {
   medicalRecords MedicalRecord[]
 }
 
-// ============================================================================
-// Doctor - 医生信息
-// ============================================================================
 model Doctor {
   id             String  @id
   icNumber       String
@@ -58,9 +48,6 @@ model Doctor {
   @@index([icNumber])
 }
 
-// ============================================================================
-// MedicalRecord - 病历记录
-// ============================================================================
 model MedicalRecord {
   id             String    @id @default(uuid())
   visitDate      DateTime
@@ -87,9 +74,6 @@ model MedicalRecord {
   @@index([visitDate])
 }
 
-// ============================================================================
-// Prescription - 处方
-// ============================================================================
 model Prescription {
   id             String  @id @default(uuid())
   medicationName String
@@ -105,9 +89,6 @@ model Prescription {
   medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
 }
 
-// ============================================================================
-// LabReport - 化验报告
-// ============================================================================
 model LabReport {
   id             String   @id @default(uuid())
   testType       String

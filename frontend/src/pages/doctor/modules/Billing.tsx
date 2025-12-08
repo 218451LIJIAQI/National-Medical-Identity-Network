@@ -1,8 +1,3 @@
-// ============================================================================
-// Billing Module - 收费界面与补贴信息
-// Malaysian hospital billing with government subsidies display
-// ============================================================================
-
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { 
@@ -28,8 +23,6 @@ interface SubsidyInfo {
   coverage: string
   status: 'active' | 'pending' | 'expired'
 }
-
-// Mock billing items with Malaysian hospital charges
 const mockBillingItems: BillingItem[] = [
   { id: '1', category: 'Konsultasi', description: 'Konsultasi Pakar - Perubatan Am', originalPrice: 30.00, subsidyPercent: 100, subsidyAmount: 30.00, finalPrice: 0 },
   { id: '2', category: 'Makmal', description: 'Full Blood Count (FBC)', originalPrice: 15.00, subsidyPercent: 100, subsidyAmount: 15.00, finalPrice: 0 },
@@ -38,8 +31,6 @@ const mockBillingItems: BillingItem[] = [
   { id: '5', category: 'Ubat', description: 'Ubat (7 hari)', originalPrice: 45.00, subsidyPercent: 95, subsidyAmount: 42.75, finalPrice: 2.25 },
   { id: '6', category: 'Prosedur', description: 'Wound Dressing', originalPrice: 20.00, subsidyPercent: 100, subsidyAmount: 20.00, finalPrice: 0 },
 ]
-
-// Malaysian healthcare subsidy programs
 const subsidyPrograms: SubsidyInfo[] = [
   { type: 'KKM', program: 'Subsidi Kerajaan Malaysia', eligibility: 'Warganegara Malaysia', coverage: 'Perkhidmatan kesihatan awam', status: 'active' },
   { type: 'MySalam', program: 'Skim Perlindungan MySalam', eligibility: 'B40 - Pendapatan < RM4,000', coverage: 'Penyakit kritikal', status: 'active' },
@@ -79,8 +70,7 @@ export default function Billing({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Bil & Pembayaran</h2>
           <p className="text-gray-500">Billing & Subsidies • Maklumat Caj & Subsidi</p>
@@ -104,10 +94,8 @@ export default function Billing({
         </div>
       </div>
 
-      {/* Patient & Subsidy Status */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Patient Info */}
-        <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="grid grid-cols-2 gap-6">
+                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center">
               <User className="w-7 h-7 text-blue-600" />
@@ -119,8 +107,7 @@ export default function Billing({
           </div>
         </div>
 
-        {/* Subsidy Status */}
-        <div className={`p-5 rounded-xl border-2 ${
+                <div className={`p-5 rounded-xl border-2 ${
           subsidyStatus === 'eligible' ? 'bg-emerald-50 border-emerald-200' :
           subsidyStatus === 'pending' ? 'bg-amber-50 border-amber-200' :
           'bg-red-50 border-red-200'
@@ -159,8 +146,7 @@ export default function Billing({
         </div>
       </div>
 
-      {/* Government Subsidy Programs Banner */}
-      <div className="p-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white">
+            <div className="p-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
             <Gift className="w-6 h-6" />
@@ -193,8 +179,7 @@ export default function Billing({
       </div>
 
       <div className="grid grid-cols-3 gap-6">
-        {/* Billing Items */}
-        <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 flex items-center gap-2">
               <Receipt className="w-5 h-5 text-blue-600" />
@@ -235,8 +220,7 @@ export default function Billing({
             })}
           </div>
 
-          {/* Summary */}
-          <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
+                    <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
             <div className="space-y-2">
               <div className="flex justify-between text-gray-600">
                 <span>Jumlah Asal</span>
@@ -259,10 +243,8 @@ export default function Billing({
           </div>
         </div>
 
-        {/* Payment Options */}
-        <div className="space-y-4">
-          {/* Subsidy Savings Card */}
-          <motion.div 
+                <div className="space-y-4">
+                    <motion.div 
             className="p-5 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl text-white"
             whileHover={{ scale: 1.02 }}
           >
@@ -280,8 +262,7 @@ export default function Billing({
             </div>
           </motion.div>
 
-          {/* Payment Method */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <h3 className="font-semibold text-gray-800 mb-4">Kaedah Pembayaran</h3>
             <div className="space-y-3">
               {[
@@ -317,8 +298,7 @@ export default function Billing({
             </div>
           </div>
 
-          {/* Government Info */}
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
@@ -333,8 +313,7 @@ export default function Billing({
         </div>
       </div>
 
-      {/* Fee Schedule Info */}
-      <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
         <div className="flex items-center gap-4">
           <Calculator className="w-10 h-10 text-amber-600" />
           <div>

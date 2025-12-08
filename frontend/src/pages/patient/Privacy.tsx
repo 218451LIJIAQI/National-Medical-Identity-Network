@@ -38,8 +38,6 @@ export default function PatientPrivacy() {
     substanceAbuse: true,
     hivStatus: true,
   })
-
-  // Load hospitals and access logs
   useEffect(() => {
     async function loadData() {
       try {
@@ -75,8 +73,6 @@ export default function PatientPrivacy() {
             } else {
               timeAgo = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`
             }
-            
-            // Check if actorName looks like a UUID and replace with friendly name
             const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
             let displayName = log.actorName || log.actorId
             if (uuidPattern.test(displayName)) {
@@ -179,8 +175,7 @@ export default function PatientPrivacy() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-8 text-white shadow-2xl shadow-violet-500/25"
@@ -223,8 +218,7 @@ export default function PatientPrivacy() {
         </div>
       </motion.div>
 
-      {/* Security Status - Enhanced */}
-      <motion.div 
+            <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -283,8 +277,7 @@ export default function PatientPrivacy() {
         </Card>
       </motion.div>
 
-      {/* Hospital Access Control - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -363,8 +356,7 @@ export default function PatientPrivacy() {
         </Card>
       </motion.div>
 
-      {/* Sensitive Records Protection - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
@@ -430,8 +422,7 @@ export default function PatientPrivacy() {
         </Card>
       </motion.div>
 
-      {/* Access Log - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}

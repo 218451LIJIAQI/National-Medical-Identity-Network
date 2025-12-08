@@ -1,7 +1,3 @@
-// ============================================================================
-// Central Database Schema - 中心数据库
-// 只存储: 患者索引、用户账户、医院注册信息、审计日志
-// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,9 +9,6 @@ datasource db {
   url      = env("DATABASE_URL_CENTRAL")
 }
 
-// ============================================================================
-// Hospital Registry - 医院注册表
-// ============================================================================
 model Hospital {
   id          String  @id
   name        String
@@ -33,9 +26,6 @@ model Hospital {
   patientIndexes PatientIndexHospital[]
 }
 
-// ============================================================================
-// PatientIndex - 患者索引（只记录患者在哪些医院有记录）
-// ============================================================================
 model PatientIndex {
   icNumber    String   @id
   lastUpdated DateTime @default(now())
@@ -44,9 +34,6 @@ model PatientIndex {
   hospitals PatientIndexHospital[]
 }
 
-// ============================================================================
-// PatientIndexHospital - 患者索引与医院的关联表
-// ============================================================================
 model PatientIndexHospital {
   id         String @id @default(uuid())
   icNumber   String
@@ -58,9 +45,6 @@ model PatientIndexHospital {
   @@unique([icNumber, hospitalId])
 }
 
-// ============================================================================
-// User - 用户账户（认证用）
-// ============================================================================
 model User {
   id           String    @id @default(uuid())
   icNumber     String
@@ -78,9 +62,6 @@ model User {
   @@index([icNumber, role])
 }
 
-// ============================================================================
-// PatientPrivacySetting - 患者隐私设置
-// ============================================================================
 model PatientPrivacySetting {
   id         String  @id @default(uuid())
   icNumber   String
@@ -90,9 +71,6 @@ model PatientPrivacySetting {
   @@unique([icNumber, hospitalId])
 }
 
-// ============================================================================
-// AuditLog - 审计日志
-// ============================================================================
 model AuditLog {
   id               String   @id @default(uuid())
   timestamp        DateTime @default(now())

@@ -1,8 +1,3 @@
-// ============================================================================
-// Queen Elizabeth Hospital Layout - Royal Medical Excellence Style
-// 精致皇家医学风格 - 居中布局 + 优雅金红配色
-// ============================================================================
-
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
@@ -48,21 +43,37 @@ export default function QueenElizabethLayout() {
     logout()
     navigate('/login')
   }
+  const doctorNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/doctor' },
+        { icon: Search, label: 'Search', path: '/doctor/search' },
+        { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
+      ]
+    },
+    {
+      title: 'Clinical',
+      items: [
+        { icon: Users, label: 'Queue', path: '/doctor/queue' },
+        { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
+        { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
+        { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
+        { icon: FileText, label: 'MC', path: '/doctor/mc' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
+        { icon: Calendar, label: 'Appt', path: '/doctor/appointments' },
+        { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
+        { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
+      ]
+    }
+  ]
 
-  const navItems = user?.role === 'doctor' ? [
-    { icon: Home, label: 'Dashboard', path: '/doctor' },
-    { icon: Search, label: 'Patient Search', path: '/doctor/search' },
-    { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
-    { icon: Users, label: 'Queue', path: '/doctor/queue' },
-    { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
-    { icon: FlaskConical, label: 'Lab Orders', path: '/doctor/lab' },
-    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
-    { icon: FileText, label: 'Medical Cert', path: '/doctor/mc' },
-    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
-    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments' },
-    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
-    { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
-  ] : [
+  const adminNavItems = [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
     { icon: Activity, label: 'Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', path: '/admin/staff' },
@@ -91,10 +102,8 @@ export default function QueenElizabethLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-red-50">
-      {/* Elegant Background Pattern */}
-      <div className="fixed inset-0 pointer-events-none">
-        {/* Royal Pattern */}
-        <div className="absolute inset-0 opacity-[0.03]">
+            <div className="fixed inset-0 pointer-events-none">
+                <div className="absolute inset-0 opacity-[0.03]">
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern id="royal-pattern" width="60" height="60" patternUnits="userSpaceOnUse">
@@ -105,22 +114,15 @@ export default function QueenElizabethLayout() {
             <rect width="100%" height="100%" fill="url(#royal-pattern)" />
           </svg>
         </div>
-        {/* Soft Gradient Orbs */}
-        <div className="absolute top-20 right-20 w-96 h-96 bg-gradient-to-br from-amber-200/30 to-rose-200/30 rounded-full blur-3xl" />
+                <div className="absolute top-20 right-20 w-96 h-96 bg-gradient-to-br from-amber-200/30 to-rose-200/30 rounded-full blur-3xl" />
         <div className="absolute bottom-20 left-20 w-80 h-80 bg-gradient-to-br from-red-200/20 to-amber-200/20 rounded-full blur-3xl" />
       </div>
 
-      {/* ================================================================== */}
-      {/* ROYAL HEADER */}
-      {/* ================================================================== */}
-      <header className="relative z-20">
-        {/* Gold Accent Line */}
-        <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
+                        <header className="relative z-20">
+                <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
         
-        {/* Main Header */}
-        <div className="bg-gradient-to-r from-red-700 via-rose-700 to-red-800 text-white shadow-2xl">
-          {/* Top Info Bar */}
-          <div className="border-b border-white/10">
+                <div className="bg-gradient-to-r from-red-700 via-rose-700 to-red-800 text-white shadow-2xl">
+                    <div className="border-b border-white/10">
             <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
@@ -145,11 +147,9 @@ export default function QueenElizabethLayout() {
             </div>
           </div>
 
-          {/* Main Navigation */}
-          <div className="max-w-7xl mx-auto px-6 py-5">
+                    <div className="max-w-7xl mx-auto px-6 py-5">
             <div className="flex items-center justify-between">
-              {/* Logo & Hospital Name */}
-              <div className="flex items-center gap-5">
+                            <div className="flex items-center gap-5">
                 <motion.div 
                   className="relative"
                   whileHover={{ scale: 1.05 }}
@@ -174,8 +174,7 @@ export default function QueenElizabethLayout() {
                 </div>
               </div>
 
-              {/* Desktop Navigation */}
-              <nav className="hidden lg:flex items-center max-w-[50vw] overflow-hidden">
+                            <nav className="hidden lg:flex items-center max-w-[50vw] overflow-hidden">
                 <button
                   onClick={() => scrollNav('left')}
                   className="flex-shrink-0 p-2 text-rose-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
@@ -184,25 +183,60 @@ export default function QueenElizabethLayout() {
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div ref={navScrollRef} className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-2xl p-1.5 border border-white/10 overflow-x-auto scrollbar-hide">
-                  {navItems.map((item) => {
-                    const Icon = item.icon
-                    const isActive = location.pathname === item.path
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        className={cn(
-                          "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
-                          isActive
-                            ? "bg-white text-red-700 font-semibold shadow-lg"
-                            : "text-rose-100 hover:bg-white/10 hover:text-white"
+                  {user?.role === 'doctor' ? (
+                    doctorNavSections.map((section, sectionIndex) => (
+                      <div key={section.title} className="flex items-center gap-1">
+                                                <div className="flex flex-col items-center justify-center px-3 py-1.5 bg-amber-500/20 rounded-lg border border-amber-400/30">
+                          <span className="text-[10px] font-black text-amber-200 uppercase tracking-wide">
+                            {section.title}
+                          </span>
+                          <div className="w-4 h-0.5 bg-amber-400 rounded-full mt-1" />
+                        </div>
+                                                {section.items.map((item) => {
+                          const Icon = item.icon
+                          const isActive = location.pathname === item.path
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
+                                isActive
+                                  ? "bg-white text-red-700 font-semibold shadow-lg"
+                                  : "text-rose-100 hover:bg-white/10 hover:text-white"
+                              )}
+                            >
+                              <Icon className="w-4 h-4" />
+                              <span className="text-sm">{item.label}</span>
+                            </Link>
+                          )
+                        })}
+                                                {sectionIndex < doctorNavSections.length - 1 && (
+                          <div className="w-px h-6 bg-gradient-to-b from-transparent via-amber-400/50 to-transparent mx-2" />
                         )}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="text-sm">{item.label}</span>
-                      </Link>
-                    )
-                  })}
+                      </div>
+                    ))
+                  ) : (
+                    adminNavItems.map((item) => {
+                      const Icon = item.icon
+                      const isActive = location.pathname === item.path
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 whitespace-nowrap",
+                            isActive
+                              ? "bg-white text-red-700 font-semibold shadow-lg"
+                              : "text-rose-100 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="text-sm">{item.label}</span>
+                        </Link>
+                      )
+                    })
+                  )}
                 </div>
                 <button
                   onClick={() => scrollNav('right')}
@@ -213,10 +247,8 @@ export default function QueenElizabethLayout() {
                 </button>
               </nav>
 
-              {/* User Section */}
-              <div className="flex items-center gap-4">
-                {/* User Card */}
-                <motion.div 
+                            <div className="flex items-center gap-4">
+                                <motion.div 
                   className="hidden md:flex items-center gap-3 bg-gradient-to-r from-white/15 to-white/10 backdrop-blur-sm rounded-2xl px-4 py-2.5 border border-white/20"
                   whileHover={{ scale: 1.02 }}
                 >
@@ -229,8 +261,7 @@ export default function QueenElizabethLayout() {
                   </div>
                 </motion.div>
 
-                {/* Logout Button */}
-                <Button
+                                <Button
                   onClick={handleLogout}
                   variant="ghost"
                   size="sm"
@@ -240,8 +271,7 @@ export default function QueenElizabethLayout() {
                   <span className="hidden sm:inline">Exit</span>
                 </Button>
 
-                {/* Mobile Menu Toggle */}
-                <button
+                                <button
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                   className="lg:hidden p-2.5 hover:bg-white/10 rounded-xl transition-colors"
                   aria-label="Toggle menu"
@@ -253,11 +283,9 @@ export default function QueenElizabethLayout() {
           </div>
         </div>
 
-        {/* Bottom Gold Accent */}
-        <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+                <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
 
-        {/* Mobile Navigation */}
-        <AnimatePresence>
+                <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -265,40 +293,71 @@ export default function QueenElizabethLayout() {
               exit={{ opacity: 0, height: 0 }}
               className="lg:hidden bg-white/95 backdrop-blur-lg border-b border-amber-200 shadow-xl overflow-hidden"
             >
-              <nav className="p-4 space-y-2">
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = location.pathname === item.path
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all",
-                        isActive
-                          ? "bg-gradient-to-r from-red-500 to-rose-500 text-white font-medium shadow-lg"
-                          : "text-gray-700 hover:bg-amber-50"
-                      )}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  )
-                })}
+              <nav className="p-4 space-y-1">
+                {user?.role === 'doctor' ? (
+                  doctorNavSections.map((section) => (
+                    <div key={section.title} className="mb-4">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-red-100 to-amber-50 rounded-lg px-4 py-2 mb-3 border border-red-200">
+                        <Crown className="w-4 h-4 text-amber-500" />
+                        <p className="text-xs font-black text-red-700 uppercase tracking-wider">
+                          {section.title}
+                        </p>
+                        <div className="flex-1" />
+                        <div className="w-6 h-1 bg-gradient-to-r from-red-400 to-amber-400 rounded-full" />
+                      </div>
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        const isActive = location.pathname === item.path
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1",
+                              isActive
+                                ? "bg-gradient-to-r from-red-500 to-rose-500 text-white font-medium shadow-lg"
+                                : "text-gray-700 hover:bg-amber-50"
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  ))
+                ) : (
+                  adminNavItems.map((item) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all",
+                          isActive
+                            ? "bg-gradient-to-r from-red-500 to-rose-500 text-white font-medium shadow-lg"
+                            : "text-gray-700 hover:bg-amber-50"
+                        )}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    )
+                  })
+                )}
               </nav>
             </motion.div>
           )}
         </AnimatePresence>
       </header>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT - Centered Layout */}
-      {/* ================================================================== */}
-      <main className="relative z-10 flex-1">
+                        <main className="relative z-10 flex-1">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Page Title Card */}
-          <motion.div 
+                    <motion.div 
             className="mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -309,7 +368,10 @@ export default function QueenElizabethLayout() {
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-red-500 via-rose-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-200">
                     {(() => {
-                      const currentNav = navItems.find(item => item.path === location.pathname)
+                      const allItems = user?.role === 'doctor' 
+                        ? doctorNavSections.flatMap(s => s.items)
+                        : adminNavItems
+                      const currentNav = allItems.find(item => item.path === location.pathname)
                       if (currentNav) {
                         const Icon = currentNav.icon
                         return <Icon className="w-7 h-7 text-white" />
@@ -319,7 +381,12 @@ export default function QueenElizabethLayout() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {navItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
+                      {(() => {
+                        const allItems = user?.role === 'doctor' 
+                          ? doctorNavSections.flatMap(s => s.items)
+                          : adminNavItems
+                        return allItems.find(item => item.path === location.pathname)?.label || 'Dashboard'
+                      })()}
                     </h2>
                     <p className="text-gray-500 mt-0.5">
                       {user?.role === 'doctor' ? 'Medical Professional Portal' : 'Administrative Control Center'}
@@ -340,8 +407,7 @@ export default function QueenElizabethLayout() {
             </div>
           </motion.div>
 
-          {/* Content Container */}
-          <motion.div 
+                    <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
@@ -351,10 +417,7 @@ export default function QueenElizabethLayout() {
         </div>
       </main>
 
-      {/* ================================================================== */}
-      {/* FOOTER */}
-      {/* ================================================================== */}
-      <footer className="relative z-10 mt-auto">
+                        <footer className="relative z-10 mt-auto">
         <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent" />
         <div className="bg-gradient-to-r from-red-800 via-rose-800 to-red-900 text-white">
           <div className="max-w-7xl mx-auto px-6 py-5">

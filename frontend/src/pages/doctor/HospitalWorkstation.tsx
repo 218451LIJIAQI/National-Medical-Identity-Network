@@ -1,8 +1,3 @@
-// ============================================================================
-// Hospital Workstation - 完整医院工作站
-// Integrated hospital management system with all modules
-// ============================================================================
-
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -14,8 +9,6 @@ import {
   Building2, ChevronRight, Bell, Settings, LogOut,
   Globe, Activity, Clock, TrendingUp
 } from 'lucide-react'
-
-// Import modules
 import { 
   QueueManagement, 
   EPrescription, 
@@ -80,7 +73,7 @@ export default function HospitalWorkstation() {
       case 'referral':
         return <Referral fromHospital={theme.name} />
       case 'appointments':
-        return <Appointments doctorName={user?.fullName} />
+        return <Appointments />
       default:
         return <DashboardContent theme={theme} setActiveModule={setActiveModule} />
     }
@@ -88,14 +81,12 @@ export default function HospitalWorkstation() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <motion.aside
+            <motion.aside
         initial={false}
         animate={{ width: sidebarCollapsed ? 80 : 280 }}
         className="bg-white border-r border-gray-200 flex flex-col shadow-lg"
       >
-        {/* Hospital Logo */}
-        <div className="p-4 border-b border-gray-100">
+                <div className="p-4 border-b border-gray-100">
           <motion.div 
             className="flex items-center gap-3"
             animate={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
@@ -121,8 +112,7 @@ export default function HospitalWorkstation() {
           </motion.div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = activeModule === item.id
             return (
@@ -160,8 +150,7 @@ export default function HospitalWorkstation() {
           })}
         </nav>
 
-        {/* User Section */}
-        <div className="p-3 border-t border-gray-100">
+                <div className="p-3 border-t border-gray-100">
           <div className={`flex items-center gap-3 p-3 bg-gray-50 rounded-xl ${sidebarCollapsed ? 'justify-center' : ''}`}>
             <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-full flex items-center justify-center text-white font-bold">
               {user?.fullName?.charAt(0) || 'D'}
@@ -192,8 +181,7 @@ export default function HospitalWorkstation() {
           )}
         </div>
 
-        {/* Collapse Toggle */}
-        <button
+                <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="p-3 border-t border-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
         >
@@ -201,10 +189,8 @@ export default function HospitalWorkstation() {
         </button>
       </motion.aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-200 px-6 py-4">
+            <main className="flex-1 overflow-auto">
+                <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-800">
@@ -232,8 +218,7 @@ export default function HospitalWorkstation() {
           </div>
         </header>
 
-        {/* Module Content */}
-        <div className="p-6">
+                <div className="p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
@@ -250,13 +235,10 @@ export default function HospitalWorkstation() {
     </div>
   )
 }
-
-// Dashboard Content Component
 function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof getHospitalTheme>, setActiveModule: (m: ModuleType) => void }) {
   return (
     <div className="space-y-6">
-      {/* Welcome Card */}
-      <div 
+            <div 
         className="relative overflow-hidden rounded-2xl p-8 text-white"
         style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
       >
@@ -283,8 +265,7 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4">
         {[
           { module: 'queue' as ModuleType, label: 'Giliran', labelEN: 'Queue', icon: Users, color: 'emerald' },
           { module: 'prescription' as ModuleType, label: 'Preskripsi', labelEN: 'Prescription', icon: Pill, color: 'teal' },
@@ -307,8 +288,7 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
         ))}
       </div>
 
-      {/* More Actions */}
-      <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
         <motion.button
           onClick={() => setActiveModule('referral')}
           className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all flex items-center gap-4"
@@ -340,8 +320,7 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
         </motion.button>
       </div>
 
-      {/* National Search Banner */}
-      <Link to="/doctor/search">
+            <Link to="/doctor/search">
         <motion.div 
           className="p-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-white flex items-center justify-between"
           whileHover={{ scale: 1.01 }}

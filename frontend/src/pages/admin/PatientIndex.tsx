@@ -67,19 +67,13 @@ export default function PatientIndexPage() {
     setRefreshing(true)
     loadData()
   }
-
-  // Filter patient indexes
   const filteredIndexes = patientIndexes.filter(idx => 
     idx.icNumber.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  // Calculate stats
   const multiHospitalPatients = patientIndexes.filter(idx => idx.hospitals.length > 1).length
   const avgHospitalsPerPatient = patientIndexes.length > 0 
     ? Math.round(patientIndexes.reduce((sum, idx) => sum + idx.hospitals.length, 0) / patientIndexes.length * 10) / 10
     : 0
-
-  // Hospital patient counts
   const hospitalCounts = hospitals.map(h => ({
     ...h,
     count: patientIndexes.filter(idx => idx.hospitals.includes(h.id)).length
@@ -102,8 +96,7 @@ export default function PatientIndexPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
-      {/* Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
@@ -133,8 +126,7 @@ export default function PatientIndexPage() {
         </motion.div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Patients', value: patientIndexes.length, icon: Users, color: 'violet' },
           { label: 'Connected Hospitals', value: hospitals.length, icon: Building2, color: 'blue' },
@@ -164,8 +156,7 @@ export default function PatientIndexPage() {
         ))}
       </div>
 
-      {/* Hospital Distribution */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -220,8 +211,7 @@ export default function PatientIndexPage() {
         </Card>
       </motion.div>
 
-      {/* Patient List */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -239,8 +229,7 @@ export default function PatientIndexPage() {
             </div>
           </div>
           <CardContent className="p-6">
-            {/* Search */}
-            <div className="mb-4">
+                        <div className="mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
@@ -252,8 +241,7 @@ export default function PatientIndexPage() {
               </div>
             </div>
             
-            {/* Table */}
-            <div className="border rounded-xl overflow-hidden">
+                        <div className="border rounded-xl overflow-hidden">
               <div className="bg-gray-50 px-4 py-3 border-b grid grid-cols-12 gap-4 text-sm font-medium text-gray-600">
                 <div className="col-span-4">IC Number</div>
                 <div className="col-span-5">Hospitals</div>

@@ -56,14 +56,12 @@ export default function PatientTimeline() {
     async function loadPatientData() {
       if (!icNumber) return
       try {
-        // Fetch patient info and records in parallel
         const [queryRes, patientRes] = await Promise.all([
           centralApi.queryPatient(icNumber),
           centralApi.getPatient(icNumber),
         ])
         
         if (queryRes.success && queryRes.data) {
-          // Extract records from all hospitals
           const allRecords: MedicalRecord[] = []
           const allMeds: Medication[] = []
           
@@ -79,7 +77,6 @@ export default function PatientTimeline() {
                 doctorId: record.doctorId,
                 isReadOnly: record.isReadOnly !== false,
               })
-              // Extract medications from prescriptions
               record.prescriptions?.forEach((rx: any) => {
                 if (rx.isActive) {
                   allMeds.push({
@@ -96,8 +93,6 @@ export default function PatientTimeline() {
           setRecords(allRecords)
           setMedications(allMeds)
         }
-        
-        // Set patient info from patient API
         if (patientRes.success && patientRes.data) {
           const p = patientRes.data.patient as any
           if (p) {
@@ -136,8 +131,7 @@ export default function PatientTimeline() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-700 p-8 text-white shadow-2xl shadow-blue-500/25"
@@ -187,8 +181,7 @@ export default function PatientTimeline() {
         </div>
       </motion.div>
 
-      {/* Patient Info Card - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -221,8 +214,7 @@ export default function PatientTimeline() {
             </div>
           </div>
 
-          {/* Allergies Warning */}
-          {patient.allergies.length > 0 && (
+                    {patient.allergies.length > 0 && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-2 text-red-700">
                 <AlertTriangle className="h-4 w-4" />
@@ -236,8 +228,7 @@ export default function PatientTimeline() {
             </div>
           )}
 
-          {/* Chronic Conditions */}
-          {patient.chronicConditions.length > 0 && (
+                    {patient.chronicConditions.length > 0 && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-500">Chronic Conditions:</span>
               {patient.chronicConditions.map((condition, i) => (
@@ -251,8 +242,7 @@ export default function PatientTimeline() {
         </Card>
       </motion.div>
 
-      {/* Timeline - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -340,8 +330,7 @@ export default function PatientTimeline() {
         </Card>
       </motion.div>
 
-      {/* Active Medications - Premium Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}

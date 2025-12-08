@@ -1,9 +1,3 @@
-// ============================================================================
-// KL General Hospital Layout - Enterprise Corporate Style
-// Dual navigation: Fixed top header + Left sidebar
-// Professional, data-driven, clean lines
-// ============================================================================
-
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
@@ -38,8 +32,6 @@ export default function KLGeneralLayout() {
     logout()
     navigate('/login')
   }
-
-  // Define navigation sections for doctor
   const doctorNavSections = [
     {
       title: 'Main',
@@ -86,13 +78,9 @@ export default function KLGeneralLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ================================================================== */}
-      {/* TOP HEADER - Fixed Enterprise Navigation */}
-      {/* ================================================================== */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-white border-b border-slate-200 shadow-sm">
+                        <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-white border-b border-slate-200 shadow-sm">
         <div className="flex items-center justify-between h-full px-4">
-          {/* Left Section: Logo & Hospital */}
-          <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 hover:bg-slate-100 rounded-md transition-colors lg:hidden"
@@ -113,16 +101,14 @@ export default function KLGeneralLayout() {
               </div>
             </div>
 
-            {/* Breadcrumb / Current Section */}
-            <div className="hidden lg:flex items-center gap-2 ml-6 pl-6 border-l border-slate-200">
+                        <div className="hidden lg:flex items-center gap-2 ml-6 pl-6 border-l border-slate-200">
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium">
                 {user?.role === 'doctor' ? 'Doctor Portal' : 'Admin Portal'}
               </Badge>
             </div>
           </div>
 
-          {/* Center: Quick Actions */}
-          <div className="hidden lg:flex items-center gap-2">
+                    <div className="hidden lg:flex items-center gap-2">
             <Button variant="ghost" size="sm" className="text-slate-600 gap-2">
               <Search className="w-4 h-4" />
               Quick Search
@@ -130,10 +116,8 @@ export default function KLGeneralLayout() {
             </Button>
           </div>
 
-          {/* Right Section: Status & Profile */}
-          <div className="flex items-center gap-3">
-            {/* Time & Status */}
-            <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200">
+                    <div className="flex items-center gap-3">
+                        <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 <span className="text-xs text-slate-600 font-medium">Online</span>
@@ -145,8 +129,7 @@ export default function KLGeneralLayout() {
               </div>
             </div>
 
-            {/* Notifications */}
-            <button 
+                        <button 
               className="relative p-2 hover:bg-slate-100 rounded-md transition-colors"
               aria-label="View notifications"
             >
@@ -154,8 +137,7 @@ export default function KLGeneralLayout() {
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
 
-            {/* Profile Dropdown */}
-            <div className="relative">
+                        <div className="relative">
               <button 
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-md transition-colors"
@@ -203,26 +185,27 @@ export default function KLGeneralLayout() {
         </div>
       </header>
 
-      {/* ================================================================== */}
-      {/* LEFT SIDEBAR - Secondary Navigation */}
-      {/* ================================================================== */}
-      <aside
+                        <aside
         className={cn(
           "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] bg-white border-r border-slate-200 transition-all duration-300",
           sidebarOpen ? "w-64" : "w-0 lg:w-16"
         )}
       >
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Navigation Links */}
-          <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+                    <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
             {user?.role === 'doctor' ? (
-              // Doctor Navigation with Sections
               doctorNavSections.map((section, sectionIndex) => (
                 <div key={section.title}>
                   {sidebarOpen && (
-                    <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      {section.title}
-                    </p>
+                    <div className="px-3 mb-3 mt-4 first:mt-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                          {section.title}
+                        </p>
+                      </div>
+                      <div className="mt-1.5 h-px bg-gradient-to-r from-blue-200 via-blue-100 to-transparent" />
+                    </div>
                   )}
                   <div className="space-y-1">
                     {section.items.map((item, index) => {
@@ -268,7 +251,6 @@ export default function KLGeneralLayout() {
                 </div>
               ))
             ) : (
-              // Admin Navigation (simple list)
               navItems.map((item, index) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
@@ -308,8 +290,7 @@ export default function KLGeneralLayout() {
             )}
           </nav>
 
-          {/* Sidebar Footer */}
-          {sidebarOpen && (
+                    {sidebarOpen && (
             <div className="p-3 border-t border-slate-200">
               <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
                 <div className="flex items-center gap-2 mb-2">
@@ -325,10 +306,7 @@ export default function KLGeneralLayout() {
         </div>
       </aside>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT AREA */}
-      {/* ================================================================== */}
-      <main 
+                        <main 
         className={cn(
           "pt-16 min-h-screen transition-all duration-300",
           sidebarOpen ? "lg:pl-64" : "lg:pl-16"
@@ -339,8 +317,7 @@ export default function KLGeneralLayout() {
         </div>
       </main>
 
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
+            {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}

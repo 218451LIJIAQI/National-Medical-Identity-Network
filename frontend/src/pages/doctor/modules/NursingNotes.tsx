@@ -1,8 +1,3 @@
-// ============================================================================
-// Nursing Notes Module - 护理记录
-// Malaysian hospital nursing documentation system
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -32,8 +27,6 @@ interface NursingNote {
   nurse: string
   priority: 'routine' | 'important' | 'urgent'
 }
-
-// Mock vital signs history
 const mockVitalsHistory: VitalSigns[] = [
   { timestamp: '2024-01-15 08:00', bp: '120/80', pulse: 72, temp: 36.5, rr: 16, spo2: 98, gcs: '15/15', painScore: 2, bloodSugar: 6.5, recordedBy: 'Nurse Fatimah' },
   { timestamp: '2024-01-15 12:00', bp: '118/78', pulse: 74, temp: 36.8, rr: 18, spo2: 97, gcs: '15/15', painScore: 3, recordedBy: 'Nurse Siti' },
@@ -137,16 +130,14 @@ export default function NursingNotes({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Rekod Kejururawatan</h2>
           <p className="text-gray-500">Nursing Documentation • Catatan Kejururawatan</p>
         </div>
       </div>
 
-      {/* Patient Info Banner */}
-      <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
+            <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-pink-100 rounded-full flex items-center justify-center">
@@ -161,8 +152,7 @@ export default function NursingNotes({
             </div>
           </div>
           
-          {/* Quick Vitals Summary */}
-          {latestVitals && (
+                    {latestVitals && (
             <div className="flex items-center gap-4">
               <div className="text-center px-3 py-2 bg-white rounded-lg">
                 <p className="text-xs text-gray-500">BP</p>
@@ -185,8 +175,7 @@ export default function NursingNotes({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+            <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
         {[
           { id: 'vitals', label: 'Tanda Vital', icon: Heart },
           { id: 'notes', label: 'Catatan', icon: FileText },
@@ -208,8 +197,7 @@ export default function NursingNotes({
       </div>
 
       <AnimatePresence mode="wait">
-        {/* Vital Signs Tab */}
-        {activeTab === 'vitals' && (
+                {activeTab === 'vitals' && (
           <motion.div
             key="vitals"
             initial={{ opacity: 0, y: 20 }}
@@ -217,8 +205,7 @@ export default function NursingNotes({
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4"
           >
-            {/* Add New Vitals */}
-            <div className="flex justify-end">
+                        <div className="flex justify-end">
               <motion.button
                 onClick={() => setShowNewVitals(!showNewVitals)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-lg hover:bg-pink-700"
@@ -229,8 +216,7 @@ export default function NursingNotes({
               </motion.button>
             </div>
 
-            {/* New Vitals Form */}
-            <AnimatePresence>
+                        <AnimatePresence>
               {showNewVitals && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -337,8 +323,7 @@ export default function NursingNotes({
               )}
             </AnimatePresence>
 
-            {/* Vitals History Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <History className="w-5 h-5 text-pink-600" />
                 <h3 className="font-semibold text-gray-800">Sejarah Tanda Vital</h3>
@@ -391,8 +376,7 @@ export default function NursingNotes({
           </motion.div>
         )}
 
-        {/* Nursing Notes Tab */}
-        {activeTab === 'notes' && (
+                {activeTab === 'notes' && (
           <motion.div
             key="notes"
             initial={{ opacity: 0, y: 20 }}
@@ -400,8 +384,7 @@ export default function NursingNotes({
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4"
           >
-            {/* Add New Note */}
-            <div className="flex justify-end">
+                        <div className="flex justify-end">
               <motion.button
                 onClick={() => setShowNewNote(!showNewNote)}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-lg hover:bg-pink-700"
@@ -412,8 +395,7 @@ export default function NursingNotes({
               </motion.button>
             </div>
 
-            {/* New Note Form */}
-            <AnimatePresence>
+                        <AnimatePresence>
               {showNewNote && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -480,8 +462,7 @@ export default function NursingNotes({
               )}
             </AnimatePresence>
 
-            {/* Notes List */}
-            <div className="space-y-4">
+                        <div className="space-y-4">
               {notes.map((note, idx) => {
                 const color = getTypeColor(note.type)
                 return (
@@ -526,8 +507,7 @@ export default function NursingNotes({
           </motion.div>
         )}
 
-        {/* I/O Chart Tab */}
-        {activeTab === 'io' && (
+                {activeTab === 'io' && (
           <motion.div
             key="io"
             initial={{ opacity: 0, y: 20 }}
@@ -541,8 +521,7 @@ export default function NursingNotes({
             </h3>
             
             <div className="grid grid-cols-2 gap-6">
-              {/* Input */}
-              <div className="p-4 bg-blue-50 rounded-xl">
+                            <div className="p-4 bg-blue-50 rounded-xl">
                 <h4 className="font-semibold text-blue-800 mb-3">INPUT</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between py-2 border-b border-blue-200">
@@ -564,8 +543,7 @@ export default function NursingNotes({
                 </div>
               </div>
 
-              {/* Output */}
-              <div className="p-4 bg-amber-50 rounded-xl">
+                            <div className="p-4 bg-amber-50 rounded-xl">
                 <h4 className="font-semibold text-amber-800 mb-3">OUTPUT</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between py-2 border-b border-amber-200">
@@ -588,8 +566,7 @@ export default function NursingNotes({
               </div>
             </div>
 
-            {/* Balance */}
-            <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
+                        <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-600" />

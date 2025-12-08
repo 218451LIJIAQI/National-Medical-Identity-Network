@@ -11,8 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatIC, getHospitalColor } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-
-// Network visualization during query - Clean Step Progress Design
 function QueryNetworkVisualization({ step }: { step: number }) {
   const steps = [
     { id: 1, label: 'Authenticating', icon: '🔐' },
@@ -24,8 +22,7 @@ function QueryNetworkVisualization({ step }: { step: number }) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
-      {/* Progress Steps */}
-      <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6">
         {steps.map((s, i) => (
           <div key={s.id} className="flex items-center">
             <motion.div
@@ -54,8 +51,7 @@ function QueryNetworkVisualization({ step }: { step: number }) {
               </span>
             </motion.div>
             
-            {/* Connector Line */}
-            {i < steps.length - 1 && (
+                        {i < steps.length - 1 && (
               <div className="flex-1 mx-2 h-0.5 bg-gray-200 relative overflow-hidden">
                 <motion.div
                   className="absolute inset-y-0 left-0 bg-emerald-500"
@@ -69,8 +65,7 @@ function QueryNetworkVisualization({ step }: { step: number }) {
         ))}
       </div>
       
-      {/* Hospital Icons Row */}
-      <div className="flex justify-center gap-3 py-4 border-t border-gray-100">
+            <div className="flex justify-center gap-3 py-4 border-t border-gray-100">
         {[1, 2, 3, 4, 5].map((i) => (
           <motion.div
             key={i}
@@ -103,8 +98,7 @@ function QueryNetworkVisualization({ step }: { step: number }) {
         ))}
       </div>
       
-      {/* Status Message */}
-      <div className="text-center pt-4 border-t border-gray-100">
+            <div className="text-center pt-4 border-t border-gray-100">
         <motion.p 
           className={`text-sm font-medium ${step >= 5 ? 'text-emerald-600' : 'text-blue-600'}`}
           key={step}
@@ -168,16 +162,12 @@ export default function PatientSearch() {
     setShowResults(false)
     setQuerySteps([])
     setHospitalResults([])
-
-    // Simulate query steps animation
     const steps: QueryStep[] = [
       { step: 1, action: 'Initiating query', from: 'Doctor Portal', to: 'Central Hub', status: 'completed', timestamp: new Date().toISOString() },
       { step: 2, action: 'Authenticating request', from: 'Central Hub', to: 'Auth Service', status: 'completed', timestamp: new Date().toISOString() },
       { step: 3, action: 'Looking up patient index', from: 'Central Hub', to: 'Index DB', status: 'completed', timestamp: new Date().toISOString() },
       { step: 4, action: 'Querying hospitals', from: 'Central Hub', to: 'Hospital Network', status: 'in_progress', timestamp: new Date().toISOString() },
     ]
-
-    // Animate steps
     for (let i = 0; i < steps.length; i++) {
       await new Promise(resolve => setTimeout(resolve, 500))
       setQuerySteps(prev => [...prev, steps[i]])
@@ -223,20 +213,17 @@ export default function PatientSearch() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header - Elegant Light Theme */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.bgLight} border ${theme.borderColor}/30 p-8 shadow-xl ${theme.shadowColor}/20`}
       >
-        {/* Decorative Orbs */}
-        <div className={`absolute top-0 right-0 w-72 h-72 bg-gradient-to-br ${theme.bgMedium}/40 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4`} />
+                <div className={`absolute top-0 right-0 w-72 h-72 bg-gradient-to-br ${theme.bgMedium}/40 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4`} />
         <div className={`absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr ${theme.bgLight}/60 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4`} />
         
         <div className="relative z-10">
-          {/* Hospital Badge */}
-          <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <motion.div 
                 className={`w-14 h-14 bg-gradient-to-br ${theme.buttonGradient} rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-lg ${theme.shadowColor}/30`}
@@ -273,8 +260,7 @@ export default function PatientSearch() {
         </div>
       </motion.div>
 
-      {/* Search Form - Refined Design */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -333,8 +319,7 @@ export default function PatientSearch() {
         </Card>
       </motion.div>
 
-      {/* Query Animation with Network Visualization */}
-      <AnimatePresence>
+            <AnimatePresence>
         {querySteps.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -342,15 +327,13 @@ export default function PatientSearch() {
             exit={{ opacity: 0 }}
             className="space-y-4"
           >
-            {/* Network Visualization */}
-            <Card className="overflow-hidden">
+                        <Card className="overflow-hidden">
               <CardContent className="p-0">
                 <QueryNetworkVisualization step={querySteps.length} />
               </CardContent>
             </Card>
 
-            {/* Step Details */}
-            <Card>
+                        <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Clock className="h-4 w-4" />
@@ -388,16 +371,14 @@ export default function PatientSearch() {
         )}
       </AnimatePresence>
 
-      {/* Results */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showResults && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
           >
-            {/* Summary - Refined Success Card */}
-            <Card className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-lg shadow-emerald-100/30 overflow-hidden">
+                        <Card className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-lg shadow-emerald-100/30 overflow-hidden">
               <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-400" />
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -422,8 +403,7 @@ export default function PatientSearch() {
               </CardContent>
             </Card>
 
-            {/* Hospital Results - Refined Grid */}
-            <Card className="border border-gray-100 rounded-2xl shadow-lg shadow-gray-100/40 overflow-hidden">
+                        <Card className="border border-gray-100 rounded-2xl shadow-lg shadow-gray-100/40 overflow-hidden">
               <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
               <CardHeader className={`bg-gradient-to-r ${theme.bgLight}/30 to-white border-b border-gray-100 p-5`}>
                 <CardTitle className="flex items-center gap-3 text-gray-800">
@@ -478,8 +458,7 @@ export default function PatientSearch() {
               </CardContent>
             </Card>
 
-            {/* Action Buttons - Refined */}
-            <div className="flex justify-center gap-4 pt-2">
+                        <div className="flex justify-center gap-4 pt-2">
               <motion.div whileHover={{ scale: 1.02, y: -3 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   onClick={viewPatientTimeline} 

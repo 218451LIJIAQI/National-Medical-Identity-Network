@@ -1,8 +1,3 @@
-// ============================================================================
-// Inventory Management Module - Hospital Admin
-// Pengurusan Inventori Hospital
-// ============================================================================
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -80,8 +75,7 @@ export default function InventoryManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
           <p className="text-gray-500">Pengurusan Inventori Hospital</p>
@@ -98,8 +92,7 @@ export default function InventoryManagement() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -154,8 +147,7 @@ export default function InventoryManagement() {
         </Card>
       </div>
 
-      {/* Low Stock Alerts */}
-      {stats.lowStock > 0 && (
+            {stats.lowStock > 0 && (
         <Card className="border-yellow-300 bg-yellow-50">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -172,8 +164,7 @@ export default function InventoryManagement() {
         </Card>
       )}
 
-      {/* Filters */}
-      <Card>
+            <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -215,8 +206,7 @@ export default function InventoryManagement() {
         </CardContent>
       </Card>
 
-      {/* Inventory Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredInventory.map((item, index) => {
           const status = getStockStatus(item)
           const categoryInfo = categoryConfig[item.category]
@@ -264,8 +254,7 @@ export default function InventoryManagement() {
                       <span className="font-medium">RM {item.pricePerUnit.toFixed(2)}/{item.unit}</span>
                     </div>
                     
-                    {/* Stock Bar */}
-                    <div>
+                                        <div>
                       <div className="flex justify-between text-xs mb-1">
                         <span>Current: {item.currentStock.toLocaleString()} {item.unit}</span>
                         <span className="text-gray-400">Max: {item.maxStock.toLocaleString()}</span>

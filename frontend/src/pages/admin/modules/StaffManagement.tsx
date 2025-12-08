@@ -1,8 +1,3 @@
-// ============================================================================
-// Staff Management Module - Hospital Admin
-// Pengurusan Kakitangan Hospital
-// ============================================================================
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -77,8 +72,7 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
           <p className="text-gray-500">Pengurusan Kakitangan Hospital</p>
@@ -89,8 +83,7 @@ export default function StaffManagement() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -158,8 +151,7 @@ export default function StaffManagement() {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
+            <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -199,8 +191,7 @@ export default function StaffManagement() {
         </CardContent>
       </Card>
 
-      {/* Staff List */}
-      <Card>
+            <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5" />

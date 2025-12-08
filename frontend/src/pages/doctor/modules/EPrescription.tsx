@@ -1,8 +1,3 @@
-// ============================================================================
-// E-Prescription Module - 电子处方系统
-// Malaysian hospital prescription system with local medications
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -29,8 +24,6 @@ interface DrugInteraction {
   drug2: string
   description: string
 }
-
-// Common Malaysian hospital medications
 const medicationDatabase = [
   { name: 'Paracetamol 500mg', genericName: 'Acetaminophen', category: 'Analgesic' },
   { name: 'Amoxicillin 500mg', genericName: 'Amoxicillin', category: 'Antibiotic' },
@@ -103,13 +96,10 @@ export default function EPrescription({
     setMedications([...medications, newMed])
     setShowSearch(false)
     setSearchQuery('')
-    
-    // Check for interactions with existing medications
     checkInteractions(med.name)
   }
 
   const checkInteractions = (newDrug: string) => {
-    // Mock interaction check
     const mockInteractions: DrugInteraction[] = []
     
     if (newDrug.includes('Ibuprofen') && existingMedications.some(m => m.includes('Aspirin'))) {
@@ -151,8 +141,7 @@ export default function EPrescription({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">e-Preskripsi</h2>
           <p className="text-gray-500">Electronic Prescription • Sistem Preskripsi Elektronik</p>
@@ -178,8 +167,7 @@ export default function EPrescription({
         </div>
       </div>
 
-      {/* Patient Info & Allergies Alert */}
-      <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -220,8 +208,7 @@ export default function EPrescription({
         </motion.div>
       </div>
 
-      {/* Drug Interactions Alert */}
-      <AnimatePresence>
+            <AnimatePresence>
         {interactions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -256,8 +243,7 @@ export default function EPrescription({
         )}
       </AnimatePresence>
 
-      {/* Current Medications from Other Hospitals */}
-      {existingMedications.length > 0 && (
+            {existingMedications.length > 0 && (
         <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
           <div className="flex items-center gap-2 mb-3">
             <Package className="w-5 h-5 text-purple-600" />
@@ -273,8 +259,7 @@ export default function EPrescription({
         </div>
       )}
 
-      {/* Add Medication */}
-      <div className="relative">
+            <div className="relative">
         <motion.button
           onClick={() => setShowSearch(!showSearch)}
           className="w-full p-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 font-medium hover:bg-blue-50 hover:border-blue-400 transition-all flex items-center justify-center gap-2"
@@ -326,8 +311,7 @@ export default function EPrescription({
         </AnimatePresence>
       </div>
 
-      {/* Prescription List */}
-      <div className="space-y-4">
+            <div className="space-y-4">
         <AnimatePresence>
           {medications.map((med, index) => (
             <motion.div
@@ -424,8 +408,7 @@ export default function EPrescription({
         )}
       </div>
 
-      {/* Summary */}
-      {medications.length > 0 && (
+            {medications.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

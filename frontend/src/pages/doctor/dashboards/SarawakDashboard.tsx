@@ -1,9 +1,3 @@
-// ============================================================================
-// Sarawak General Hospital Dashboard - Elegant Lavender & Violet Style
-// 极致精美浅色系 - 薰衣草紫罗兰色调，现代科技感
-// Ultra-refined light theme with sophisticated violet tones
-// ============================================================================
-
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -16,8 +10,6 @@ import {
   ChevronRight, Heart, Cpu, Wifi
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// 优雅动画配置
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -106,10 +98,7 @@ export default function SarawakDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* ================================================================== */}
-      {/* SYSTEM STATUS BAR - Elegant Tech Style */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="flex items-center justify-between p-4 bg-gradient-to-r from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl border border-violet-100/60 shadow-sm"
       >
@@ -135,23 +124,16 @@ export default function SarawakDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* MAIN GRID LAYOUT */}
-      {/* ================================================================== */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left Section - Welcome & Actions (2 cols) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Welcome Card */}
-          <motion.div 
+                        <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <motion.div 
             variants={itemVariants}
             className="relative overflow-hidden p-8 bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-3xl border border-violet-100/60 shadow-xl shadow-violet-100/30"
           >
-            {/* Decorative Orbs */}
-            <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-violet-200/40 to-fuchsia-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+                        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-violet-200/40 to-fuchsia-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
             
-            {/* Grid Pattern Overlay - Subtle */}
-            <div className="absolute inset-0 opacity-[0.03]">
+                        <div className="absolute inset-0 opacity-[0.03]">
               <svg className="w-full h-full">
                 <defs>
                   <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -177,8 +159,7 @@ export default function SarawakDashboard() {
                     <p className="text-violet-600/80 text-lg mt-1">{theme.tagline}</p>
                   </div>
                   
-                  {/* Action Buttons */}
-                  <div className="flex gap-3 pt-2">
+                                    <div className="flex gap-3 pt-2">
                     <Link to="/doctor/search">
                       <motion.button
                         className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-xl font-semibold shadow-lg shadow-violet-200/50 hover:shadow-xl transition-all"
@@ -203,8 +184,7 @@ export default function SarawakDashboard() {
                   </div>
                 </div>
 
-                {/* Hospital Info */}
-                <motion.div 
+                                <motion.div 
                   className="hidden lg:block"
                   whileHover={{ scale: 1.02 }}
                 >
@@ -234,8 +214,7 @@ export default function SarawakDashboard() {
             </div>
           </motion.div>
 
-          {/* Stats Row */}
-          <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Hospitals', value: loading ? '—' : stats.activeHospitals, icon: Globe, gradient: 'from-violet-50 to-purple-50', iconBg: 'from-violet-400 to-violet-500' },
               { label: 'Queries', value: loading ? '—' : stats.todayQueries, icon: Activity, gradient: 'from-purple-50 to-fuchsia-50', iconBg: 'from-purple-400 to-purple-500' },
@@ -269,8 +248,7 @@ export default function SarawakDashboard() {
             ))}
           </motion.div>
 
-          {/* Recent Activity */}
-          <motion.div 
+                    <motion.div 
             variants={itemVariants}
             className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
           >
@@ -343,10 +321,8 @@ export default function SarawakDashboard() {
           </motion.div>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="space-y-6">
-          {/* Network Status */}
-          <motion.div 
+                <div className="space-y-6">
+                    <motion.div 
             variants={itemVariants}
             className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100/60 shadow-md"
           >
@@ -376,8 +352,7 @@ export default function SarawakDashboard() {
             </div>
           </motion.div>
 
-          {/* Specialties */}
-          <motion.div 
+                    <motion.div 
             variants={itemVariants}
             className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
           >

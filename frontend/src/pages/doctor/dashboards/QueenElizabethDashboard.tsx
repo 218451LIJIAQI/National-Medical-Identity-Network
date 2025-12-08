@@ -1,9 +1,3 @@
-// ============================================================================
-// Queen Elizabeth Hospital Dashboard - Royal Medical Excellence
-// 皇家医学卓越风格 - 金红配色，居中布局
-// Royal elegance with amber-red theme, centered content
-// ============================================================================
-
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -16,8 +10,6 @@ import {
   Heart, BookOpen, History, Star
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// 皇家优雅动画配置
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -115,24 +107,18 @@ export default function QueenElizabethDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* ================================================================== */}
-      {/* ROYAL WELCOME BANNER */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden bg-gradient-to-br from-white via-amber-50/30 to-rose-50/50 rounded-3xl border border-amber-200/60 shadow-xl"
       >
-        {/* Gold Top Accent */}
-        <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
+                <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
         
-        {/* Background Decorations */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-amber-100/40 to-transparent rounded-full blur-3xl" />
+                <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-amber-100/40 to-transparent rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-rose-100/40 to-transparent rounded-full blur-3xl" />
         
         <div className="relative p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            {/* Left: Welcome Content */}
-            <div className="flex items-start gap-5">
+                        <div className="flex items-start gap-5">
               <motion.div 
                 className="relative"
                 whileHover={{ scale: 1.05, rotate: 3 }}
@@ -162,8 +148,7 @@ export default function QueenElizabethDashboard() {
               </div>
             </div>
             
-            {/* Right: Quick Actions */}
-            <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-wrap gap-3">
               <Link to="/doctor/search">
                 <motion.button
                   className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white rounded-2xl font-semibold shadow-xl shadow-red-200/50 hover:shadow-2xl transition-all"
@@ -189,14 +174,10 @@ export default function QueenElizabethDashboard() {
           </div>
         </div>
         
-        {/* Bottom Gold Accent */}
-        <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent" />
+                <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent" />
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* STATISTICS - Royal Card Style */}
-      {/* ================================================================== */}
-      <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-5">
+                        <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-5">
         {[
           { label: 'Connected Hospitals', value: loading ? '—' : stats.activeHospitals, icon: Building2, desc: 'In network', color: 'amber' },
           { label: 'Queries Today', value: loading ? '—' : stats.todayQueries, icon: Activity, desc: 'Records accessed', color: 'red' },
@@ -210,8 +191,7 @@ export default function QueenElizabethDashboard() {
             transition={{ delay: 0.2 + index * 0.1 }}
             whileHover={{ y: -4 }}
           >
-            {/* Top Gold Accent */}
-            <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
+                        <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
             
             <div className="p-6">
               <div className="flex items-start justify-between">
@@ -246,18 +226,13 @@ export default function QueenElizabethDashboard() {
         ))}
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* ACTIVITY TIMELINE - Royal Style */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative bg-white rounded-2xl border border-amber-100 shadow-xl overflow-hidden"
       >
-        {/* Top Gold Accent */}
-        <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
+                <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
         
-        {/* Header */}
-        <div className="p-6 border-b border-amber-100 bg-gradient-to-r from-amber-50/50 to-white">
+                <div className="p-6 border-b border-amber-100 bg-gradient-to-r from-amber-50/50 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl shadow-lg shadow-red-200/50">
@@ -277,8 +252,7 @@ export default function QueenElizabethDashboard() {
           </div>
         </div>
 
-        {/* Timeline Content */}
-        <div className="p-6">
+                <div className="p-6">
           <AnimatePresence mode="wait">
             {recentActivity.length === 0 ? (
               <motion.div className="text-center py-16" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -309,8 +283,7 @@ export default function QueenElizabethDashboard() {
                     whileHover={{ x: 4 }}
                   >
                     <div className="flex items-center gap-4">
-                      {/* Icon */}
-                      <motion.div 
+                                            <motion.div 
                         className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
                           activity.type === 'view' 
                             ? 'bg-gradient-to-br from-amber-400 to-amber-600' 
@@ -325,8 +298,7 @@ export default function QueenElizabethDashboard() {
                         )}
                       </motion.div>
 
-                      {/* Content */}
-                      <div className="flex-1">
+                                            <div className="flex-1">
                         <p className="font-bold text-gray-900">{activity.patient}</p>
                         <p className="text-sm text-gray-500">{activity.action}</p>
                         <code className="text-xs text-amber-700 bg-amber-100 px-2.5 py-1 rounded-lg mt-2 inline-block border border-amber-200 font-mono">
@@ -334,8 +306,7 @@ export default function QueenElizabethDashboard() {
                         </code>
                       </div>
 
-                      {/* Time */}
-                      <div className="text-right">
+                                            <div className="text-right">
                         <p className="text-sm font-medium text-gray-400">{activity.time}</p>
                         <ChevronRight className="w-6 h-6 text-amber-300 mt-2 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
                       </div>
@@ -348,15 +319,11 @@ export default function QueenElizabethDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* SPECIALTIES - Royal Badge Collection */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative bg-white rounded-2xl border border-amber-100 shadow-lg overflow-hidden"
       >
-        {/* Top Gold Accent */}
-        <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
+                <div className="h-1 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400" />
         
         <div className="p-6">
           <div className="flex items-center gap-4 mb-6">

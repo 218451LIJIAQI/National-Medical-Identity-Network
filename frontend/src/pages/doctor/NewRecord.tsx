@@ -38,7 +38,6 @@ export default function NewRecord() {
     symptoms: '',
     notes: '',
     patientName: '',
-    // Vital Signs
     bloodPressureSystolic: '',
     bloodPressureDiastolic: '',
     heartRate: '',
@@ -46,8 +45,6 @@ export default function NewRecord() {
     weight: '',
     height: '',
   })
-
-  // Load patient info on mount
   useEffect(() => {
     async function loadPatient() {
       if (!icNumber) return
@@ -100,7 +97,6 @@ export default function NewRecord() {
 
     setSaving(true)
     try {
-      // Build vital signs object if any values provided
       const vitalSigns: Record<string, unknown> = {}
       if (formData.bloodPressureSystolic) vitalSigns.bloodPressureSystolic = Number(formData.bloodPressureSystolic)
       if (formData.bloodPressureDiastolic) vitalSigns.bloodPressureDiastolic = Number(formData.bloodPressureDiastolic)
@@ -153,8 +149,7 @@ export default function NewRecord() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Premium Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 p-8 text-white shadow-2xl shadow-emerald-500/25"
@@ -199,8 +194,7 @@ export default function NewRecord() {
         </div>
       </motion.div>
 
-      {/* Patient Info Card */}
-      {loadingPatient ? (
+            {loadingPatient ? (
         <Card className="border-0 shadow-lg">
           <CardContent className="p-6 flex items-center justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400 mr-2" />
@@ -261,8 +255,7 @@ export default function NewRecord() {
         </motion.div>
       )}
 
-      {/* Main Form */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -284,8 +277,7 @@ export default function NewRecord() {
           </CardHeader>
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Visit Info */}
-            <div className="grid md:grid-cols-2 gap-4">
+                        <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="visitDate">Visit Date</Label>
                 <Input 
@@ -311,8 +303,7 @@ export default function NewRecord() {
               </div>
             </div>
 
-            {/* Patient Name (for new patients) */}
-            {!patientExists && (
+                        {!patientExists && (
               <div className="space-y-2">
                 <Label htmlFor="patientName">Patient Full Name *</Label>
                 <Input 
@@ -325,8 +316,7 @@ export default function NewRecord() {
               </div>
             )}
 
-            {/* Vital Signs */}
-            <div className="space-y-3">
+                        <div className="space-y-3">
               <Label className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-gray-500" />
                 Vital Signs
@@ -411,8 +401,7 @@ export default function NewRecord() {
               </div>
             </div>
 
-            {/* Chief Complaint */}
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <Label htmlFor="chiefComplaint">Chief Complaint</Label>
               <textarea 
                 id="chiefComplaint"
@@ -424,8 +413,7 @@ export default function NewRecord() {
               />
             </div>
 
-            {/* Symptoms */}
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <Label htmlFor="symptoms">Symptoms</Label>
               <Input 
                 id="symptoms"
@@ -435,8 +423,7 @@ export default function NewRecord() {
               />
             </div>
 
-            {/* Diagnosis */}
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <Label htmlFor="diagnosis">Diagnosis * (comma-separated for multiple)</Label>
               <Input 
                 id="diagnosis"
@@ -447,8 +434,7 @@ export default function NewRecord() {
               />
             </div>
 
-            {/* Clinical Notes */}
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <Label htmlFor="notes">Clinical Notes</Label>
               <textarea 
                 id="notes"
@@ -460,8 +446,7 @@ export default function NewRecord() {
               />
             </div>
 
-            {/* Submit Buttons - Premium Design */}
-            <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
+                        <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button 
                   type="button" 

@@ -1,8 +1,3 @@
-// ============================================================================
-// Bed Management Module - Hospital Admin
-// Pengurusan Katil Hospital
-// ============================================================================
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -58,8 +53,7 @@ export default function BedManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bed Management</h1>
           <p className="text-gray-500">Pengurusan Katil Hospital</p>
@@ -76,8 +70,7 @@ export default function BedManagement() {
         </div>
       </div>
 
-      {/* Overall Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -145,8 +138,7 @@ export default function BedManagement() {
         </Card>
       </div>
 
-      {/* Occupancy Rate */}
-      <Card>
+            <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -176,8 +168,7 @@ export default function BedManagement() {
         </CardContent>
       </Card>
 
-      {/* Ward Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {mockWards.map((ward, index) => {
           const available = ward.totalBeds - ward.occupied - ward.reserved - ward.maintenance
           const occupancy = Math.round((ward.occupied / ward.totalBeds) * 100)
@@ -204,8 +195,7 @@ export default function BedManagement() {
                   <p className="text-xs text-gray-500">{ward.nameMY}</p>
                 </CardHeader>
                 <CardContent>
-                  {/* Visual Bed Grid */}
-                  <div className="grid grid-cols-10 gap-1 mb-3">
+                                    <div className="grid grid-cols-10 gap-1 mb-3">
                     {Array.from({ length: ward.totalBeds }).map((_, i) => {
                       let status = 'available'
                       if (i < ward.occupied) status = 'occupied'
@@ -226,8 +216,7 @@ export default function BedManagement() {
                     })}
                   </div>
                   
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-red-400 rounded-full" />
                       <span>Diduduki: {ward.occupied}</span>
@@ -246,8 +235,7 @@ export default function BedManagement() {
                     </div>
                   </div>
 
-                  {/* Occupancy Bar */}
-                  <div className="mt-3">
+                                    <div className="mt-3">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-gray-500">Occupancy</span>
                       <span className={
@@ -272,8 +260,7 @@ export default function BedManagement() {
         })}
       </div>
 
-      {/* Legend */}
-      <Card>
+            <Card>
         <CardContent className="p-4">
           <h4 className="font-medium mb-3">Petunjuk / Legend</h4>
           <div className="flex flex-wrap gap-6">

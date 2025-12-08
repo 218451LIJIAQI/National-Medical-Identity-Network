@@ -5,8 +5,6 @@ import { motion } from 'framer-motion'
 
 export default function AuthLayout() {
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
-
-  // Wait for hydration before checking auth
   if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -27,8 +25,6 @@ export default function AuthLayout() {
       </div>
     )
   }
-
-  // Redirect if already authenticated
   if (isAuthenticated && user) {
     const redirectPath = {
       doctor: '/doctor',
@@ -42,10 +38,8 @@ export default function AuthLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex">
-      {/* Left side - Premium Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
-        {/* Animated background elements */}
-        <motion.div 
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
+                <motion.div 
           className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 0] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
@@ -56,8 +50,7 @@ export default function AuthLayout() {
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
         />
         
-        {/* Floating particles */}
-        {[...Array(6)].map((_, i) => (
+                {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute w-2 h-2 bg-white/30 rounded-full"
@@ -147,8 +140,7 @@ export default function AuthLayout() {
         </motion.div>
       </div>
 
-      {/* Right side - Auth form */}
-      <div className="flex-1 flex items-center justify-center p-8 relative">
+            <div className="flex-1 flex items-center justify-center p-8 relative">
         <motion.div 
           className="absolute top-10 right-10 w-32 h-32 bg-blue-100/50 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1] }}

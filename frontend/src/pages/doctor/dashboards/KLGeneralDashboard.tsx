@@ -1,9 +1,3 @@
-// ============================================================================
-// KL General Hospital Dashboard - Elegant Sky Blue & Corporate Style
-// 极致精美浅色系 - 天蓝钴蓝色调，专业企业风格
-// Ultra-refined light theme with corporate elegance
-// ============================================================================
-
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -17,7 +11,6 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// 专业动画配置
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -111,20 +104,15 @@ export default function KLGeneralDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* ================================================================== */}
-      {/* WELCOME HEADER - Corporate Sky Blue */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 border border-blue-100/60 shadow-xl shadow-blue-100/30"
       >
-        {/* Decorative Orbs */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-blue-200/40 to-sky-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+                <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-blue-200/40 to-sky-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
         <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-gradient-to-tr from-cyan-200/30 to-transparent rounded-full blur-2xl translate-y-1/3" />
         
         <div className="relative z-10 p-8">
-          {/* Top Bar - Date & Status */}
-          <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-xl border border-blue-100 shadow-sm">
                 <Calendar className="w-4 h-4 text-blue-600" />
@@ -143,8 +131,7 @@ export default function KLGeneralDashboard() {
             </div>
           </div>
 
-          {/* Welcome Content */}
-          <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <motion.div 
@@ -164,8 +151,7 @@ export default function KLGeneralDashboard() {
                 {theme.tagline}
               </p>
               
-              {/* Quick Actions */}
-              <div className="flex gap-3 pt-2">
+                            <div className="flex gap-3 pt-2">
                 <Link to="/doctor/search">
                   <motion.button
                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-sky-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-200/50 hover:shadow-xl transition-all"
@@ -200,8 +186,7 @@ export default function KLGeneralDashboard() {
               </div>
             </div>
 
-            {/* Hospital Info Card */}
-            <motion.div 
+                        <motion.div 
               className="hidden lg:block"
               whileHover={{ scale: 1.02 }}
             >
@@ -234,10 +219,7 @@ export default function KLGeneralDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* STATS GRID - Clean Corporate Cards */}
-      {/* ================================================================== */}
-      <motion.div variants={itemVariants} className="grid md:grid-cols-4 gap-4">
+                        <motion.div variants={itemVariants} className="grid md:grid-cols-4 gap-4">
         {[
           { 
             label: 'Hospitals', 
@@ -303,12 +285,8 @@ export default function KLGeneralDashboard() {
         ))}
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT GRID */}
-      {/* ================================================================== */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Recent Activity - 2 columns */}
-        <motion.div 
+                        <div className="grid lg:grid-cols-3 gap-6">
+                <motion.div 
           variants={itemVariants}
           className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >
@@ -382,8 +360,7 @@ export default function KLGeneralDashboard() {
           </div>
         </motion.div>
 
-        {/* Sidebar - Specialties */}
-        <motion.div 
+                <motion.div 
           variants={itemVariants}
           className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >

@@ -1,8 +1,3 @@
-// ============================================================================
-// Financial Reports Module - Hospital Admin
-// Laporan Kewangan Hospital
-// ============================================================================
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -64,8 +59,7 @@ export default function FinancialReports() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Financial Reports</h1>
           <p className="text-gray-500">Laporan Kewangan Hospital</p>
@@ -89,8 +83,7 @@ export default function FinancialReports() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -168,10 +161,8 @@ export default function FinancialReports() {
         </Card>
       </div>
 
-      {/* Revenue & Expense Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Breakdown */}
-        <Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-700">
               <TrendingUp className="w-5 h-5" />
@@ -219,8 +210,7 @@ export default function FinancialReports() {
           </CardContent>
         </Card>
 
-        {/* Expense Breakdown */}
-        <Card>
+                <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-700">
               <TrendingDown className="w-5 h-5" />
@@ -260,8 +250,7 @@ export default function FinancialReports() {
         </Card>
       </div>
 
-      {/* Government Subsidy Programs */}
-      <Card>
+            <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-purple-600" />
@@ -301,8 +290,7 @@ export default function FinancialReports() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <div className="flex gap-4">
+            <div className="flex gap-4">
         <Button variant="outline" className="gap-2">
           <FileText className="w-4 h-4" />
           Generate Full Report

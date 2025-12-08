@@ -97,8 +97,6 @@ export default function PatientDashboard() {
     }
     loadPatientData()
   }, [user?.icNumber])
-
-  // Load access logs
   useEffect(() => {
     async function loadAccessLogs() {
       try {
@@ -132,13 +130,11 @@ export default function PatientDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* Profile Header - Premium Design */}
-      <motion.div 
+            <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-8 text-white shadow-2xl shadow-emerald-500/25"
       >
-        {/* Animated background elements */}
-        <motion.div 
+                <motion.div 
           className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
@@ -158,8 +154,7 @@ export default function PatientDashboard() {
         />
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-          {/* Avatar with glow effect */}
-          <motion.div 
+                    <motion.div 
             className="relative"
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 300 }}
@@ -230,8 +225,7 @@ export default function PatientDashboard() {
         </div>
       </motion.div>
 
-      {/* Allergies Alert - Premium Design */}
-      {patientData.allergies.length > 0 && (
+            {patientData.allergies.length > 0 && (
         <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-lg bg-gradient-to-r from-red-50 to-orange-50 overflow-hidden">
             <CardContent className="p-0">
@@ -265,8 +259,7 @@ export default function PatientDashboard() {
         </motion.div>
       )}
 
-      {/* Stats Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { 
             label: 'Hospitals Visited', 
@@ -319,8 +312,7 @@ export default function PatientDashboard() {
         ))}
       </motion.div>
 
-      {/* Quick Actions - Premium Cards */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid md:grid-cols-2 gap-4">
           <Link to="/patient/records">
@@ -371,8 +363,7 @@ export default function PatientDashboard() {
         </div>
       </motion.div>
 
-      {/* Recent Activity */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-lg">
           <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
             <h2 className="text-lg font-semibold text-gray-900">Recent Access to Your Records</h2>
@@ -393,7 +384,6 @@ export default function PatientDashboard() {
                 </div>
               ) : (
                 accessLogs.map((log, i) => {
-                  // Format the timestamp to relative time
                   const logDate = new Date(log.timestamp)
                   const now = new Date()
                   const diffMs = now.getTime() - logDate.getTime()
@@ -409,17 +399,12 @@ export default function PatientDashboard() {
                   } else {
                     timeAgo = diffDays === 1 ? '1 day ago' : `${diffDays} days ago`
                   }
-
-                  // Determine avatar based on actor type
                   const avatar = log.actorType === 'doctor' ? '👨‍⚕️' : 
                                  log.actorType === 'hospital_admin' ? '🏥' :
                                  log.actorType === 'patient' ? '👤' : '🏥'
-                  
-                  // Check if actorName looks like a UUID and replace with friendly name
                   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
                   let displayName = log.actorName || log.actorId
                   if (uuidPattern.test(displayName)) {
-                    // It's a UUID, show a friendly fallback based on actorType
                     if (log.actorType === 'doctor') {
                       displayName = 'Healthcare Provider'
                     } else if (log.actorType === 'hospital_admin') {

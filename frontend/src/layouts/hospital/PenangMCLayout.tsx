@@ -1,9 +1,3 @@
-// ============================================================================
-// Penang Medical Centre Layout - Warm & Organic Style
-// Minimal icon-only sidebar with smooth animations
-// Friendly, approachable, patient-centered design
-// ============================================================================
-
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
@@ -32,21 +26,40 @@ export default function PenangMCLayout() {
     logout()
     navigate('/login')
   }
+  const doctorNavSections = [
+    {
+      title: 'Main',
+      icon: Leaf,
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/doctor' },
+        { icon: Search, label: 'Search', path: '/doctor/search' },
+        { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
+      ]
+    },
+    {
+      title: 'Clinical',
+      icon: Heart,
+      items: [
+        { icon: Users, label: 'Queue', path: '/doctor/queue' },
+        { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
+        { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
+        { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
+        { icon: FileText, label: 'MC', path: '/doctor/mc' },
+      ]
+    },
+    {
+      title: 'Management',
+      icon: Calendar,
+      items: [
+        { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
+        { icon: Calendar, label: 'Appointments', path: '/doctor/appointments' },
+        { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
+        { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
+      ]
+    }
+  ]
 
-  const navItems = user?.role === 'doctor' ? [
-    { icon: Home, label: 'Dashboard', path: '/doctor' },
-    { icon: Search, label: 'Search', path: '/doctor/search' },
-    { icon: FileText, label: 'New Record', path: '/doctor/new-record' },
-    { icon: Users, label: 'Queue', path: '/doctor/queue' },
-    { icon: Pill, label: 'Prescription', path: '/doctor/prescription' },
-    { icon: FlaskConical, label: 'Lab', path: '/doctor/lab' },
-    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology' },
-    { icon: FileText, label: 'MC', path: '/doctor/mc' },
-    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral' },
-    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments' },
-    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing' },
-    { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
-  ] : [
+  const adminNavItems = [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
     { icon: Activity, label: 'Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', path: '/admin/staff' },
@@ -58,8 +71,7 @@ export default function PenangMCLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-      {/* Background Decorative Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute top-20 right-20 w-96 h-96 bg-emerald-200/30 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
@@ -77,10 +89,7 @@ export default function PenangMCLayout() {
         />
       </div>
 
-      {/* ================================================================== */}
-      {/* LEFT ICON SIDEBAR - Minimal & Elegant */}
-      {/* ================================================================== */}
-      <motion.aside
+                        <motion.aside
         className={cn(
           "fixed top-0 left-0 z-50 h-screen bg-gradient-to-b from-emerald-600 via-teal-600 to-emerald-700 shadow-2xl shadow-emerald-500/30 transition-all duration-500",
           sidebarExpanded ? "w-56" : "w-20",
@@ -89,8 +98,7 @@ export default function PenangMCLayout() {
         onMouseEnter={() => setSidebarExpanded(true)}
         onMouseLeave={() => setSidebarExpanded(false)}
       >
-        {/* Logo */}
-        <div className="p-4 flex items-center justify-center">
+                <div className="p-4 flex items-center justify-center">
           <motion.div 
             className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 shadow-lg"
             whileHover={{ rotate: 10, scale: 1.1 }}
@@ -110,56 +118,118 @@ export default function PenangMCLayout() {
           )}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 py-6 flex flex-col items-center gap-3 overflow-y-auto scrollbar-hide">
-          {navItems.map((item, index) => {
-            const Icon = item.icon
-            const isActive = location.pathname === item.path
-            return (
-              <motion.div
-                key={item.path}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 * index }}
-                className="w-full px-3"
-              >
-                <Link
-                  to={item.path}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group",
-                    isActive
-                      ? "bg-white/25 text-white shadow-lg backdrop-blur-sm"
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
-                  )}
-                >
+                <nav className="flex-1 py-4 flex flex-col gap-2 overflow-y-auto scrollbar-hide">
+          {user?.role === 'doctor' ? (
+            doctorNavSections.map((section, sectionIndex) => (
+              <div key={section.title} className="px-3">
+                {sidebarExpanded && (
+                  <div className="px-3 mb-3 mt-4 first:mt-0">
+                    <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
+                      <section.icon className="w-4 h-4 text-white/80" />
+                      <p className="text-xs font-bold text-white/90 uppercase tracking-wider">
+                        {section.title}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  {section.items.map((item, index) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <motion.div
+                        key={item.path}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.05 * (sectionIndex * 3 + index) }}
+                      >
+                        <Link
+                          to={item.path}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group",
+                            isActive
+                              ? "bg-white/25 text-white shadow-lg backdrop-blur-sm"
+                              : "text-white/70 hover:bg-white/10 hover:text-white"
+                          )}
+                          title={!sidebarExpanded ? item.label : undefined}
+                        >
+                          <motion.div
+                            whileHover={{ scale: 1.2, rotate: 5 }}
+                            className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
+                              isActive ? "bg-white/20" : "group-hover:bg-white/10"
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                          </motion.div>
+                          {sidebarExpanded && (
+                            <motion.span
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="font-medium whitespace-nowrap"
+                            >
+                              {item.label}
+                            </motion.span>
+                          )}
+                          {isActive && sidebarExpanded && (
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse ml-auto" />
+                          )}
+                        </Link>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="px-3">
+              {adminNavItems.map((item, index) => {
+                const Icon = item.icon
+                const isActive = location.pathname === item.path
+                return (
                   <motion.div
-                    whileHover={{ scale: 1.2, rotate: 5 }}
-                    className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
-                      isActive ? "bg-white/20" : "group-hover:bg-white/10"
-                    )}
+                    key={item.path}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 * index }}
                   >
-                    <Icon className="w-5 h-5" />
-                  </motion.div>
-                  {sidebarExpanded && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="font-medium whitespace-nowrap"
+                    <Link
+                      to={item.path}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group",
+                        isActive
+                          ? "bg-white/25 text-white shadow-lg backdrop-blur-sm"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                      )}
                     >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </Link>
-              </motion.div>
-            )
-          })}
+                      <motion.div
+                        whileHover={{ scale: 1.2, rotate: 5 }}
+                        className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0",
+                          isActive ? "bg-white/20" : "group-hover:bg-white/10"
+                        )}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </motion.div>
+                      {sidebarExpanded && (
+                        <motion.span
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="font-medium whitespace-nowrap"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </Link>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
         </nav>
 
-        {/* Bottom Section */}
-        <div className="p-4 space-y-3">
-          {/* User Profile */}
-          <motion.div 
+                <div className="p-4 space-y-3">
+                    <motion.div 
             className={cn(
               "p-3 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20",
               sidebarExpanded ? "flex items-center gap-3" : "flex justify-center"
@@ -179,8 +249,7 @@ export default function PenangMCLayout() {
             )}
           </motion.div>
 
-          {/* Logout */}
-          <motion.button
+                    <motion.button
             onClick={handleLogout}
             className={cn(
               "w-full p-3 text-white/70 hover:bg-red-500/20 hover:text-red-200 rounded-2xl transition-all",
@@ -195,10 +264,7 @@ export default function PenangMCLayout() {
         </div>
       </motion.aside>
 
-      {/* ================================================================== */}
-      {/* MOBILE HEADER */}
-      {/* ================================================================== */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
+                        <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
         <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -218,33 +284,65 @@ export default function PenangMCLayout() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
+                {mobileMenuOpen && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white/95 backdrop-blur-xl border-b border-emerald-100 p-4 shadow-xl"
           >
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-xl mb-2",
-                    isActive 
-                      ? "bg-emerald-100 text-emerald-700" 
-                      : "text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              )
-            })}
+            {user?.role === 'doctor' ? (
+              doctorNavSections.map((section) => (
+                <div key={section.title} className="mb-4">
+                  <div className="flex items-center gap-2 bg-emerald-100 rounded-lg px-3 py-2 mb-2">
+                    <section.icon className="w-4 h-4 text-emerald-600" />
+                    <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                      {section.title}
+                    </p>
+                  </div>
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    const isActive = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl mb-1",
+                          isActive 
+                            ? "bg-emerald-100 text-emerald-700" 
+                            : "text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="w-5 h-5" />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ))
+            ) : (
+              adminNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = location.pathname === item.path
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl mb-2",
+                      isActive 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                )
+              })
+            )}
             <Button
               onClick={handleLogout}
               variant="ghost"
@@ -257,13 +355,9 @@ export default function PenangMCLayout() {
         )}
       </div>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT */}
-      {/* ================================================================== */}
-      <main className="lg:pl-20 pt-16 lg:pt-0 min-h-screen relative z-10">
+                        <main className="lg:pl-20 pt-16 lg:pt-0 min-h-screen relative z-10">
         <div className="p-6 lg:p-10">
-          {/* Integrated Header */}
-          <motion.div 
+                    <motion.div 
             className="mb-8 flex items-center justify-between"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}

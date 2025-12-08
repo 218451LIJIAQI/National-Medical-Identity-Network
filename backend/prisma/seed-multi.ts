@@ -1,16 +1,9 @@
-// ============================================================================
-// Multi-Database Seed Script - 完全闭环版本
-// 确保所有用户数据完整且可搜索
-// ============================================================================
 
 import { PrismaClient as CentralPrismaClient } from '../node_modules/.prisma/client/central';
 import { PrismaClient as HospitalPrismaClient } from '../node_modules/.prisma/client/hospital';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 
-// ============================================================================
-// 数据库连接
-// ============================================================================
 function getCentralClient(): CentralPrismaClient {
   return new CentralPrismaClient({
     datasources: { db: { url: process.env.DATABASE_URL_CENTRAL } },
@@ -34,18 +27,12 @@ function getHospitalClient(hospitalId: string): HospitalPrismaClient {
   });
 }
 
-// ============================================================================
-// 密码哈希
-// ============================================================================
 const JWT_SECRET = process.env.JWT_SECRET || 'medlink-multi-db-secret-key-2024';
 
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex');
 }
 
-// ============================================================================
-// 医院数据
-// ============================================================================
 const HOSPITALS = [
   { id: 'hospital-kl', name: 'Kuala Lumpur General Hospital', shortName: 'KL General', city: 'Kuala Lumpur', state: 'Federal Territory', address: 'Jalan Pahang, 50586 Kuala Lumpur', phone: '+60 3-2615 5555', email: 'admin@klgeneral.gov.my', apiEndpoint: 'http://localhost:3001' },
   { id: 'hospital-penang', name: 'Penang Medical Centre', shortName: 'Penang MC', city: 'George Town', state: 'Penang', address: 'Jalan Residensi, 10990 George Town', phone: '+60 4-222 5333', email: 'admin@penangmc.gov.my', apiEndpoint: 'http://localhost:3002' },
@@ -54,9 +41,6 @@ const HOSPITALS = [
   { id: 'hospital-kk', name: 'Queen Elizabeth Hospital', shortName: 'Queen Elizabeth', city: 'Kota Kinabalu', state: 'Sabah', address: 'Jalan Penampang, 88200 Kota Kinabalu', phone: '+60 88-517 555', email: 'admin@qehkk.gov.my', apiEndpoint: 'http://localhost:3005' },
 ];
 
-// ============================================================================
-// 所有患者数据 - 每个人都有完整的跨医院记录
-// ============================================================================
 const ALL_PATIENTS = [
   // 普通患者
   { icNumber: '880101-14-5678', fullName: 'Ahmad bin Abdullah', dob: '1988-01-01', gender: 'male', bloodType: 'O+', phone: '+60 12-345 6789', email: 'ahmad@email.com', address: '123 Jalan Bukit Bintang, KL', emergencyContact: 'Fatimah binti Hassan', emergencyPhone: '+60 12-111 2222', allergies: ['Penicillin', 'Shellfish'], conditions: ['Hypertension', 'Type 2 Diabetes'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-jb', 'hospital-kuching', 'hospital-kk'] },
@@ -79,9 +63,6 @@ const ALL_PATIENTS = [
   { icNumber: '860420-12-5002', fullName: 'Dr. Johnny Lai', dob: '1986-04-20', gender: 'male', bloodType: 'O-', phone: '+60 88-555 6666', email: 'dr.johnny@qehkk.gov.my', address: '15 Jalan Lintas, KK', emergencyContact: 'Mrs. Lai', emergencyPhone: '+60 88-777 8888', allergies: [], conditions: [], hospitals: ['hospital-jb', 'hospital-kuching'] },
 ];
 
-// ============================================================================
-// 医生数据
-// ============================================================================
 const DOCTORS: Record<string, { id: string; icNumber: string; fullName: string; specialization: string; department: string }[]> = {
   'hospital-kl': [
     { id: uuidv4(), icNumber: '750101-14-5001', fullName: 'Dr. Lim Wei Ming', specialization: 'Internal Medicine', department: 'General Medicine' },
@@ -105,9 +86,6 @@ const DOCTORS: Record<string, { id: string; icNumber: string; fullName: string; 
   ],
 };
 
-// ============================================================================
-// 主种子函数
-// ============================================================================
 async function main() {
   console.log('🌱 Starting complete multi-database seeding...\n');
 

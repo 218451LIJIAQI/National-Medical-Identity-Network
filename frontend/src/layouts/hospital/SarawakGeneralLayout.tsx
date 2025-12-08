@@ -1,9 +1,3 @@
-// ============================================================================
-// Sarawak General Hospital Layout - Elegant Lavender Style
-// Wide sidebar with modern tech aesthetics - LIGHT THEME
-// Premium, refined, professional medical interface
-// ============================================================================
-
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
@@ -37,21 +31,37 @@ export default function SarawakGeneralLayout() {
     logout()
     navigate('/login')
   }
+  const doctorNavSections = [
+    {
+      title: 'Main',
+      items: [
+        { icon: Home, label: 'Dashboard', path: '/doctor', desc: 'Overview' },
+        { icon: Search, label: 'Patient Search', path: '/doctor/search', desc: 'Find Records' },
+        { icon: FileText, label: 'New Record', path: '/doctor/new-record', desc: 'Create Entry' },
+      ]
+    },
+    {
+      title: 'Clinical',
+      items: [
+        { icon: Users, label: 'Queue', path: '/doctor/queue', desc: 'Giliran' },
+        { icon: Pill, label: 'Prescription', path: '/doctor/prescription', desc: 'e-Preskripsi' },
+        { icon: FlaskConical, label: 'Lab Orders', path: '/doctor/lab', desc: 'Ujian Makmal' },
+        { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology', desc: 'Radiologi' },
+        { icon: FileText, label: 'Medical Cert', path: '/doctor/mc', desc: 'Sijil MC' },
+      ]
+    },
+    {
+      title: 'Management',
+      items: [
+        { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral', desc: 'Rujukan' },
+        { icon: Calendar, label: 'Appointments', path: '/doctor/appointments', desc: 'Temujanji' },
+        { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing', desc: 'Kejururawatan' },
+        { icon: Receipt, label: 'Billing', path: '/doctor/billing', desc: 'Bil & Subsidi' },
+      ]
+    }
+  ]
 
-  const navItems = user?.role === 'doctor' ? [
-    { icon: Home, label: 'Dashboard', path: '/doctor', desc: 'Overview' },
-    { icon: Search, label: 'Patient Search', path: '/doctor/search', desc: 'Find Records' },
-    { icon: FileText, label: 'New Record', path: '/doctor/new-record', desc: 'Create Entry' },
-    { icon: Users, label: 'Queue', path: '/doctor/queue', desc: 'Giliran' },
-    { icon: Pill, label: 'Prescription', path: '/doctor/prescription', desc: 'e-Preskripsi' },
-    { icon: FlaskConical, label: 'Lab Orders', path: '/doctor/lab', desc: 'Ujian Makmal' },
-    { icon: ScanLine, label: 'Radiology', path: '/doctor/radiology', desc: 'Radiologi' },
-    { icon: FileText, label: 'Medical Cert', path: '/doctor/mc', desc: 'Sijil MC' },
-    { icon: ArrowRightLeft, label: 'Referral', path: '/doctor/referral', desc: 'Rujukan' },
-    { icon: Calendar, label: 'Appointments', path: '/doctor/appointments', desc: 'Temujanji' },
-    { icon: Stethoscope, label: 'Nursing', path: '/doctor/nursing', desc: 'Kejururawatan' },
-    { icon: Receipt, label: 'Billing', path: '/doctor/billing', desc: 'Bil & Subsidi' },
-  ] : [
+  const adminNavItems = [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital', desc: 'Overview' },
     { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity' },
     { icon: Users, label: 'Staff', path: '/admin/staff', desc: 'Kakitangan' },
@@ -65,10 +75,8 @@ export default function SarawakGeneralLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50">
-      {/* Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {/* Subtle Decorative Orbs */}
-        <motion.div
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <motion.div
           className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-200/30 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
           transition={{ duration: 8, repeat: Infinity }}
@@ -80,10 +88,7 @@ export default function SarawakGeneralLayout() {
         />
       </div>
 
-      {/* ================================================================== */}
-      {/* LEFT SIDEBAR - Elegant Lavender */}
-      {/* ================================================================== */}
-      <motion.aside
+                        <motion.aside
         className={cn(
           "fixed top-0 left-0 z-50 h-screen transition-all duration-500",
           "bg-white/80 backdrop-blur-xl border-r border-violet-100 shadow-xl shadow-violet-100/30",
@@ -93,8 +98,7 @@ export default function SarawakGeneralLayout() {
         animate={{ x: 0 }}
       >
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Header - Elegant Logo */}
-          <div className="p-6 border-b border-violet-100">
+                    <div className="p-6 border-b border-violet-100">
             <div className="flex items-center gap-4">
               <motion.div 
                 className="relative"
@@ -118,8 +122,7 @@ export default function SarawakGeneralLayout() {
             </div>
           </div>
 
-          {/* System Status */}
-          {sidebarOpen && (
+                    {sidebarOpen && (
             <motion.div 
               className="px-6 py-4 border-b border-violet-100"
               initial={{ opacity: 0 }}
@@ -151,58 +154,121 @@ export default function SarawakGeneralLayout() {
             </motion.div>
           )}
 
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {sidebarOpen && (
-              <p className="text-xs text-violet-500 uppercase tracking-widest font-medium px-3 mb-4">Navigation</p>
-            )}
-            {navItems.map((item, index) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-              return (
-                <motion.div
-                  key={item.path}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 * index }}
-                >
-                  <Link
-                    to={item.path}
-                    className={cn(
-                      "flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group",
-                      isActive
-                        ? "bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-3 border-violet-500 shadow-md shadow-violet-100/50"
-                        : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
-                    )}
-                  >
-                    <motion.div
-                      className={cn(
-                        "p-2.5 rounded-lg transition-all",
-                        isActive 
-                          ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
-                          : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
-                      )}
-                      whileHover={{ scale: 1.1 }}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </motion.div>
-                    {sidebarOpen && (
-                      <div className="flex-1">
-                        <span className="font-medium block">{item.label}</span>
-                        <span className="text-xs text-gray-400">{item.desc}</span>
+                    <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {user?.role === 'doctor' ? (
+              doctorNavSections.map((section, sectionIndex) => (
+                <div key={section.title} className="mb-4">
+                  {sidebarOpen && (
+                    <div className="px-3 mb-3 mt-4 first:mt-0">
+                      <div className="flex items-center gap-2 bg-violet-100 rounded-lg px-3 py-2">
+                        <div className="w-2 h-2 rounded-full bg-violet-500" />
+                        <p className="text-xs font-bold text-violet-700 uppercase tracking-wider">
+                          {section.title}
+                        </p>
                       </div>
-                    )}
-                    {isActive && sidebarOpen && (
-                      <div className="w-2 h-2 bg-violet-500 rounded-full" />
-                    )}
-                  </Link>
-                </motion.div>
-              )
-            })}
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {section.items.map((item, index) => {
+                      const Icon = item.icon
+                      const isActive = location.pathname === item.path
+                      return (
+                        <motion.div
+                          key={item.path}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.05 * (sectionIndex * 3 + index) }}
+                        >
+                          <Link
+                            to={item.path}
+                            className={cn(
+                              "flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 group",
+                              isActive
+                                ? "bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-3 border-violet-500 shadow-md shadow-violet-100/50"
+                                : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
+                            )}
+                            title={!sidebarOpen ? item.label : undefined}
+                          >
+                            <motion.div
+                              className={cn(
+                                "p-2.5 rounded-lg transition-all",
+                                isActive 
+                                  ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
+                                  : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
+                              )}
+                              whileHover={{ scale: 1.1 }}
+                            >
+                              <Icon className="w-5 h-5" />
+                            </motion.div>
+                            {sidebarOpen && (
+                              <div className="flex-1">
+                                <span className="font-medium block">{item.label}</span>
+                                <span className="text-xs text-gray-400">{item.desc}</span>
+                              </div>
+                            )}
+                            {isActive && sidebarOpen && (
+                              <div className="w-2 h-2 bg-violet-500 rounded-full" />
+                            )}
+                          </Link>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <>
+                {sidebarOpen && (
+                  <p className="text-xs text-violet-500 uppercase tracking-widest font-medium px-3 mb-4">Navigation</p>
+                )}
+                {adminNavItems.map((item, index) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname === item.path
+                  return (
+                    <motion.div
+                      key={item.path}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 * index }}
+                    >
+                      <Link
+                        to={item.path}
+                        className={cn(
+                          "flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group",
+                          isActive
+                            ? "bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-3 border-violet-500 shadow-md shadow-violet-100/50"
+                            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700"
+                        )}
+                      >
+                        <motion.div
+                          className={cn(
+                            "p-2.5 rounded-lg transition-all",
+                            isActive 
+                              ? "bg-violet-500 text-white shadow-md shadow-violet-200" 
+                              : "bg-violet-100 text-violet-600 group-hover:bg-violet-200"
+                          )}
+                          whileHover={{ scale: 1.1 }}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </motion.div>
+                        {sidebarOpen && (
+                          <div className="flex-1">
+                            <span className="font-medium block">{item.label}</span>
+                            <span className="text-xs text-gray-400">{item.desc}</span>
+                          </div>
+                        )}
+                        {isActive && sidebarOpen && (
+                          <div className="w-2 h-2 bg-violet-500 rounded-full" />
+                        )}
+                      </Link>
+                    </motion.div>
+                  )
+                })}
+              </>
+            )}
           </nav>
 
-          {/* User Profile */}
-          {sidebarOpen && (
+                    {sidebarOpen && (
             <div className="p-4 border-t border-violet-100">
               <motion.div 
                 className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100"
@@ -244,8 +310,7 @@ export default function SarawakGeneralLayout() {
         </div>
       </motion.aside>
 
-      {/* Mobile Toggle */}
-      <button
+            <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="fixed top-4 left-4 z-50 p-3 bg-violet-500 rounded-xl text-white lg:hidden shadow-lg shadow-violet-200/50"
         aria-label="Toggle sidebar navigation"
@@ -253,10 +318,7 @@ export default function SarawakGeneralLayout() {
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT */}
-      {/* ================================================================== */}
-      <main 
+                        <main 
         className={cn(
           "min-h-screen transition-all duration-500 relative z-10",
           sidebarOpen ? "lg:pl-72" : "lg:pl-20"
@@ -267,8 +329,7 @@ export default function SarawakGeneralLayout() {
         </div>
       </main>
 
-      {/* Mobile Overlay */}
-      <AnimatePresence>
+            <AnimatePresence>
         {sidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }}

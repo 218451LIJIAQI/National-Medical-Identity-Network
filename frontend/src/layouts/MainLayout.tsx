@@ -28,8 +28,6 @@ export default function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  
-  // Get hospital theme for doctors and hospital admins
   const theme = getHospitalTheme(user?.hospitalId)
   const isHospitalUser = user?.role === 'doctor' || user?.role === 'hospital_admin'
 
@@ -37,8 +35,6 @@ export default function MainLayout() {
     logout()
     navigate('/login')
   }
-
-  // Define navigation items based on user role
   const getNavItems = () => {
     switch (user?.role) {
       case 'doctor':
@@ -73,11 +69,9 @@ export default function MainLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50/30">
-      {/* Premium Background Pattern */}
-      <div className="fixed inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+            <div className="fixed inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
       
-      {/* Mobile sidebar toggle */}
-      <motion.button
+            <motion.button
         className="fixed top-4 left-4 z-50 lg:hidden p-2.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg shadow-gray-200/50 border border-gray-100"
         onClick={() => setSidebarOpen(!sidebarOpen)}
         whileHover={{ scale: 1.05 }}
@@ -86,22 +80,19 @@ export default function MainLayout() {
         {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
       </motion.button>
 
-      {/* Sidebar - Ultra Premium Design */}
-      <aside
+            <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-72 bg-white/95 backdrop-blur-2xl border-r border-gray-100/80 transform transition-all duration-500 ease-out lg:translate-x-0 shadow-2xl shadow-gray-300/30",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Logo / Hospital Brand - Enhanced */}
-          <motion.div 
+                    <motion.div 
             className={`p-5 border-b ${isHospitalUser ? `bg-gradient-to-br ${theme.headerGradient}` : 'border-gray-100'}`}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             {isHospitalUser ? (
-              // Hospital Branded Header
               <div className="text-white">
                 <div className="flex items-center gap-3 mb-3">
                   <motion.div 
@@ -130,7 +121,6 @@ export default function MainLayout() {
                 </div>
               </div>
             ) : (
-              // Default MedLink Header
               <div className="flex items-center gap-3">
                 <motion.div 
                   className="w-11 h-11 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30"
@@ -146,8 +136,7 @@ export default function MainLayout() {
             )}
           </motion.div>
 
-          {/* User info - Enhanced & Themed */}
-          <motion.div 
+                    <motion.div 
             className={`p-4 border-b border-gray-100 ${isHospitalUser ? theme.bgLight : 'bg-gradient-to-r from-gray-50 to-white'}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -171,8 +160,7 @@ export default function MainLayout() {
             </div>
           </motion.div>
 
-          {/* Navigation - Enhanced */}
-          <nav className="flex-1 p-4 space-y-1.5">
+                    <nav className="flex-1 p-4 space-y-1.5">
             {navItems.map((item, index) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -203,8 +191,7 @@ export default function MainLayout() {
             })}
           </nav>
 
-          {/* Logout - Enhanced */}
-          <div className="p-4 border-t border-gray-100">
+                    <div className="p-4 border-t border-gray-100">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
                 variant="ghost"
@@ -219,8 +206,7 @@ export default function MainLayout() {
         </div>
       </aside>
 
-      {/* Overlay */}
-      {sidebarOpen && (
+            {sidebarOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -230,8 +216,7 @@ export default function MainLayout() {
         />
       )}
 
-      {/* Main content - Enhanced */}
-      <main className="lg:pl-72 relative z-10">
+            <main className="lg:pl-72 relative z-10">
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 10 }}

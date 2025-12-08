@@ -35,7 +35,6 @@ export default function NewRecordSearch() {
     setIsChecking(true)
     
     try {
-      // Check if patient exists (optional - just for showing feedback)
       const response = await centralApi.queryPatient(cleanIC)
       
       if (response.success && response.data?.hospitals && response.data.hospitals.length > 0) {
@@ -49,11 +48,8 @@ export default function NewRecordSearch() {
           description: 'Patient will be registered when you save the record.',
         })
       }
-      
-      // Navigate to new record page
       navigate(`/doctor/patient/${encodeURIComponent(cleanIC)}/new-record`)
     } catch {
-      // Even if check fails, still navigate - backend will handle patient creation
       navigate(`/doctor/patient/${encodeURIComponent(cleanIC)}/new-record`)
     }
   }
@@ -66,8 +62,7 @@ export default function NewRecordSearch() {
       transition={{ duration: 0.5 }}
     >
       <div className="w-full max-w-lg">
-        {/* Header */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
@@ -82,8 +77,7 @@ export default function NewRecordSearch() {
           <p className="text-gray-500 mt-2">Enter patient IC number to begin</p>
         </motion.div>
 
-        {/* Card - Premium Design */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -162,8 +156,7 @@ export default function NewRecordSearch() {
           </Card>
         </motion.div>
 
-        {/* Quick tips */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}

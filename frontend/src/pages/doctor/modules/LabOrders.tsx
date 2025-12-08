@@ -1,8 +1,3 @@
-// ============================================================================
-// Lab Orders Module - 化验检查申请
-// Malaysian hospital laboratory test ordering system
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -21,17 +16,12 @@ interface LabTest {
   sampleType: string
   turnaround: string
 }
-
-// Common Malaysian hospital lab tests with MOH codes
 const labTestCatalog = [
-  // Hematology
   { code: 'FBC', name: 'Full Blood Count', category: 'Hematology', sampleType: 'EDTA Blood', turnaround: '2 hours', fasting: false },
   { code: 'PT/INR', name: 'Prothrombin Time / INR', category: 'Hematology', sampleType: 'Citrate Blood', turnaround: '2 hours', fasting: false },
   { code: 'APTT', name: 'Activated Partial Thromboplastin Time', category: 'Hematology', sampleType: 'Citrate Blood', turnaround: '2 hours', fasting: false },
   { code: 'ESR', name: 'Erythrocyte Sedimentation Rate', category: 'Hematology', sampleType: 'EDTA Blood', turnaround: '2 hours', fasting: false },
   { code: 'D-Dimer', name: 'D-Dimer', category: 'Hematology', sampleType: 'Citrate Blood', turnaround: '4 hours', fasting: false },
-  
-  // Biochemistry
   { code: 'RFT', name: 'Renal Function Test', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '4 hours', fasting: false },
   { code: 'LFT', name: 'Liver Function Test', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '4 hours', fasting: false },
   { code: 'FBS', name: 'Fasting Blood Sugar', category: 'Biochemistry', sampleType: 'Fluoride Blood', turnaround: '1 hour', fasting: true },
@@ -41,14 +31,10 @@ const labTestCatalog = [
   { code: 'TFT', name: 'Thyroid Function Test', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '24 hours', fasting: false },
   { code: 'Cardiac', name: 'Cardiac Enzymes (Trop-I, CK-MB)', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '1 hour', fasting: false },
   { code: 'ABG', name: 'Arterial Blood Gas', category: 'Biochemistry', sampleType: 'Arterial Blood', turnaround: '30 min', fasting: false },
-  
-  // Microbiology
   { code: 'BCx', name: 'Blood Culture', category: 'Microbiology', sampleType: 'Blood Culture Bottle', turnaround: '48-72 hours', fasting: false },
   { code: 'UCx', name: 'Urine Culture', category: 'Microbiology', sampleType: 'Mid-Stream Urine', turnaround: '48-72 hours', fasting: false },
   { code: 'UFEME', name: 'Urine FEME', category: 'Microbiology', sampleType: 'Urine', turnaround: '2 hours', fasting: false },
   { code: 'Sputum', name: 'Sputum Culture & Sensitivity', category: 'Microbiology', sampleType: 'Sputum', turnaround: '48-72 hours', fasting: false },
-  
-  // Serology
   { code: 'HBsAg', name: 'Hepatitis B Surface Antigen', category: 'Serology', sampleType: 'Plain Blood', turnaround: '24 hours', fasting: false },
   { code: 'Anti-HCV', name: 'Hepatitis C Antibody', category: 'Serology', sampleType: 'Plain Blood', turnaround: '24 hours', fasting: false },
   { code: 'HIV', name: 'HIV Screening', category: 'Serology', sampleType: 'Plain Blood', turnaround: '24 hours', fasting: false },
@@ -120,8 +106,7 @@ export default function LabOrders({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Permintaan Makmal</h2>
           <p className="text-gray-500">Laboratory Orders • Lab Investigation Request</p>
@@ -147,8 +132,7 @@ export default function LabOrders({
         </div>
       </div>
 
-      {/* Patient Info */}
-      <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center">
             <FileText className="w-7 h-7 text-purple-600" />
@@ -163,8 +147,7 @@ export default function LabOrders({
         </div>
       </div>
 
-      {/* Clinical Information */}
-      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Maklumat Klinikal / Clinical Information
         </label>
@@ -177,8 +160,7 @@ export default function LabOrders({
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        {/* Test Catalog */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 mb-3">Katalog Ujian</h3>
             <div className="relative mb-3">
@@ -253,8 +235,7 @@ export default function LabOrders({
           </div>
         </div>
 
-        {/* Selected Tests */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Ujian Dipilih</h3>
@@ -338,8 +319,7 @@ export default function LabOrders({
             </AnimatePresence>
           </div>
 
-          {/* Summary */}
-          {selectedTests.length > 0 && (
+                    {selectedTests.length > 0 && (
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center justify-between">
                 <div>

@@ -88,8 +88,7 @@ export default function PatientRecords() {
       initial="hidden"
       animate="visible"
     >
-      {/* Header - Premium Design */}
-      <motion.div 
+            <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
       >
@@ -121,8 +120,7 @@ export default function PatientRecords() {
         </div>
       </motion.div>
 
-      {/* Stats - Premium Design */}
-      <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
+            <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
         <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
           <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
           <CardContent className="pt-5">
@@ -176,8 +174,7 @@ export default function PatientRecords() {
         </Card>
       </motion.div>
 
-      {/* Records List - Premium Design */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
           <div className="p-6 border-b bg-gradient-to-r from-blue-50/50 to-white">

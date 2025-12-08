@@ -1,8 +1,3 @@
-// ============================================================================
-// Referral Module - 转诊管理
-// Malaysian hospital referral system (Rujukan)
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -22,8 +17,6 @@ interface ReferralData {
   investigations: string[]
   appointmentPreferred?: string
 }
-
-// Malaysian public hospitals
 const hospitals = [
   { id: 'hkl', name: 'Hospital Kuala Lumpur', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
   { id: 'hpj', name: 'Hospital Putrajaya', city: 'Putrajaya', state: 'W.P. Putrajaya' },
@@ -123,8 +116,7 @@ export default function Referral({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Rujukan Pesakit</h2>
           <p className="text-gray-500">Patient Referral • Borang Rujukan</p>
@@ -136,8 +128,7 @@ export default function Referral({
         </div>
       </div>
 
-      {/* Patient Info Card */}
-      <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+            <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
             <User className="w-7 h-7 text-indigo-600" />
@@ -149,8 +140,7 @@ export default function Referral({
         </div>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-4">
         {[
           { num: 1, label: 'Destinasi' },
           { num: 2, label: 'Maklumat Klinikal' },
@@ -184,8 +174,7 @@ export default function Referral({
         ))}
       </div>
 
-      {/* Step Content */}
-      <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div
             key="step1"
@@ -194,8 +183,7 @@ export default function Referral({
             exit={{ opacity: 0, x: -20 }}
             className="grid grid-cols-2 gap-6"
           >
-            {/* Hospital Selection */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-indigo-600" />
                 Hospital Rujukan
@@ -251,8 +239,7 @@ export default function Referral({
               )}
             </div>
 
-            {/* Department Selection */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 Jabatan / Department
@@ -275,8 +262,7 @@ export default function Referral({
               </div>
             </div>
 
-            {/* Urgency */}
-            <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                        <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4">Tahap Keutamaan / Urgency</h3>
               <div className="grid grid-cols-3 gap-4">
                 {[
@@ -363,8 +349,7 @@ export default function Referral({
             <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Pengesahan Rujukan</h3>
             
             <div className="max-w-2xl mx-auto space-y-6">
-              {/* Summary */}
-              <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
+                            <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Pesakit</p>
@@ -423,8 +408,7 @@ export default function Referral({
         )}
       </AnimatePresence>
 
-      {/* Navigation */}
-      <div className="flex justify-between">
+            <div className="flex justify-between">
         <button
           onClick={() => setStep(Math.max(1, step - 1))}
           disabled={step === 1}

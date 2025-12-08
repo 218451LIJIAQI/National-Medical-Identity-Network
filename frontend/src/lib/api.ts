@@ -22,8 +22,7 @@ function getToken(): string | null {
       const parsed = JSON.parse(stored)
       return parsed.state?.token || null
     }
-  } catch {
-  }
+  } catch { /* ignore invalid JSON */ }
   
   return null
 }

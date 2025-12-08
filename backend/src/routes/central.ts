@@ -677,8 +677,7 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
               patientName = patient.fullName;
             }
           }
-        } catch {
-        }
+        } catch { /* patient lookup optional, ignore errors */ }
       }
       
       return {

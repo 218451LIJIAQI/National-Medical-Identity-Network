@@ -29,11 +29,8 @@ interface EmergencyInfo {
   }[]
   lastUpdated: string
 }
-
-// Helper function to mask IC number (e.g., 880101-14-5678 -> 880101-**-5678)
 const maskIcNumber = (ic: string): string => {
   if (ic.length >= 12) {
-    // Format: YYMMDD-SS-NNNN -> YYMMDD-**-NNNN
     const clean = ic.replace(/-/g, '')
     return `${clean.slice(0, 6)}-**-${clean.slice(8)}`
   }
@@ -50,8 +47,6 @@ export default function EmergencyAccess() {
   const [emergencyConfirmed, setEmergencyConfirmed] = useState(false)
   const [rateLimitError, setRateLimitError] = useState('')
   const [lastQueryTime, setLastQueryTime] = useState(0)
-  
-  // Face recording simulation states
   const [showCameraDialog, setShowCameraDialog] = useState(false)
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -60,8 +55,6 @@ export default function EmergencyAccess() {
 
   const handleSearchClick = () => {
     if (!icNumber.trim()) return
-    
-    // Check rate limit (1 query per minute)
     const now = Date.now()
     const timeSinceLastQuery = now - lastQueryTime
     if (lastQueryTime > 0 && timeSinceLastQuery < 60000) {
@@ -87,7 +80,6 @@ export default function EmergencyAccess() {
   
   const handleGrantCameraPermission = () => {
     setCameraPermissionGranted(true)
-    // Simulate face detection after 1.5 seconds
     setTimeout(() => {
       setFaceDetected(true)
     }, 1500)
@@ -95,14 +87,12 @@ export default function EmergencyAccess() {
   
   const handleStartRecording = () => {
     setIsRecording(true)
-    // Countdown simulation
     let count = 3
     const countdownInterval = setInterval(() => {
       count--
       setRecordingCountdown(count)
       if (count === 0) {
         clearInterval(countdownInterval)
-        // Proceed with actual search after countdown
         setShowCameraDialog(false)
         performSearch()
       }
@@ -114,7 +104,6 @@ export default function EmergencyAccess() {
     setLastQueryTime(Date.now())
     
     try {
-      // Use emergency access API - no authentication required
       const response = await centralApi.emergencyQuery(icNumber)
       
       if (response.success && response.data && response.data.found) {
@@ -139,7 +128,6 @@ export default function EmergencyAccess() {
         
         setPatientInfo(emergencyData)
       } else {
-        // Patient not found - show empty state
         setPatientInfo(null)
       }
     } catch (error) {
@@ -152,15 +140,13 @@ export default function EmergencyAccess() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50">
-      {/* Premium Header */}
-      <motion.header 
+            <motion.header 
         className="relative bg-gradient-to-r from-red-600 via-red-700 to-orange-600 text-white py-5 shadow-xl shadow-red-500/20 overflow-hidden"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 100 }}
       >
-        {/* Animated background */}
-        <motion.div 
+                <motion.div 
           className="absolute inset-0 opacity-20"
           style={{
             backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)',
@@ -211,8 +197,7 @@ export default function EmergencyAccess() {
       </motion.header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Warning Banner - Premium Design */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -243,8 +228,7 @@ export default function EmergencyAccess() {
           </Card>
         </motion.div>
 
-        {/* Search Section - Premium Design */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -315,8 +299,7 @@ export default function EmergencyAccess() {
           </Card>
         </motion.div>
 
-        {/* Results */}
-        <AnimatePresence>
+                <AnimatePresence>
           {patientInfo && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -324,10 +307,8 @@ export default function EmergencyAccess() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              {/* Critical Info - Premium Cards */}
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Patient Identity */}
-                <motion.div
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 }}
@@ -365,8 +346,7 @@ export default function EmergencyAccess() {
                   </Card>
                 </motion.div>
 
-                {/* Emergency Contact */}
-                <motion.div
+                                <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
@@ -409,8 +389,7 @@ export default function EmergencyAccess() {
                 </motion.div>
               </div>
 
-              {/* Allergies - Critical - Premium Design */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
@@ -448,8 +427,7 @@ export default function EmergencyAccess() {
                 </Card>
               </motion.div>
 
-              {/* Chronic Conditions - Premium Design */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
@@ -483,8 +461,7 @@ export default function EmergencyAccess() {
                 </Card>
               </motion.div>
 
-              {/* Current Medications - Premium Design */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
@@ -519,8 +496,7 @@ export default function EmergencyAccess() {
                 </Card>
               </motion.div>
 
-              {/* Access Log Notice - Premium Design */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
@@ -548,8 +524,7 @@ export default function EmergencyAccess() {
           )}
         </AnimatePresence>
 
-        {/* Quick Access Cards when no search - Premium Design */}
-        {!patientInfo && !loading && (
+                {!patientInfo && !loading && (
           <motion.div 
             className="grid md:grid-cols-3 gap-6 mt-8"
             initial={{ opacity: 0, y: 20 }}
@@ -605,8 +580,7 @@ export default function EmergencyAccess() {
         )}
       </div>
       
-      {/* Emergency Confirmation Dialog */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showConfirmDialog && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -622,8 +596,7 @@ export default function EmergencyAccess() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
             >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-red-600 to-orange-600 p-6 text-white">
+                            <div className="bg-gradient-to-r from-red-600 to-orange-600 p-6 text-white">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-white/20 rounded-xl">
                     <AlertTriangle className="w-8 h-8" />
@@ -635,8 +608,7 @@ export default function EmergencyAccess() {
                 </div>
               </div>
               
-              {/* Content */}
-              <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <h3 className="font-semibold text-amber-800 flex items-center gap-2 mb-2">
                     <Shield className="w-5 h-5" />
@@ -669,8 +641,7 @@ export default function EmergencyAccess() {
                 </label>
               </div>
               
-              {/* Footer */}
-              <div className="p-6 pt-0 flex gap-3">
+                            <div className="p-6 pt-0 flex gap-3">
                 <Button
                   variant="outline"
                   className="flex-1 h-12 rounded-xl"
@@ -699,8 +670,7 @@ export default function EmergencyAccess() {
         )}
       </AnimatePresence>
       
-      {/* Camera Recording Dialog */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showCameraDialog && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -714,8 +684,7 @@ export default function EmergencyAccess() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
             >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-red-600 to-orange-600 p-4 text-white">
+                            <div className="bg-gradient-to-r from-red-600 to-orange-600 p-4 text-white">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/20 rounded-xl">
                     <Video className="w-6 h-6" />
@@ -737,20 +706,16 @@ export default function EmergencyAccess() {
                 </div>
               </div>
               
-              {/* Camera Preview Simulation */}
-              <div className="p-6">
+                            <div className="p-6">
                 <div className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video mb-4">
                   {!cameraPermissionGranted ? (
-                    // Permission request state
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                       <Camera className="w-16 h-16 mb-4 opacity-50" />
                       <p className="text-sm">Camera access required</p>
                     </div>
                   ) : (
-                    // Simulated camera view
                     <>
-                      {/* Simulated face outline */}
-                      <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="absolute inset-0 flex items-center justify-center">
                         <motion.div
                           className={`w-32 h-40 border-2 rounded-full ${faceDetected ? 'border-green-500' : 'border-yellow-500'}`}
                           animate={faceDetected ? {} : { scale: [1, 1.05, 1] }}
@@ -758,8 +723,7 @@ export default function EmergencyAccess() {
                         />
                       </div>
                       
-                      {/* Simulated video noise effect */}
-                      <motion.div
+                                            <motion.div
                         className="absolute inset-0 bg-gradient-to-br from-gray-700 via-gray-800 to-gray-700"
                         animate={{ 
                           background: [
@@ -770,16 +734,14 @@ export default function EmergencyAccess() {
                         transition={{ duration: 2, repeat: Infinity }}
                       />
                       
-                      {/* Simulated user silhouette */}
-                      <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="absolute inset-0 flex items-center justify-center">
                         <div className="relative">
                           <div className="w-20 h-20 bg-gray-600 rounded-full" />
                           <div className="w-32 h-20 bg-gray-600 rounded-t-full mt-2" />
                         </div>
                       </div>
                       
-                      {/* Face detection indicator */}
-                      <motion.div
+                                            <motion.div
                         className={`absolute inset-0 flex items-center justify-center`}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -791,8 +753,7 @@ export default function EmergencyAccess() {
                         />
                       </motion.div>
                       
-                      {/* Status overlay */}
-                      <div className="absolute bottom-3 left-3 right-3">
+                                            <div className="absolute bottom-3 left-3 right-3">
                         <div className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
                           faceDetected 
                             ? 'bg-green-500/90 text-white' 
@@ -817,8 +778,7 @@ export default function EmergencyAccess() {
                         </div>
                       </div>
                       
-                      {/* Recording countdown overlay */}
-                      {isRecording && (
+                                            {isRecording && (
                         <motion.div
                           className="absolute inset-0 flex items-center justify-center bg-black/50"
                           initial={{ opacity: 0 }}
@@ -839,8 +799,7 @@ export default function EmergencyAccess() {
                   )}
                 </div>
                 
-                {/* Warning notice */}
-                <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 mb-4">
+                                <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 mb-4">
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-red-200">
@@ -854,8 +813,7 @@ export default function EmergencyAccess() {
                   </div>
                 </div>
                 
-                {/* Action buttons */}
-                <div className="flex gap-3">
+                                <div className="flex gap-3">
                   {!cameraPermissionGranted ? (
                     <>
                       <Button

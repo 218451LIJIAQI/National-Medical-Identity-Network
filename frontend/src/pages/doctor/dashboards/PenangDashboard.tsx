@@ -1,9 +1,3 @@
-// ============================================================================
-// Penang Medical Centre Dashboard - Serene Mint & Nature Style
-// 极致精美浅色系 - 薄荷绿翡翠色调，细节感拉满
-// Ultra-refined light theme with perfect color harmony
-// ============================================================================
-
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -16,8 +10,6 @@ import {
   Building2, Shield, ChevronRight, Leaf
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// 精美动画配置
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -114,19 +106,14 @@ export default function PenangDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* ================================================================== */}
-      {/* WELCOME HEADER - Serene Mint Gradient */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-100/60 shadow-lg shadow-emerald-100/30"
       >
-        {/* Decorative Elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-200/30 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-200/30 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-teal-200/20 to-transparent rounded-full blur-2xl translate-y-1/2 -translate-x-1/4" />
         
-        {/* Floating Leaves - Subtle */}
-        <motion.div
+                <motion.div
           className="absolute top-8 right-12 text-emerald-300/40"
           animate={{ y: [-5, 5, -5], rotate: [-5, 5, -5] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -142,8 +129,7 @@ export default function PenangDashboard() {
         </motion.div>
         
         <div className="relative z-10 p-8">
-          {/* Top Bar - Date & Hospital */}
-          <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-white/70 backdrop-blur-sm rounded-xl border border-emerald-100 shadow-sm">
                 <Calendar className="w-4 h-4 text-emerald-600" />
@@ -160,8 +146,7 @@ export default function PenangDashboard() {
             </div>
           </div>
 
-          {/* Welcome Message */}
-          <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <motion.div 
@@ -182,8 +167,7 @@ export default function PenangDashboard() {
               </p>
             </div>
 
-            {/* Hospital Badge */}
-            <motion.div 
+                        <motion.div 
               className="hidden lg:flex flex-col items-end gap-2"
               whileHover={{ scale: 1.02 }}
             >
@@ -201,18 +185,14 @@ export default function PenangDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* ACTION CARDS - Elegant Floating Design */}
-      {/* ================================================================== */}
-      <motion.div variants={itemVariants} className="grid md:grid-cols-2 gap-5">
+                        <motion.div variants={itemVariants} className="grid md:grid-cols-2 gap-5">
         <Link to="/doctor/search">
           <motion.div
             className="group relative overflow-hidden p-6 bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/50 hover:shadow-xl hover:shadow-emerald-100/50 transition-all duration-300"
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.98 }}
           >
-            {/* Hover Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             
             <div className="relative z-10 flex items-start gap-4">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200/50 group-hover:scale-110 transition-transform">
@@ -257,10 +237,7 @@ export default function PenangDashboard() {
         </Link>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* STATS GRID - Glass Cards with Subtle Gradients */}
-      {/* ================================================================== */}
-      <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-5">
+                        <motion.div variants={itemVariants} className="grid md:grid-cols-3 gap-5">
         {[
           { 
             label: 'Connected Hospitals', 
@@ -324,15 +301,11 @@ export default function PenangDashboard() {
         ))}
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* RECENT ACTIVITY - Elegant Timeline */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/30 overflow-hidden"
       >
-        {/* Header */}
-        <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-white">
+                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50/50 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-md shadow-emerald-200/50">
@@ -353,8 +326,7 @@ export default function PenangDashboard() {
           </div>
         </div>
 
-        {/* Activity List */}
-        <div className="p-6">
+                <div className="p-6">
           <AnimatePresence mode="wait">
             {recentActivity.length === 0 ? (
               <motion.div 
@@ -412,10 +384,7 @@ export default function PenangDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* SPECIALTIES GRID - Elegant Badge Cards */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/30 overflow-hidden"
       >

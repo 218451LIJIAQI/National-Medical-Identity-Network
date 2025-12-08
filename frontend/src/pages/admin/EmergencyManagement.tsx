@@ -33,7 +33,6 @@ export default function EmergencyManagement() {
     try {
       const response = await centralApi.getAuditLogs({ limit: 200 })
       if (response.success && response.data) {
-        // Filter only emergency access logs
         const emergencyLogs = (response.data as any[])
           .filter((log: any) => log.action === 'emergency' || log.action === 'emergency_access')
           .map((log: any) => ({
@@ -69,8 +68,6 @@ export default function EmergencyManagement() {
     log.targetIcNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     log.actorHospitalId.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  // Stats
   const totalEmergencies = logs.length
   const todayEmergencies = logs.filter(log => {
     const logDate = new Date(log.timestamp).toDateString()
@@ -96,8 +93,7 @@ export default function EmergencyManagement() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
-      {/* Header */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
@@ -129,8 +125,7 @@ export default function EmergencyManagement() {
         </motion.div>
       </motion.div>
 
-      {/* Warning Banner */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="p-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl"
@@ -147,8 +142,7 @@ export default function EmergencyManagement() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Emergency Access', value: totalEmergencies, icon: Siren, color: 'orange', bgColor: 'bg-orange-50', iconColor: 'text-orange-600' },
           { label: 'Today', value: todayEmergencies, icon: Clock, color: 'blue', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
@@ -179,8 +173,7 @@ export default function EmergencyManagement() {
         ))}
       </div>
 
-      {/* Search */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -200,8 +193,7 @@ export default function EmergencyManagement() {
         </Card>
       </motion.div>
 
-      {/* Emergency Access List */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -285,8 +277,7 @@ export default function EmergencyManagement() {
         </Card>
       </motion.div>
 
-      {/* Detail Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {selectedLog && (
           <motion.div
             initial={{ opacity: 0 }}

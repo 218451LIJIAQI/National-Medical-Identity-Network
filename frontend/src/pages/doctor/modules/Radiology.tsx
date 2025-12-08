@@ -1,8 +1,3 @@
-// ============================================================================
-// Radiology Module - 影像检查申请
-// Malaysian hospital radiology ordering system
-// ============================================================================
-
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -22,38 +17,27 @@ interface RadiologyOrder {
   preparation: string
   turnaround: string
 }
-
-// Malaysian hospital radiology examinations
 const radiologyCatalog = [
-  // X-Ray
   { code: 'CXR', name: 'Chest X-Ray (PA)', modality: 'X-Ray', bodyPart: 'Chest', turnaround: '30 min', preparation: 'Tiada', contrast: false },
   { code: 'AXR', name: 'Abdominal X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'Tiada', contrast: false },
   { code: 'KUB', name: 'KUB X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'Tiada', contrast: false },
   { code: 'XR-Spine', name: 'Spine X-Ray (C/T/L)', modality: 'X-Ray', bodyPart: 'Spine', turnaround: '30 min', preparation: 'Tiada', contrast: false },
   { code: 'XR-Limb', name: 'Limb X-Ray', modality: 'X-Ray', bodyPart: 'Extremity', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  
-  // Ultrasound
   { code: 'USG-Abd', name: 'Ultrasound Abdomen', modality: 'Ultrasound', bodyPart: 'Abdomen', turnaround: '1 hour', preparation: 'Puasa 6 jam', contrast: false },
   { code: 'USG-Pelv', name: 'Ultrasound Pelvis', modality: 'Ultrasound', bodyPart: 'Pelvis', turnaround: '1 hour', preparation: 'Pundi kencing penuh', contrast: false },
   { code: 'USG-KUB', name: 'Ultrasound KUB', modality: 'Ultrasound', bodyPart: 'Kidney', turnaround: '1 hour', preparation: 'Tiada', contrast: false },
   { code: 'USG-Thyroid', name: 'Ultrasound Thyroid', modality: 'Ultrasound', bodyPart: 'Neck', turnaround: '1 hour', preparation: 'Tiada', contrast: false },
   { code: 'Echo', name: 'Echocardiogram', modality: 'Ultrasound', bodyPart: 'Heart', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  
-  // CT Scan
   { code: 'CT-Brain', name: 'CT Brain', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
   { code: 'CT-Brain-C', name: 'CT Brain with Contrast', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'Semak RFT', contrast: true },
   { code: 'CT-Thorax', name: 'CT Thorax', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
   { code: 'CT-TAP', name: 'CT TAP (Thorax/Abdomen/Pelvis)', modality: 'CT Scan', bodyPart: 'Body', turnaround: '3 hours', preparation: 'Semak RFT, Puasa 4 jam', contrast: true },
   { code: 'CTPA', name: 'CT Pulmonary Angiogram', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'Semak RFT', contrast: true },
   { code: 'CT-KUB', name: 'CT KUB (Non-contrast)', modality: 'CT Scan', bodyPart: 'Abdomen', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  
-  // MRI
   { code: 'MRI-Brain', name: 'MRI Brain', modality: 'MRI', bodyPart: 'Head', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
   { code: 'MRI-Spine', name: 'MRI Spine (C/T/L)', modality: 'MRI', bodyPart: 'Spine', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
   { code: 'MRI-Knee', name: 'MRI Knee', modality: 'MRI', bodyPart: 'Knee', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
   { code: 'MRCP', name: 'MRCP', modality: 'MRI', bodyPart: 'Abdomen', turnaround: '24 hours', preparation: 'Puasa 6 jam, Tiada logam', contrast: false },
-  
-  // Special
   { code: 'Mammo', name: 'Mammogram', modality: 'Mammography', bodyPart: 'Breast', turnaround: '24 hours', preparation: 'Tiada', contrast: false },
   { code: 'Fluoro', name: 'Fluoroscopy (Ba Swallow/Meal/Enema)', modality: 'Fluoroscopy', bodyPart: 'GIT', turnaround: '2 hours', preparation: 'Puasa 6 jam', contrast: true },
 ]
@@ -135,8 +119,7 @@ export default function Radiology({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Permintaan Radiologi</h2>
           <p className="text-gray-500">Radiology Orders • Imaging Request</p>
@@ -162,8 +145,7 @@ export default function Radiology({
         </div>
       </div>
 
-      {/* Patient Info */}
-      <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+            <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
             <ScanLine className="w-7 h-7 text-indigo-600" />
@@ -178,8 +160,7 @@ export default function Radiology({
         </div>
       </div>
 
-      {/* Clinical Information */}
-      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Maklumat Klinikal / Clinical Indication
         </label>
@@ -191,8 +172,7 @@ export default function Radiology({
         />
       </div>
 
-      {/* Contrast Warning */}
-      {selectedOrders.some(o => o.contrast) && (
+            {selectedOrders.some(o => o.contrast) && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -210,8 +190,7 @@ export default function Radiology({
       )}
 
       <div className="grid grid-cols-2 gap-6">
-        {/* Exam Catalog */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 mb-3">Katalog Pemeriksaan</h3>
             <div className="relative mb-3">
@@ -285,8 +264,7 @@ export default function Radiology({
           </div>
         </div>
 
-        {/* Selected Orders */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Pemeriksaan Dipilih</h3>
@@ -386,8 +364,7 @@ export default function Radiology({
             </AnimatePresence>
           </div>
 
-          {/* Summary */}
-          {selectedOrders.length > 0 && (
+                    {selectedOrders.length > 0 && (
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
               <div className="flex items-center justify-between">
                 <div>

@@ -1,8 +1,3 @@
-// ============================================================================
-// Push Hospital Schema to All Hospital Databases
-// 将医院 schema 推送到所有医院数据库
-// ============================================================================
-
 import { execSync } from 'child_process';
 import * as dotenv from 'dotenv';
 
@@ -30,7 +25,6 @@ async function main() {
     console.log(`📦 Pushing schema to ${hospital.id}...`);
     
     try {
-      // 设置临时环境变量并运行 prisma db push
       execSync(
         `npx prisma db push --schema=prisma/schema.hospital.prisma --skip-generate --accept-data-loss`,
         {

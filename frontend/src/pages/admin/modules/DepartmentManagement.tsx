@@ -1,8 +1,3 @@
-// ============================================================================
-// Department Management Module - Hospital Admin
-// Pengurusan Jabatan Hospital
-// ============================================================================
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -170,8 +165,7 @@ export default function DepartmentManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
           <p className="text-gray-500">Pengurusan Jabatan Hospital</p>
@@ -182,8 +176,7 @@ export default function DepartmentManagement() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -238,8 +231,7 @@ export default function DepartmentManagement() {
         </Card>
       </div>
 
-      {/* Department Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {mockDepartments.map((dept, index) => {
           const statusInfo = statusConfig[dept.status]
           const isSelected = selectedDept === dept.id
@@ -268,8 +260,7 @@ export default function DepartmentManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {/* Head Info */}
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <Stethoscope className="w-5 h-5 text-blue-600" />
                       </div>
@@ -279,8 +270,7 @@ export default function DepartmentManagement() {
                       </div>
                     </div>
 
-                    {/* Staff Count */}
-                    <div className="grid grid-cols-3 gap-2 text-center">
+                                        <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2 bg-blue-50 rounded-lg">
                         <p className="text-lg font-bold text-blue-600">{dept.staffCount}</p>
                         <p className="text-xs text-gray-500">Total Staff</p>
@@ -295,8 +285,7 @@ export default function DepartmentManagement() {
                       </div>
                     </div>
 
-                    {/* Details */}
-                    <div className="space-y-2 text-sm">
+                                        <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2 text-gray-600">
                         <MapPin className="w-4 h-4 text-gray-400" />
                         {dept.location}
@@ -311,8 +300,7 @@ export default function DepartmentManagement() {
                       </div>
                     </div>
 
-                    {/* Specialties */}
-                    <div className="flex flex-wrap gap-1">
+                                        <div className="flex flex-wrap gap-1">
                       {dept.specialties.map(specialty => (
                         <Badge key={specialty} variant="outline" className="text-xs">
                           {specialty}
@@ -320,8 +308,7 @@ export default function DepartmentManagement() {
                       ))}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-2 border-t">
+                                        <div className="flex gap-2 pt-2 border-t">
                       <Button size="sm" variant="outline" className="flex-1 gap-1">
                         <Edit className="w-3 h-3" />
                         Edit

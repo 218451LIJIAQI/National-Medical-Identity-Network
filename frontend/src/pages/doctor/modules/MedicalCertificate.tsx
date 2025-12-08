@@ -1,8 +1,3 @@
-// ============================================================================
-// Medical Certificate Module - 医疗证明/病假单
-// Malaysian MC (Medical Certificate) / Sijil Cuti Sakit
-// ============================================================================
-
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { 
@@ -57,8 +52,6 @@ export default function MedicalCertificate({
 
   const updateField = (field: keyof MCData, value: string | number | boolean) => {
     setFormData({ ...formData, [field]: value })
-    
-    // Auto-update end date when days change
     if (field === 'daysOff' && typeof value === 'number') {
       const start = new Date(formData.startDate)
       const end = new Date(start.getTime() + (value - 1) * 86400000)
@@ -68,8 +61,6 @@ export default function MedicalCertificate({
         endDate: end.toISOString().split('T')[0] 
       }))
     }
-    
-    // Auto-update days when start date changes
     if (field === 'startDate' && typeof value === 'string') {
       const start = new Date(value)
       const end = new Date(start.getTime() + (formData.daysOff - 1) * 86400000)
@@ -98,8 +89,7 @@ export default function MedicalCertificate({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Sijil Cuti Sakit (MC)</h2>
           <p className="text-gray-500">Medical Certificate • Sijil Perubatan</p>
@@ -139,8 +129,7 @@ export default function MedicalCertificate({
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl border-2 border-gray-200 shadow-xl overflow-hidden max-w-2xl mx-auto"
         >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
@@ -158,8 +147,7 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-          {/* Body */}
-          <div className="p-8">
+                    <div className="p-8">
             <h2 className="text-2xl font-bold text-center text-gray-800 mb-6 border-b-2 border-gray-200 pb-4">
               SIJIL CUTI SAKIT<br />
               <span className="text-base font-normal text-gray-500">MEDICAL CERTIFICATE</span>
@@ -217,8 +205,7 @@ export default function MedicalCertificate({
               )}
             </div>
 
-            {/* Footer */}
-            <div className="mt-8 pt-6 border-t-2 border-gray-200">
+                        <div className="mt-8 pt-6 border-t-2 border-gray-200">
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-sm text-gray-500">Tarikh / Date:</p>
@@ -234,8 +221,7 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-          {/* Official Stamp Area */}
-          <div className="bg-gray-50 p-4 text-center border-t border-gray-200">
+                    <div className="bg-gray-50 p-4 text-center border-t border-gray-200">
             <p className="text-xs text-gray-400">
               Sijil ini dijana secara elektronik dan sah tanpa tandatangan<br />
               This certificate is electronically generated and valid without signature
@@ -245,8 +231,7 @@ export default function MedicalCertificate({
       ) : (
         /* Edit Form */
         <div className="grid grid-cols-2 gap-6">
-          {/* Patient Info */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-blue-600" />
               Maklumat Pesakit
@@ -286,8 +271,7 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-          {/* MC Details */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-600" />
               Butiran Cuti Sakit
@@ -378,8 +362,7 @@ export default function MedicalCertificate({
         </div>
       )}
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4">
         <motion.div 
           className="p-4 bg-blue-50 rounded-xl border border-blue-100"
           whileHover={{ y: -2 }}

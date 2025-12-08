@@ -71,14 +71,10 @@ export default function CentralAdminDashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [networkActivity, setNetworkActivity] = useState<NetworkActivity[]>([])
   const [loading, setLoading] = useState(true)
-  
-  // Patient Index Search
   const [searchIC, setSearchIC] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<PatientIndexResult | null>(null)
   const [searchError, setSearchError] = useState('')
-  
-  // Hospital Detail Modal
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null)
 
   useEffect(() => {
@@ -133,8 +129,6 @@ export default function CentralAdminDashboard() {
     }
     loadData()
   }, [])
-
-  // Search patient index
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!searchIC.trim()) return
@@ -186,8 +180,7 @@ export default function CentralAdminDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* Header */}
-      <motion.div 
+            <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-700 p-8 text-white"
       >
@@ -219,8 +212,7 @@ export default function CentralAdminDashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { 
             label: 'Connected Hospitals', 
@@ -284,8 +276,7 @@ export default function CentralAdminDashboard() {
         ))}
       </motion.div>
 
-      {/* Patient Index Search */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-lg overflow-hidden">
           <div className="p-6 border-b bg-gradient-to-r from-cyan-50 to-blue-50">
             <div className="flex items-center gap-3">
@@ -324,23 +315,20 @@ export default function CentralAdminDashboard() {
               </Button>
             </form>
 
-            {/* Search Error */}
-            {searchError && (
+                        {searchError && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 mb-4">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
                 <p className="text-red-700">{searchError}</p>
               </div>
             )}
 
-            {/* Search Results */}
-            {searchResult && (
+                        {searchResult && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                {/* Patient Info */}
-                {searchResult.patient && (
+                                {searchResult.patient && (
                   <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
                     <div className="flex items-start gap-4">
                       <div className="p-3 bg-emerald-100 rounded-xl">
@@ -370,8 +358,7 @@ export default function CentralAdminDashboard() {
                   </div>
                 )}
 
-                {/* Data Flow Visualization */}
-                <div className="p-4 bg-gray-900 rounded-xl">
+                                <div className="p-4 bg-gray-900 rounded-xl">
                   <div className="flex items-center justify-center gap-4 text-white">
                     <div className="text-center">
                       <div className="p-3 bg-cyan-500 rounded-xl mx-auto mb-2">
@@ -395,8 +382,7 @@ export default function CentralAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Hospitals with Records */}
-                <div>
+                                <div>
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Network className="w-5 h-5" />
                     Hospitals with Patient Records
@@ -439,8 +425,7 @@ export default function CentralAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Summary */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                   <div>
                     <p className="text-sm text-gray-500">Total Records Across Network</p>
                     <p className="text-2xl font-bold text-gray-900">{searchResult.totalRecords} records</p>
@@ -456,8 +441,7 @@ export default function CentralAdminDashboard() {
         </Card>
       </motion.div>
 
-      {/* Hospital Network */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-lg">
           <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
             <div className="flex items-center justify-between">
@@ -524,8 +508,7 @@ export default function CentralAdminDashboard() {
         </Card>
       </motion.div>
 
-      {/* Hospital Detail Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {selectedHospital && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -541,8 +524,7 @@ export default function CentralAdminDashboard() {
               className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div 
+                            <div 
                 className="p-6 text-white"
                 style={{ backgroundColor: hospitalColors[selectedHospital.id] || '#6B7280' }}
               >
@@ -567,8 +549,7 @@ export default function CentralAdminDashboard() {
                 </div>
               </div>
               
-              {/* Content */}
-              <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-4">
                 <div className="flex items-start gap-3">
                   <MapPinned className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
@@ -604,8 +585,7 @@ export default function CentralAdminDashboard() {
                 </div>
               </div>
               
-              {/* Actions */}
-              <div className="px-6 pb-6">
+                            <div className="px-6 pb-6">
                 <Button
                   className="w-full"
                   onClick={() => setSelectedHospital(null)}
@@ -618,8 +598,7 @@ export default function CentralAdminDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Network Activity */}
-      <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-lg">
           <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
             <h2 className="text-lg font-semibold text-gray-900">Recent Network Activity</h2>

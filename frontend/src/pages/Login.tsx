@@ -26,8 +26,6 @@ export default function LoginPage() {
   const [chipScanPhase, setChipScanPhase] = useState<'detecting' | 'reading' | 'success'>('detecting')
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [pendingLogin, setPendingLogin] = useState<{ ic: string; password: string; roles: string[] } | null>(null)
-
-  // Scroll to top when page loads
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [])
@@ -43,12 +41,9 @@ export default function LoginPage() {
       })
       return
     }
-
-    // Check if this is a multi-role user - show role selection first
-    // These ICs have both doctor and patient roles
-    const multiRoleICs = ['750101-14-5001', '760612-07-5001']
-    if (multiRoleICs.includes(icNumber)) {
-      setPendingLogin({ ic: icNumber, password: password, roles: ['doctor', 'patient'] })
+    const multiRoleCheck = multiRoleUsers[icNumber]
+    if (multiRoleCheck) {
+      setPendingLogin({ ic: icNumber, password: password, roles: multiRoleCheck })
       setShowRoleSelection(true)
       return
     }
@@ -68,15 +63,10 @@ export default function LoginPage() {
         })
 
         const userRole = (user as any).role as string
-        
-        // Small delay to ensure state is fully synced before navigation
         await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Hospital users (doctor & hospital_admin) need second verification
         if (userRole === 'doctor' || userRole === 'hospital_admin') {
           navigate('/verify')
         } else {
-          // Other users go directly to their dashboard
           const redirectPath: Record<string, string> = {
             patient: '/patient',
             central_admin: '/admin/central',
@@ -100,8 +90,6 @@ export default function LoginPage() {
       setIsLoading(false)
     }
   }
-
-  // Doctor accounts - separate for modal selection
   const doctorAccounts = [
     { label: 'Dr. Lim Wei Ming', hospital: 'KL General Hospital', city: 'Kuala Lumpur', desc: 'Internal Medicine', ic: '750101-14-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-blue-500 via-blue-600 to-indigo-600', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
     { label: 'Dr. Tan Mei Ling', hospital: 'Penang Medical Centre', city: 'Georgetown', desc: 'Neurology', ic: '760612-07-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-emerald-500 via-teal-600 to-green-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
@@ -109,8 +97,6 @@ export default function LoginPage() {
     { label: 'Dr. James Wong', hospital: 'Sarawak General Hospital', city: 'Kuching', desc: 'Nephrology', ic: '790303-13-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-violet-500 via-purple-600 to-indigo-600', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
     { label: 'Dr. Maria Gonzales', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Pulmonology', ic: '810707-12-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
   ]
-
-  // Patient accounts - diverse patients across Malaysia
   const patientAccounts = [
     { label: 'Ahmad bin Abdullah', city: 'Kuala Lumpur', desc: 'Hypertension, Diabetes', ic: '880101-14-5678', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-emerald-500 via-teal-600 to-cyan-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
     { label: 'Siti Nurhaliza binti Mohd', city: 'George Town', desc: 'Asthma', ic: '950320-10-1234', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-pink-500 via-rose-500 to-red-500', glowColor: 'shadow-pink-500/25', color: '#EC4899' },
@@ -121,8 +107,6 @@ export default function LoginPage() {
     { label: 'Lim Wei Ming (Doctor)', city: 'Kuala Lumpur', desc: 'Hyperlipidemia - Also a Doctor', ic: '750101-14-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
     { label: 'Tan Mei Ling (Doctor)', city: 'George Town', desc: 'Migraine - Also a Doctor', ic: '760612-07-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
   ]
-
-  // Hospital Admin accounts - each hospital has unique style
   const hospitalAdminAccounts = [
     { label: 'KL General Admin', hospital: 'KL General Hospital', city: 'Kuala Lumpur', desc: 'Hospital Administrator', ic: 'admin-kl', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-blue-600 via-indigo-600 to-violet-600', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
     { label: 'Penang MC Admin', hospital: 'Penang Medical Centre', city: 'Georgetown', desc: 'Hospital Administrator', ic: 'admin-penang', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-emerald-500 via-teal-600 to-green-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
@@ -130,25 +114,13 @@ export default function LoginPage() {
     { label: 'Sarawak General Admin', hospital: 'Sarawak General Hospital', city: 'Kuching', desc: 'Hospital Administrator', ic: 'admin-kuching', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-violet-500 via-purple-600 to-indigo-600', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
     { label: 'Queen Elizabeth Admin', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Hospital Administrator', ic: 'admin-kk', password: 'admin123', role: 'hospital_admin', icon: Building2, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
   ]
-
-  // Other demo accounts (Central Admin only)
   const demoAccounts = [
     { label: 'Central Admin', desc: 'National Network', ic: 'central-admin', password: 'central123', role: 'central_admin', icon: Network, bgGradient: 'from-cyan-500 via-blue-500 to-indigo-600', glowColor: 'shadow-cyan-500/25' },
   ]
-
-  // Users with multiple roles (doctor who is also a patient)
-  const multiRoleUsers: Record<string, { roles: string[]; doctorInfo: typeof doctorAccounts[0] }> = {
-    '750101-14-5001': { 
-      roles: ['doctor', 'patient'], 
-      doctorInfo: doctorAccounts[0] 
-    },
-    '760612-07-5001': { 
-      roles: ['doctor', 'patient'], 
-      doctorInfo: doctorAccounts[1] 
-    },
+  const multiRoleUsers: Record<string, string[]> = {
+    '750101-14-5001': ['doctor', 'patient'],
+    '760612-07-5001': ['doctor', 'patient'],
   }
-
-  // Check if selected IC is a doctor, hospital admin, or patient
   const selectedDoctor = doctorAccounts.find(d => d.ic === icNumber)
   const selectedHospitalAdmin = hospitalAdminAccounts.find(a => a.ic === icNumber)
   const selectedPatient = patientAccounts.find(p => p.ic === icNumber)
@@ -175,8 +147,6 @@ export default function LoginPage() {
     fillDemo(patient)
     setShowPatientModal(false)
   }
-
-  // Handle role selection for multi-role users
   const handleRoleSelect = async (role: string) => {
     if (!pendingLogin) return
     
@@ -184,9 +154,6 @@ export default function LoginPage() {
     setSelectedRole(role)
     
     if (role === 'patient') {
-      // For patient role: use the doctor's own IC as patient
-      // Doctors now have their own patient accounts in the database
-      // Use the same password as the doctor account (unified password per IC)
       try {
         const response = await authApi.login(pendingLogin.ic, pendingLogin.password, 'patient')
         
@@ -219,7 +186,6 @@ export default function LoginPage() {
       setPendingLogin(null)
       return
     } else {
-      // For doctor role: Normal login flow with second verification
       try {
         const response = await authApi.login(pendingLogin.ic, pendingLogin.password, 'doctor')
         
@@ -252,10 +218,7 @@ export default function LoginPage() {
     
     setPendingLogin(null)
   }
-
-  // Mock IC Scan - 全屏芯片扫描动画
   const handleIcScan = async () => {
-    // Check all account types
     const allAccounts = [...doctorAccounts, ...hospitalAdminAccounts, ...demoAccounts]
     const selectedDemo = allAccounts.find(demo => demo.ic === icNumber)
     
@@ -267,12 +230,9 @@ export default function LoginPage() {
       })
       return
     }
-    
-    // Check if this is a multi-role user
     const multiRole = multiRoleUsers[icNumber]
     
     if (multiRole) {
-      // Show chip animation first
       setShowChipAnimation(true)
       setChipScanPhase('detecting')
       await new Promise(resolve => setTimeout(resolve, 1500))
@@ -281,14 +241,10 @@ export default function LoginPage() {
       setChipScanPhase('success')
       await new Promise(resolve => setTimeout(resolve, 800))
       setShowChipAnimation(false)
-      
-      // Then show role selection
-      setPendingLogin({ ic: icNumber, password: selectedDemo.password, roles: multiRole.roles })
+      setPendingLogin({ ic: icNumber, password: selectedDemo.password, roles: multiRole })
       setShowRoleSelection(true)
       return
     }
-    
-    // Normal single-role login flow continues below...
     if (!icNumber) {
       toast({
         title: 'No IC Card Selected',
@@ -297,20 +253,12 @@ export default function LoginPage() {
       })
       return
     }
-    
-    // 显示全屏芯片扫描动画
     setShowChipAnimation(true)
     setChipScanPhase('detecting')
-    
-    // Phase 1: Detecting (1.5s)
     await new Promise(resolve => setTimeout(resolve, 1500))
     setChipScanPhase('reading')
-    
-    // Phase 2: Reading chip data (2s)
     await new Promise(resolve => setTimeout(resolve, 2000))
     setChipScanPhase('success')
-    
-    // Phase 3: Success (1s)
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     try {
@@ -321,13 +269,9 @@ export default function LoginPage() {
         login(token, user as any)
 
         const userRole = (user as any).role as string
-        
-        // Small delay to ensure state is fully synced before navigation
         await new Promise(resolve => setTimeout(resolve, 100))
         
         setShowChipAnimation(false)
-        
-        // Hospital users need second verification
         if (userRole === 'doctor' || userRole === 'hospital_admin') {
           navigate('/verify')
         } else {
@@ -360,8 +304,7 @@ export default function LoginPage() {
 
   return (
     <>
-      {/* Full-screen Chip Scan Animation Overlay */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showChipAnimation && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -369,16 +312,14 @@ export default function LoginPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center"
           >
-            {/* Animated background grid */}
-            <div className="absolute inset-0 opacity-20">
+                        <div className="absolute inset-0 opacity-20">
               <div className="absolute inset-0" style={{
                 backgroundImage: 'linear-gradient(rgba(59,130,246,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.3) 1px, transparent 1px)',
                 backgroundSize: '50px 50px',
               }} />
             </div>
             
-            {/* Scanning beam effect */}
-            <motion.div
+                        <motion.div
               className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
               initial={{ top: '0%' }}
               animate={{ top: ['0%', '100%', '0%'] }}
@@ -386,8 +327,7 @@ export default function LoginPage() {
             />
             
             <div className="relative flex flex-col items-center">
-              {/* IC Card with Chip */}
-              <motion.div
+                            <motion.div
                 className="relative w-80 h-48 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 shadow-2xl shadow-blue-500/30 overflow-hidden"
                 initial={{ scale: 0.8, rotateY: -30 }}
                 animate={{ 
@@ -397,8 +337,7 @@ export default function LoginPage() {
                 transition={{ duration: 0.5 }}
                 style={{ transformStyle: 'preserve-3d' }}
               >
-                {/* Card pattern */}
-                <div className="absolute inset-0 opacity-30">
+                                <div className="absolute inset-0 opacity-30">
                   <div className="absolute top-4 left-4 w-16 h-12 rounded bg-gradient-to-br from-amber-300 to-yellow-500" />
                   <div className="absolute top-4 right-4 text-white/50 text-xs font-mono">MYKAD</div>
                   <div className="absolute bottom-4 left-4 right-4">
@@ -407,8 +346,7 @@ export default function LoginPage() {
                   </div>
                 </div>
                 
-                {/* Chip */}
-                <motion.div
+                                <motion.div
                   className="absolute top-6 left-6 w-14 h-11 rounded-md bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 shadow-lg"
                   animate={chipScanPhase === 'reading' ? {
                     boxShadow: ['0 0 20px rgba(251,191,36,0.5)', '0 0 40px rgba(251,191,36,0.8)', '0 0 20px rgba(251,191,36,0.5)'],
@@ -418,16 +356,14 @@ export default function LoginPage() {
                   } : {}}
                   transition={{ duration: 0.5, repeat: chipScanPhase === 'reading' ? Infinity : 0 }}
                 >
-                  {/* Chip pattern */}
-                  <div className="absolute inset-1 grid grid-cols-3 gap-px opacity-60">
+                                    <div className="absolute inset-1 grid grid-cols-3 gap-px opacity-60">
                     {[...Array(6)].map((_, i) => (
                       <div key={i} className="bg-amber-700/50 rounded-sm" />
                     ))}
                   </div>
                 </motion.div>
                 
-                {/* Scanning line on card */}
-                {chipScanPhase === 'reading' && (
+                                {chipScanPhase === 'reading' && (
                   <motion.div
                     className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
                     animate={{ top: ['0%', '100%'] }}
@@ -435,8 +371,7 @@ export default function LoginPage() {
                   />
                 )}
                 
-                {/* Success checkmark overlay */}
-                {chipScanPhase === 'success' && (
+                                {chipScanPhase === 'success' && (
                   <motion.div
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -472,8 +407,7 @@ export default function LoginPage() {
                 )}
               </motion.div>
               
-              {/* Status Text */}
-              <motion.div
+                            <motion.div
                 className="mt-10 text-center"
                 key={chipScanPhase}
                 initial={{ opacity: 0, y: 20 }}
@@ -491,8 +425,7 @@ export default function LoginPage() {
                 </p>
               </motion.div>
               
-              {/* Progress dots */}
-              <div className="flex gap-3 mt-8">
+                            <div className="flex gap-3 mt-8">
                 {['detecting', 'reading', 'success'].map((phase, i) => (
                   <motion.div
                     key={phase}
@@ -519,8 +452,7 @@ export default function LoginPage() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6 }}
       >
-        {/* Decorative floating elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-20 -right-20 w-72 h-72 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl"
           animate={{ 
@@ -539,15 +471,13 @@ export default function LoginPage() {
         />
       </div>
 
-      {/* Login Form Card */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
         <Card className="relative border-0 shadow-2xl shadow-gray-200/50 overflow-hidden backdrop-blur-sm bg-white/95">
-          {/* Animated gradient border */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-500 via-emerald-500 to-blue-500 opacity-100" style={{ padding: '2px' }}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-500 via-emerald-500 to-blue-500 opacity-100" style={{ padding: '2px' }}>
             <div className="absolute inset-[2px] bg-white rounded-[inherit]" />
           </div>
           <motion.div 
@@ -559,8 +489,7 @@ export default function LoginPage() {
           
           <div className="relative p-8 pt-10">
             <div className="text-center mb-10">
-              {/* Animated logo */}
-              <motion.div 
+                            <motion.div 
                 className="relative w-20 h-20 mx-auto mb-6"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -581,8 +510,7 @@ export default function LoginPage() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Shield className="w-10 h-10 text-white drop-shadow-lg" />
                 </div>
-                {/* Sparkle effect */}
-                <motion.div
+                                <motion.div
                   className="absolute -top-1 -right-1"
                   animate={{ scale: [0, 1, 0], opacity: [0, 1, 0] }}
                   transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
@@ -695,8 +623,7 @@ export default function LoginPage() {
                 </Button>
               </motion.div>
 
-              {/* Divider */}
-              <motion.div 
+                            <motion.div 
                 className="relative flex items-center gap-4 py-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -707,15 +634,13 @@ export default function LoginPage() {
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
               </motion.div>
 
-              {/* Scan IC Card Button - Premium */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 }}
                 className="relative group/btn"
               >
-                {/* Animated gradient border */}
-                <motion.div
+                                <motion.div
                   className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-teal-400 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-500"
                   animate={{ 
                     backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
@@ -724,8 +649,7 @@ export default function LoginPage() {
                   transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
                 />
                 
-                {/* Breathing glow - enhanced */}
-                <motion.div
+                                <motion.div
                   className="absolute -inset-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 rounded-2xl blur-lg"
                   animate={{ opacity: [0.35, 0.6, 0.35] }}
                   transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
@@ -737,16 +661,14 @@ export default function LoginPage() {
                   className="relative w-full h-[4.5rem] text-base font-semibold bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 hover:from-emerald-500 hover:via-teal-400 hover:to-cyan-500 shadow-xl shadow-emerald-500/30 rounded-xl overflow-hidden group border-0 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/40" 
                   disabled={isLoading}
                 >
-                  {/* Dual shimmer effect */}
-                  <motion.div
+                                    <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
                     initial={{ x: '-100%' }}
                     animate={{ x: '100%' }}
                     transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
                   />
                   
-                  {/* Flowing light on border - top and bottom */}
-                  <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                                    <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                     <motion.div
                       className="absolute top-0 left-0 w-24 h-[2px] bg-gradient-to-r from-transparent via-white/90 to-transparent"
                       animate={{ x: ['-96px', '400px'] }}
@@ -759,14 +681,11 @@ export default function LoginPage() {
                     />
                   </div>
                   
-                  {/* Inner glow overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10 pointer-events-none" />
+                                    <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10 pointer-events-none" />
 
                   <div className="relative flex items-center justify-center gap-4 px-4">
-                    {/* NFC Icon with signal waves */}
-                    <div className="relative flex items-center justify-center w-14 h-14">
-                      {/* Signal waves - three layers */}
-                      <motion.div
+                                        <div className="relative flex items-center justify-center w-14 h-14">
+                                            <motion.div
                         className="absolute w-10 h-10 rounded-full border-2 border-white/40"
                         animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
                         transition={{ duration: 1.8, repeat: Infinity }}
@@ -782,15 +701,13 @@ export default function LoginPage() {
                         transition={{ duration: 1.8, repeat: Infinity, delay: 0.6 }}
                       />
                       
-                      {/* Inner glow */}
-                      <motion.div
+                                            <motion.div
                         className="absolute w-8 h-8 rounded-full bg-white/10 blur-sm"
                         animate={{ opacity: [0.3, 0.6, 0.3] }}
                         transition={{ duration: 2, repeat: Infinity }}
                       />
                       
-                      {/* Card icon */}
-                      <motion.div
+                                            <motion.div
                         animate={{ scale: [1, 1.08, 1] }}
                         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                       >
@@ -798,14 +715,12 @@ export default function LoginPage() {
                       </motion.div>
                     </div>
                     
-                    {/* Text */}
-                    <div className="flex flex-col items-start">
+                                        <div className="flex flex-col items-start">
                       <span className="text-white font-bold text-[15px]">Scan IC Card</span>
                       <span className="text-xs text-white/80">Tap to scan and login instantly</span>
                     </div>
                     
-                    {/* Animated arrow with dots */}
-                    <motion.div
+                                        <motion.div
                       className="ml-auto flex items-center gap-1"
                       animate={{ x: [0, 5, 0] }}
                       transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
@@ -830,8 +745,7 @@ export default function LoginPage() {
         </Card>
       </motion.div>
 
-      {/* Demo Accounts */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
@@ -856,8 +770,7 @@ export default function LoginPage() {
           </div>
           <CardContent className="p-5">
             <div className="grid grid-cols-2 gap-4">
-              {/* Doctor Card - Opens Modal */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4 }}
@@ -907,8 +820,7 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* Hospital Admin Card - Opens Modal */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.45 }}
@@ -958,8 +870,7 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* Patient Selection Button */}
-              <motion.div
+                            <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4 }}
@@ -1009,8 +920,7 @@ export default function LoginPage() {
                 </div>
               </motion.div>
 
-              {/* Other Demo Accounts */}
-              <AnimatePresence>
+                            <AnimatePresence>
                 {demoAccounts.map((demo, index) => (
                   <motion.div
                     key={demo.ic}
@@ -1075,8 +985,7 @@ export default function LoginPage() {
         </Card>
       </motion.div>
 
-      {/* Doctor Selection Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showDoctorModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1093,8 +1002,7 @@ export default function LoginPage() {
               className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
-              <div className="relative p-6 bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-500 text-white">
+                            <div className="relative p-6 bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-500 text-white">
                 <button
                   onClick={() => setShowDoctorModal(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -1114,8 +1022,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Doctor List */}
-              <div className="p-4 max-h-[400px] overflow-y-auto">
+                            <div className="p-4 max-h-[400px] overflow-y-auto">
                 <div className="space-y-3">
                   {doctorAccounts.map((doctor, index) => (
                     <motion.div
@@ -1139,8 +1046,7 @@ export default function LoginPage() {
                       }}
                     >
                       <div className="flex items-center gap-4">
-                        {/* Hospital Color Badge */}
-                        <div 
+                                                <div 
                           className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg"
                           style={{ backgroundColor: doctor.color }}
                         >
@@ -1172,8 +1078,7 @@ export default function LoginPage() {
         )}
       </AnimatePresence>
 
-      {/* Hospital Admin Selection Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showHospitalAdminModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1190,8 +1095,7 @@ export default function LoginPage() {
               className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
-              <div className="relative p-6 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
+                            <div className="relative p-6 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
                 <button
                   onClick={() => setShowHospitalAdminModal(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -1211,8 +1115,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Hospital Admin List */}
-              <div className="p-4 max-h-[400px] overflow-y-auto">
+                            <div className="p-4 max-h-[400px] overflow-y-auto">
                 <div className="space-y-3">
                   {hospitalAdminAccounts.map((admin, index) => (
                     <motion.div
@@ -1236,8 +1139,7 @@ export default function LoginPage() {
                       }}
                     >
                       <div className="flex items-center gap-4">
-                        {/* Hospital Color Badge */}
-                        <div 
+                                                <div 
                           className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg"
                           style={{ backgroundColor: admin.color }}
                         >
@@ -1267,8 +1169,7 @@ export default function LoginPage() {
         )}
       </AnimatePresence>
 
-      {/* Patient Selection Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showPatientModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1285,8 +1186,7 @@ export default function LoginPage() {
               className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
-              <div className="relative p-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white">
+                            <div className="relative p-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white">
                 <button
                   onClick={() => setShowPatientModal(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -1306,8 +1206,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Patient List */}
-              <div className="p-4 max-h-[400px] overflow-y-auto">
+                            <div className="p-4 max-h-[400px] overflow-y-auto">
                 <div className="space-y-3">
                   {patientAccounts.map((patient, index) => (
                     <motion.div
@@ -1331,8 +1230,7 @@ export default function LoginPage() {
                       }}
                     >
                       <div className="flex items-center gap-4">
-                        {/* Patient Color Badge */}
-                        <div 
+                                                <div 
                           className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg"
                           style={{ backgroundColor: patient.color }}
                         >
@@ -1364,8 +1262,7 @@ export default function LoginPage() {
         )}
       </AnimatePresence>
 
-      {/* Emergency Access */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.5 }}
@@ -1373,8 +1270,7 @@ export default function LoginPage() {
       >
         <Link to="/emergency">
           <Card className="relative border-2 border-red-200 bg-gradient-to-r from-red-50 via-orange-50 to-red-50 hover:border-red-300 hover:shadow-xl hover:shadow-red-500/10 transition-all duration-300 cursor-pointer overflow-hidden">
-            {/* Animated warning stripe */}
-            <motion.div
+                        <motion.div
               className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500"
               style={{ backgroundSize: '200% 100%' }}
               animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
@@ -1413,8 +1309,7 @@ export default function LoginPage() {
       </motion.div>
     </motion.div>
 
-      {/* Role Selection Modal */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showRoleSelection && pendingLogin && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1431,8 +1326,7 @@ export default function LoginPage() {
               className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
-              <div className="relative p-8 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white text-center">
+                            <div className="relative p-8 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white text-center">
                 <button
                   onClick={() => setShowRoleSelection(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -1442,8 +1336,7 @@ export default function LoginPage() {
                   <X className="w-5 h-5" />
                 </button>
                 
-                {/* IC Card Icon */}
-                <motion.div
+                                <motion.div
                   className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center"
                   initial={{ rotateY: 0 }}
                   animate={{ rotateY: [0, 10, -10, 0] }}
@@ -1457,30 +1350,22 @@ export default function LoginPage() {
                 <p className="text-sm text-white/60 mt-2 font-mono">{pendingLogin.ic}</p>
               </div>
 
-              {/* Role Selection */}
-              <div className="p-8">
+                            <div className="p-8">
                 <p className="text-center text-gray-600 mb-6">How would you like to login?</p>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Doctor Role */}
-                  <motion.button
+                                    <motion.button
                     whileHover={{ scale: 1.03, y: -4 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleRoleSelect('doctor')}
                     className="relative group p-6 rounded-2xl border-2 border-blue-200 hover:border-blue-400 bg-gradient-to-br from-blue-50 to-cyan-50 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
                   >
-                    {/* Doctor Illustration */}
-                    <div className="relative w-24 h-24 mx-auto mb-4">
-                      {/* Body */}
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-12 bg-gradient-to-b from-blue-500 to-blue-600 rounded-t-3xl" />
-                      {/* White coat */}
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-10 bg-white rounded-t-2xl border-2 border-blue-200" />
-                      {/* Head */}
-                      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-12 bg-gradient-to-b from-amber-200 to-amber-300 rounded-full" />
-                      {/* Hair */}
-                      <div className="absolute top-1 left-1/2 -translate-x-1/2 w-12 h-6 bg-gray-800 rounded-t-full" />
-                      {/* Stethoscope */}
-                      <motion.div
+                                        <div className="relative w-24 h-24 mx-auto mb-4">
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-12 bg-gradient-to-b from-blue-500 to-blue-600 rounded-t-3xl" />
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-10 bg-white rounded-t-2xl border-2 border-blue-200" />
+                                            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-12 bg-gradient-to-b from-amber-200 to-amber-300 rounded-full" />
+                                            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-12 h-6 bg-gray-800 rounded-t-full" />
+                                            <motion.div
                         className="absolute bottom-3 left-1/2 -translate-x-1/2"
                         animate={{ rotate: [0, 5, -5, 0] }}
                         transition={{ duration: 2, repeat: Infinity }}
@@ -1492,31 +1377,23 @@ export default function LoginPage() {
                     <h4 className="text-lg font-bold text-gray-900 mb-1">Doctor</h4>
                     <p className="text-sm text-gray-500">Access medical records & create diagnoses</p>
                     
-                    {/* Hover glow */}
-                    <motion.div
+                                        <motion.div
                       className="absolute inset-0 rounded-2xl bg-blue-400/10 opacity-0 group-hover:opacity-100 transition-opacity"
                     />
                   </motion.button>
 
-                  {/* Patient Role */}
-                  <motion.button
+                                    <motion.button
                     whileHover={{ scale: 1.03, y: -4 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleRoleSelect('patient')}
                     className="relative group p-6 rounded-2xl border-2 border-emerald-200 hover:border-emerald-400 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/20"
                   >
-                    {/* Patient Illustration */}
-                    <div className="relative w-24 h-24 mx-auto mb-4">
-                      {/* Body */}
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-12 bg-gradient-to-b from-emerald-400 to-emerald-500 rounded-t-3xl" />
-                      {/* Hospital gown */}
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-10 bg-emerald-100 rounded-t-2xl border-2 border-emerald-200" />
-                      {/* Head */}
-                      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-12 bg-gradient-to-b from-amber-200 to-amber-300 rounded-full" />
-                      {/* Hair */}
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-7 bg-gray-700 rounded-t-full" />
-                      {/* Heart icon */}
-                      <motion.div
+                                        <div className="relative w-24 h-24 mx-auto mb-4">
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-12 bg-gradient-to-b from-emerald-400 to-emerald-500 rounded-t-3xl" />
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-10 bg-emerald-100 rounded-t-2xl border-2 border-emerald-200" />
+                                            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-12 bg-gradient-to-b from-amber-200 to-amber-300 rounded-full" />
+                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-7 bg-gray-700 rounded-t-full" />
+                                            <motion.div
                         className="absolute bottom-3 left-1/2 -translate-x-1/2"
                         animate={{ scale: [1, 1.2, 1] }}
                         transition={{ duration: 1, repeat: Infinity }}
@@ -1528,8 +1405,7 @@ export default function LoginPage() {
                     <h4 className="text-lg font-bold text-gray-900 mb-1">Patient</h4>
                     <p className="text-sm text-gray-500">View your health records & appointments</p>
                     
-                    {/* Hover glow */}
-                    <motion.div
+                                        <motion.div
                       className="absolute inset-0 rounded-2xl bg-emerald-400/10 opacity-0 group-hover:opacity-100 transition-opacity"
                     />
                   </motion.button>

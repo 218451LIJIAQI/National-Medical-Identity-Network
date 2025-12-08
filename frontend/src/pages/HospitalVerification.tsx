@@ -14,8 +14,6 @@ import {
   MapPin, Clock, Users, Fingerprint, CreditCard, ArrowRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// Hospital-specific decorative elements
 const hospitalDecorations: Record<string, {
   pattern: string
   icons: typeof Stethoscope[]
@@ -65,8 +63,6 @@ export default function HospitalVerification() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [showChipScan, setShowChipScan] = useState(false)
   const [chipPhase, setChipPhase] = useState<'detecting' | 'reading' | 'success'>('detecting')
-  
-  // Try to get user from zustand store, fall back to localStorage
   const getStoredUser = () => {
     const storedUser = localStorage.getItem('medlink-user')
     if (storedUser) {
@@ -85,39 +81,26 @@ export default function HospitalVerification() {
     if (storeUser) {
       setLocalUser(storeUser)
     } else if (!localUser) {
-      // Try localStorage as fallback
       const stored = getStoredUser()
       if (stored) {
         setLocalUser(stored)
       }
     }
   }, [storeUser, localUser])
-  
-  // Use whichever user we have
   const user = storeUser || localUser
   
   const theme: HospitalTheme = getHospitalTheme(user?.hospitalId)
   const decoration = hospitalDecorations[user?.hospitalId || 'hospital-kl'] || hospitalDecorations['hospital-kl']
-  
-  // Auto-fill demo credentials
   useEffect(() => {
     if (user) {
-      // Use same credentials as platform (demo mode)
       setUsername(user.icNumber || '')
-      // Set correct password based on role
       setPassword(user.role === 'hospital_admin' ? 'admin123' : 'doctor123')
     }
   }, [user])
-
-  // Wait for hydration and user state to be ready
   useEffect(() => {
-    // Skip if not hydrated yet
     if (!_hasHydrated) return
-    
-    // If user exists, check role
     if (user) {
       if (user.role !== 'doctor' && user.role !== 'hospital_admin') {
-        // Non-hospital users go directly to their dashboard
         const redirectPath: Record<string, string> = {
           patient: '/patient',
           central_admin: '/admin/central',
@@ -126,21 +109,15 @@ export default function HospitalVerification() {
       }
       return
     }
-    
-    // User is null - check localStorage as fallback
     const storedUser = localStorage.getItem('medlink-user')
     if (!storedUser) {
-      // No user in store or localStorage, redirect to login after delay
       const timer = setTimeout(() => {
         navigate('/login')
       }, 500) // Give more time for state to sync
       return () => clearTimeout(timer)
     }
-    // localStorage has user, wait for zustand to sync
     return undefined
   }, [user, navigate, _hasHydrated])
-  
-  // Show loading while hydrating or waiting for user data
   if (!_hasHydrated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -164,21 +141,13 @@ export default function HospitalVerification() {
       </div>
     )
   }
-
-  // IC Scan for hospital verification
   const handleIcScan = async () => {
     setShowChipScan(true)
     setChipPhase('detecting')
-    
-    // Phase 1: Detecting
     await new Promise(resolve => setTimeout(resolve, 1200))
     setChipPhase('reading')
-    
-    // Phase 2: Reading
     await new Promise(resolve => setTimeout(resolve, 1500))
     setChipPhase('success')
-    
-    // Phase 3: Success
     await new Promise(resolve => setTimeout(resolve, 800))
     
     setShowChipScan(false)
@@ -208,8 +177,6 @@ export default function HospitalVerification() {
     }
 
     setIsLoading(true)
-    
-    // Simulate verification delay with hospital system
     await new Promise(resolve => setTimeout(resolve, 1500))
     
     setShowSuccess(true)
@@ -218,8 +185,6 @@ export default function HospitalVerification() {
       title: '✓ Hospital Verification Complete',
       description: `Access granted to ${theme.name}`,
     })
-    
-    // Wait for success animation then redirect
     await new Promise(resolve => setTimeout(resolve, 1200))
     
     const redirectPath = user?.role === 'doctor' ? '/doctor' : '/admin/hospital'
@@ -228,8 +193,7 @@ export default function HospitalVerification() {
 
   return (
     <>
-      {/* Full-screen Chip Scan Animation */}
-      <AnimatePresence>
+            <AnimatePresence>
         {showChipScan && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -239,15 +203,13 @@ export default function HospitalVerification() {
             style={{ background: `linear-gradient(135deg, ${theme.primaryColor}ee 0%, ${theme.secondaryColor}dd 100%)` }}
           >
             <div className="relative flex flex-col items-center">
-              {/* IC Card */}
-              <motion.div
+                            <motion.div
                 className="relative w-72 h-44 rounded-2xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-sm shadow-2xl overflow-hidden border border-white/30"
                 initial={{ scale: 0.8, rotateY: -20 }}
                 animate={{ scale: 1, rotateY: chipPhase === 'reading' ? [0, 3, -3, 0] : 0 }}
                 transition={{ duration: 0.5 }}
               >
-                {/* Chip */}
-                <motion.div
+                                <motion.div
                   className="absolute top-5 left-5 w-12 h-10 rounded-md bg-gradient-to-br from-amber-400 to-yellow-500 shadow-lg"
                   animate={chipPhase === 'reading' ? {
                     boxShadow: ['0 0 15px rgba(251,191,36,0.5)', '0 0 30px rgba(251,191,36,0.8)', '0 0 15px rgba(251,191,36,0.5)'],
@@ -264,15 +226,13 @@ export default function HospitalVerification() {
                   </div>
                 </motion.div>
                 
-                {/* Card content */}
-                <div className="absolute top-5 right-5 text-white/60 text-xs font-mono">{theme.shortName}</div>
+                                <div className="absolute top-5 right-5 text-white/60 text-xs font-mono">{theme.shortName}</div>
                 <div className="absolute bottom-5 left-5 right-5 space-y-2">
                   <div className="h-2 bg-white/20 rounded" />
                   <div className="h-2 bg-white/20 rounded w-2/3" />
                 </div>
                 
-                {/* Scanning line */}
-                {chipPhase === 'reading' && (
+                                {chipPhase === 'reading' && (
                   <motion.div
                     className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white to-transparent"
                     animate={{ top: ['0%', '100%'] }}
@@ -280,8 +240,7 @@ export default function HospitalVerification() {
                   />
                 )}
                 
-                {/* Success overlay */}
-                {chipPhase === 'success' && (
+                                {chipPhase === 'success' && (
                   <motion.div
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -299,8 +258,7 @@ export default function HospitalVerification() {
                 )}
               </motion.div>
               
-              {/* Status */}
-              <motion.div
+                            <motion.div
                 className="mt-8 text-center"
                 key={chipPhase}
                 initial={{ opacity: 0, y: 10 }}
@@ -318,8 +276,7 @@ export default function HospitalVerification() {
                 </p>
               </motion.div>
               
-              {/* Progress dots */}
-              <div className="flex gap-2 mt-6">
+                            <div className="flex gap-2 mt-6">
                 {['detecting', 'reading', 'success'].map((phase, i) => (
                   <motion.div
                     key={phase}
@@ -338,22 +295,19 @@ export default function HospitalVerification() {
       </AnimatePresence>
 
       <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Dynamic Hospital Background */}
-      <div 
+              <div 
         className="absolute inset-0 transition-all duration-1000"
         style={{ 
           background: `linear-gradient(135deg, ${theme.primaryColor}08 0%, ${theme.secondaryColor}05 50%, ${theme.accentColor}08 100%)`,
         }}
       />
       
-      {/* Hospital Pattern Overlay */}
-      <div 
+            <div 
         className="absolute inset-0"
         style={{ background: decoration.pattern }}
       />
       
-      {/* Animated Floating Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(6)].map((_, i) => {
           const IconComponent = decoration.icons[i % decoration.icons.length]
           return (
@@ -385,8 +339,7 @@ export default function HospitalVerification() {
         })}
       </div>
 
-      {/* Pulsing Glow Effect */}
-      <motion.div
+            <motion.div
         className="absolute inset-0 pointer-events-none"
         animate={{
           background: [
@@ -398,22 +351,18 @@ export default function HospitalVerification() {
         transition={{ duration: 4, repeat: Infinity }}
       />
 
-      {/* Main Card */}
-      <motion.div
+            <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, type: "spring" }}
         className="w-full max-w-lg relative z-10"
       >
         <Card className="border-0 shadow-2xl overflow-hidden backdrop-blur-sm bg-white/95">
-          {/* Hospital Header */}
-          <div className={`relative p-8 bg-gradient-to-r ${theme.headerGradient} text-white overflow-hidden`}>
-            {/* Decorative circles */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-white/10" />
+                    <div className={`relative p-8 bg-gradient-to-r ${theme.headerGradient} text-white overflow-hidden`}>
+                        <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-white/10" />
             <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full bg-white/5" />
             
-            {/* Hospital Logo */}
-            <motion.div 
+                        <motion.div 
               className="relative flex items-center gap-4"
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -433,8 +382,7 @@ export default function HospitalVerification() {
                 >
                   <span className="text-2xl font-black tracking-tight">{theme.shortName}</span>
                 </motion.div>
-                {/* Pulse ring */}
-                <motion.div
+                                <motion.div
                   className="absolute inset-0 rounded-2xl border-2 border-white/30"
                   animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -450,8 +398,7 @@ export default function HospitalVerification() {
             </motion.div>
           </div>
 
-          {/* Security Badge */}
-          <div className="px-8 -mt-4 relative z-10">
+                    <div className="px-8 -mt-4 relative z-10">
             <motion.div
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -467,8 +414,7 @@ export default function HospitalVerification() {
           </div>
 
           <CardContent className="p-8 pt-6">
-            {/* Welcome Message */}
-            <motion.div
+                        <motion.div
               className="text-center mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -478,8 +424,7 @@ export default function HospitalVerification() {
               <p className="text-gray-500 mt-1">{decoration.securityText}</p>
             </motion.div>
 
-            {/* User Info Card */}
-            <motion.div
+                        <motion.div
               className={`p-4 rounded-2xl ${theme.bgLight} border ${theme.borderColor} mb-6`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -515,8 +460,7 @@ export default function HospitalVerification() {
               </div>
             </motion.div>
 
-            {/* Verification Form */}
-            <AnimatePresence mode="wait">
+                        <AnimatePresence mode="wait">
               {!showSuccess ? (
                 <motion.form 
                   onSubmit={handleVerification}
@@ -524,8 +468,7 @@ export default function HospitalVerification() {
                   initial={{ opacity: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                 >
-                  {/* Username Field */}
-                  <motion.div
+                                    <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6 }}
@@ -553,8 +496,7 @@ export default function HospitalVerification() {
                     </p>
                   </motion.div>
 
-                  {/* Password Field */}
-                  <motion.div
+                                    <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.7 }}
@@ -580,8 +522,7 @@ export default function HospitalVerification() {
                     </div>
                   </motion.div>
 
-                  {/* Verify Button */}
-                  <motion.div
+                                    <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.8 }}
@@ -608,8 +549,7 @@ export default function HospitalVerification() {
                     </Button>
                   </motion.div>
 
-                  {/* Divider */}
-                  <motion.div 
+                                    <motion.div 
                     className="relative flex items-center gap-4 py-1"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -620,8 +560,7 @@ export default function HospitalVerification() {
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                   </motion.div>
 
-                  {/* IC Scan Button */}
-                  <motion.div
+                                    <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.9 }}
@@ -700,8 +639,7 @@ export default function HospitalVerification() {
               )}
             </AnimatePresence>
 
-            {/* Security Footer */}
-            <motion.div
+                        <motion.div
               className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-center gap-2 text-gray-400"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -713,8 +651,7 @@ export default function HospitalVerification() {
           </CardContent>
         </Card>
 
-        {/* Hospital Tagline */}
-        <motion.p
+                <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}

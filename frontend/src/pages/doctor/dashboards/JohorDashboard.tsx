@@ -1,9 +1,3 @@
-// ============================================================================
-// Johor Specialist Hospital Dashboard - Warm Amber & Gold Style
-// 极致精美浅色系 - 温暖琥珀金色调，卡片式设计
-// Ultra-refined light theme with luxurious warmth
-// ============================================================================
-
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
@@ -16,8 +10,6 @@ import {
   Building2, ChevronRight, Heart
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// 精美动画配置 - 弹性感
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -114,19 +106,14 @@ export default function JohorDashboard() {
       initial="hidden"
       animate="visible"
     >
-      {/* ================================================================== */}
-      {/* HERO WELCOME - Warm Amber Gradient */}
-      {/* ================================================================== */}
-      <motion.div 
+                        <motion.div 
         variants={itemVariants}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100/60 shadow-xl shadow-amber-100/30"
       >
-        {/* Decorative Orbs */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-200/40 to-orange-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+                <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-200/40 to-orange-200/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
         <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-gradient-to-tr from-yellow-200/30 to-transparent rounded-full blur-2xl translate-y-1/2" />
         
-        {/* Sparkle Decorations */}
-        <motion.div
+                <motion.div
           className="absolute top-12 right-20"
           animate={{ rotate: 360, scale: [1, 1.2, 1] }}
           transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
@@ -142,8 +129,7 @@ export default function JohorDashboard() {
         </motion.div>
         
         <div className="relative z-10 p-8">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-4 py-2.5 bg-white/80 backdrop-blur-sm rounded-2xl border border-amber-100 shadow-sm">
                 <Clock className="w-4 h-4 text-amber-600" />
@@ -157,8 +143,7 @@ export default function JohorDashboard() {
               </div>
             </div>
             
-            {/* Hospital Badge */}
-            <motion.div 
+                        <motion.div 
               className="hidden md:flex items-center gap-3 px-5 py-3 bg-white/90 backdrop-blur-sm rounded-2xl border border-amber-100 shadow-lg"
               whileHover={{ scale: 1.02, y: -2 }}
             >
@@ -172,8 +157,7 @@ export default function JohorDashboard() {
             </motion.div>
           </div>
 
-          {/* Welcome Content */}
-          <div className="flex items-end justify-between">
+                    <div className="flex items-end justify-between">
             <div className="space-y-4">
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -189,8 +173,7 @@ export default function JohorDashboard() {
                 {theme.tagline}
               </p>
               
-              {/* Quick Action Buttons */}
-              <div className="flex gap-3 pt-2">
+                            <div className="flex gap-3 pt-2">
                 <Link to="/doctor/search">
                   <motion.button
                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold shadow-lg shadow-amber-200/50 hover:shadow-xl hover:shadow-amber-300/50 transition-all"
@@ -214,8 +197,7 @@ export default function JohorDashboard() {
               </div>
             </div>
 
-            {/* Stats Preview */}
-            <motion.div 
+                        <motion.div 
               className="hidden lg:grid grid-cols-2 gap-3"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -234,10 +216,7 @@ export default function JohorDashboard() {
         </div>
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* STATS CARDS - Floating Luxury Design */}
-      {/* ================================================================== */}
-      <motion.div variants={itemVariants} className="grid md:grid-cols-4 gap-4">
+                        <motion.div variants={itemVariants} className="grid md:grid-cols-4 gap-4">
         {[
           { 
             label: 'Hospitals', 
@@ -303,12 +282,8 @@ export default function JohorDashboard() {
         ))}
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* MAIN CONTENT GRID */}
-      {/* ================================================================== */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Recent Activity - 2 columns */}
-        <motion.div 
+                        <div className="grid lg:grid-cols-3 gap-6">
+                <motion.div 
           variants={itemVariants}
           className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >
@@ -382,8 +357,7 @@ export default function JohorDashboard() {
           </div>
         </motion.div>
 
-        {/* Specialties Sidebar */}
-        <motion.div 
+                <motion.div 
           variants={itemVariants}
           className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/40 overflow-hidden"
         >
