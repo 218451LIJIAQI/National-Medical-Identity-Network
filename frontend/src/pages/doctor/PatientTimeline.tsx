@@ -173,7 +173,7 @@ export default function PatientTimeline() {
           </div>
           <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
             <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-              <Button className={`bg-white ${getHospitalTheme(user?.hospitalId || 'hospital-kl').textColor} hover:bg-white/90 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold`}>
+              <Button className={`bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').buttonGradient} text-white hover:opacity-90 gap-2 shadow-xl ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor} h-12 px-6 rounded-xl font-semibold`}>
                 <Plus className="h-5 w-5" />
                 New Record
               </Button>
