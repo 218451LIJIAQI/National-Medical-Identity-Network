@@ -16,6 +16,7 @@ interface AuditLog {
   timestamp: string
   action: string
   userId: string
+  userName: string
   userRole: string
   targetIcNumber?: string
   sourceHospital: string
@@ -50,16 +51,18 @@ export default function AuditLogs() {
           if (log.action === 'query') action = 'CROSS_HOSPITAL_QUERY'
           else if (log.action === 'create') action = 'RECORD_CREATE'
           else if (log.action === 'login') action = 'LOGIN'
+          else if (log.action === 'logout') action = 'LOGOUT'
           else if (log.action === 'emergency' || log.action === 'emergency_access') action = 'EMERGENCY_ACCESS'
           
           return {
             id: log.id,
             timestamp: log.timestamp,
             action,
-            userId: log.actorId?.slice(0, 12) || 'Unknown',
+            userId: log.actorId?.slice(0, 12) || 'System',
+            userName: log.actorName || 'Unknown',
             userRole: log.actorType || 'unknown',
             targetIcNumber: log.targetIcNumber,
-            sourceHospital: log.actorHospitalId || 'Central Hub',
+            sourceHospital: log.hospitalName || log.actorHospitalId || 'Central Hub',
             targetHospitals: log.targetHospitalId ? [log.targetHospitalId] : undefined,
             status: log.success ? 'success' as const : 'denied' as const,
             details: log.details,
@@ -388,7 +391,8 @@ export default function AuditLogs() {
                           <div className="flex items-center gap-2 flex-wrap">
                             {getActionBadge(log.action)}
                             <span className="text-gray-400">•</span>
-                            <Badge variant="outline" className="font-normal">
+                            <span className="text-sm font-semibold text-gray-800">{log.userName}</span>
+                            <Badge variant="outline" className="font-normal text-xs">
                               {log.userRole}
                             </Badge>
                             {log.targetIcNumber && (

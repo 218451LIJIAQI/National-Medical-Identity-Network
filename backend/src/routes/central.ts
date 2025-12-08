@@ -541,9 +541,53 @@ router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_adm
       limit: limit ? parseInt(limit as string) : 100,
     });
     
+    // Enrich logs with user and hospital names
+    const enrichedLogs = await Promise.all(logs.map(async (log) => {
+      let actorName = 'System';
+      let hospitalName = log.actorHospitalId || 'Central Hub';
+      
+      // Get hospital name
+      const hospital = HOSPITALS.find(h => h.id === log.actorHospitalId);
+      if (hospital) {
+        hospitalName = hospital.name;
+      }
+      
+      // Get actor name
+      if (log.actorId) {
+        try {
+          const user = await getUserById(log.actorId);
+          if (user && user.icNumber) {
+            if (log.actorType === 'doctor' && log.actorHospitalId) {
+              try {
+                const hospitalDb = getHospitalDb(log.actorHospitalId);
+                const doctor = await hospitalDb.getDoctorByIc(user.icNumber);
+                actorName = doctor?.fullName || `Dr. ${user.icNumber}`;
+              } catch {
+                actorName = `Dr. ${user.icNumber}`;
+              }
+            } else if (log.actorType === 'patient') {
+              actorName = `Patient ${user.icNumber.slice(0, 6)}****`;
+            } else if (log.actorType === 'hospital_admin') {
+              actorName = hospitalName ? `Admin (${hospitalName})` : 'Hospital Admin';
+            } else if (log.actorType === 'central_admin') {
+              actorName = 'Central Administrator';
+            }
+          }
+        } catch {
+          actorName = log.actorType === 'system' ? 'System' : 'Unknown';
+        }
+      }
+      
+      return {
+        ...log,
+        actorName,
+        hospitalName,
+      };
+    }));
+    
     res.json({
       success: true,
-      data: logs,
+      data: enrichedLogs,
     });
   } catch (error) {
     console.error('Get audit logs error:', error);

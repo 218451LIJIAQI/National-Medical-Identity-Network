@@ -98,13 +98,14 @@ router.post('/login', async (req: Request, res: Response) => {
       }
     }
     
+    const userName = (userInfo.fullName as string) || user.icNumber;
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'login',
       actorId: user.id,
       actorType: user.role,
       actorHospitalId: user.hospitalId,
-      details: 'User logged in successfully',
+      details: `${userName} logged in successfully`,
       ipAddress: req.ip || 'unknown',
       success: true,
     });
