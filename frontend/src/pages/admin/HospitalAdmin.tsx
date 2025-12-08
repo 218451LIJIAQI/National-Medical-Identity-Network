@@ -44,7 +44,7 @@ export default function HospitalAdminDashboard() {
         const [statsRes, hospitalRes, logsRes] = await Promise.all([
           hospitalApi.getStats(user.hospitalId),
           hospitalApi.getHospital(user.hospitalId),
-          centralApi.getAuditLogs({ limit: 5 }),
+          centralApi.getAuditLogs({ limit: 20 }),
         ])
         
         if (statsRes.success && statsRes.data) {
@@ -66,7 +66,30 @@ export default function HospitalAdminDashboard() {
         }
         
         if (logsRes.success && logsRes.data) {
-          const activities = (logsRes.data as any[]).slice(0, 4).map((log: any) => {
+          // Filter logs for this hospital and deduplicate
+          const hospitalLogs = (logsRes.data as any[])
+            .filter((log: any) => 
+              log.actorHospitalId === user.hospitalId || 
+              !log.actorHospitalId // Include central logs
+            )
+          
+          // Deduplicate consecutive similar logs within 5 minutes
+          const deduplicatedLogs: any[] = []
+          for (const log of hospitalLogs) {
+            const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1]
+            if (lastLog && 
+                lastLog.actorId === log.actorId && 
+                lastLog.action === log.action &&
+                lastLog.targetIcNumber === log.targetIcNumber) {
+              const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime())
+              if (timeDiff < 5 * 60 * 1000) {
+                continue
+              }
+            }
+            deduplicatedLogs.push(log)
+          }
+          
+          const activities = deduplicatedLogs.slice(0, 4).map((log: any) => {
             const logDate = new Date(log.timestamp)
             const now = new Date()
             const diffMs = now.getTime() - logDate.getTime()
@@ -74,17 +97,27 @@ export default function HospitalAdminDashboard() {
             const diffHours = Math.floor(diffMs / 3600000)
             
             let timeAgo = ''
-            if (diffMins < 60) {
-              timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
+            if (diffMins < 1) {
+              timeAgo = 'Just now'
+            } else if (diffMins < 60) {
+              timeAgo = `${diffMins} mins ago`
             } else if (diffHours < 24) {
               timeAgo = diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`
             } else {
               timeAgo = `${Math.floor(diffHours / 24)} days ago`
             }
             
+            // Get action description
+            let actionDesc = log.details || 'System action'
+            if (log.action === 'login') actionDesc = `${log.actorName || 'User'} logged in successfully`
+            else if (log.action === 'logout') actionDesc = `${log.actorName || 'User'} logged out`
+            else if (log.action === 'query') actionDesc = log.details || 'Cross-hospital query'
+            else if (log.action === 'view') actionDesc = log.details || 'Viewed patient record'
+            else if (log.action === 'create') actionDesc = log.details || 'Created new record'
+            
             return {
-              action: log.details || log.action || 'System action',
-              user: log.actorId?.slice(0, 12) || 'System',
+              action: actionDesc,
+              user: log.actorName || 'System',
               time: timeAgo,
               type: log.action === 'query' ? 'query' as const : 'create' as const,
             }
