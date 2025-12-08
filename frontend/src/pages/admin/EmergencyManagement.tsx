@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
 import { 
   Siren, Search, Loader2, AlertTriangle, Building2, Clock, User, 
-  FileText, RefreshCw, Shield, X, ChevronRight, Activity
+  FileText, RefreshCw, Shield, X, ChevronRight, Activity, Video, Download
 } from 'lucide-react'
+import { useToast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -23,6 +24,7 @@ interface EmergencyLog {
 }
 
 export default function EmergencyManagement() {
+  const { toast } = useToast()
   const [logs, setLogs] = useState<EmergencyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -266,6 +268,30 @@ export default function EmergencyManagement() {
                           {formatDate(log.timestamp)}
                         </p>
                       </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-2 text-orange-600 border-orange-200 hover:bg-orange-50 hover:border-orange-300"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toast({
+                            title: "Recording Download",
+                            description: `Downloading emergency access video recording for patient ${log.targetIcNumber}...`,
+                          })
+                          // Demo: simulate download after delay
+                          setTimeout(() => {
+                            toast({
+                              title: "Download Complete",
+                              description: "Video recording saved to Downloads folder.",
+                            })
+                          }, 2000)
+                        }}
+                        title="Download emergency access video recording"
+                      >
+                        <Video className="w-4 h-4" />
+                        <Download className="w-3 h-3" />
+                      </Button>
                       
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </div>
