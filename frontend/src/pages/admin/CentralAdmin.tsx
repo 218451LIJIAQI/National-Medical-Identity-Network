@@ -83,7 +83,7 @@ export default function CentralAdminDashboard() {
         const [statsRes, hospitalsRes, logsRes] = await Promise.all([
           centralApi.getStats(),
           centralApi.getHospitals(),
-          centralApi.getAuditLogs({ limit: 5 }),
+          centralApi.getAuditLogs({ limit: 20 }),
         ])
         
         if (statsRes.success && statsRes.data) {
@@ -93,32 +93,44 @@ export default function CentralAdminDashboard() {
           setHospitals(hospitalsRes.data as unknown as Hospital[])
         }
         if (logsRes.success && logsRes.data) {
-          const activities = (logsRes.data as any[]).map((log: any) => {
-            const logDate = new Date(log.timestamp)
-            const now = new Date()
-            const diffMs = now.getTime() - logDate.getTime()
-            const diffMins = Math.floor(diffMs / 60000)
-            
-            let timeAgo = ''
-            if (diffMins < 60) {
-              timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
-            } else {
-              const diffHours = Math.floor(diffMs / 3600000)
-              timeAgo = diffHours < 24 ? `${diffHours} hours ago` : `${Math.floor(diffHours/24)} days ago`
-            }
-            
-            const icMasked = log.targetIcNumber 
-              ? log.targetIcNumber.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3')
-              : 'N/A'
-            
-            return {
-              from: log.actorHospitalId || 'Central Hub',
-              to: 'Network',
-              type: log.action === 'query' ? 'Patient Query' : 'Record Access',
-              patient: icMasked,
-              time: timeAgo,
-            }
-          })
+          const activities = (logsRes.data as any[])
+            .filter((log: any) => ['query', 'view', 'create', 'emergency_access'].includes(log.action))
+            .map((log: any) => {
+              const logDate = new Date(log.timestamp)
+              const now = new Date()
+              const diffMs = now.getTime() - logDate.getTime()
+              const diffMins = Math.floor(diffMs / 60000)
+              
+              let timeAgo = ''
+              if (diffMins < 60) {
+                timeAgo = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
+              } else {
+                const diffHours = Math.floor(diffMs / 3600000)
+                timeAgo = diffHours < 24 ? `${diffHours} hours ago` : `${Math.floor(diffHours/24)} days ago`
+              }
+              
+              const icMasked = log.targetIcNumber 
+                ? log.targetIcNumber.replace(/(.{6})(.*)(.{4})/, '$1-XX-$3')
+                : 'System'
+              
+              const getActionType = (action: string) => {
+                switch (action) {
+                  case 'query': return 'Patient Query'
+                  case 'view': return 'Record View'
+                  case 'create': return 'Record Created'
+                  case 'emergency_access': return 'Emergency Access'
+                  default: return 'Record Access'
+                }
+              }
+              
+              return {
+                from: log.actorHospitalId || 'Central Hub',
+                to: 'Network',
+                type: getActionType(log.action),
+                patient: icMasked,
+                time: timeAgo,
+              }
+            })
           setNetworkActivity(activities)
         }
       } catch (error) {
