@@ -105,8 +105,8 @@ export default function Appointments() {
   return (
     <div className="space-y-6">
             <div>
-          <h2 className="text-2xl font-bold text-gray-800">Temujanji</h2>
-          <p className="text-gray-500">Appointment Management • Jadual Temujanji</p>
+          <h2 className="text-2xl font-bold text-gray-800">Appointments</h2>
+          <p className="text-gray-500">Appointment Management • Schedule</p>
         </div>
 
             <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -122,7 +122,7 @@ export default function Appointments() {
           <Calendar className="w-5 h-5 text-teal-600" />
           <div className="text-center">
             <p className="text-lg font-bold text-gray-800">{formatDisplayDate(selectedDate)}</p>
-            <p className="text-sm text-gray-500">{stats.total} temujanji</p>
+            <p className="text-sm text-gray-500">{stats.total} appointments</p>
           </div>
         </div>
 
@@ -137,10 +137,10 @@ export default function Appointments() {
 
             <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Jumlah', value: stats.total, color: 'blue' },
-          { label: 'Disahkan', value: stats.confirmed, color: 'emerald' },
-          { label: 'Menunggu', value: stats.pending, color: 'amber' },
-          { label: 'Selesai', value: stats.completed, color: 'gray' },
+          { label: 'Total', value: stats.total, color: 'blue' },
+          { label: 'Confirmed', value: stats.confirmed, color: 'emerald' },
+          { label: 'Pending', value: stats.pending, color: 'amber' },
+          { label: 'Completed', value: stats.completed, color: 'gray' },
         ].map(stat => (
           <motion.div
             key={stat.label}
@@ -158,7 +158,7 @@ export default function Appointments() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Cari nama atau IC..."
+            placeholder="Search name or IC..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
@@ -177,7 +177,7 @@ export default function Appointments() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {status === 'all' ? 'Semua' : status === 'confirmed' ? 'Disahkan' : status === 'pending' ? 'Menunggu' : 'Dibatal'}
+              {status === 'all' ? 'All' : status === 'confirmed' ? 'Confirmed' : status === 'pending' ? 'Pending' : 'Cancelled'}
             </button>
           ))}
         </div>
@@ -185,19 +185,19 @@ export default function Appointments() {
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
-          <div className="col-span-1">Masa</div>
-          <div className="col-span-3">Pesakit</div>
+          <div className="col-span-1">Time</div>
+          <div className="col-span-3">Patient</div>
           <div className="col-span-2">No. IC</div>
-          <div className="col-span-2">Jenis</div>
+          <div className="col-span-2">Type</div>
           <div className="col-span-2">Status</div>
-          <div className="col-span-2">Tindakan</div>
+          <div className="col-span-2">Action</div>
         </div>
 
         <AnimatePresence>
           {filteredAppointments.length === 0 ? (
             <div className="p-12 text-center">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Tiada temujanji pada tarikh ini</p>
+              <p className="text-gray-500">No appointments on this date</p>
             </div>
           ) : (
             filteredAppointments.map((apt, index) => (
@@ -239,17 +239,17 @@ export default function Appointments() {
 
                 <div className="col-span-2 flex items-center">
                   <span className={`px-3 py-1 text-xs font-medium rounded-full ${getTypeColor(apt.type)}`}>
-                    {apt.type === 'new' ? 'Baru' : 
-                     apt.type === 'follow-up' ? 'Susulan' : 
-                     apt.type === 'procedure' ? 'Prosedur' : 'Semakan'}
+                    {apt.type === 'new' ? 'New' : 
+                     apt.type === 'follow-up' ? 'Follow-up' : 
+                     apt.type === 'procedure' ? 'Procedure' : 'Review'}
                   </span>
                 </div>
 
                 <div className="col-span-2 flex items-center">
                   <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(apt.status)}`}>
-                    {apt.status === 'confirmed' ? 'Disahkan' :
-                     apt.status === 'pending' ? 'Menunggu' :
-                     apt.status === 'cancelled' ? 'Dibatal' : 'Selesai'}
+                    {apt.status === 'confirmed' ? 'Confirmed' :
+                     apt.status === 'pending' ? 'Pending' :
+                     apt.status === 'cancelled' ? 'Cancelled' : 'Completed'}
                   </span>
                 </div>
 
@@ -280,7 +280,7 @@ export default function Appointments() {
                       className="px-3 py-1.5 bg-teal-500 text-white text-sm rounded-lg hover:bg-teal-600"
                       whileHover={{ scale: 1.02 }}
                     >
-                      Selesai
+                      Complete
                     </motion.button>
                   )}
                   <motion.button
@@ -298,7 +298,7 @@ export default function Appointments() {
       </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h3 className="font-semibold text-gray-800 mb-4">Slot Masa Tersedia</h3>
+        <h3 className="font-semibold text-gray-800 mb-4">Available Time Slots</h3>
         <div className="grid grid-cols-7 gap-3">
           {timeSlots.map(slot => {
             const isBooked = todayAppointments.some(apt => apt.time === slot && apt.status !== 'cancelled')
@@ -312,7 +312,7 @@ export default function Appointments() {
                 }`}
               >
                 {slot}
-                {isBooked && <span className="block text-xs">Penuh</span>}
+                {isBooked && <span className="block text-xs">Booked</span>}
               </div>
             )
           })}

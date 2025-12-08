@@ -18,28 +18,28 @@ interface RadiologyOrder {
   turnaround: string
 }
 const radiologyCatalog = [
-  { code: 'CXR', name: 'Chest X-Ray (PA)', modality: 'X-Ray', bodyPart: 'Chest', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  { code: 'AXR', name: 'Abdominal X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  { code: 'KUB', name: 'KUB X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  { code: 'XR-Spine', name: 'Spine X-Ray (C/T/L)', modality: 'X-Ray', bodyPart: 'Spine', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  { code: 'XR-Limb', name: 'Limb X-Ray', modality: 'X-Ray', bodyPart: 'Extremity', turnaround: '30 min', preparation: 'Tiada', contrast: false },
-  { code: 'USG-Abd', name: 'Ultrasound Abdomen', modality: 'Ultrasound', bodyPart: 'Abdomen', turnaround: '1 hour', preparation: 'Puasa 6 jam', contrast: false },
-  { code: 'USG-Pelv', name: 'Ultrasound Pelvis', modality: 'Ultrasound', bodyPart: 'Pelvis', turnaround: '1 hour', preparation: 'Pundi kencing penuh', contrast: false },
-  { code: 'USG-KUB', name: 'Ultrasound KUB', modality: 'Ultrasound', bodyPart: 'Kidney', turnaround: '1 hour', preparation: 'Tiada', contrast: false },
-  { code: 'USG-Thyroid', name: 'Ultrasound Thyroid', modality: 'Ultrasound', bodyPart: 'Neck', turnaround: '1 hour', preparation: 'Tiada', contrast: false },
-  { code: 'Echo', name: 'Echocardiogram', modality: 'Ultrasound', bodyPart: 'Heart', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  { code: 'CT-Brain', name: 'CT Brain', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  { code: 'CT-Brain-C', name: 'CT Brain with Contrast', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'Semak RFT', contrast: true },
-  { code: 'CT-Thorax', name: 'CT Thorax', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  { code: 'CT-TAP', name: 'CT TAP (Thorax/Abdomen/Pelvis)', modality: 'CT Scan', bodyPart: 'Body', turnaround: '3 hours', preparation: 'Semak RFT, Puasa 4 jam', contrast: true },
-  { code: 'CTPA', name: 'CT Pulmonary Angiogram', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'Semak RFT', contrast: true },
-  { code: 'CT-KUB', name: 'CT KUB (Non-contrast)', modality: 'CT Scan', bodyPart: 'Abdomen', turnaround: '2 hours', preparation: 'Tiada', contrast: false },
-  { code: 'MRI-Brain', name: 'MRI Brain', modality: 'MRI', bodyPart: 'Head', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
-  { code: 'MRI-Spine', name: 'MRI Spine (C/T/L)', modality: 'MRI', bodyPart: 'Spine', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
-  { code: 'MRI-Knee', name: 'MRI Knee', modality: 'MRI', bodyPart: 'Knee', turnaround: '24 hours', preparation: 'Tiada logam', contrast: false },
-  { code: 'MRCP', name: 'MRCP', modality: 'MRI', bodyPart: 'Abdomen', turnaround: '24 hours', preparation: 'Puasa 6 jam, Tiada logam', contrast: false },
-  { code: 'Mammo', name: 'Mammogram', modality: 'Mammography', bodyPart: 'Breast', turnaround: '24 hours', preparation: 'Tiada', contrast: false },
-  { code: 'Fluoro', name: 'Fluoroscopy (Ba Swallow/Meal/Enema)', modality: 'Fluoroscopy', bodyPart: 'GIT', turnaround: '2 hours', preparation: 'Puasa 6 jam', contrast: true },
+  { code: 'CXR', name: 'Chest X-Ray (PA)', modality: 'X-Ray', bodyPart: 'Chest', turnaround: '30 min', preparation: 'None', contrast: false },
+  { code: 'AXR', name: 'Abdominal X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'None', contrast: false },
+  { code: 'KUB', name: 'KUB X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'None', contrast: false },
+  { code: 'XR-Spine', name: 'Spine X-Ray (C/T/L)', modality: 'X-Ray', bodyPart: 'Spine', turnaround: '30 min', preparation: 'None', contrast: false },
+  { code: 'XR-Limb', name: 'Limb X-Ray', modality: 'X-Ray', bodyPart: 'Extremity', turnaround: '30 min', preparation: 'None', contrast: false },
+  { code: 'USG-Abd', name: 'Ultrasound Abdomen', modality: 'Ultrasound', bodyPart: 'Abdomen', turnaround: '1 hour', preparation: 'Fasting 6 hours', contrast: false },
+  { code: 'USG-Pelv', name: 'Ultrasound Pelvis', modality: 'Ultrasound', bodyPart: 'Pelvis', turnaround: '1 hour', preparation: 'Full bladder required', contrast: false },
+  { code: 'USG-KUB', name: 'Ultrasound KUB', modality: 'Ultrasound', bodyPart: 'Kidney', turnaround: '1 hour', preparation: 'None', contrast: false },
+  { code: 'USG-Thyroid', name: 'Ultrasound Thyroid', modality: 'Ultrasound', bodyPart: 'Neck', turnaround: '1 hour', preparation: 'None', contrast: false },
+  { code: 'Echo', name: 'Echocardiogram', modality: 'Ultrasound', bodyPart: 'Heart', turnaround: '2 hours', preparation: 'None', contrast: false },
+  { code: 'CT-Brain', name: 'CT Brain', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'None', contrast: false },
+  { code: 'CT-Brain-C', name: 'CT Brain with Contrast', modality: 'CT Scan', bodyPart: 'Head', turnaround: '2 hours', preparation: 'Check RFT', contrast: true },
+  { code: 'CT-Thorax', name: 'CT Thorax', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'None', contrast: false },
+  { code: 'CT-TAP', name: 'CT TAP (Thorax/Abdomen/Pelvis)', modality: 'CT Scan', bodyPart: 'Body', turnaround: '3 hours', preparation: 'Check RFT, Fasting 4 hours', contrast: true },
+  { code: 'CTPA', name: 'CT Pulmonary Angiogram', modality: 'CT Scan', bodyPart: 'Chest', turnaround: '2 hours', preparation: 'Check RFT', contrast: true },
+  { code: 'CT-KUB', name: 'CT KUB (Non-contrast)', modality: 'CT Scan', bodyPart: 'Abdomen', turnaround: '2 hours', preparation: 'None', contrast: false },
+  { code: 'MRI-Brain', name: 'MRI Brain', modality: 'MRI', bodyPart: 'Head', turnaround: '24 hours', preparation: 'No metal objects', contrast: false },
+  { code: 'MRI-Spine', name: 'MRI Spine (C/T/L)', modality: 'MRI', bodyPart: 'Spine', turnaround: '24 hours', preparation: 'No metal objects', contrast: false },
+  { code: 'MRI-Knee', name: 'MRI Knee', modality: 'MRI', bodyPart: 'Knee', turnaround: '24 hours', preparation: 'No metal objects', contrast: false },
+  { code: 'MRCP', name: 'MRCP', modality: 'MRI', bodyPart: 'Abdomen', turnaround: '24 hours', preparation: 'Fasting 6 hours, No metal objects', contrast: false },
+  { code: 'Mammo', name: 'Mammogram', modality: 'Mammography', bodyPart: 'Breast', turnaround: '24 hours', preparation: 'None', contrast: false },
+  { code: 'Fluoro', name: 'Fluoroscopy (Ba Swallow/Meal/Enema)', modality: 'Fluoroscopy', bodyPart: 'GIT', turnaround: '2 hours', preparation: 'Fasting 6 hours', contrast: true },
 ]
 
 const modalities = ['All', 'X-Ray', 'Ultrasound', 'CT Scan', 'MRI', 'Special']
@@ -121,7 +121,7 @@ export default function Radiology({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Permintaan Radiologi</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Radiology Request</h2>
           <p className="text-gray-500">Radiology Orders • Imaging Request</p>
         </div>
         <div className="flex items-center gap-3">
@@ -133,14 +133,14 @@ export default function Radiology({
             whileTap={{ scale: 0.98 }}
           >
             <FileText className="w-5 h-5" />
-            Hantar Permintaan
+            Submit Request
           </motion.button>
           <motion.button
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
             <Printer className="w-5 h-5" />
-            Cetak
+            Print
           </motion.button>
         </div>
       </div>
@@ -154,7 +154,7 @@ export default function Radiology({
             <p className="font-semibold text-gray-800 text-lg">{patientName}</p>
             <div className="flex items-center gap-4 mt-1">
               <code className="text-sm text-gray-600 bg-white px-2 py-0.5 rounded">{patientIC}</code>
-              <span className="text-sm text-gray-500">Wad: OPD</span>
+              <span className="text-sm text-gray-500">Ward: OPD</span>
             </div>
           </div>
         </div>
@@ -162,12 +162,12 @@ export default function Radiology({
 
             <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Maklumat Klinikal / Clinical Indication
+          Clinical Information / Indication
         </label>
         <textarea
           value={clinicalInfo}
           onChange={(e) => setClinicalInfo(e.target.value)}
-          placeholder="Sila masukkan maklumat klinikal dan sebab pemeriksaan radiologi..."
+          placeholder="Please enter clinical information and reason for radiology examination..."
           className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none h-24"
         />
       </div>
@@ -180,10 +180,10 @@ export default function Radiology({
         >
           <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
           <div>
-            <p className="font-semibold text-amber-800">Perhatian: Pemeriksaan dengan Kontras</p>
+            <p className="font-semibold text-amber-800">Attention: Contrast Examination</p>
             <p className="text-sm text-amber-700 mt-1">
-              Sila pastikan RFT (Renal Function Test) terkini dan tiada alahan kontras. 
-              Pesakit perlu puasa mengikut arahan.
+              Please ensure RFT (Renal Function Test) is up to date and no contrast allergy. 
+              Patient must fast according to instructions.
             </p>
           </div>
         </motion.div>
@@ -192,12 +192,12 @@ export default function Radiology({
       <div className="grid grid-cols-2 gap-6">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-semibold text-gray-800 mb-3">Katalog Pemeriksaan</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Examination Catalog</h3>
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Cari pemeriksaan..."
+                placeholder="Search examination..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
@@ -246,7 +246,7 @@ export default function Radiology({
                       </code>
                       {exam.contrast && (
                         <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                          Kontras
+                          Contrast
                         </span>
                       )}
                     </div>
@@ -267,7 +267,7 @@ export default function Radiology({
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800">Pemeriksaan Dipilih</h3>
+              <h3 className="font-semibold text-gray-800">Selected Examinations</h3>
               <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-medium rounded-full">
                 {selectedOrders.length} item
               </span>
@@ -279,8 +279,8 @@ export default function Radiology({
               {selectedOrders.length === 0 ? (
                 <div className="text-center py-12">
                   <ScanLine className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Tiada pemeriksaan dipilih</p>
-                  <p className="text-sm text-gray-400">Pilih pemeriksaan dari katalog</p>
+                  <p className="text-gray-500">No examination selected</p>
+                  <p className="text-sm text-gray-400">Select examination from catalog</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -310,12 +310,12 @@ export default function Radiology({
                                 {order.urgent && (
                                   <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded flex items-center gap-1">
                                     <AlertCircle className="w-3 h-3" />
-                                    SEGERA
+                                    URGENT
                                   </span>
                                 )}
                                 {order.contrast && (
                                   <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">
-                                    Kontras
+                                    Contrast
                                   </span>
                                 )}
                               </div>
@@ -328,7 +328,7 @@ export default function Radiology({
                                   {order.turnaround}
                                 </span>
                               </div>
-                              {order.preparation !== 'Tiada' && (
+                              {order.preparation !== 'None' && (
                                 <p className="text-xs text-amber-600 mt-2 p-2 bg-amber-50 rounded">
                                   ⚠️ {order.preparation}
                                 </p>
@@ -345,7 +345,7 @@ export default function Radiology({
                               }`}
                               title="Toggle urgent"
                             >
-                              {order.urgent ? 'Segera' : 'Biasa'}
+                              {order.urgent ? 'Urgent' : 'Normal'}
                             </button>
                             <button
                               onClick={() => removeOrder(order.id)}
@@ -368,16 +368,16 @@ export default function Radiology({
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-gray-800">Ringkasan</p>
+                  <p className="font-semibold text-gray-800">Summary</p>
                   <p className="text-sm text-gray-600">
                     {selectedOrders.filter(o => o.urgent).length > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedOrders.filter(o => o.urgent).length} segera • 
+                        {selectedOrders.filter(o => o.urgent).length} urgent • 
                       </span>
                     )}
                     {' '}{selectedOrders.filter(o => o.contrast).length > 0 && (
                       <span className="text-amber-600">
-                        {selectedOrders.filter(o => o.contrast).length} dengan kontras
+                        {selectedOrders.filter(o => o.contrast).length} with contrast
                       </span>
                     )}
                   </p>

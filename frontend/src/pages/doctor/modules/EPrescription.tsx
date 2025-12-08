@@ -90,7 +90,7 @@ export default function EPrescription({
       frequency: 'BD',
       duration: '7 days',
       quantity: 14,
-      instructions: 'Ambil selepas makan',
+      instructions: 'Take after meals',
       route: 'Oral'
     }
     setMedications([...medications, newMed])
@@ -143,8 +143,8 @@ export default function EPrescription({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">e-Preskripsi</h2>
-          <p className="text-gray-500">Electronic Prescription • Sistem Preskripsi Elektronik</p>
+          <h2 className="text-2xl font-bold text-gray-800">e-Prescription</h2>
+          <p className="text-gray-500">Electronic Prescription • Digital Medication Orders</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
@@ -155,14 +155,14 @@ export default function EPrescription({
             whileTap={{ scale: 0.98 }}
           >
             <Send className="w-5 h-5" />
-            Hantar ke Farmasi
+            Send to Pharmacy
           </motion.button>
           <motion.button
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
             <Printer className="w-5 h-5" />
-            Cetak
+            Print
           </motion.button>
         </div>
       </div>
@@ -179,8 +179,8 @@ export default function EPrescription({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">36 tahun</span>
-            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">Lelaki</span>
+            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">36 years</span>
+            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">Male</span>
             <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">68kg</span>
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function EPrescription({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              <span className="font-semibold text-red-800">Alahan (Allergies)</span>
+              <span className="font-semibold text-red-800">Allergies</span>
             </div>
             <button onClick={() => setShowAllergies(!showAllergies)}>
               <ChevronDown className={`w-5 h-5 text-red-600 transition-transform ${showAllergies ? 'rotate-180' : ''}`} />
@@ -201,7 +201,7 @@ export default function EPrescription({
           </div>
           {showAllergies && (
             <div className="space-y-1">
-              <p className="text-sm text-red-700">• <strong>Penisilin</strong> - Ruam kulit teruk</p>
+              <p className="text-sm text-red-700">• <strong>Penicillin</strong> - Severe skin rash</p>
               <p className="text-sm text-red-700">• <strong>Seafood</strong> - Anaphylaxis</p>
             </div>
           )}
@@ -218,7 +218,7 @@ export default function EPrescription({
           >
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
-              <span className="font-semibold text-amber-800">Interaksi Ubat Dikesan</span>
+              <span className="font-semibold text-amber-800">Drug Interaction Detected</span>
             </div>
             {interactions.map((interaction, idx) => (
               <div key={idx} className={`p-3 rounded-lg mb-2 ${
@@ -247,7 +247,7 @@ export default function EPrescription({
         <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
           <div className="flex items-center gap-2 mb-3">
             <Package className="w-5 h-5 text-purple-600" />
-            <span className="font-semibold text-purple-800">Ubat Semasa (dari hospital lain)</span>
+            <span className="font-semibold text-purple-800">Current Medications (from other hospitals)</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {existingMedications.map((med, idx) => (
@@ -266,7 +266,7 @@ export default function EPrescription({
           whileHover={{ scale: 1.01 }}
         >
           <Plus className="w-5 h-5" />
-          Tambah Ubat
+          Add Medication
         </motion.button>
 
         <AnimatePresence>
@@ -282,7 +282,7 @@ export default function EPrescription({
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Cari ubat..."
+                    placeholder="Search medication..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -342,7 +342,7 @@ export default function EPrescription({
 
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Dos</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Dosage</label>
                   <input
                     type="text"
                     value={med.dosage}
@@ -351,7 +351,7 @@ export default function EPrescription({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Kekerapan</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Frequency</label>
                   <select
                     value={med.frequency}
                     onChange={(e) => updateMedication(med.id, 'frequency', e.target.value)}
@@ -363,7 +363,7 @@ export default function EPrescription({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Tempoh</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Duration</label>
                   <select
                     value={med.duration}
                     onChange={(e) => updateMedication(med.id, 'duration', e.target.value)}
@@ -375,7 +375,7 @@ export default function EPrescription({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Kuantiti</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Quantity</label>
                   <input
                     type="number"
                     value={med.quantity}
@@ -386,13 +386,13 @@ export default function EPrescription({
               </div>
 
               <div className="mt-3">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Arahan / Instructions</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Instructions</label>
                 <input
                   type="text"
                   value={med.instructions}
                   onChange={(e) => updateMedication(med.id, 'instructions', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Ambil selepas makan / Take after meals"
+                  placeholder="e.g., Take after meals"
                 />
               </div>
             </motion.div>
@@ -402,8 +402,8 @@ export default function EPrescription({
         {medications.length === 0 && (
           <div className="p-12 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
             <Pill className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">Tiada ubat ditambah</p>
-            <p className="text-sm text-gray-400">Klik "Tambah Ubat" untuk memulakan preskripsi</p>
+            <p className="text-gray-500 font-medium">No medications added</p>
+            <p className="text-sm text-gray-400">Click "Add Medication" to start prescription</p>
           </div>
         )}
       </div>
@@ -418,13 +418,13 @@ export default function EPrescription({
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               <div>
-                <p className="font-semibold text-emerald-800">Ringkasan Preskripsi</p>
-                <p className="text-sm text-emerald-600">{medications.length} jenis ubat • Sedia untuk dihantar</p>
+                <p className="font-semibold text-emerald-800">Prescription Summary</p>
+                <p className="text-sm text-emerald-600">{medications.length} medications • Ready to send</p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm text-emerald-700">
               <Clock className="w-4 h-4" />
-              <span>Dijangka siap: 30 minit</span>
+              <span>Expected ready: 30 minutes</span>
             </div>
           </div>
         </motion.div>

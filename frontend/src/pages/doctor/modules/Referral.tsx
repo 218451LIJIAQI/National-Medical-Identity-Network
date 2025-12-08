@@ -22,30 +22,30 @@ const hospitals = [
   { id: 'hpj', name: 'Hospital Putrajaya', city: 'Putrajaya', state: 'W.P. Putrajaya' },
   { id: 'hsg', name: 'Hospital Sungai Buloh', city: 'Sungai Buloh', state: 'Selangor' },
   { id: 'htar', name: 'Hospital Tengku Ampuan Rahimah', city: 'Klang', state: 'Selangor' },
-  { id: 'ppum', name: 'Pusat Perubatan Universiti Malaya', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
+  { id: 'ppum', name: 'University of Malaya Medical Centre', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
   { id: 'hukm', name: 'Hospital Canselor Tuanku Muhriz (HUKM)', city: 'Cheras', state: 'W.P. Kuala Lumpur' },
-  { id: 'ijn', name: 'Institut Jantung Negara', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
+  { id: 'ijn', name: 'National Heart Institute', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
   { id: 'hpg', name: 'Hospital Pulau Pinang', city: 'George Town', state: 'Pulau Pinang' },
   { id: 'hsajb', name: 'Hospital Sultanah Aminah', city: 'Johor Bahru', state: 'Johor' },
   { id: 'hus', name: 'Hospital Universiti Sains Malaysia', city: 'Kubang Kerian', state: 'Kelantan' },
 ]
 
 const departments = [
-  'Perubatan Am (General Medicine)',
-  'Pembedahan Am (General Surgery)',
-  'Ortopedik (Orthopaedics)',
-  'Obstetrik & Ginekologi (O&G)',
-  'Pediatrik (Paediatrics)',
-  'Kardiologi (Cardiology)',
-  'Neurologi (Neurology)',
-  'Onkologi (Oncology)',
-  'Nefrologi (Nephrology)',
-  'Psikiatri (Psychiatry)',
-  'Dermatologi (Dermatology)',
+  'General Medicine',
+  'General Surgery',
+  'Orthopaedics',
+  'Obstetrics & Gynaecology (O&G)',
+  'Paediatrics',
+  'Cardiology',
+  'Neurology',
+  'Oncology',
+  'Nephrology',
+  'Psychiatry',
+  'Dermatology',
   'ENT (Ear, Nose & Throat)',
-  'Oftalmologi (Ophthalmology)',
-  'Fisioterapi (Physiotherapy)',
-  'Radiologi (Radiology)',
+  'Ophthalmology',
+  'Physiotherapy',
+  'Radiology',
 ]
 
 interface ReferralProps {
@@ -118,8 +118,8 @@ export default function Referral({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Rujukan Pesakit</h2>
-          <p className="text-gray-500">Patient Referral • Borang Rujukan</p>
+          <h2 className="text-2xl font-bold text-gray-800">Patient Referral</h2>
+          <p className="text-gray-500">Patient Referral • Referral Form</p>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-xl">
           <Building2 className="w-5 h-5 text-blue-600" />
@@ -142,9 +142,9 @@ export default function Referral({
 
             <div className="flex items-center justify-center gap-4">
         {[
-          { num: 1, label: 'Destinasi' },
-          { num: 2, label: 'Maklumat Klinikal' },
-          { num: 3, label: 'Pengesahan' },
+          { num: 1, label: 'Destination' },
+          { num: 2, label: 'Clinical Info' },
+          { num: 3, label: 'Confirmation' },
         ].map((s, idx) => (
           <div key={s.num} className="flex items-center">
             <motion.button
@@ -186,14 +186,14 @@ export default function Referral({
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-indigo-600" />
-                Hospital Rujukan
+                Referral Hospital
               </h3>
               
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Cari hospital..."
+                  placeholder="Search hospital..."
                   value={searchHospital}
                   onChange={(e) => {
                     setSearchHospital(e.target.value)
@@ -232,7 +232,7 @@ export default function Referral({
                     <CheckCircle2 className="w-5 h-5 text-indigo-600" />
                     <div>
                       <p className="font-medium text-indigo-800">{formData.referToHospital}</p>
-                      <p className="text-sm text-indigo-600">Hospital dipilih</p>
+                      <p className="text-sm text-indigo-600">Hospital selected</p>
                     </div>
                   </div>
                 </motion.div>
@@ -242,7 +242,7 @@ export default function Referral({
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
-                Jabatan / Department
+                Department
               </h3>
               
               <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -263,12 +263,12 @@ export default function Referral({
             </div>
 
                         <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Tahap Keutamaan / Urgency</h3>
+              <h3 className="font-semibold text-gray-800 mb-4">Urgency Level</h3>
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { value: 'routine', label: 'Biasa / Routine', desc: 'Dalam masa 2-4 minggu', color: 'emerald' },
-                  { value: 'urgent', label: 'Segera / Urgent', desc: 'Dalam masa 48-72 jam', color: 'amber' },
-                  { value: 'emergency', label: 'Kecemasan / Emergency', desc: 'Segera / Immediately', color: 'red' },
+                  { value: 'routine', label: 'Routine', desc: 'Within 2-4 weeks', color: 'emerald' },
+                  { value: 'urgent', label: 'Urgent', desc: 'Within 48-72 hours', color: 'amber' },
+                  { value: 'emergency', label: 'Emergency', desc: 'Immediately', color: 'red' },
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -298,27 +298,27 @@ export default function Referral({
             className="space-y-6"
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Sebab Rujukan / Reason for Referral</h3>
+              <h3 className="font-semibold text-gray-800 mb-4">Reason for Referral</h3>
               <textarea
                 value={formData.reason}
                 onChange={(e) => updateField('reason', e.target.value)}
-                placeholder="Nyatakan sebab rujukan dengan jelas..."
+                placeholder="State reason for referral clearly..."
                 className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none h-32"
               />
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Ringkasan Klinikal / Clinical Summary</h3>
+              <h3 className="font-semibold text-gray-800 mb-4">Clinical Summary</h3>
               <textarea
                 value={formData.clinicalSummary}
                 onChange={(e) => updateField('clinicalSummary', e.target.value)}
-                placeholder="Sejarah pesakit, simptom, penemuan pemeriksaan fizikal..."
+                placeholder="Patient history, symptoms, physical examination findings..."
                 className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none h-40"
               />
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Siasatan Yang Telah Dilakukan / Investigations Done</h3>
+              <h3 className="font-semibold text-gray-800 mb-4">Investigations Done</h3>
               <div className="grid grid-cols-4 gap-3">
                 {['FBC', 'RFT', 'LFT', 'ECG', 'CXR', 'CT Scan', 'MRI', 'Ultrasound'].map(inv => (
                   <button
@@ -346,18 +346,18 @@ export default function Referral({
             exit={{ opacity: 0, x: -20 }}
             className="bg-white rounded-xl border border-gray-200 shadow-lg p-8"
           >
-            <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Pengesahan Rujukan</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Referral Confirmation</h3>
             
             <div className="max-w-2xl mx-auto space-y-6">
                             <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Pesakit</p>
+                    <p className="text-sm text-gray-500 mb-1">Patient</p>
                     <p className="font-semibold text-gray-800">{formData.patientName}</p>
                     <code className="text-sm text-gray-600">{formData.icNumber}</code>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Rujuk Ke</p>
+                    <p className="text-sm text-gray-500 mb-1">Refer To</p>
                     <p className="font-semibold text-gray-800">{formData.referToHospital || '-'}</p>
                     <p className="text-sm text-gray-600">{formData.referToDepartment || '-'}</p>
                   </div>
@@ -365,12 +365,12 @@ export default function Referral({
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Sebab Rujukan</p>
+                <p className="text-sm text-gray-500 mb-1">Reason for Referral</p>
                 <p className="text-gray-800">{formData.reason || '-'}</p>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Ringkasan Klinikal</p>
+                <p className="text-sm text-gray-500 mb-1">Clinical Summary</p>
                 <p className="text-gray-800">{formData.clinicalSummary || '-'}</p>
               </div>
 
@@ -384,12 +384,12 @@ export default function Referral({
                 }`} />
                 <div>
                   <p className="font-semibold text-gray-800">
-                    {formData.urgency === 'emergency' ? 'KECEMASAN' :
-                     formData.urgency === 'urgent' ? 'SEGERA' : 'BIASA'}
+                    {formData.urgency === 'emergency' ? 'EMERGENCY' :
+                     formData.urgency === 'urgent' ? 'URGENT' : 'ROUTINE'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {formData.urgency === 'emergency' ? 'Rujukan akan dihantar serta-merta' :
-                     formData.urgency === 'urgent' ? 'Temujanji dalam 48-72 jam' : 'Temujanji dalam 2-4 minggu'}
+                    {formData.urgency === 'emergency' ? 'Referral will be sent immediately' :
+                     formData.urgency === 'urgent' ? 'Appointment within 48-72 hours' : 'Appointment within 2-4 weeks'}
                   </p>
                 </div>
               </div>
@@ -401,7 +401,7 @@ export default function Referral({
                 whileTap={{ scale: 0.98 }}
               >
                 <Send className="w-6 h-6" />
-                Hantar Rujukan
+                Submit Referral
               </motion.button>
             </div>
           </motion.div>
@@ -414,7 +414,7 @@ export default function Referral({
           disabled={step === 1}
           className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
         >
-          Kembali
+          Back
         </button>
         {step < 3 && (
           <button
@@ -422,7 +422,7 @@ export default function Referral({
             disabled={!isStepValid(step)}
             className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700"
           >
-            Seterusnya
+            Next
           </button>
         )}
       </div>

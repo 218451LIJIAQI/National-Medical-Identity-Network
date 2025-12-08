@@ -91,8 +91,8 @@ export default function MedicalCertificate({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Sijil Cuti Sakit (MC)</h2>
-          <p className="text-gray-500">Medical Certificate • Sijil Perubatan</p>
+          <h2 className="text-2xl font-bold text-gray-800">Medical Certificate (MC)</h2>
+          <p className="text-gray-500">Medical Certificate • Sick Leave</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
@@ -108,7 +108,7 @@ export default function MedicalCertificate({
             whileHover={{ scale: 1.02 }}
           >
             <Printer className="w-5 h-5" />
-            Cetak
+            Print
           </motion.button>
           <motion.button
             onClick={handleSubmit}
@@ -117,7 +117,7 @@ export default function MedicalCertificate({
             whileTap={{ scale: 0.98 }}
           >
             <Send className="w-5 h-5" />
-            Jana MC
+            Generate MC
           </motion.button>
         </div>
       </div>
@@ -137,7 +137,7 @@ export default function MedicalCertificate({
                 </div>
                 <div>
                   <h3 className="text-xl font-bold">{hospitalName}</h3>
-                  <p className="text-blue-100">Kementerian Kesihatan Malaysia</p>
+                  <p className="text-blue-100">Ministry of Health Malaysia</p>
                 </div>
               </div>
               <div className="text-right">
@@ -149,38 +149,36 @@ export default function MedicalCertificate({
 
                     <div className="p-8">
             <h2 className="text-2xl font-bold text-center text-gray-800 mb-6 border-b-2 border-gray-200 pb-4">
-              SIJIL CUTI SAKIT<br />
+              MEDICAL CERTIFICATE<br />
               <span className="text-base font-normal text-gray-500">MEDICAL CERTIFICATE</span>
             </h2>
 
             <div className="space-y-4 text-gray-700">
               <p>
-                Ini adalah untuk mengesahkan bahawa<br />
-                <span className="text-sm text-gray-500">This is to certify that</span>
+                This is to certify that
               </p>
 
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-xl font-bold text-gray-800">{formData.patientName}</p>
-                <p className="text-gray-600">No. K/P: {formData.icNumber}</p>
+                <p className="text-gray-600">IC No: {formData.icNumber}</p>
               </div>
 
               <p>
-                telah diperiksa dan didapati tidak sihat untuk bekerja selama<br />
-                <span className="text-sm text-gray-500">has been examined and found unfit for work for</span>
+                has been examined and found unfit for work for
               </p>
 
               <div className="flex items-center justify-center gap-4 py-4">
                 <span className="text-4xl font-bold text-blue-600">{formData.daysOff}</span>
-                <span className="text-xl text-gray-600">HARI / DAYS</span>
+                <span className="text-xl text-gray-600">DAYS</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
                 <div>
-                  <p className="text-sm text-gray-500">Dari / From:</p>
+                  <p className="text-sm text-gray-500">From:</p>
                   <p className="font-semibold text-gray-800">{formatMalaysianDate(formData.startDate)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Hingga / Until:</p>
+                  <p className="text-sm text-gray-500">Until:</p>
                   <p className="font-semibold text-gray-800">{formatMalaysianDate(formData.endDate)}</p>
                 </div>
               </div>
@@ -193,13 +191,13 @@ export default function MedicalCertificate({
               {formData.fitForLight && (
                 <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
-                  <p className="text-amber-800">Sesuai untuk kerja ringan sahaja / Fit for light duties only</p>
+                  <p className="text-amber-800">Fit for light duties only</p>
                 </div>
               )}
 
               {formData.remarks && (
                 <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Catatan / Remarks:</p>
+                  <p className="text-sm text-gray-500 mb-1">Remarks:</p>
                   <p className="text-gray-800">{formData.remarks}</p>
                 </div>
               )}
@@ -208,13 +206,13 @@ export default function MedicalCertificate({
                         <div className="mt-8 pt-6 border-t-2 border-gray-200">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-sm text-gray-500">Tarikh / Date:</p>
+                  <p className="text-sm text-gray-500">Date:</p>
                   <p className="font-medium text-gray-800">{formatMalaysianDate(new Date().toISOString())}</p>
                 </div>
                 <div className="text-right">
                   <div className="w-40 border-b-2 border-gray-400 mb-2"></div>
                   <p className="font-semibold text-gray-800">{doctorName}</p>
-                  <p className="text-sm text-gray-500">Pegawai Perubatan</p>
+                  <p className="text-sm text-gray-500">Medical Officer</p>
                   <p className="text-xs text-gray-400">MMC No: 12345</p>
                 </div>
               </div>
@@ -223,7 +221,6 @@ export default function MedicalCertificate({
 
                     <div className="bg-gray-50 p-4 text-center border-t border-gray-200">
             <p className="text-xs text-gray-400">
-              Sijil ini dijana secara elektronik dan sah tanpa tandatangan<br />
               This certificate is electronically generated and valid without signature
             </p>
           </div>
@@ -234,12 +231,12 @@ export default function MedicalCertificate({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-blue-600" />
-              Maklumat Pesakit
+              Patient Information
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Nama Penuh</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
                 <input
                   type="text"
                   value={formData.patientName}
@@ -249,7 +246,7 @@ export default function MedicalCertificate({
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">No. Kad Pengenalan</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">IC Number</label>
                 <input
                   type="text"
                   value={formData.icNumber}
@@ -274,12 +271,12 @@ export default function MedicalCertificate({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-600" />
-              Butiran Cuti Sakit
+              Sick Leave Details
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Bilangan Hari</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Number of Days</label>
                 <div className="flex items-center gap-3">
                   {[1, 2, 3, 5, 7].map(days => (
                     <button
@@ -307,7 +304,7 @@ export default function MedicalCertificate({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Tarikh Mula</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={formData.startDate}
@@ -316,7 +313,7 @@ export default function MedicalCertificate({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Tarikh Tamat</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">End Date</label>
                   <input
                     type="date"
                     value={formData.endDate}
@@ -327,12 +324,12 @@ export default function MedicalCertificate({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Catatan Tambahan</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Additional Remarks</label>
                 <textarea
                   value={formData.remarks}
                   onChange={(e) => updateField('remarks', e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none h-20"
-                  placeholder="Arahan tambahan jika ada..."
+                  placeholder="Additional instructions if any..."
                 />
               </div>
 
@@ -344,7 +341,7 @@ export default function MedicalCertificate({
                     onChange={(e) => updateField('fitForLight', e.target.checked)}
                     className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <span className="text-gray-700">Sesuai untuk kerja ringan sahaja</span>
+                  <span className="text-gray-700">Fit for light duties only</span>
                 </label>
 
                 <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
@@ -354,7 +351,7 @@ export default function MedicalCertificate({
                     onChange={(e) => updateField('followUp', e.target.checked)}
                     className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <span className="text-gray-700">Perlu susulan (Follow-up required)</span>
+                  <span className="text-gray-700">Follow-up required</span>
                 </label>
               </div>
             </div>
@@ -371,7 +368,7 @@ export default function MedicalCertificate({
             <FileText className="w-8 h-8 text-blue-600" />
             <div>
               <p className="text-2xl font-bold text-blue-700">12</p>
-              <p className="text-sm text-blue-600">MC hari ini</p>
+              <p className="text-sm text-blue-600">MC today</p>
             </div>
           </div>
         </motion.div>
@@ -384,7 +381,7 @@ export default function MedicalCertificate({
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             <div>
               <p className="text-2xl font-bold text-emerald-700">98%</p>
-              <p className="text-sm text-emerald-600">Kadar pengesahan</p>
+              <p className="text-sm text-emerald-600">Verification rate</p>
             </div>
           </div>
         </motion.div>
@@ -397,7 +394,7 @@ export default function MedicalCertificate({
             <Clock className="w-8 h-8 text-amber-600" />
             <div>
               <p className="text-2xl font-bold text-amber-700">2.3</p>
-              <p className="text-sm text-amber-600">Purata hari MC</p>
+              <p className="text-sm text-amber-600">Average MC days</p>
             </div>
           </div>
         </motion.div>

@@ -29,14 +29,14 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', labelMY: 'Papan Pemuka', icon: LayoutDashboard, color: 'blue' },
-  { id: 'queue', label: 'Queue', labelMY: 'Giliran', icon: Users, color: 'emerald' },
-  { id: 'search', label: 'Patient Search', labelMY: 'Cari Pesakit', icon: Search, color: 'purple' },
-  { id: 'prescription', label: 'e-Prescription', labelMY: 'e-Preskripsi', icon: Pill, color: 'teal' },
-  { id: 'lab', label: 'Lab Orders', labelMY: 'Ujian Makmal', icon: FlaskConical, color: 'violet' },
-  { id: 'mc', label: 'Medical Cert', labelMY: 'Sijil MC', icon: FileText, color: 'sky' },
-  { id: 'referral', label: 'Referral', labelMY: 'Rujukan', icon: ArrowRightLeft, color: 'indigo' },
-  { id: 'appointments', label: 'Appointments', labelMY: 'Temujanji', icon: Calendar, color: 'amber' },
+  { id: 'dashboard', label: 'Dashboard', labelMY: 'Overview', icon: LayoutDashboard, color: 'blue' },
+  { id: 'queue', label: 'Queue', labelMY: 'Patient Queue', icon: Users, color: 'emerald' },
+  { id: 'search', label: 'Patient Search', labelMY: 'Find Patient', icon: Search, color: 'purple' },
+  { id: 'prescription', label: 'e-Prescription', labelMY: 'Medications', icon: Pill, color: 'teal' },
+  { id: 'lab', label: 'Lab Orders', labelMY: 'Lab Tests', icon: FlaskConical, color: 'violet' },
+  { id: 'mc', label: 'Medical Cert', labelMY: 'MC', icon: FileText, color: 'sky' },
+  { id: 'referral', label: 'Referral', labelMY: 'Transfer', icon: ArrowRightLeft, color: 'indigo' },
+  { id: 'appointments', label: 'Appointments', labelMY: 'Schedule', icon: Calendar, color: 'amber' },
 ]
 
 export default function HospitalWorkstation() {
@@ -58,10 +58,10 @@ export default function HospitalWorkstation() {
               className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold shadow-lg hover:bg-purple-700"
             >
               <Globe className="w-5 h-5" />
-              Buka Carian Pesakit Kebangsaan
+              Open National Patient Search
               <ChevronRight className="w-5 h-5" />
             </Link>
-            <p className="mt-4 text-gray-500">Cari rekod pesakit dari seluruh rangkaian hospital Malaysia</p>
+            <p className="mt-4 text-gray-500">Search patient records from the entire Malaysian hospital network</p>
           </div>
         )
       case 'prescription':
@@ -158,7 +158,7 @@ export default function HospitalWorkstation() {
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-800 text-sm truncate">{user?.fullName}</p>
-                <p className="text-xs text-gray-500">{user?.role === 'doctor' ? 'Doktor' : 'Staff'}</p>
+                <p className="text-xs text-gray-500">{user?.role === 'doctor' ? 'Doctor' : 'Staff'}</p>
               </div>
             )}
           </div>
@@ -212,7 +212,7 @@ export default function HospitalWorkstation() {
                 className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors"
               >
                 <Globe className="w-4 h-4" />
-                <span className="text-sm font-medium">Carian Kebangsaan</span>
+                <span className="text-sm font-medium">National Search</span>
               </Link>
             </div>
           </div>
@@ -244,16 +244,16 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative z-10">
-          <p className="text-white/80 mb-2">Selamat Datang ke</p>
+          <p className="text-white/80 mb-2">Welcome to</p>
           <h2 className="text-3xl font-bold mb-2">{theme.name}</h2>
           <p className="text-white/70">{theme.tagline}</p>
           
           <div className="grid grid-cols-4 gap-4 mt-6">
             {[
-              { label: 'Pesakit Hari Ini', value: '47', icon: Users },
-              { label: 'Giliran Aktif', value: '12', icon: Activity },
-              { label: 'Purata Tunggu', value: '23 min', icon: Clock },
-              { label: 'Kadar Kehadiran', value: '94%', icon: TrendingUp },
+              { label: 'Patients Today', value: '47', icon: Users },
+              { label: 'Active Queue', value: '12', icon: Activity },
+              { label: 'Avg Wait', value: '23 min', icon: Clock },
+              { label: 'Attendance Rate', value: '94%', icon: TrendingUp },
             ].map(stat => (
               <div key={stat.label} className="p-4 bg-white/10 backdrop-blur-sm rounded-xl">
                 <stat.icon className="w-6 h-6 mb-2 text-white/80" />
@@ -267,10 +267,10 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
 
             <div className="grid grid-cols-4 gap-4">
         {[
-          { module: 'queue' as ModuleType, label: 'Giliran', labelEN: 'Queue', icon: Users, color: 'emerald' },
-          { module: 'prescription' as ModuleType, label: 'Preskripsi', labelEN: 'Prescription', icon: Pill, color: 'teal' },
-          { module: 'lab' as ModuleType, label: 'Ujian Lab', labelEN: 'Lab Orders', icon: FlaskConical, color: 'violet' },
-          { module: 'mc' as ModuleType, label: 'MC / Sijil', labelEN: 'Med Cert', icon: FileText, color: 'sky' },
+          { module: 'queue' as ModuleType, label: 'Queue', labelEN: 'Queue', icon: Users, color: 'emerald' },
+          { module: 'prescription' as ModuleType, label: 'Prescription', labelEN: 'Prescription', icon: Pill, color: 'teal' },
+          { module: 'lab' as ModuleType, label: 'Lab Orders', labelEN: 'Lab Orders', icon: FlaskConical, color: 'violet' },
+          { module: 'mc' as ModuleType, label: 'Med Cert', labelEN: 'Med Cert', icon: FileText, color: 'sky' },
         ].map(action => (
           <motion.button
             key={action.module}
@@ -298,8 +298,8 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
             <ArrowRightLeft className="w-7 h-7 text-indigo-600" />
           </div>
           <div className="text-left">
-            <p className="font-bold text-gray-800">Rujukan Pesakit</p>
-            <p className="text-sm text-gray-500">Rujuk ke hospital / jabatan lain</p>
+            <p className="font-bold text-gray-800">Patient Referral</p>
+            <p className="text-sm text-gray-500">Refer to other hospital / department</p>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
         </motion.button>
@@ -313,8 +313,8 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
             <Calendar className="w-7 h-7 text-amber-600" />
           </div>
           <div className="text-left">
-            <p className="font-bold text-gray-800">Temujanji</p>
-            <p className="text-sm text-gray-500">Urus jadual temujanji</p>
+            <p className="font-bold text-gray-800">Appointments</p>
+            <p className="text-sm text-gray-500">Manage appointment schedule</p>
           </div>
           <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
         </motion.button>
@@ -330,8 +330,8 @@ function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof
               <Globe className="w-7 h-7" />
             </div>
             <div>
-              <p className="font-bold text-lg">Carian Rekod Kebangsaan</p>
-              <p className="text-purple-200">Akses rekod pesakit dari semua hospital dalam rangkaian MyKad Health</p>
+              <p className="font-bold text-lg">National Records Search</p>
+              <p className="text-purple-200">Access patient records from all hospitals in the MyKad Health network</p>
             </div>
           </div>
           <ChevronRight className="w-8 h-8" />

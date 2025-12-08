@@ -108,7 +108,7 @@ export default function LabOrders({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Permintaan Makmal</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Laboratory Request</h2>
           <p className="text-gray-500">Laboratory Orders • Lab Investigation Request</p>
         </div>
         <div className="flex items-center gap-3">
@@ -120,14 +120,14 @@ export default function LabOrders({
             whileTap={{ scale: 0.98 }}
           >
             <FileText className="w-5 h-5" />
-            Hantar Permintaan
+            Submit Request
           </motion.button>
           <motion.button
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
             <Printer className="w-5 h-5" />
-            Cetak
+            Print
           </motion.button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export default function LabOrders({
             <p className="font-semibold text-gray-800 text-lg">{patientName}</p>
             <div className="flex items-center gap-4 mt-1">
               <code className="text-sm text-gray-600 bg-white px-2 py-0.5 rounded">{patientIC}</code>
-              <span className="text-sm text-gray-500">Wad: OPD</span>
+              <span className="text-sm text-gray-500">Ward: OPD</span>
             </div>
           </div>
         </div>
@@ -149,12 +149,12 @@ export default function LabOrders({
 
             <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Maklumat Klinikal / Clinical Information
+          Clinical Information
         </label>
         <textarea
           value={clinicalInfo}
           onChange={(e) => setClinicalInfo(e.target.value)}
-          placeholder="Sila masukkan maklumat klinikal yang berkaitan (diagnosis, simptom, sejarah perubatan)..."
+          placeholder="Please enter relevant clinical information (diagnosis, symptoms, medical history)..."
           className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none h-24"
         />
       </div>
@@ -162,12 +162,12 @@ export default function LabOrders({
       <div className="grid grid-cols-2 gap-6">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-semibold text-gray-800 mb-3">Katalog Ujian</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Test Catalog</h3>
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Cari ujian..."
+                placeholder="Search tests..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500"
@@ -217,7 +217,7 @@ export default function LabOrders({
                       </code>
                       {test.fasting && (
                         <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                          Puasa
+                          Fasting
                         </span>
                       )}
                     </div>
@@ -238,9 +238,9 @@ export default function LabOrders({
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800">Ujian Dipilih</h3>
+              <h3 className="font-semibold text-gray-800">Selected Tests</h3>
               <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-medium rounded-full">
-                {selectedTests.length} ujian
+                {selectedTests.length} tests
               </span>
             </div>
           </div>
@@ -250,8 +250,8 @@ export default function LabOrders({
               {selectedTests.length === 0 ? (
                 <div className="text-center py-12">
                   <FlaskConical className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Tiada ujian dipilih</p>
-                  <p className="text-sm text-gray-400">Pilih ujian dari katalog di sebelah kiri</p>
+                  <p className="text-gray-500">No tests selected</p>
+                  <p className="text-sm text-gray-400">Select tests from catalog on the left</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -275,7 +275,7 @@ export default function LabOrders({
                             {test.urgent && (
                               <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" />
-                                SEGERA
+                                URGENT
                               </span>
                             )}
                           </div>
@@ -301,7 +301,7 @@ export default function LabOrders({
                             }`}
                             title="Toggle urgent status"
                           >
-                            {test.urgent ? 'Segera' : 'Biasa'}
+                            {test.urgent ? 'Urgent' : 'Normal'}
                           </button>
                           <button
                             onClick={() => removeTest(test.id)}
@@ -323,23 +323,23 @@ export default function LabOrders({
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-gray-800">Ringkasan</p>
+                  <p className="font-semibold text-gray-800">Summary</p>
                   <p className="text-sm text-gray-600">
                     {selectedTests.filter(t => t.urgent).length > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedTests.filter(t => t.urgent).length} segera • 
+                        {selectedTests.filter(t => t.urgent).length} urgent • 
                       </span>
                     )}
                     {' '}{selectedTests.filter(t => t.fasting).length > 0 && (
                       <span className="text-amber-600">
-                        {selectedTests.filter(t => t.fasting).length} perlu puasa
+                        {selectedTests.filter(t => t.fasting).length} require fasting
                       </span>
                     )}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-500">Anggaran masa:</p>
-                  <p className="font-medium text-purple-700">1-2 jam</p>
+                  <p className="text-xs text-gray-500">Estimated time:</p>
+                  <p className="font-medium text-purple-700">1-2 hours</p>
                 </div>
               </div>
             </div>

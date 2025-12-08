@@ -34,9 +34,9 @@ const mockVitalsHistory: VitalSigns[] = [
 ]
 
 const mockNotes: NursingNote[] = [
-  { id: '1', timestamp: '2024-01-15 08:30', type: 'assessment', content: 'Pesakit sedar dan berorientasi. Tiada tanda-tanda distress. Luka pembedahan kering dan bersih.', nurse: 'Nurse Fatimah', priority: 'routine' },
-  { id: '2', timestamp: '2024-01-15 10:00', type: 'intervention', content: 'Ubat diberikan mengikut jadual. IV drip berjalan lancar. Wound dressing dilakukan.', nurse: 'Nurse Fatimah', priority: 'routine' },
-  { id: '3', timestamp: '2024-01-15 14:00', type: 'evaluation', content: 'Pesakit mengadu sakit tahap 3/10 di kawasan luka. PRN analgesia diberikan.', nurse: 'Nurse Siti', priority: 'important' },
+  { id: '1', timestamp: '2024-01-15 08:30', type: 'assessment', content: 'Patient is conscious and oriented. No signs of distress. Surgical wound is dry and clean.', nurse: 'Nurse Fatimah', priority: 'routine' },
+  { id: '2', timestamp: '2024-01-15 10:00', type: 'intervention', content: 'Medication given as scheduled. IV drip running smoothly. Wound dressing done.', nurse: 'Nurse Fatimah', priority: 'routine' },
+  { id: '3', timestamp: '2024-01-15 14:00', type: 'evaluation', content: 'Patient complains of pain level 3/10 at wound area. PRN analgesia given.', nurse: 'Nurse Siti', priority: 'important' },
 ]
 
 interface NursingNotesProps {
@@ -49,8 +49,8 @@ interface NursingNotesProps {
 export default function NursingNotes({ 
   patientName = 'Ahmad bin Abdullah',
   patientIC = '880515-14-5678',
-  ward = 'Wad 5A',
-  bedNumber = 'Katil 12'
+  ward = 'Ward 5A',
+  bedNumber = 'Bed 12'
 }: NursingNotesProps) {
   const [vitalsHistory, setVitalsHistory] = useState<VitalSigns[]>(mockVitalsHistory)
   const [notes, setNotes] = useState<NursingNote[]>(mockNotes)
@@ -118,10 +118,10 @@ export default function NursingNotes({
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'assessment': return 'Penilaian'
-      case 'intervention': return 'Intervensi'
-      case 'evaluation': return 'Penilaian Semula'
-      case 'handover': return 'Serah Tugas'
+      case 'assessment': return 'Assessment'
+      case 'intervention': return 'Intervention'
+      case 'evaluation': return 'Evaluation'
+      case 'handover': return 'Handover'
       default: return type
     }
   }
@@ -132,8 +132,8 @@ export default function NursingNotes({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Rekod Kejururawatan</h2>
-          <p className="text-gray-500">Nursing Documentation • Catatan Kejururawatan</p>
+          <h2 className="text-2xl font-bold text-gray-800">Nursing Records</h2>
+          <p className="text-gray-500">Nursing Documentation • Patient Care Notes</p>
         </div>
       </div>
 
@@ -177,8 +177,8 @@ export default function NursingNotes({
 
             <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
         {[
-          { id: 'vitals', label: 'Tanda Vital', icon: Heart },
-          { id: 'notes', label: 'Catatan', icon: FileText },
+          { id: 'vitals', label: 'Vital Signs', icon: Heart },
+          { id: 'notes', label: 'Notes', icon: FileText },
           { id: 'io', label: 'I/O Chart', icon: Droplets },
         ].map(tab => (
           <button
@@ -212,7 +212,7 @@ export default function NursingNotes({
                 whileHover={{ scale: 1.02 }}
               >
                 <Plus className="w-5 h-5" />
-                Rekod Tanda Vital
+                Record Vital Signs
               </motion.button>
             </div>
 
@@ -224,7 +224,7 @@ export default function NursingNotes({
                   exit={{ opacity: 0, height: 0 }}
                   className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg"
                 >
-                  <h3 className="font-semibold text-gray-800 mb-4">Rekod Tanda Vital Baru</h3>
+                  <h3 className="font-semibold text-gray-800 mb-4">New Vital Signs Record</h3>
                   <div className="grid grid-cols-4 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">BP (mmHg)</label>
@@ -309,14 +309,14 @@ export default function NursingNotes({
                       onClick={() => setShowNewVitals(false)}
                       className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                     >
-                      Batal
+                      Cancel
                     </button>
                     <button
                       onClick={addVitals}
                       className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" />
-                      Simpan
+                      Save
                     </button>
                   </div>
                 </motion.div>
@@ -326,13 +326,13 @@ export default function NursingNotes({
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <History className="w-5 h-5 text-pink-600" />
-                <h3 className="font-semibold text-gray-800">Sejarah Tanda Vital</h3>
+                <h3 className="font-semibold text-gray-800">Vital Signs History</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
                     <tr>
-                      <th className="px-4 py-3 text-left">Masa</th>
+                      <th className="px-4 py-3 text-left">Time</th>
                       <th className="px-4 py-3 text-center">BP</th>
                       <th className="px-4 py-3 text-center">Pulse</th>
                       <th className="px-4 py-3 text-center">Temp</th>
@@ -341,7 +341,7 @@ export default function NursingNotes({
                       <th className="px-4 py-3 text-center">GCS</th>
                       <th className="px-4 py-3 text-center">Pain</th>
                       <th className="px-4 py-3 text-center">BSL</th>
-                      <th className="px-4 py-3 text-left">Direkod Oleh</th>
+                      <th className="px-4 py-3 text-left">Recorded By</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -391,7 +391,7 @@ export default function NursingNotes({
                 whileHover={{ scale: 1.02 }}
               >
                 <Edit3 className="w-5 h-5" />
-                Tambah Catatan
+                Add Note
               </motion.button>
             </div>
 
@@ -403,41 +403,41 @@ export default function NursingNotes({
                   exit={{ opacity: 0, height: 0 }}
                   className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg"
                 >
-                  <h3 className="font-semibold text-gray-800 mb-4">Catatan Kejururawatan Baru</h3>
+                  <h3 className="font-semibold text-gray-800 mb-4">New Nursing Note</h3>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Jenis Catatan</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">Note Type</label>
                         <select
                           value={newNote.type}
                           onChange={(e) => setNewNote({...newNote, type: e.target.value as NursingNote['type']})}
                           className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
                         >
-                          <option value="assessment">Penilaian (Assessment)</option>
-                          <option value="intervention">Intervensi (Intervention)</option>
-                          <option value="evaluation">Penilaian Semula (Evaluation)</option>
-                          <option value="handover">Serah Tugas (Handover)</option>
+                          <option value="assessment">Assessment</option>
+                          <option value="intervention">Intervention</option>
+                          <option value="evaluation">Evaluation</option>
+                          <option value="handover">Handover</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Keutamaan</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">Priority</label>
                         <select
                           value={newNote.priority}
                           onChange={(e) => setNewNote({...newNote, priority: e.target.value as NursingNote['priority']})}
                           className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
                         >
-                          <option value="routine">Biasa (Routine)</option>
-                          <option value="important">Penting (Important)</option>
-                          <option value="urgent">Segera (Urgent)</option>
+                          <option value="routine">Routine</option>
+                          <option value="important">Important</option>
+                          <option value="urgent">Urgent</option>
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Catatan</label>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">Notes</label>
                       <textarea
                         value={newNote.content}
                         onChange={(e) => setNewNote({...newNote, content: e.target.value})}
-                        placeholder="Masukkan catatan kejururawatan..."
+                        placeholder="Enter nursing notes..."
                         className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 resize-none h-32"
                       />
                     </div>
@@ -447,7 +447,7 @@ export default function NursingNotes({
                       onClick={() => setShowNewNote(false)}
                       className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                     >
-                      Batal
+                      Cancel
                     </button>
                     <button
                       onClick={addNote}
@@ -455,7 +455,7 @@ export default function NursingNotes({
                       className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2 disabled:opacity-50"
                     >
                       <Save className="w-4 h-4" />
-                      Simpan
+                      Save
                     </button>
                   </div>
                 </motion.div>
@@ -481,12 +481,12 @@ export default function NursingNotes({
                         {note.priority === 'urgent' && (
                           <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />
-                            SEGERA
+                            URGENT
                           </span>
                         )}
                         {note.priority === 'important' && (
                           <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
-                            PENTING
+                            IMPORTANT
                           </span>
                         )}
                       </div>
@@ -517,7 +517,7 @@ export default function NursingNotes({
           >
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Droplets className="w-5 h-5 text-blue-500" />
-              Carta Input/Output (24 Jam)
+              Input/Output Chart (24 Hours)
             </h3>
             
             <div className="grid grid-cols-2 gap-6">
@@ -537,7 +537,7 @@ export default function NursingNotes({
                     <span className="font-medium">0 ml</span>
                   </div>
                   <div className="flex justify-between py-2 font-bold text-blue-800">
-                    <span>JUMLAH INPUT</span>
+                    <span>TOTAL INPUT</span>
                     <span>2700 ml</span>
                   </div>
                 </div>
@@ -559,7 +559,7 @@ export default function NursingNotes({
                     <span className="font-medium">0 ml</span>
                   </div>
                   <div className="flex justify-between py-2 font-bold text-amber-800">
-                    <span>JUMLAH OUTPUT</span>
+                    <span>TOTAL OUTPUT</span>
                     <span>1950 ml</span>
                   </div>
                 </div>
@@ -570,7 +570,7 @@ export default function NursingNotes({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                  <span className="font-semibold text-gray-800">BALANCE (24 jam)</span>
+                  <span className="font-semibold text-gray-800">BALANCE (24 hours)</span>
                 </div>
                 <span className="text-2xl font-bold text-emerald-600">+750 ml</span>
               </div>

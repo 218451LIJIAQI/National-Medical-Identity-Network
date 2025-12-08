@@ -18,12 +18,12 @@ interface QueuePatient {
   complaint: string
 }
 const mockQueue: QueuePatient[] = [
-  { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', age: 36, gender: 'M', category: 'Green', waitTime: '45 min', status: 'waiting', complaint: 'Demam & batuk' },
-  { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', age: 32, gender: 'F', category: 'Yellow', waitTime: '30 min', status: 'waiting', complaint: 'Sakit kepala kronik' },
-  { queueNo: 'A003', name: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', age: 49, gender: 'M', category: 'Red', waitTime: '15 min', status: 'called', complaint: 'Sakit dada' },
-  { queueNo: 'A004', name: 'Lee Wei Ming', icNumber: '850303-07-8888', age: 39, gender: 'M', category: 'Green', waitTime: '20 min', status: 'waiting', complaint: 'Pemeriksaan kesihatan' },
-  { queueNo: 'A005', name: 'Fatimah binti Hassan', icNumber: '680712-02-3333', age: 56, gender: 'F', category: 'Yellow', waitTime: '10 min', status: 'waiting', complaint: 'Tekanan darah tinggi' },
-  { queueNo: 'A006', name: 'Tan Mei Ling', icNumber: '950505-14-6666', age: 29, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Sakit perut' },
+  { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', age: 36, gender: 'M', category: 'Green', waitTime: '45 min', status: 'waiting', complaint: 'Fever & cough' },
+  { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', age: 32, gender: 'F', category: 'Yellow', waitTime: '30 min', status: 'waiting', complaint: 'Chronic headache' },
+  { queueNo: 'A003', name: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', age: 49, gender: 'M', category: 'Red', waitTime: '15 min', status: 'called', complaint: 'Chest pain' },
+  { queueNo: 'A004', name: 'Lee Wei Ming', icNumber: '850303-07-8888', age: 39, gender: 'M', category: 'Green', waitTime: '20 min', status: 'waiting', complaint: 'Health check-up' },
+  { queueNo: 'A005', name: 'Fatimah binti Hassan', icNumber: '680712-02-3333', age: 56, gender: 'F', category: 'Yellow', waitTime: '10 min', status: 'waiting', complaint: 'High blood pressure' },
+  { queueNo: 'A006', name: 'Tan Mei Ling', icNumber: '950505-14-6666', age: 29, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Stomach ache' },
 ]
 
 interface QueueManagementProps {
@@ -72,10 +72,10 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'waiting': return { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Menunggu' }
-      case 'called': return { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Dipanggil' }
-      case 'in-progress': return { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Sedang Rawat' }
-      case 'completed': return { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Selesai' }
+      case 'waiting': return { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Waiting' }
+      case 'called': return { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Called' }
+      case 'in-progress': return { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'In Progress' }
+      case 'completed': return { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Completed' }
       default: return { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
     }
   }
@@ -103,7 +103,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Giliran Pesakit</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Patient Queue</h2>
           <p className="text-gray-500">Queue Management • Today's Patients</p>
         </div>
         <div className="flex items-center gap-3">
@@ -114,17 +114,17 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
             whileTap={{ scale: 0.98 }}
           >
             <Mic className="w-5 h-5" />
-            Panggil Seterusnya
+            Call Next
           </motion.button>
         </div>
       </div>
 
             <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Menunggu', value: stats.waiting, icon: Clock, color: 'slate' },
-          { label: 'Dipanggil', value: stats.called, icon: PhoneCall, color: 'blue' },
-          { label: 'Sedang Rawat', value: stats.inProgress, icon: Stethoscope, color: 'emerald' },
-          { label: 'Selesai', value: stats.completed, icon: CheckCircle2, color: 'gray' },
+          { label: 'Waiting', value: stats.waiting, icon: Clock, color: 'slate' },
+          { label: 'Called', value: stats.called, icon: PhoneCall, color: 'blue' },
+          { label: 'In Progress', value: stats.inProgress, icon: Stethoscope, color: 'emerald' },
+          { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: 'gray' },
         ].map((stat) => (
           <motion.div
             key={stat.label}
@@ -145,7 +145,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Cari nama, No. Giliran atau IC..."
+            placeholder="Search name, Queue No. or IC..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -162,7 +162,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
                   : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
               }`}
             >
-              {f === 'all' ? 'Semua' : f === 'waiting' ? 'Menunggu' : f === 'called' ? 'Dipanggil' : 'Rawatan'}
+              {f === 'all' ? 'All' : f === 'waiting' ? 'Waiting' : f === 'called' ? 'Called' : 'In Progress'}
             </button>
           ))}
         </div>
@@ -171,12 +171,12 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
             <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
           <div className="col-span-1">No.</div>
-          <div className="col-span-3">Nama Pesakit</div>
+          <div className="col-span-3">Patient Name</div>
           <div className="col-span-2">No. IC</div>
-          <div className="col-span-2">Aduan</div>
+          <div className="col-span-2">Complaint</div>
           <div className="col-span-1">Triage</div>
-          <div className="col-span-1">Tunggu</div>
-          <div className="col-span-2">Tindakan</div>
+          <div className="col-span-1">Wait</div>
+          <div className="col-span-2">Action</div>
         </div>
 
         <AnimatePresence>
@@ -210,7 +210,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
                   </div>
                   <div>
                     <p className="font-semibold text-gray-800">{patient.name}</p>
-                    <p className="text-xs text-gray-500">{patient.age} tahun • {patient.gender === 'M' ? 'Lelaki' : 'Perempuan'}</p>
+                    <p className="text-xs text-gray-500">{patient.age} years • {patient.gender === 'M' ? 'Male' : 'Female'}</p>
                   </div>
                 </div>
 
@@ -256,7 +256,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                     >
-                      Mula Rawatan
+                      Start Treatment
                     </motion.button>
                   )}
                   {patient.status === 'in-progress' && (
@@ -266,7 +266,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
                         animate={{ scale: [1, 1.3, 1] }}
                         transition={{ duration: 1.5, repeat: Infinity }}
                       />
-                      Aktif
+                      Active
                     </span>
                   )}
                 </div>
@@ -278,7 +278,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
         {filteredQueue.length === 0 && (
           <div className="p-12 text-center">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">Tiada pesakit dalam giliran</p>
+            <p className="text-gray-500">No patients in queue</p>
           </div>
         )}
       </div>

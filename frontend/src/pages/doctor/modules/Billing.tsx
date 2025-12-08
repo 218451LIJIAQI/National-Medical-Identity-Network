@@ -24,18 +24,18 @@ interface SubsidyInfo {
   status: 'active' | 'pending' | 'expired'
 }
 const mockBillingItems: BillingItem[] = [
-  { id: '1', category: 'Konsultasi', description: 'Konsultasi Pakar - Perubatan Am', originalPrice: 30.00, subsidyPercent: 100, subsidyAmount: 30.00, finalPrice: 0 },
-  { id: '2', category: 'Makmal', description: 'Full Blood Count (FBC)', originalPrice: 15.00, subsidyPercent: 100, subsidyAmount: 15.00, finalPrice: 0 },
-  { id: '3', category: 'Makmal', description: 'Renal Function Test (RFT)', originalPrice: 25.00, subsidyPercent: 100, subsidyAmount: 25.00, finalPrice: 0 },
-  { id: '4', category: 'Radiologi', description: 'Chest X-Ray (CXR)', originalPrice: 30.00, subsidyPercent: 100, subsidyAmount: 30.00, finalPrice: 0 },
-  { id: '5', category: 'Ubat', description: 'Ubat (7 hari)', originalPrice: 45.00, subsidyPercent: 95, subsidyAmount: 42.75, finalPrice: 2.25 },
-  { id: '6', category: 'Prosedur', description: 'Wound Dressing', originalPrice: 20.00, subsidyPercent: 100, subsidyAmount: 20.00, finalPrice: 0 },
+  { id: '1', category: 'Consultation', description: 'Specialist Consultation - General Medicine', originalPrice: 30.00, subsidyPercent: 100, subsidyAmount: 30.00, finalPrice: 0 },
+  { id: '2', category: 'Laboratory', description: 'Full Blood Count (FBC)', originalPrice: 15.00, subsidyPercent: 100, subsidyAmount: 15.00, finalPrice: 0 },
+  { id: '3', category: 'Laboratory', description: 'Renal Function Test (RFT)', originalPrice: 25.00, subsidyPercent: 100, subsidyAmount: 25.00, finalPrice: 0 },
+  { id: '4', category: 'Radiology', description: 'Chest X-Ray (CXR)', originalPrice: 30.00, subsidyPercent: 100, subsidyAmount: 30.00, finalPrice: 0 },
+  { id: '5', category: 'Medication', description: 'Medication (7 days)', originalPrice: 45.00, subsidyPercent: 95, subsidyAmount: 42.75, finalPrice: 2.25 },
+  { id: '6', category: 'Procedure', description: 'Wound Dressing', originalPrice: 20.00, subsidyPercent: 100, subsidyAmount: 20.00, finalPrice: 0 },
 ]
 const subsidyPrograms: SubsidyInfo[] = [
-  { type: 'KKM', program: 'Subsidi Kerajaan Malaysia', eligibility: 'Warganegara Malaysia', coverage: 'Perkhidmatan kesihatan awam', status: 'active' },
-  { type: 'MySalam', program: 'Skim Perlindungan MySalam', eligibility: 'B40 - Pendapatan < RM4,000', coverage: 'Penyakit kritikal', status: 'active' },
-  { type: 'PeKa B40', program: 'Skim Peduli Kesihatan B40', eligibility: 'B40 - 40 tahun ke atas', coverage: 'Saringan kesihatan percuma', status: 'active' },
-  { type: 'SOCSO', program: 'PERKESO - Caruman Pekerja', eligibility: 'Pekerja berdaftar', coverage: 'Kemalangan kerja, OKU', status: 'pending' },
+  { type: 'MOH', program: 'Malaysian Government Subsidy', eligibility: 'Malaysian Citizen', coverage: 'Public healthcare services', status: 'active' },
+  { type: 'MySalam', program: 'MySalam Protection Scheme', eligibility: 'B40 - Income < RM4,000', coverage: 'Critical illness', status: 'active' },
+  { type: 'PeKa B40', program: 'PeKa B40 Health Scheme', eligibility: 'B40 - 40 years and above', coverage: 'Free health screening', status: 'active' },
+  { type: 'SOCSO', program: 'SOCSO - Employee Contribution', eligibility: 'Registered employee', coverage: 'Work accident, disability', status: 'pending' },
 ]
 
 interface BillingProps {
@@ -59,11 +59,11 @@ export default function Billing({
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'Konsultasi': return User
-      case 'Makmal': return FileText
-      case 'Radiologi': return FileText
-      case 'Ubat': return Heart
-      case 'Prosedur': return FileText
+      case 'Consultation': return User
+      case 'Laboratory': return FileText
+      case 'Radiology': return FileText
+      case 'Medication': return Heart
+      case 'Procedure': return FileText
       default: return Receipt
     }
   }
@@ -72,8 +72,8 @@ export default function Billing({
     <div className="space-y-6">
             <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Bil & Pembayaran</h2>
-          <p className="text-gray-500">Billing & Subsidies • Maklumat Caj & Subsidi</p>
+          <h2 className="text-2xl font-bold text-gray-800">Billing & Payment</h2>
+          <p className="text-gray-500">Billing & Subsidies • Charges & Subsidy Info</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
@@ -81,7 +81,7 @@ export default function Billing({
             whileHover={{ scale: 1.02 }}
           >
             <Printer className="w-5 h-5" />
-            Cetak Resit
+            Print Receipt
           </motion.button>
           <motion.button
             className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:bg-emerald-700"
@@ -89,7 +89,7 @@ export default function Billing({
             whileTap={{ scale: 0.98 }}
           >
             <CreditCard className="w-5 h-5" />
-            Proses Pembayaran
+            Process Payment
           </motion.button>
         </div>
       </div>
@@ -126,15 +126,15 @@ export default function Billing({
                   subsidyStatus === 'eligible' ? 'text-emerald-800' :
                   subsidyStatus === 'pending' ? 'text-amber-800' : 'text-red-800'
                 }`}>
-                  {subsidyStatus === 'eligible' ? 'LAYAK SUBSIDI' :
-                   subsidyStatus === 'pending' ? 'PENGESAHAN DIPERLUKAN' : 'TIDAK LAYAK'}
+                  {subsidyStatus === 'eligible' ? 'SUBSIDY ELIGIBLE' :
+                   subsidyStatus === 'pending' ? 'VERIFICATION REQUIRED' : 'NOT ELIGIBLE'}
                 </p>
                 <p className={`text-sm ${
                   subsidyStatus === 'eligible' ? 'text-emerald-600' :
                   subsidyStatus === 'pending' ? 'text-amber-600' : 'text-red-600'
                 }`}>
-                  {subsidyStatus === 'eligible' ? 'Warganegara Malaysia - Subsidi Penuh' :
-                   subsidyStatus === 'pending' ? 'Sila kemukakan dokumen tambahan' : 'Bukan warganegara'}
+                  {subsidyStatus === 'eligible' ? 'Malaysian Citizen - Full Subsidy' :
+                   subsidyStatus === 'pending' ? 'Please submit additional documents' : 'Non-citizen'}
                 </p>
               </div>
             </div>
@@ -152,8 +152,8 @@ export default function Billing({
             <Gift className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-lg font-bold">Program Subsidi Kerajaan Malaysia</h3>
-            <p className="text-blue-100">Perlindungan kesihatan untuk rakyat Malaysia</p>
+            <h3 className="text-lg font-bold">Malaysian Government Subsidy Programs</h3>
+            <p className="text-blue-100">Healthcare protection for Malaysians</p>
           </div>
         </div>
         
@@ -183,7 +183,7 @@ export default function Billing({
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 flex items-center gap-2">
               <Receipt className="w-5 h-5 text-blue-600" />
-              Senarai Caj
+              Charges List
             </h3>
           </div>
           
@@ -223,20 +223,20 @@ export default function Billing({
                     <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
             <div className="space-y-2">
               <div className="flex justify-between text-gray-600">
-                <span>Jumlah Asal</span>
+                <span>Original Total</span>
                 <span>RM {totalOriginal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-emerald-600">
                 <span className="flex items-center gap-2">
                   <Percent className="w-4 h-4" />
-                  Subsidi Kerajaan ({subsidyPercent}%)
+                  Government Subsidy ({subsidyPercent}%)
                 </span>
                 <span>- RM {totalSubsidy.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t border-gray-200">
-                <span>JUMLAH BAYAR</span>
+                <span>TOTAL PAYABLE</span>
                 <span className={totalFinal === 0 ? 'text-emerald-600' : ''}>
-                  {totalFinal === 0 ? 'PERCUMA' : `RM ${totalFinal.toFixed(2)}`}
+                  {totalFinal === 0 ? 'FREE' : `RM ${totalFinal.toFixed(2)}`}
                 </span>
               </div>
             </div>
@@ -250,25 +250,25 @@ export default function Billing({
           >
             <div className="flex items-center gap-3 mb-3">
               <Gift className="w-8 h-8" />
-              <span className="font-bold">Penjimatan Anda</span>
+              <span className="font-bold">Your Savings</span>
             </div>
             <p className="text-4xl font-bold">RM {totalSubsidy.toFixed(2)}</p>
-            <p className="text-emerald-100 text-sm mt-1">Subsidi oleh Kerajaan Malaysia</p>
+            <p className="text-emerald-100 text-sm mt-1">Subsidized by Malaysian Government</p>
             <div className="mt-4 p-3 bg-white/20 rounded-lg">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5" />
-                <span className="text-sm">Terima kasih kerana menggunakan perkhidmatan kesihatan awam</span>
+                <span className="text-sm">Thank you for using public healthcare services</span>
               </div>
             </div>
           </motion.div>
 
                     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <h3 className="font-semibold text-gray-800 mb-4">Kaedah Pembayaran</h3>
+            <h3 className="font-semibold text-gray-800 mb-4">Payment Method</h3>
             <div className="space-y-3">
               {[
-                { id: 'counter', label: 'Kaunter Bayaran', desc: 'Tunai / Kad', icon: Building2 },
-                { id: 'online', label: 'FPX Online', desc: 'Maybank, CIMB, dll', icon: CreditCard },
-                { id: 'waived', label: 'Dikecualikan', desc: 'B40 / OKU / Warga Emas', icon: BadgeCheck },
+                { id: 'counter', label: 'Payment Counter', desc: 'Cash / Card', icon: Building2 },
+                { id: 'online', label: 'FPX Online', desc: 'Maybank, CIMB, etc', icon: CreditCard },
+                { id: 'waived', label: 'Waived', desc: 'B40 / Disabled / Senior Citizen', icon: BadgeCheck },
               ].map((method) => (
                 <button
                   key={method.id}
@@ -302,10 +302,10 @@ export default function Billing({
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-800">Maklumat Subsidi</p>
+                <p className="text-sm font-medium text-blue-800">Subsidy Information</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Subsidi kesihatan disediakan oleh Kementerian Kesihatan Malaysia (KKM) untuk semua warganegara. 
-                  Kadar caj adalah tertakluk kepada <strong>Akta Fi 1951</strong>.
+                  Healthcare subsidy provided by the Ministry of Health Malaysia (MOH) for all citizens. 
+                  Charges are subject to the <strong>Fees Act 1951</strong>.
                 </p>
               </div>
             </div>
@@ -317,10 +317,10 @@ export default function Billing({
         <div className="flex items-center gap-4">
           <Calculator className="w-10 h-10 text-amber-600" />
           <div>
-            <h3 className="font-bold text-amber-800">Jadual Caj Hospital Kerajaan Malaysia</h3>
+            <h3 className="font-bold text-amber-800">Malaysian Government Hospital Charges Schedule</h3>
             <p className="text-sm text-amber-700 mt-1">
-              Warganegara Malaysia: Kelas 3 (Percuma untuk kebanyakan perkhidmatan) | 
-              Bukan Warganegara: Kadar penuh mengikut jadual fi KKM
+              Malaysian Citizens: Class 3 (Free for most services) | 
+              Non-Citizens: Full rate according to MOH fee schedule
             </p>
           </div>
         </div>
