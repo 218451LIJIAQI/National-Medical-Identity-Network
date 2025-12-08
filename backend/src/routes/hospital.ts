@@ -1,18 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getHospitalDb } from '../database/hospital';
-import { updatePatientIndex, createAuditLog } from '../database/central';
+import { getHospitalDb } from '../database/hospital-multi';
+import { updatePatientIndex, createAuditLog } from '../database/central-multi';
 import { authenticate, authorizeHospital } from '../middleware/auth';
 import { HOSPITALS } from '../config';
 import { MedicalRecord, Patient } from '../types';
 
 const router = Router();
 
-// ============================================================================
-// Hospital Info Routes
-// ============================================================================
-
-// Get hospital info
 router.get('/:hospitalId', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -45,7 +40,6 @@ router.get('/:hospitalId', async (req: Request, res: Response) => {
   }
 });
 
-// Get hospital statistics
 router.get('/:hospitalId/stats', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -65,11 +59,6 @@ router.get('/:hospitalId/stats', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// Patient Routes
-// ============================================================================
-
-// Get patient by IC (for cross-hospital queries - read only)
 router.get('/:hospitalId/patients/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;
@@ -84,7 +73,6 @@ router.get('/:hospitalId/patients/:icNumber', authenticate, async (req: Request,
       return;
     }
     
-    // Log the access
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'view',
@@ -111,7 +99,6 @@ router.get('/:hospitalId/patients/:icNumber', authenticate, async (req: Request,
   }
 });
 
-// Get all patients in hospital (hospital staff only)
 router.get('/:hospitalId/patients', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -131,7 +118,6 @@ router.get('/:hospitalId/patients', authenticate, authorizeHospital, async (req:
   }
 });
 
-// Create or update patient (hospital staff only)
 router.post('/:hospitalId/patients', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -152,7 +138,6 @@ router.post('/:hospitalId/patients', authenticate, authorizeHospital, async (req
       updatedAt: new Date().toISOString(),
     });
     
-    // Update central index
     await updatePatientIndex(patientData.icNumber, hospitalId);
     
     res.status(201).json({
@@ -168,11 +153,6 @@ router.post('/:hospitalId/patients', authenticate, authorizeHospital, async (req
   }
 });
 
-// ============================================================================
-// Medical Record Routes
-// ============================================================================
-
-// Get patient records (for cross-hospital queries)
 router.get('/:hospitalId/records/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;
@@ -182,7 +162,6 @@ router.get('/:hospitalId/records/:icNumber', authenticate, async (req: Request, 
     const hospital = HOSPITALS.find(h => h.id === hospitalId);
     const isOwnHospital = req.user?.hospitalId === hospitalId;
     
-    // Mark as read-only if from different hospital
     const markedRecords = records.map(r => ({
       ...r,
       hospitalId,
@@ -191,7 +170,6 @@ router.get('/:hospitalId/records/:icNumber', authenticate, async (req: Request, 
       sourceHospital: hospital?.name || hospitalId,
     }));
     
-    // Log the access
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'view',
@@ -218,7 +196,6 @@ router.get('/:hospitalId/records/:icNumber', authenticate, async (req: Request, 
   }
 });
 
-// Get single record by ID
 router.get('/:hospitalId/record/:recordId', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, recordId } = req.params;
@@ -255,7 +232,6 @@ router.get('/:hospitalId/record/:recordId', authenticate, async (req: Request, r
   }
 });
 
-// Create new medical record (hospital staff only - own hospital)
 router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -271,7 +247,6 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
     
     const hospitalDb = getHospitalDb(hospitalId);
     
-    // Verify doctor belongs to this hospital
     const doctor = await hospitalDb.getDoctor(recordData.doctorId);
     
     if (!doctor) {
@@ -282,16 +257,14 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
       return;
     }
     
-    // Check if patient exists, if not create a basic patient record
     let patient = await hospitalDb.getPatient(recordData.icNumber);
     if (!patient) {
-      // Auto-create patient with minimal info
       const patientName = recordData.patientName || `Patient ${recordData.icNumber}`;
       await hospitalDb.createPatient({
         icNumber: recordData.icNumber,
         fullName: patientName,
-        dateOfBirth: '1990-01-01', // Default date
-        gender: 'male', // Default, can be updated later
+        dateOfBirth: '1990-01-01',
+        gender: 'male',
         bloodType: '',
         phone: '',
         email: '',
@@ -305,7 +278,6 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
       });
     }
     
-    // Create the record
     const recordId = await hospitalDb.createRecord({
       ...recordData,
       id: uuidv4(),
@@ -315,10 +287,8 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
       updatedAt: new Date().toISOString(),
     });
     
-    // Update central index
     await updatePatientIndex(recordData.icNumber, hospitalId);
     
-    // Log the creation
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'create',
@@ -346,11 +316,6 @@ router.post('/:hospitalId/records', authenticate, authorizeHospital, async (req:
   }
 });
 
-// ============================================================================
-// Doctor Routes
-// ============================================================================
-
-// Get all doctors in hospital
 router.get('/:hospitalId/doctors', async (req: Request, res: Response) => {
   try {
     const { hospitalId } = req.params;
@@ -370,7 +335,6 @@ router.get('/:hospitalId/doctors', async (req: Request, res: Response) => {
   }
 });
 
-// Get doctor by ID
 router.get('/:hospitalId/doctors/:doctorId', async (req: Request, res: Response) => {
   try {
     const { hospitalId, doctorId } = req.params;
@@ -398,11 +362,6 @@ router.get('/:hospitalId/doctors/:doctorId', async (req: Request, res: Response)
   }
 });
 
-// ============================================================================
-// Prescription Routes
-// ============================================================================
-
-// Get active prescriptions for patient
 router.get('/:hospitalId/prescriptions/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { hospitalId, icNumber } = req.params;

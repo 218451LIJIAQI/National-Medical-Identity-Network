@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { getHospitalTheme } from './hospital-themes'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -15,7 +16,6 @@ export function formatDate(dateString: string): string {
 }
 
 export function formatIC(ic: string): string {
-  // Format IC number: XXXXXX-XX-XXXX
   if (ic.includes('-')) return ic
   if (ic.length === 12) {
     return `${ic.slice(0, 6)}-${ic.slice(6, 8)}-${ic.slice(8)}`
@@ -24,14 +24,7 @@ export function formatIC(ic: string): string {
 }
 
 export function getHospitalColor(hospitalId: string): string {
-  const colors: Record<string, string> = {
-    'hospital-kl': '#3B82F6',
-    'hospital-penang': '#10B981',
-    'hospital-jb': '#F59E0B',
-    'hospital-kuching': '#8B5CF6',
-    'hospital-kk': '#EF4444',
-  }
-  return colors[hospitalId] || '#6B7280'
+  return getHospitalTheme(hospitalId).primaryColor
 }
 
 export function getHospitalBadgeClass(hospitalId: string): string {
@@ -44,4 +37,3 @@ export function getHospitalBadgeClass(hospitalId: string): string {
   }
   return classes[hospitalId] || 'bg-gray-100 text-gray-800'
 }
-

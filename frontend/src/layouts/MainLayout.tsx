@@ -15,6 +15,8 @@ import {
   Activity,
   MapPin,
   Stethoscope,
+  Database,
+  Siren,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -58,7 +60,9 @@ export default function MainLayout() {
       case 'central_admin':
         return [
           { icon: Home, label: 'Dashboard', path: '/admin/central' },
-          { icon: Activity, label: 'Audit Logs', path: '/admin/audit' },
+          { icon: Database, label: 'Patient Index', path: '/admin/patient-index' },
+          { icon: Siren, label: 'Emergency Access', path: '/central/emergency' },
+          { icon: Activity, label: 'Audit Logs', path: '/central/audit' },
         ]
       default:
         return []
@@ -85,7 +89,7 @@ export default function MainLayout() {
       {/* Sidebar - Ultra Premium Design */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-72 bg-white/95 backdrop-blur-2xl border-r border-gray-100/80 transform transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:translate-x-0 shadow-2xl shadow-gray-300/30",
+          "fixed inset-y-0 left-0 z-40 w-72 bg-white/95 backdrop-blur-2xl border-r border-gray-100/80 transform transition-all duration-500 ease-out lg:translate-x-0 shadow-2xl shadow-gray-300/30",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >

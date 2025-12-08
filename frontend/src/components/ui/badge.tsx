@@ -14,7 +14,6 @@ const badgeVariants = cva(
         success: "border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700",
         warning: "border-amber-200/50 bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-700",
         info: "border-blue-200/50 bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700",
-        premium: "border-transparent bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 text-white shadow-md shadow-blue-500/25",
         glass: "border-white/20 bg-white/20 backdrop-blur-md text-white",
       },
     },
@@ -34,4 +33,4 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   )
 }
 
-export { Badge, badgeVariants }
+export { Badge }

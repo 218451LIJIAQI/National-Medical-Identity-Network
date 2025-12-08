@@ -72,12 +72,12 @@ export default function KLGeneralLayout() {
 
   const adminNavItems = [
     { icon: Home, label: 'Dashboard', labelMY: 'Papan Pemuka', path: '/admin/hospital' },
+    { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', labelMY: 'Kakitangan', path: '/admin/staff' },
     { icon: Building, label: 'Departments', labelMY: 'Jabatan', path: '/admin/departments' },
     { icon: Bed, label: 'Beds', labelMY: 'Katil', path: '/admin/beds' },
     { icon: Package, label: 'Inventory', labelMY: 'Inventori', path: '/admin/inventory' },
     { icon: DollarSign, label: 'Finance', labelMY: 'Kewangan', path: '/admin/finance' },
-    { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit' },
   ]
 
   const navItems = user?.role === 'doctor' ? [] : adminNavItems

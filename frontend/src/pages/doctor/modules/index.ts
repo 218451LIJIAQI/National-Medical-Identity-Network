@@ -1,8 +1,3 @@
-// ============================================================================
-// Hospital Modules Index
-// Export all hospital management modules
-// ============================================================================
-
 export { default as QueueManagement } from './QueueManagement'
 export { default as EPrescription } from './EPrescription'
 export { default as LabOrders } from './LabOrders'

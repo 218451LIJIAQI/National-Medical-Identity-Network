@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,7 @@ const maskIcNumber = (ic: string): string => {
 }
 
 export default function EmergencyAccess() {
+  const navigate = useNavigate()
   const [icNumber, setIcNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [patientInfo, setPatientInfo] = useState<EmergencyInfo | null>(null)
@@ -171,13 +172,16 @@ export default function EmergencyAccess() {
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/">
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-xl">
-                    <ArrowLeft className="w-5 h-5" />
-                  </Button>
-                </motion.div>
-              </Link>
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-white hover:bg-white/20 rounded-xl"
+                  onClick={() => navigate(-1)}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </motion.div>
               <div className="flex items-center gap-3">
                 <motion.div
                   animate={{ rotate: [0, 10, -10, 0] }}

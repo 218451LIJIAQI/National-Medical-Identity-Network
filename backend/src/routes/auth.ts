@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getUserByIc, createUser, updateUserLastLogin, createAuditLog } from '../database/central';
+import { getUserByIc, createUser, updateUserLastLogin, createAuditLog } from '../database/central-multi';
 import { generateToken, hashPassword, verifyPassword, authenticate } from '../middleware/auth';
-import { getHospitalDb } from '../database/hospital';
+import { getHospitalDb } from '../database/hospital-multi';
 
 const router = Router();
 
-// Login
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { icNumber, password, role } = req.body;
@@ -19,8 +18,6 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
     
-    // If role is specified, search for user with that specific role
-    // This supports multi-role users (e.g., doctors who are also patients)
     const user = await getUserByIc(icNumber, role || undefined);
     
     if (!user) {
@@ -39,10 +36,8 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
     
-    // Update last login
     await updateUserLastLogin(user.id);
     
-    // Generate token
     const token = generateToken({
       userId: user.id,
       icNumber: user.icNumber,
@@ -50,7 +45,6 @@ router.post('/login', async (req: Request, res: Response) => {
       hospitalId: user.hospitalId,
     });
     
-    // Get additional user info based on role
     let userInfo: Record<string, unknown> = {
       id: user.id,
       icNumber: user.icNumber,
@@ -64,14 +58,13 @@ router.post('/login', async (req: Request, res: Response) => {
       if (doctor) {
         userInfo = {
           ...userInfo,
-          doctorId: doctor.id,  // Add doctor ID for creating records
+          doctorId: doctor.id,
           fullName: doctor.fullName,
           specialization: doctor.specialization,
           department: doctor.department,
         };
       }
     } else if (user.role === 'hospital_admin' && user.hospitalId) {
-      // Get hospital name for admin display
       const hospitalNames: Record<string, string> = {
         'hospital-kl': 'Admin KL General',
         'hospital-penang': 'Admin Penang MC',
@@ -84,14 +77,12 @@ router.post('/login', async (req: Request, res: Response) => {
         fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
       };
     } else if (user.role === 'central_admin') {
-      // Central admin display name
       userInfo = {
         ...userInfo,
         fullName: 'Central Administrator',
       };
     } else if (user.role === 'patient') {
-      // Try to find patient info from any hospital that has their records
-      const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
+      const patientIndex = await (await import('../database/central-multi')).getPatientIndex(user.icNumber);
       if (patientIndex && patientIndex.hospitals.length > 0) {
         for (const hospitalId of patientIndex.hospitals) {
           const hospitalDb = getHospitalDb(hospitalId);
@@ -107,7 +98,6 @@ router.post('/login', async (req: Request, res: Response) => {
       }
     }
     
-    // Log the login
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'login',
@@ -135,7 +125,6 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// Register (for demo purposes - in production this would be admin-controlled)
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { icNumber, password, role, hospitalId, fullName, specialization, department } = req.body;
@@ -148,8 +137,6 @@ router.post('/register', async (req: Request, res: Response) => {
       return;
     }
     
-    // Check if user already exists with this IC number AND role
-    // (Same person can have multiple roles - e.g., doctor can also be patient)
     const existingUser = await getUserByIc(icNumber, role);
     if (existingUser) {
       res.status(400).json({
@@ -159,7 +146,6 @@ router.post('/register', async (req: Request, res: Response) => {
       return;
     }
     
-    // Create user
     const userId = uuidv4();
     await createUser({
       id: userId,
@@ -170,7 +156,6 @@ router.post('/register', async (req: Request, res: Response) => {
       isActive: true,
     });
     
-    // If doctor, create doctor record
     if (role === 'doctor' && hospitalId) {
       const hospitalDb = getHospitalDb(hospitalId);
       await hospitalDb.createDoctor({
@@ -200,7 +185,6 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
-// Get current user info
 router.get('/me', authenticate, async (req: Request, res: Response) => {
   try {
     if (!req.user) {
@@ -211,8 +195,6 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       return;
     }
     
-    // Use the role from the JWT token to get the correct user record
-    // This ensures multi-role users get the correct account info
     const user = await getUserByIc(req.user.icNumber, req.user.role);
     if (!user) {
       res.status(404).json({
@@ -235,14 +217,13 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       if (doctor) {
         userInfo = {
           ...userInfo,
-          doctorId: doctor.id,  // Add doctor ID for creating records
+          doctorId: doctor.id,
           fullName: doctor.fullName,
           specialization: doctor.specialization,
           department: doctor.department,
         };
       }
     } else if (user.role === 'hospital_admin' && user.hospitalId) {
-      // Get hospital name for admin display
       const hospitalNames: Record<string, string> = {
         'hospital-kl': 'Admin KL General',
         'hospital-penang': 'Admin Penang MC',
@@ -255,14 +236,12 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
         fullName: hospitalNames[user.hospitalId] || 'Hospital Administrator',
       };
     } else if (user.role === 'central_admin') {
-      // Central admin display name
       userInfo = {
         ...userInfo,
         fullName: 'Central Administrator',
       };
     } else if (user.role === 'patient') {
-      // Try to find patient info from any hospital that has their records
-      const patientIndex = await (await import('../database/central')).getPatientIndex(user.icNumber);
+      const patientIndex = await (await import('../database/central-multi')).getPatientIndex(user.icNumber);
       if (patientIndex && patientIndex.hospitals.length > 0) {
         for (const hospitalId of patientIndex.hospitals) {
           const hospitalDb = getHospitalDb(hospitalId);
@@ -291,7 +270,6 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// Logout (mainly for audit logging)
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
     if (req.user) {

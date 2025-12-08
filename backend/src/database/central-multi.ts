@@ -1,18 +1,8 @@
-// ============================================================================
-// Central Database Operations - Multi-Database Version
-// 使用独立的中心 PostgreSQL 数据库
-// ============================================================================
-
 import { PatientIndex, AuditLog, Hospital, User } from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
 
-// 获取中心数据库客户端
 const prisma = getCentralDb();
-
-// ============================================================================
-// Patient Index Operations
-// ============================================================================
 
 export async function getPatientIndex(icNumber: string): Promise<PatientIndex | null> {
   const index = await prisma.patientIndex.findUnique({
@@ -68,10 +58,6 @@ export async function getAllPatientIndexes(): Promise<PatientIndex[]> {
   }));
 }
 
-// ============================================================================
-// Hospital Operations
-// ============================================================================
-
 export async function getHospitals(): Promise<Hospital[]> {
   const hospitals = await prisma.hospital.findMany({
     where: { isActive: true },
@@ -89,14 +75,6 @@ export async function getHospitals(): Promise<Hospital[]> {
     apiEndpoint: h.apiEndpoint,
     isActive: h.isActive,
   }));
-}
-
-export async function registerHospital(hospital: Hospital): Promise<void> {
-  await prisma.hospital.upsert({
-    where: { id: hospital.id },
-    update: hospital,
-    create: hospital,
-  });
 }
 
 export async function initializeHospitals(): Promise<void> {
@@ -129,10 +107,6 @@ export async function initializeHospitals(): Promise<void> {
     });
   }
 }
-
-// ============================================================================
-// User Operations
-// ============================================================================
 
 export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
   const where: { icNumber: string; isActive: boolean; role?: string } = { 
@@ -199,10 +173,6 @@ export async function updateUserLastLogin(id: string): Promise<void> {
   });
 }
 
-// ============================================================================
-// Privacy Settings Operations
-// ============================================================================
-
 export async function getBlockedHospitals(icNumber: string): Promise<string[]> {
   const settings = await prisma.patientPrivacySetting.findMany({
     where: { icNumber, isBlocked: true },
@@ -229,10 +199,6 @@ export async function getPrivacySettings(icNumber: string): Promise<Array<{ hosp
     isBlocked: s.isBlocked,
   }));
 }
-
-// ============================================================================
-// Audit Log Operations
-// ============================================================================
 
 export async function createAuditLog(log: Omit<AuditLog, 'id'>): Promise<void> {
   await prisma.auditLog.create({
@@ -288,10 +254,6 @@ export async function getAuditLogs(filters?: {
     success: log.success,
   }));
 }
-
-// ============================================================================
-// Statistics
-// ============================================================================
 
 export async function getCentralStats() {
   const now = new Date();

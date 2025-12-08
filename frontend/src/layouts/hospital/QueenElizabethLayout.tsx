@@ -64,12 +64,12 @@ export default function QueenElizabethLayout() {
     { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
+    { icon: Activity, label: 'Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', path: '/admin/staff' },
     { icon: Building2, label: 'Departments', path: '/admin/departments' },
     { icon: Bed, label: 'Beds', path: '/admin/beds' },
     { icon: Package, label: 'Inventory', path: '/admin/inventory' },
     { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
-    { icon: Activity, label: 'Audit', path: '/admin/audit' },
   ]
 
   const formatDate = () => {
@@ -308,19 +308,18 @@ export default function QueenElizabethLayout() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-gradient-to-br from-red-500 via-rose-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-200">
-                    {location.pathname === '/doctor' && <Home className="w-7 h-7 text-white" />}
-                    {location.pathname === '/doctor/search' && <Search className="w-7 h-7 text-white" />}
-                    {location.pathname === '/doctor/new-record' && <FileText className="w-7 h-7 text-white" />}
-                    {location.pathname === '/admin/hospital' && <Shield className="w-7 h-7 text-white" />}
-                    {location.pathname === '/admin/audit' && <Activity className="w-7 h-7 text-white" />}
+                    {(() => {
+                      const currentNav = navItems.find(item => item.path === location.pathname)
+                      if (currentNav) {
+                        const Icon = currentNav.icon
+                        return <Icon className="w-7 h-7 text-white" />
+                      }
+                      return <Shield className="w-7 h-7 text-white" />
+                    })()}
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {location.pathname === '/doctor' && 'Doctor Dashboard'}
-                      {location.pathname === '/doctor/search' && 'Patient Search'}
-                      {location.pathname === '/doctor/new-record' && 'Create New Record'}
-                      {location.pathname === '/admin/hospital' && 'Hospital Administration'}
-                      {location.pathname === '/admin/audit' && 'Audit Trail'}
+                      {navItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
                     </h2>
                     <p className="text-gray-500 mt-0.5">
                       {user?.role === 'doctor' ? 'Medical Professional Portal' : 'Administrative Control Center'}

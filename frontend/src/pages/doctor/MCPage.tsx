@@ -1,4 +1,3 @@
-// Medical Certificate Page Wrapper
 import { MedicalCertificate } from './modules'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'

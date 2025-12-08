@@ -21,8 +21,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [selectedRole, setSelectedRole] = useState<string>('')
   const [focusedField, setFocusedField] = useState<string | null>(null)
-  const [isScanning] = useState(false)
-  const [scanProgress] = useState(0)
   const [showDoctorModal, setShowDoctorModal] = useState(false)
   const [showChipAnimation, setShowChipAnimation] = useState(false)
   const [chipScanPhase, setChipScanPhase] = useState<'detecting' | 'reading' | 'success'>('detecting')
@@ -675,7 +673,7 @@ export default function LoginPage() {
                 <Button 
                   type="submit" 
                   className="relative w-full h-14 text-base font-semibold bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-700 hover:via-cyan-700 hover:to-blue-700 shadow-xl shadow-blue-500/25 rounded-xl overflow-hidden group" 
-                  disabled={isLoading || isScanning}
+                  disabled={isLoading}
                 >
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
@@ -737,7 +735,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleIcScan}
                   className="relative w-full h-[4.5rem] text-base font-semibold bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 hover:from-emerald-500 hover:via-teal-400 hover:to-cyan-500 shadow-xl shadow-emerald-500/30 rounded-xl overflow-hidden group border-0 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/40" 
-                  disabled={isLoading || isScanning}
+                  disabled={isLoading}
                 >
                   {/* Dual shimmer effect */}
                   <motion.div
@@ -763,157 +761,67 @@ export default function LoginPage() {
                   
                   {/* Inner glow overlay */}
                   <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10 pointer-events-none" />
-                  
-                  {/* Scanning progress bar */}
-                  {isScanning && (
-                    <motion.div
-                      className="absolute bottom-0 left-0 h-1.5 bg-gradient-to-r from-white via-cyan-200 to-white"
-                      initial={{ width: '0%' }}
-                      animate={{ width: `${scanProgress}%` }}
-                      transition={{ duration: 0.1 }}
-                    />
-                  )}
-                  
-                  {/* Scanning pulse rings */}
-                  {isScanning && (
-                    <>
-                      <motion.div
-                        className="absolute inset-0 rounded-2xl border-2 border-white/50"
-                        animate={{ scale: [1, 1.08, 1], opacity: [0.6, 0, 0.6] }}
-                        transition={{ duration: 1.2, repeat: Infinity }}
-                      />
-                      <motion.div
-                        className="absolute inset-0 rounded-2xl border-2 border-cyan-300/40"
-                        animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0, 0.4] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
-                      />
-                      <motion.div
-                        className="absolute inset-0 rounded-2xl border border-white/20"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0, 0.2] }}
-                        transition={{ duration: 1.2, repeat: Infinity, delay: 0.8 }}
-                      />
-                    </>
-                  )}
 
                   <div className="relative flex items-center justify-center gap-4 px-4">
-                    {isScanning ? (
-                      <>
-                        {/* Scanning IC Card Animation */}
-                        <div className="relative">
-                          <motion.div
-                            className="absolute -inset-4 rounded-full bg-white/20"
-                            animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                            transition={{ duration: 1, repeat: Infinity }}
-                          />
-                          <motion.div
-                            animate={{ 
-                              rotateY: [0, 180, 360],
-                              scale: [1, 1.2, 1]
-                            }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                            style={{ transformStyle: 'preserve-3d' }}
-                          >
-                            <CreditCard className="h-8 w-8 text-white drop-shadow-lg" />
-                          </motion.div>
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <motion.span
-                            className="text-white font-bold text-lg drop-shadow-md"
-                            animate={{ opacity: [1, 0.7, 1] }}
-                            transition={{ duration: 0.8, repeat: Infinity }}
-                          >
-                            Scanning IC Card...
-                          </motion.span>
-                          <motion.span 
-                            className="text-sm text-white/80"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                          >
-                            Hold card near reader
-                          </motion.span>
-                        </div>
-                        {/* Progress circle */}
-                        <div className="ml-auto relative w-12 h-12">
-                          <svg className="w-12 h-12 -rotate-90">
-                            <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4"/>
-                            <motion.circle 
-                              cx="24" cy="24" r="20" 
-                              fill="none" 
-                              stroke="white" 
-                              strokeWidth="4"
-                              strokeLinecap="round"
-                              strokeDasharray={126}
-                              strokeDashoffset={126 - (126 * scanProgress / 100)}
-                            />
-                          </svg>
-                          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                            {scanProgress}%
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {/* NFC Icon with signal waves */}
-                        <div className="relative flex items-center justify-center w-14 h-14">
-                          {/* Signal waves - three layers */}
-                          <motion.div
-                            className="absolute w-10 h-10 rounded-full border-2 border-white/40"
-                            animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
-                            transition={{ duration: 1.8, repeat: Infinity }}
-                          />
-                          <motion.div
-                            className="absolute w-10 h-10 rounded-full border border-white/30"
-                            animate={{ scale: [1, 1.7], opacity: [0.4, 0] }}
-                            transition={{ duration: 1.8, repeat: Infinity, delay: 0.3 }}
-                          />
-                          <motion.div
-                            className="absolute w-10 h-10 rounded-full border border-white/20"
-                            animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
-                            transition={{ duration: 1.8, repeat: Infinity, delay: 0.6 }}
-                          />
-                          
-                          {/* Inner glow */}
-                          <motion.div
-                            className="absolute w-8 h-8 rounded-full bg-white/10 blur-sm"
-                            animate={{ opacity: [0.3, 0.6, 0.3] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          />
-                          
-                          {/* Card icon */}
-                          <motion.div
-                            animate={{ scale: [1, 1.08, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                          >
-                            <CreditCard className="h-7 w-7 text-white drop-shadow-md" />
-                          </motion.div>
-                        </div>
-                        
-                        {/* Text */}
-                        <div className="flex flex-col items-start">
-                          <span className="text-white font-bold text-[15px]">Scan IC Card</span>
-                          <span className="text-xs text-white/80">Tap to scan and login instantly</span>
-                        </div>
-                        
-                        {/* Animated arrow with dots */}
-                        <motion.div
-                          className="ml-auto flex items-center gap-1"
-                          animate={{ x: [0, 5, 0] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                          <motion.span
-                            className="w-1 h-1 bg-white/50 rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                          />
-                          <motion.span
-                            className="w-1 h-1 bg-white/70 rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-                          />
-                          <ArrowRight className="h-5 w-5 text-white" />
-                        </motion.div>
-                      </>
-                    )}
+                    {/* NFC Icon with signal waves */}
+                    <div className="relative flex items-center justify-center w-14 h-14">
+                      {/* Signal waves - three layers */}
+                      <motion.div
+                        className="absolute w-10 h-10 rounded-full border-2 border-white/40"
+                        animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity }}
+                      />
+                      <motion.div
+                        className="absolute w-10 h-10 rounded-full border border-white/30"
+                        animate={{ scale: [1, 1.7], opacity: [0.4, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, delay: 0.3 }}
+                      />
+                      <motion.div
+                        className="absolute w-10 h-10 rounded-full border border-white/20"
+                        animate={{ scale: [1, 1.9], opacity: [0.2, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, delay: 0.6 }}
+                      />
+                      
+                      {/* Inner glow */}
+                      <motion.div
+                        className="absolute w-8 h-8 rounded-full bg-white/10 blur-sm"
+                        animate={{ opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
+                      
+                      {/* Card icon */}
+                      <motion.div
+                        animate={{ scale: [1, 1.08, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <CreditCard className="h-7 w-7 text-white drop-shadow-md" />
+                      </motion.div>
+                    </div>
+                    
+                    {/* Text */}
+                    <div className="flex flex-col items-start">
+                      <span className="text-white font-bold text-[15px]">Scan IC Card</span>
+                      <span className="text-xs text-white/80">Tap to scan and login instantly</span>
+                    </div>
+                    
+                    {/* Animated arrow with dots */}
+                    <motion.div
+                      className="ml-auto flex items-center gap-1"
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <motion.span
+                        className="w-1 h-1 bg-white/50 rounded-full"
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      />
+                      <motion.span
+                        className="w-1 h-1 bg-white/70 rounded-full"
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                      />
+                      <ArrowRight className="h-5 w-5 text-white" />
+                    </motion.div>
                   </div>
                 </Button>
               </motion.div>

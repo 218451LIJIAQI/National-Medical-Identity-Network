@@ -53,12 +53,12 @@ export default function SarawakGeneralLayout() {
     { icon: Receipt, label: 'Billing', path: '/doctor/billing', desc: 'Bil & Subsidi' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital', desc: 'Overview' },
+    { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity' },
     { icon: Users, label: 'Staff', path: '/admin/staff', desc: 'Kakitangan' },
     { icon: Building2, label: 'Departments', path: '/admin/departments', desc: 'Jabatan' },
     { icon: Bed, label: 'Beds', path: '/admin/beds', desc: 'Katil' },
     { icon: Package, label: 'Inventory', path: '/admin/inventory', desc: 'Inventori' },
     { icon: DollarSign, label: 'Finance', path: '/admin/finance', desc: 'Kewangan' },
-    { icon: Activity, label: 'Audit Logs', path: '/admin/audit', desc: 'Activity' },
   ]
 
   const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })

@@ -1,15 +1,14 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
 import { motion } from 'framer-motion'
 import { Building2 } from 'lucide-react'
 
-// Layouts
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
 import HospitalLayout from '@/layouts/hospital'
 
-// Pages
 import LandingPage from '@/pages/LandingV2'
 import LoginPage from '@/pages/Login'
 import DoctorDashboard from '@/pages/doctor/dashboards'
@@ -18,31 +17,37 @@ import HospitalWorkstation from '@/pages/doctor/HospitalWorkstation'
 import PatientTimeline from '@/pages/doctor/PatientTimeline'
 import NewRecord from '@/pages/doctor/NewRecord'
 import NewRecordSearch from '@/pages/doctor/NewRecordSearch'
-import QueuePage from '@/pages/doctor/QueuePage'
-import PrescriptionPage from '@/pages/doctor/PrescriptionPage'
-import LabOrdersPage from '@/pages/doctor/LabOrdersPage'
 import MCPage from '@/pages/doctor/MCPage'
 import ReferralPage from '@/pages/doctor/ReferralPage'
 import AppointmentsPage from '@/pages/doctor/AppointmentsPage'
-import RadiologyPage from '@/pages/doctor/RadiologyPage'
-import NursingPage from '@/pages/doctor/NursingPage'
-import BillingPage from '@/pages/doctor/BillingPage'
+import { QueueManagement, EPrescription, LabOrders, Radiology, NursingNotes, Billing } from '@/pages/doctor/modules'
 import PatientDashboard from '@/pages/patient/Dashboard'
 import PatientRecords from '@/pages/patient/Records'
 import PatientPrivacy from '@/pages/patient/Privacy'
 import HospitalAdminDashboard from '@/pages/admin/HospitalAdmin'
 import CentralAdminDashboard from '@/pages/admin/CentralAdmin'
+import PatientIndexPage from '@/pages/admin/PatientIndex'
+import EmergencyManagement from '@/pages/admin/EmergencyManagement'
 import AuditLogs from '@/pages/admin/AuditLogs'
-import StaffPage from '@/pages/admin/StaffPage'
-import BedPage from '@/pages/admin/BedPage'
-import InventoryPage from '@/pages/admin/InventoryPage'
-import FinancePage from '@/pages/admin/FinancePage'
-import DepartmentPage from '@/pages/admin/DepartmentPage'
+import StaffManagement from '@/pages/admin/modules/StaffManagement'
+import BedManagement from '@/pages/admin/modules/BedManagement'
+import InventoryManagement from '@/pages/admin/modules/InventoryManagement'
+import FinancialReports from '@/pages/admin/modules/FinancialReports'
+import DepartmentManagement from '@/pages/admin/modules/DepartmentManagement'
 import EmergencyAccess from '@/pages/EmergencyAccess'
 import AboutPage from '@/pages/About'
 import HospitalVerification from '@/pages/HospitalVerification'
 
-// Premium Loading Component
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  
+  return null
+}
+
 function PremiumLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -81,11 +86,9 @@ function PremiumLoader() {
   )
 }
 
-// Protected route wrapper
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
 
-  // Try localStorage as fallback if zustand state is empty
   let effectiveUser = user
   let effectiveAuth = isAuthenticated
   
@@ -96,12 +99,10 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
         effectiveUser = JSON.parse(storedUser)
         effectiveAuth = true
       } catch {
-        // Invalid JSON
       }
     }
   }
 
-  // Wait for hydration before checking auth
   if (!_hasHydrated) {
     return <PremiumLoader />
   }
@@ -120,21 +121,18 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
-        {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/emergency" element={<EmergencyAccess />} />
         
-        {/* Auth routes */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>
         
-        {/* Hospital Verification - Second layer authentication (standalone, no AuthLayout redirect) */}
         <Route path="/verify" element={<HospitalVerification />} />
 
-        {/* Hospital Workstation - Full system (standalone) */}
         <Route
           path="/doctor/workstation"
           element={
@@ -144,7 +142,65 @@ function App() {
           }
         />
 
-        {/* Doctor routes - Using Hospital-specific layouts */}
+        <Route element={<MainLayout />}>
+          <Route
+            path="/patient"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/records"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientRecords />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/privacy"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientPrivacy />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/central"
+            element={
+              <ProtectedRoute allowedRoles={['central_admin']}>
+                <CentralAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/patient-index"
+            element={
+              <ProtectedRoute allowedRoles={['central_admin']}>
+                <PatientIndexPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/central/audit"
+            element={
+              <ProtectedRoute allowedRoles={['central_admin']}>
+                <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/central/emergency"
+            element={
+              <ProtectedRoute allowedRoles={['central_admin']}>
+                <EmergencyManagement />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
         <Route element={<HospitalLayout />}>
           <Route
             path="/doctor"
@@ -187,12 +243,11 @@ function App() {
             }
           />
           
-          {/* Hospital Module Routes */}
           <Route
             path="/doctor/queue"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <QueuePage />
+                <QueueManagement />
               </ProtectedRoute>
             }
           />
@@ -200,7 +255,7 @@ function App() {
             path="/doctor/prescription"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <PrescriptionPage />
+                <EPrescription />
               </ProtectedRoute>
             }
           />
@@ -208,7 +263,7 @@ function App() {
             path="/doctor/lab"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <LabOrdersPage />
+                <LabOrders />
               </ProtectedRoute>
             }
           />
@@ -240,7 +295,7 @@ function App() {
             path="/doctor/radiology"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <RadiologyPage />
+                <Radiology />
               </ProtectedRoute>
             }
           />
@@ -248,7 +303,7 @@ function App() {
             path="/doctor/nursing"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <NursingPage />
+                <NursingNotes />
               </ProtectedRoute>
             }
           />
@@ -256,12 +311,11 @@ function App() {
             path="/doctor/billing"
             element={
               <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
-                <BillingPage />
+                <Billing />
               </ProtectedRoute>
             }
           />
 
-          {/* Hospital Admin routes - Also use hospital-specific layouts */}
           <Route
             path="/admin/hospital"
             element={
@@ -273,7 +327,7 @@ function App() {
           <Route
             path="/admin/audit"
             element={
-              <ProtectedRoute allowedRoles={['central_admin', 'hospital_admin']}>
+              <ProtectedRoute allowedRoles={['hospital_admin', 'central_admin']}>
                 <AuditLogs />
               </ProtectedRoute>
             }
@@ -282,7 +336,7 @@ function App() {
             path="/admin/staff"
             element={
               <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <StaffPage />
+                <StaffManagement />
               </ProtectedRoute>
             }
           />
@@ -290,7 +344,7 @@ function App() {
             path="/admin/beds"
             element={
               <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <BedPage />
+                <BedManagement />
               </ProtectedRoute>
             }
           />
@@ -298,7 +352,7 @@ function App() {
             path="/admin/inventory"
             element={
               <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <InventoryPage />
+                <InventoryManagement />
               </ProtectedRoute>
             }
           />
@@ -306,7 +360,7 @@ function App() {
             path="/admin/finance"
             element={
               <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <FinancePage />
+                <FinancialReports />
               </ProtectedRoute>
             }
           />
@@ -314,51 +368,12 @@ function App() {
             path="/admin/departments"
             element={
               <ProtectedRoute allowedRoles={['hospital_admin']}>
-                <DepartmentPage />
+                <DepartmentManagement />
               </ProtectedRoute>
             }
           />
         </Route>
 
-        {/* Patient routes - Standard layout */}
-        <Route element={<MainLayout />}>
-          <Route
-            path="/patient"
-            element={
-              <ProtectedRoute allowedRoles={['patient']}>
-                <PatientDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/patient/records"
-            element={
-              <ProtectedRoute allowedRoles={['patient']}>
-                <PatientRecords />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/patient/privacy"
-            element={
-              <ProtectedRoute allowedRoles={['patient']}>
-                <PatientPrivacy />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Central Admin routes - Standard layout */}
-          <Route
-            path="/admin/central"
-            element={
-              <ProtectedRoute allowedRoles={['central_admin']}>
-                <CentralAdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
-
-        {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />

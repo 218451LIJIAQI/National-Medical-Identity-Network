@@ -6,7 +6,7 @@ export interface User {
   icNumber: string
   role: 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
   hospitalId?: string
-  doctorId?: string  // Doctor ID for creating records (different from user id)
+  doctorId?: string
   fullName?: string
   specialization?: string
   department?: string
@@ -31,7 +31,6 @@ export const useAuthStore = create<AuthState>()(
       _hasHydrated: false,
 
       login: (token: string, user: User) => {
-        // Also save to localStorage directly for immediate availability
         localStorage.setItem('medlink-token', token)
         localStorage.setItem('medlink-user', JSON.stringify(user))
         set({

@@ -1,14 +1,10 @@
-// Multi-language support for Inclusivity Track
 export type Language = 'en' | 'ms' | 'zh'
 
 export const translations = {
   en: {
-    // Header
     appName: 'MedLink MY',
     login: 'Login',
     about: 'About',
-    
-    // Hero
     heroTagline: 'GoDamLah 2.0 Identity Hackathon',
     heroTitle1: 'Your IC is Your',
     heroTitle2: 'Universal Medical Key',
@@ -16,14 +12,10 @@ export const translations = {
     getStarted: 'Get Started',
     learnMore: 'Learn More',
     scanIC: 'Tap / Scan IC',
-    
-    // Stats
     connectedHospitals: 'Connected Hospitals',
     recordRetrieval: 'Record Retrieval',
     dataSovereignty: 'Data Sovereignty',
     readOnlyAccess: 'Read-Only Access',
-    
-    // How it works
     howItWorks: 'How It Works',
     howItWorksSubtitle: 'A simple, secure process that puts you in control',
     step1Title: 'Tap Your IC',
@@ -32,8 +24,6 @@ export const translations = {
     step2Desc: 'The system queries central database to find which hospitals have your records.',
     step3Title: 'Federated Retrieval',
     step3Desc: 'Records are fetched from each hospital and displayed in one unified timeline.',
-    
-    // Features
     features: 'Key Features',
     featuresSubtitle: 'Built with security, privacy, and inclusivity at its core',
     dataSovereigntyTitle: 'Data Sovereignty',
@@ -44,8 +34,6 @@ export const translations = {
     privacyFirstDesc: 'You control who can access your records. Set permissions and view access logs.',
     nationwideTitle: 'Nationwide Coverage',
     nationwideDesc: 'Connected to hospitals across Malaysia, from Peninsular to East Malaysia.',
-    
-    // Tracks
     hackathonTracks: 'Hackathon Tracks',
     tracksSubtitle: 'Our solution addresses all three challenge tracks',
     inclusivityTrack: 'Inclusivity Track',
@@ -54,40 +42,27 @@ export const translations = {
     innovationDesc: 'IC as universal medical identity, federated database architecture, real-time cross-hospital query',
     securityTrack: 'Security Track',
     securityDesc: 'Read-only cross-access, complete audit trail, patient consent management, data encryption',
-    
-    // Security
     securityByDesign: 'Security by Design',
     securityByDesignDesc: 'Your medical data never leaves its original hospital. Other hospitals can only view a read-only copy.',
     readOnly: 'Read-Only Access',
     auditTrail: 'Complete Audit Trail',
     patientConsent: 'Patient Consent',
     dataEncryption: 'Data Encryption',
-    
-    // CTA
     ctaTitle: 'Ready to Experience the Future?',
     ctaSubtitle: 'Join the national medical identity network and take control of your health records.',
     loginNow: 'Login Now',
-    
-    // Footer
     builtFor: 'Connecting Malaysian Healthcare',
-    
-    // Accessibility
     largeText: 'Large Text',
     normalText: 'Normal Text',
     highContrast: 'High Contrast',
-    
-    // Emergency
     emergencyAccess: 'Emergency Access',
     emergencyDesc: 'Critical medical info available even offline',
   },
   
   ms: {
-    // Header
     appName: 'MedLink MY',
     login: 'Log Masuk',
     about: 'Tentang',
-    
-    // Hero
     heroTagline: 'GoDamLah 2.0 Identity Hackathon',
     heroTitle1: 'IC Anda adalah',
     heroTitle2: 'Kunci Perubatan Universal',
@@ -95,14 +70,10 @@ export const translations = {
     getStarted: 'Mula Sekarang',
     learnMore: 'Ketahui Lebih',
     scanIC: 'Imbas IC',
-    
-    // Stats
     connectedHospitals: 'Hospital Bersambung',
     recordRetrieval: 'Pengambilan Rekod',
     dataSovereignty: 'Kedaulatan Data',
     readOnlyAccess: 'Akses Baca Sahaja',
-    
-    // How it works
     howItWorks: 'Cara Ia Berfungsi',
     howItWorksSubtitle: 'Proses mudah dan selamat yang memberi anda kawalan',
     step1Title: 'Imbas IC Anda',
@@ -111,8 +82,6 @@ export const translations = {
     step2Desc: 'Sistem akan mencari hospital mana yang mempunyai rekod anda.',
     step3Title: 'Pengambilan Bersepadu',
     step3Desc: 'Rekod diambil dari setiap hospital dan dipaparkan dalam garis masa bersatu.',
-    
-    // Features
     features: 'Ciri-ciri Utama',
     featuresSubtitle: 'Dibina dengan keselamatan, privasi, dan inklusiviti',
     dataSovereigntyTitle: 'Kedaulatan Data',
@@ -123,8 +92,6 @@ export const translations = {
     privacyFirstDesc: 'Anda mengawal siapa yang boleh mengakses rekod anda.',
     nationwideTitle: 'Liputan Seluruh Negara',
     nationwideDesc: 'Bersambung dengan hospital di seluruh Malaysia.',
-    
-    // Tracks
     hackathonTracks: 'Trek Hackathon',
     tracksSubtitle: 'Penyelesaian kami menangani ketiga-tiga trek cabaran',
     inclusivityTrack: 'Trek Inklusiviti',
@@ -133,40 +100,27 @@ export const translations = {
     innovationDesc: 'IC sebagai identiti perubatan universal, seni bina pangkalan data bersepadu',
     securityTrack: 'Trek Keselamatan',
     securityDesc: 'Akses baca sahaja, jejak audit lengkap, pengurusan persetujuan pesakit',
-    
-    // Security
     securityByDesign: 'Keselamatan Reka Bentuk',
     securityByDesignDesc: 'Data perubatan anda tidak pernah meninggalkan hospital asal.',
     readOnly: 'Akses Baca Sahaja',
     auditTrail: 'Jejak Audit Lengkap',
     patientConsent: 'Persetujuan Pesakit',
     dataEncryption: 'Penyulitan Data',
-    
-    // CTA
     ctaTitle: 'Bersedia untuk Pengalaman Masa Depan?',
     ctaSubtitle: 'Sertai rangkaian identiti perubatan kebangsaan.',
     loginNow: 'Log Masuk Sekarang',
-    
-    // Footer
     builtFor: 'Menghubungkan Penjagaan Kesihatan Malaysia',
-    
-    // Accessibility
     largeText: 'Teks Besar',
     normalText: 'Teks Normal',
     highContrast: 'Kontras Tinggi',
-    
-    // Emergency
     emergencyAccess: 'Akses Kecemasan',
     emergencyDesc: 'Info perubatan kritikal tersedia walaupun luar talian',
   },
   
   zh: {
-    // Header
     appName: 'MedLink MY',
     login: '登录',
     about: '关于',
-    
-    // Hero
     heroTagline: 'GoDamLah 2.0 身份认证黑客松',
     heroTitle1: '您的身份证是',
     heroTitle2: '全国医疗通行证',
@@ -174,14 +128,10 @@ export const translations = {
     getStarted: '立即开始',
     learnMore: '了解更多',
     scanIC: '扫描身份证',
-    
-    // Stats
     connectedHospitals: '联网医院',
     recordRetrieval: '记录检索',
     dataSovereignty: '数据主权',
     readOnlyAccess: '只读访问',
-    
-    // How it works
     howItWorks: '工作原理',
     howItWorksSubtitle: '简单安全的流程，让您掌控一切',
     step1Title: '扫描身份证',
@@ -190,8 +140,6 @@ export const translations = {
     step2Desc: '系统查询中央数据库，找出哪些医院有您的记录。',
     step3Title: '联邦式检索',
     step3Desc: '从各医院获取记录，统一显示在时间线上。',
-    
-    // Features
     features: '核心功能',
     featuresSubtitle: '以安全、隐私和包容性为核心构建',
     dataSovereigntyTitle: '数据主权',
@@ -202,8 +150,6 @@ export const translations = {
     privacyFirstDesc: '您控制谁可以访问您的记录。设置权限并查看访问日志。',
     nationwideTitle: '全国覆盖',
     nationwideDesc: '连接马来西亚各地医院，从半岛到东马。',
-    
-    // Tracks
     hackathonTracks: '黑客松赛道',
     tracksSubtitle: '我们的解决方案覆盖所有三个挑战赛道',
     inclusivityTrack: '包容性赛道',
@@ -212,29 +158,19 @@ export const translations = {
     innovationDesc: '身份证作为通用医疗身份、联邦数据库架构、实时跨医院查询',
     securityTrack: '安全赛道',
     securityDesc: '只读跨访问、完整审计追踪、患者同意管理、数据加密',
-    
-    // Security
     securityByDesign: '安全设计',
     securityByDesignDesc: '您的医疗数据永远不会离开原始医院。其他医院只能查看只读副本。',
     readOnly: '只读访问',
     auditTrail: '完整审计追踪',
     patientConsent: '患者同意',
     dataEncryption: '数据加密',
-    
-    // CTA
     ctaTitle: '准备体验未来吗？',
     ctaSubtitle: '加入国家医疗身份网络，掌控您的健康记录。',
     loginNow: '立即登录',
-    
-    // Footer
     builtFor: '连接马来西亚医疗保健',
-    
-    // Accessibility
     largeText: '大字体',
     normalText: '正常字体',
     highContrast: '高对比度',
-    
-    // Emergency
     emergencyAccess: '紧急访问',
     emergencyDesc: '即使离线也可获取关键医疗信息',
   },

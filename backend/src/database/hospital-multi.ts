@@ -1,14 +1,7 @@
-// ============================================================================
-// Hospital Database Operations - Multi-Database Version
-// 每个医院使用独立的 PostgreSQL 数据库
-// ============================================================================
-
-import { v4 as uuidv4 } from 'uuid';
-import { Patient, MedicalRecord, Prescription, LabReport, Doctor, VitalSigns } from '../types';
+import { Patient, MedicalRecord, Prescription, Doctor, VitalSigns } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
 import { PrismaClient as HospitalPrismaClient } from '../../node_modules/.prisma/client/hospital';
 
-// Helper to parse JSON fields safely
 function parseJson<T>(str: string | null, defaultValue: T): T {
   if (!str) return defaultValue;
   try {
@@ -18,10 +11,6 @@ function parseJson<T>(str: string | null, defaultValue: T): T {
   }
 }
 
-// ============================================================================
-// Hospital Database Class - 独立数据库版本
-// ============================================================================
-
 export class HospitalDatabaseMulti {
   private hospitalId: string;
   private prisma: HospitalPrismaClient;
@@ -30,15 +19,6 @@ export class HospitalDatabaseMulti {
     this.hospitalId = hospitalId;
     this.prisma = getHospitalDbClient(hospitalId);
   }
-
-  // 获取医院ID（用于外部查询）
-  getHospitalId(): string {
-    return this.hospitalId;
-  }
-
-  // ============================================================================
-  // Patient Operations
-  // ============================================================================
 
   async getPatient(icNumber: string): Promise<Patient | null> {
     const patient = await this.prisma.patient.findUnique({
@@ -65,7 +45,7 @@ export class HospitalDatabaseMulti {
     };
   }
 
-  async getPatients(): Promise<Patient[]> {
+  async getAllPatients(): Promise<Patient[]> {
     const patients = await this.prisma.patient.findMany();
 
     return patients.map(p => ({
@@ -84,10 +64,6 @@ export class HospitalDatabaseMulti {
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }));
-  }
-
-  getAllPatients(): Promise<Patient[]> {
-    return this.getPatients();
   }
 
   async createPatient(patient: Patient): Promise<Patient> {
@@ -115,34 +91,7 @@ export class HospitalDatabaseMulti {
     };
   }
 
-  async updatePatient(icNumber: string, updates: Partial<Patient>): Promise<Patient | null> {
-    const data: Record<string, unknown> = {};
-    
-    if (updates.fullName) data.fullName = updates.fullName;
-    if (updates.dateOfBirth) data.dateOfBirth = new Date(updates.dateOfBirth);
-    if (updates.gender) data.gender = updates.gender;
-    if (updates.bloodType) data.bloodType = updates.bloodType;
-    if (updates.phone) data.phone = updates.phone;
-    if (updates.email) data.email = updates.email;
-    if (updates.address) data.address = updates.address;
-    if (updates.emergencyContact) data.emergencyContact = updates.emergencyContact;
-    if (updates.emergencyPhone) data.emergencyPhone = updates.emergencyPhone;
-    if (updates.allergies) data.allergies = JSON.stringify(updates.allergies);
-    if (updates.chronicConditions) data.chronicConditions = JSON.stringify(updates.chronicConditions);
-
-    await this.prisma.patient.update({
-      where: { icNumber },
-      data,
-    });
-
-    return this.getPatient(icNumber);
-  }
-
-  // ============================================================================
-  // Medical Record Operations
-  // ============================================================================
-
-  async getMedicalRecord(id: string): Promise<MedicalRecord | null> {
+  async getRecordById(id: string): Promise<MedicalRecord | null> {
     const record = await this.prisma.medicalRecord.findUnique({
       where: { id },
       include: {
@@ -157,7 +106,7 @@ export class HospitalDatabaseMulti {
     return this.formatRecord(record);
   }
 
-  async getMedicalRecordsByPatient(icNumber: string): Promise<MedicalRecord[]> {
+  async getRecordsByPatient(icNumber: string): Promise<MedicalRecord[]> {
     const records = await this.prisma.medicalRecord.findMany({
       where: { icNumber },
       include: {
@@ -169,14 +118,6 @@ export class HospitalDatabaseMulti {
     });
 
     return records.map(r => this.formatRecord(r));
-  }
-
-  getRecordsByPatient(icNumber: string): Promise<MedicalRecord[]> {
-    return this.getMedicalRecordsByPatient(icNumber);
-  }
-
-  getRecordById(id: string): Promise<MedicalRecord | null> {
-    return this.getMedicalRecord(id);
   }
 
   async createRecord(record: MedicalRecord): Promise<string> {
@@ -198,34 +139,6 @@ export class HospitalDatabaseMulti {
     });
 
     return created.id;
-  }
-
-  async createMedicalRecord(record: Partial<MedicalRecord> & Omit<MedicalRecord, 'id' | 'createdAt' | 'updatedAt' | 'hospitalId'>): Promise<MedicalRecord> {
-    const id = uuidv4();
-    
-    const created = await this.prisma.medicalRecord.create({
-      data: {
-        id,
-        icNumber: record.icNumber,
-        doctorId: record.doctorId,
-        visitDate: new Date(record.visitDate),
-        visitType: record.visitType,
-        chiefComplaint: record.chiefComplaint || '',
-        diagnosis: JSON.stringify(record.diagnosis || []),
-        diagnosisCodes: JSON.stringify(record.diagnosisCodes || []),
-        symptoms: JSON.stringify(record.symptoms || []),
-        notes: record.notes || '',
-        vitalSigns: record.vitalSigns ? JSON.stringify(record.vitalSigns) : null,
-        followUpDate: record.followUpDate ? new Date(record.followUpDate) : null,
-      },
-      include: {
-        doctor: true,
-        prescriptions: true,
-        labReports: true,
-      },
-    });
-
-    return this.formatRecord(created);
   }
 
   private formatRecord(record: {
@@ -271,7 +184,7 @@ export class HospitalDatabaseMulti {
     return {
       id: record.id,
       icNumber: record.icNumber,
-      hospitalId: this.hospitalId, // 来自当前数据库实例
+      hospitalId: this.hospitalId,
       hospitalName: this.getHospitalName(),
       doctorId: record.doctorId,
       doctorName: record.doctor.fullName,
@@ -323,29 +236,7 @@ export class HospitalDatabaseMulti {
     return names[this.hospitalId] || this.hospitalId;
   }
 
-  // ============================================================================
-  // Prescription Operations
-  // ============================================================================
-
-  async getPrescriptionsByRecord(recordId: string): Promise<Prescription[]> {
-    const prescriptions = await this.prisma.prescription.findMany({
-      where: { recordId },
-    });
-
-    return prescriptions.map(p => ({
-      id: p.id,
-      recordId: p.recordId,
-      medicationName: p.medicationName,
-      dosage: p.dosage,
-      frequency: p.frequency,
-      duration: p.duration || '',
-      quantity: p.quantity || 0,
-      instructions: p.instructions || '',
-      isActive: p.isActive,
-    }));
-  }
-
-  async getActivePrescriptionsByPatient(icNumber: string): Promise<Prescription[]> {
+  async getActivePrescriptions(icNumber: string): Promise<Prescription[]> {
     const records = await this.prisma.medicalRecord.findMany({
       where: { icNumber },
       select: { id: true },
@@ -372,93 +263,6 @@ export class HospitalDatabaseMulti {
       isActive: p.isActive,
     }));
   }
-
-  getActivePrescriptions(icNumber: string): Promise<Prescription[]> {
-    return this.getActivePrescriptionsByPatient(icNumber);
-  }
-
-  async createPrescription(prescription: Omit<Prescription, 'id'>): Promise<Prescription> {
-    const created = await this.prisma.prescription.create({
-      data: {
-        medicationName: prescription.medicationName,
-        dosage: prescription.dosage,
-        frequency: prescription.frequency,
-        duration: prescription.duration,
-        quantity: prescription.quantity,
-        instructions: prescription.instructions,
-        isActive: prescription.isActive,
-        recordId: prescription.recordId!,
-      },
-    });
-
-    return {
-      id: created.id,
-      recordId: created.recordId,
-      medicationName: created.medicationName,
-      dosage: created.dosage,
-      frequency: created.frequency,
-      duration: created.duration || '',
-      quantity: created.quantity || 0,
-      instructions: created.instructions || '',
-      isActive: created.isActive,
-    };
-  }
-
-  // ============================================================================
-  // Lab Report Operations
-  // ============================================================================
-
-  async getLabReportsByRecord(recordId: string): Promise<LabReport[]> {
-    const reports = await this.prisma.labReport.findMany({
-      where: { recordId },
-    });
-
-    return reports.map(l => ({
-      id: l.id,
-      recordId: l.recordId,
-      testType: l.testType,
-      testName: l.testName,
-      result: l.result,
-      unit: l.unit || '',
-      referenceRange: l.referenceRange || '',
-      isAbnormal: l.isAbnormal,
-      reportDate: l.reportDate.toISOString(),
-      notes: l.notes || '',
-    }));
-  }
-
-  async createLabReport(labReport: Omit<LabReport, 'id'>): Promise<LabReport> {
-    const created = await this.prisma.labReport.create({
-      data: {
-        testType: labReport.testType,
-        testName: labReport.testName,
-        result: labReport.result,
-        unit: labReport.unit,
-        referenceRange: labReport.referenceRange,
-        isAbnormal: labReport.isAbnormal,
-        reportDate: new Date(labReport.reportDate),
-        notes: labReport.notes,
-        recordId: labReport.recordId!,
-      },
-    });
-
-    return {
-      id: created.id,
-      recordId: created.recordId,
-      testType: created.testType,
-      testName: created.testName,
-      result: created.result,
-      unit: created.unit || '',
-      referenceRange: created.referenceRange || '',
-      isAbnormal: created.isAbnormal,
-      reportDate: created.reportDate.toISOString(),
-      notes: created.notes || '',
-    };
-  }
-
-  // ============================================================================
-  // Doctor Operations
-  // ============================================================================
 
   async getDoctor(id: string): Promise<Doctor | null> {
     const doctor = await this.prisma.doctor.findUnique({
@@ -502,7 +306,7 @@ export class HospitalDatabaseMulti {
     };
   }
 
-  async getDoctors(): Promise<Doctor[]> {
+  async getAllDoctors(): Promise<Doctor[]> {
     const doctors = await this.prisma.doctor.findMany({
       where: { isActive: true },
     });
@@ -519,10 +323,6 @@ export class HospitalDatabaseMulti {
       email: d.email || '',
       isActive: d.isActive,
     }));
-  }
-
-  getAllDoctors(): Promise<Doctor[]> {
-    return this.getDoctors();
   }
 
   async createDoctor(doctor: Doctor): Promise<Doctor> {
@@ -542,10 +342,6 @@ export class HospitalDatabaseMulti {
 
     return doctor;
   }
-
-  // ============================================================================
-  // Statistics
-  // ============================================================================
 
   async getStats() {
     const [totalPatients, totalRecords, totalDoctors, recentRecords] = await Promise.all([
@@ -568,9 +364,6 @@ export class HospitalDatabaseMulti {
   }
 }
 
-// ============================================================================
-// 工厂函数 - 获取医院数据库实例
-// ============================================================================
 const hospitalDbInstances: Map<string, HospitalDatabaseMulti> = new Map();
 
 export function getHospitalDb(hospitalId: string): HospitalDatabaseMulti {

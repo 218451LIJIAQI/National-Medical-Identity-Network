@@ -28,12 +28,3 @@ export default function HospitalLayout() {
   
   return <LayoutComponent />
 }
-
-// Export individual layouts for direct use if needed
-export {
-  KLGeneralLayout,
-  PenangMCLayout,
-  JohorSpecialistLayout,
-  SarawakGeneralLayout,
-  QueenElizabethLayout,
-}

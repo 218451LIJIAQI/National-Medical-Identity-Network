@@ -48,12 +48,12 @@ export default function PenangMCLayout() {
     { icon: Receipt, label: 'Billing', path: '/doctor/billing' },
   ] : [
     { icon: Home, label: 'Dashboard', path: '/admin/hospital' },
+    { icon: Activity, label: 'Audit', path: '/admin/audit' },
     { icon: Users, label: 'Staff', path: '/admin/staff' },
     { icon: Building2, label: 'Dept', path: '/admin/departments' },
     { icon: Bed, label: 'Beds', path: '/admin/beds' },
     { icon: Package, label: 'Inventory', path: '/admin/inventory' },
     { icon: DollarSign, label: 'Finance', path: '/admin/finance' },
-    { icon: Activity, label: 'Audit', path: '/admin/audit' },
   ]
 
   return (

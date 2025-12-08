@@ -11,20 +11,13 @@ import {
   getBlockedHospitals,
   setHospitalAccess,
   getPrivacySettings
-} from '../database/central';
-import { getHospitalDb } from '../database/hospital';
+} from '../database/central-multi';
+import { getHospitalDb } from '../database/hospital-multi';
 import { authenticate, authorize } from '../middleware/auth';
 import { HOSPITALS, DRUG_INTERACTIONS } from '../config';
 import { CrossHospitalQueryResult, QueryFlowStep, HospitalQueryResult, DrugInteraction } from '../types';
-// Note: Using multi-database architecture, no direct prisma import needed
-
 const router = Router();
 
-// ============================================================================
-// Public Routes
-// ============================================================================
-
-// Get list of all hospitals
 router.get('/hospitals', async (_req: Request, res: Response) => {
   try {
     const hospitals = await getHospitals();
@@ -41,7 +34,6 @@ router.get('/hospitals', async (_req: Request, res: Response) => {
   }
 });
 
-// Get central platform statistics
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const stats = await getCentralStats();
@@ -58,15 +50,9 @@ router.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// Emergency Access Route (No Authentication Required)
-// ============================================================================
-
-// Rate limiting for emergency access - 1 query per IP per minute
 const emergencyRateLimits: Map<string, number> = new Map();
-const EMERGENCY_RATE_LIMIT_MS = 60000; // 1 minute
+const EMERGENCY_RATE_LIMIT_MS = 60000;
 
-// Clean up old rate limit entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [ip, timestamp] of emergencyRateLimits.entries()) {
@@ -76,13 +62,10 @@ setInterval(() => {
   }
 }, 300000);
 
-// Emergency query - provides critical patient information without login
-// This is for emergency situations where healthcare providers need immediate access
 router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   const { icNumber } = req.params;
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   
-  // Check rate limit
   const lastAccess = emergencyRateLimits.get(clientIp);
   if (lastAccess && Date.now() - lastAccess < EMERGENCY_RATE_LIMIT_MS) {
     const remainingSeconds = Math.ceil((EMERGENCY_RATE_LIMIT_MS - (Date.now() - lastAccess)) / 1000);
@@ -95,11 +78,9 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     return;
   }
   
-  // Update rate limit timestamp
   emergencyRateLimits.set(clientIp, Date.now());
   
   try {
-    // Look up patient in central index
     const patientIndex = await getPatientIndex(icNumber);
     
     if (!patientIndex || patientIndex.hospitals.length === 0) {
@@ -114,7 +95,6 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
     
-    // Get patient info from the first hospital that has records
     let patientInfo: {
       fullName: string;
       bloodType: string;
@@ -152,12 +132,11 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
     
-    // Log emergency access (non-blocking, don't fail if logging fails)
     try {
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'emergency_access',
-        actorId: 'system',  // Use system user for anonymous access
+        actorId: 'system',
         actorType: 'system',
         targetIcNumber: icNumber,
         details: `Emergency access from IP: ${req.ip || 'unknown'}`,
@@ -166,7 +145,6 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       });
     } catch (logError) {
       console.warn('Failed to log emergency access:', logError);
-      // Continue even if logging fails - emergency access should not be blocked
     }
     
     res.json({
@@ -189,18 +167,12 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// Cross-Hospital Query Routes (Main Feature)
-// ============================================================================
-
-// Query patient records across all hospitals
 router.get('/query/:icNumber', authenticate, async (req: Request, res: Response) => {
   const startTime = Date.now();
   const { icNumber } = req.params;
   const querySteps: QueryFlowStep[] = [];
   
   try {
-    // Step 1: Look up patient in central index
     querySteps.push({
       step: 1,
       action: 'Looking up patient in central index',
@@ -216,7 +188,6 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
     querySteps[0].data = patientIndex ? { hospitalsFound: patientIndex.hospitals.length } : { hospitalsFound: 0 };
     
     if (!patientIndex) {
-      // Patient not in any hospital
       const result: CrossHospitalQueryResult = {
         icNumber,
         querySteps,
@@ -232,12 +203,10 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
       return;
     }
     
-    // Check if the requesting hospital is blocked by the patient
     const requestingHospitalId = req.user?.hospitalId;
     if (requestingHospitalId) {
       const blockedHospitals = await getBlockedHospitals(icNumber);
       if (blockedHospitals.includes(requestingHospitalId)) {
-        // Hospital is blocked - return empty result with access denied message
         querySteps[0].status = 'completed';
         querySteps[0].data = { hospitalsFound: 0, accessDenied: true };
         
@@ -259,7 +228,6 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
       }
     }
     
-    // Step 2: Query each hospital in parallel
     const hospitalResults: HospitalQueryResult[] = [];
     const hospitalPromises = patientIndex.hospitals.map(async (hospitalId, index) => {
       const hospital = HOSPITALS.find(h => h.id === hospitalId);
@@ -280,7 +248,6 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
         const hospitalDb = getHospitalDb(hospitalId);
         const records = await hospitalDb.getRecordsByPatient(icNumber);
         
-        // Mark records as read-only if not from the requesting hospital
         const isOwnHospital = req.user?.hospitalId === hospitalId;
         const markedRecords = records.map(r => ({
           ...r,
@@ -324,10 +291,8 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
     
     await Promise.all(hospitalPromises);
     
-    // Calculate total records
     const totalRecords = hospitalResults.reduce((sum, h) => sum + h.recordCount, 0);
     
-    // Log the query
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'query',
@@ -361,7 +326,6 @@ router.get('/query/:icNumber', authenticate, async (req: Request, res: Response)
   }
 });
 
-// Get patient info aggregated from all hospitals
 router.get('/patient/:icNumber', authenticate, async (req: Request, res: Response) => {
   try {
     const { icNumber } = req.params;
@@ -375,7 +339,6 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
       return;
     }
     
-    // Get patient info from the first hospital that has it
     let patientInfo = null;
     for (const hospitalId of patientIndex.hospitals) {
       const hospitalDb = getHospitalDb(hospitalId);
@@ -403,7 +366,6 @@ router.get('/patient/:icNumber', authenticate, async (req: Request, res: Respons
   }
 });
 
-// Check for drug interactions
 router.post('/drug-interactions', authenticate, async (req: Request, res: Response) => {
   try {
     const { icNumber, newMedication } = req.body;
@@ -416,7 +378,6 @@ router.post('/drug-interactions', authenticate, async (req: Request, res: Respon
       return;
     }
     
-    // Get patient's current medications from all hospitals
     const patientIndex = await getPatientIndex(icNumber);
     if (!patientIndex) {
       res.json({
@@ -429,7 +390,6 @@ router.post('/drug-interactions', authenticate, async (req: Request, res: Respon
       return;
     }
     
-    // Collect all active prescriptions
     const currentMedications: Array<{ medication: string; hospital: string; date: string }> = [];
     
     for (const hospitalId of patientIndex.hospitals) {
@@ -441,12 +401,11 @@ router.post('/drug-interactions', authenticate, async (req: Request, res: Respon
         currentMedications.push({
           medication: p.medicationName,
           hospital: hospital?.name || hospitalId,
-          date: new Date().toISOString(), // Would get actual date from record
+          date: new Date().toISOString(),
         });
       });
     }
     
-    // Check for interactions
     const interactions: DrugInteraction[] = [];
     const newMedLower = newMedication.toLowerCase();
     
@@ -486,11 +445,6 @@ router.post('/drug-interactions', authenticate, async (req: Request, res: Respon
   }
 });
 
-// ============================================================================
-// Admin Routes
-// ============================================================================
-
-// Get all patient indexes (central admin only)
 router.get('/indexes', authenticate, authorize('central_admin'), async (_req: Request, res: Response) => {
   try {
     const indexes = await getAllPatientIndexes();
@@ -507,7 +461,6 @@ router.get('/indexes', authenticate, authorize('central_admin'), async (_req: Re
   }
 });
 
-// Search patient index by IC number (central admin only) - shows which hospitals patient has visited
 router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (req: Request, res: Response) => {
   try {
     const { icNumber } = req.params;
@@ -521,7 +474,6 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
       return;
     }
     
-    // Get detailed hospital info for each hospital the patient visited
     const hospitalDetails = await Promise.all(
       patientIndex.hospitals.map(async (hospitalId) => {
         const hospital = HOSPITALS.find(h => h.id === hospitalId);
@@ -534,12 +486,11 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
           shortName: hospital?.shortName || hospitalId,
           city: hospital?.city || 'Unknown',
           recordCount,
-          isActive: true, // All hospitals in the system are active
+          isActive: true,
         };
       })
     );
     
-    // Try to get patient info from first hospital
     let patientInfo = null;
     for (const hospitalId of patientIndex.hospitals) {
       const hospitalDb = getHospitalDb(hospitalId);
@@ -578,7 +529,6 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
   }
 });
 
-// Get audit logs (admin only)
 router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_admin'), async (req: Request, res: Response) => {
   try {
     const { actorId, targetIcNumber, startDate, endDate, limit } = req.query;
@@ -604,7 +554,6 @@ router.get('/audit-logs', authenticate, authorize('central_admin', 'hospital_adm
   }
 });
 
-// Get my access logs (for patients to see who accessed their records)
 router.get('/my-access-logs', authenticate, async (req: Request, res: Response) => {
   try {
     const userIcNumber = req.user?.icNumber;
@@ -622,30 +571,25 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
     
     const allLogs = await getAuditLogs({
       targetIcNumber: userIcNumber,
-      limit: limit ? parseInt(limit as string) * 2 : 40, // Fetch more to account for filtering
+      limit: limit ? parseInt(limit as string) * 2 : 40,
     });
     
-    // Filter out logs where the patient accessed their own records
     const requestedLimit = limit ? parseInt(limit as string) : 20;
     const logs = allLogs.filter(log => log.actorId !== userId).slice(0, requestedLimit);
     
-    // Enrich logs with doctor/hospital names
     const enrichedLogs = await Promise.all(logs.map(async (log) => {
       let actorName = log.actorId;
       let hospitalName = log.actorHospitalId || 'Unknown Hospital';
       
-      // Get hospital name
       const hospital = HOSPITALS.find(h => h.id === log.actorHospitalId);
       if (hospital) {
         hospitalName = hospital.name;
       }
       
-      // Try to get actor's full name based on role
       try {
         const user = await getUserById(log.actorId);
         if (user && user.icNumber) {
           if (log.actorType === 'doctor' && log.actorHospitalId) {
-            // Look up doctor by IC number from their hospital database
             try {
               const hospitalDb = getHospitalDb(log.actorHospitalId);
               const doctor = await hospitalDb.getDoctorByIc(user.icNumber);
@@ -658,7 +602,6 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
               actorName = `Dr. ${user.icNumber}`;
             }
           } else if (log.actorType === 'patient') {
-            // For patients, just show formatted name
             actorName = `Patient ${user.icNumber}`;
           } else if (log.actorType === 'hospital_admin') {
             actorName = `Hospital Admin`;
@@ -668,7 +611,6 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
         }
       } catch (err) {
         console.error('Error looking up actor name:', err);
-        // If lookup fails, try to format nicely based on actorType
         if (log.actorType === 'doctor') {
           actorName = 'Unknown Doctor';
         } else if (log.actorType === 'patient') {
@@ -698,7 +640,6 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
   }
 });
 
-// Get my activity logs (for doctors to see their own query history)
 router.get('/my-activity-logs', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -714,25 +655,20 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
     const { limit } = req.query;
     const requestedLimit = limit ? parseInt(limit as string) : 10;
     
-    // Fetch more logs to account for filtering
     const logs = await getAuditLogs({
       actorId: userId,
       limit: requestedLimit * 3,
     });
     
-    // Filter to only show patient-related actions (query, view, create, update)
-    // Exclude login/logout actions
     const patientLogs = logs
       .filter(log => log.action !== 'login' && log.action !== 'logout' && log.targetIcNumber)
       .slice(0, requestedLimit);
     
-    // Enrich logs with patient names
     const enrichedLogs = await Promise.all(patientLogs.map(async (log) => {
       let patientName = 'Unknown Patient';
       
       if (log.targetIcNumber) {
         try {
-          // Get patient from any hospital that has their records
           const patientIndex = await getPatientIndex(log.targetIcNumber);
           if (patientIndex && patientIndex.hospitals.length > 0) {
             const hospitalDb = getHospitalDb(patientIndex.hospitals[0]);
@@ -741,8 +677,7 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
               patientName = patient.fullName;
             }
           }
-        } catch (err) {
-          // Ignore lookup errors
+        } catch {
         }
       }
       
@@ -765,7 +700,6 @@ router.get('/my-activity-logs', authenticate, async (req: Request, res: Response
   }
 });
 
-// Manually update patient index (for syncing)
 router.post('/index/update', authenticate, authorize('hospital_admin', 'central_admin'), async (req: Request, res: Response) => {
   try {
     const { icNumber, hospitalId } = req.body;
@@ -793,11 +727,6 @@ router.post('/index/update', authenticate, authorize('hospital_admin', 'central_
   }
 });
 
-// ============================================================================
-// Privacy Settings Routes
-// ============================================================================
-
-// Get my privacy settings (blocked hospitals)
 router.get('/privacy-settings', authenticate, async (req: Request, res: Response) => {
   try {
     const userIcNumber = req.user?.icNumber;
@@ -813,7 +742,6 @@ router.get('/privacy-settings', authenticate, async (req: Request, res: Response
     const settings = await getPrivacySettings(userIcNumber);
     const hospitals = await getHospitals();
     
-    // Merge with all hospitals
     const result = hospitals.map(h => {
       const setting = settings.find(s => s.hospitalId === h.id);
       return {
@@ -837,7 +765,6 @@ router.get('/privacy-settings', authenticate, async (req: Request, res: Response
   }
 });
 
-// Update hospital access (block/unblock)
 router.post('/privacy-settings/hospital-access', authenticate, async (req: Request, res: Response) => {
   try {
     const userIcNumber = req.user?.icNumber;
@@ -861,7 +788,6 @@ router.post('/privacy-settings/hospital-access', authenticate, async (req: Reque
     
     await setHospitalAccess(userIcNumber, hospitalId, isBlocked);
     
-    // Log the action
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'update',

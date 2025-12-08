@@ -1,8 +1,3 @@
-// ============================================================================
-// Core Types for National Medical Identity Network
-// ============================================================================
-
-// Hospital Information
 export interface Hospital {
   id: string;
   name: string;
@@ -16,7 +11,6 @@ export interface Hospital {
   isActive: boolean;
 }
 
-// Patient Information
 export interface Patient {
   icNumber: string;
   fullName: string;
@@ -34,7 +28,6 @@ export interface Patient {
   updatedAt: string;
 }
 
-// Medical Record
 export interface MedicalRecord {
   id: string;
   icNumber: string;
@@ -46,7 +39,7 @@ export interface MedicalRecord {
   visitType: 'outpatient' | 'inpatient' | 'emergency';
   chiefComplaint: string;
   diagnosis: string[];
-  diagnosisCodes: string[]; // ICD-10 codes
+  diagnosisCodes: string[];
   symptoms: string[];
   notes: string;
   vitalSigns?: VitalSigns;
@@ -59,7 +52,6 @@ export interface MedicalRecord {
   updatedAt: string;
 }
 
-// Vital Signs
 export interface VitalSigns {
   bloodPressureSystolic: number;
   bloodPressureDiastolic: number;
@@ -71,7 +63,6 @@ export interface VitalSigns {
   height: number;
 }
 
-// Prescription
 export interface Prescription {
   id?: string;
   recordId?: string;
@@ -84,7 +75,6 @@ export interface Prescription {
   isActive: boolean;
 }
 
-// Lab Report
 export interface LabReport {
   id?: string;
   recordId?: string;
@@ -98,7 +88,6 @@ export interface LabReport {
   notes: string;
 }
 
-// Doctor Information
 export interface Doctor {
   id: string;
   icNumber: string;
@@ -112,7 +101,6 @@ export interface Doctor {
   isActive: boolean;
 }
 
-// User (for authentication)
 export interface User {
   id: string;
   icNumber: string;
@@ -123,14 +111,12 @@ export interface User {
   isActive: boolean;
 }
 
-// Central Index Entry
 export interface PatientIndex {
   icNumber: string;
-  hospitals: string[]; // Hospital IDs where patient has records
+  hospitals: string[];
   lastUpdated: string;
 }
 
-// Audit Log Entry
 export interface AuditLog {
   id: string;
   timestamp: string;
@@ -175,7 +161,6 @@ export interface HospitalQueryResult {
   error?: string;
 }
 
-// Drug Interaction Warning
 export interface DrugInteraction {
   drug1: string;
   drug2: string;
@@ -186,7 +171,6 @@ export interface DrugInteraction {
   sourceDate?: string;
 }
 
-// JWT Payload
 export interface JwtPayload {
   userId: string;
   icNumber: string;

@@ -4,9 +4,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { centralApi } from '@/lib/api'
-import { Building2, Users, Activity, Globe, Loader2, Shield, TrendingUp, MapPin, CheckCircle, ArrowRight, Network, Zap, Search, FileText, Database, AlertTriangle, Heart, User } from 'lucide-react'
+import { Building2, Users, Activity, Globe, Loader2, Shield, TrendingUp, MapPin, CheckCircle, ArrowRight, Network, Zap, Search, FileText, Database, AlertTriangle, Heart, User, Phone, Mail, MapPinned, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface CentralStats {
   totalPatients: number
@@ -19,6 +19,10 @@ interface Hospital {
   name: string
   shortName: string
   city: string
+  state: string
+  address: string
+  phone: string
+  email: string
   isActive: boolean
 }
 
@@ -73,6 +77,9 @@ export default function CentralAdminDashboard() {
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<PatientIndexResult | null>(null)
   const [searchError, setSearchError] = useState('')
+  
+  // Hospital Detail Modal
+  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -150,6 +157,7 @@ export default function CentralAdminDashboard() {
     }
   }
 
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -200,7 +208,7 @@ export default function CentralAdminDashboard() {
             Real-time overview of all connected hospitals and network activity across Malaysia.
           </p>
           <div className="flex gap-3">
-            <Link to="/admin/audit">
+            <Link to="/central/audit">
               <Button variant="outline" className="bg-white text-cyan-600 hover:bg-cyan-50 border-cyan-200 gap-2">
                 <Shield className="w-4 h-4" />
                 View All Audit Logs
@@ -455,7 +463,7 @@ export default function CentralAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Hospital Network Status</h2>
-                <p className="text-sm text-gray-500">Real-time connectivity status of all hospitals</p>
+                <p className="text-sm text-gray-500">Click on a hospital card to view details</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
@@ -477,6 +485,7 @@ export default function CentralAdminDashboard() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.1 }}
                     whileHover={{ scale: 1.02 }}
+                    onClick={() => setSelectedHospital(hospital)}
                     className="p-4 rounded-xl border-2 hover:shadow-lg transition-all cursor-pointer"
                     style={{ borderColor: color + '40' }}
                   >
@@ -491,7 +500,7 @@ export default function CentralAdminDashboard() {
                         <h3 className="font-semibold text-gray-900 truncate">{hospital.name}</h3>
                         <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
                           <MapPin className="w-3 h-3" />
-                          <span>{hospital.city}</span>
+                          <span>{hospital.city}, {hospital.state}</span>
                         </div>
                         <div className="flex items-center justify-between mt-3">
                           <div className="flex items-center gap-1">
@@ -514,6 +523,100 @@ export default function CentralAdminDashboard() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Hospital Detail Modal */}
+      <AnimatePresence>
+        {selectedHospital && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedHospital(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div 
+                className="p-6 text-white"
+                style={{ backgroundColor: hospitalColors[selectedHospital.id] || '#6B7280' }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/20 rounded-xl">
+                      <Building2 className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">{selectedHospital.name}</h2>
+                      <p className="text-white/80">{selectedHospital.shortName}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedHospital(null)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <MapPinned className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500">Address</p>
+                    <p className="text-gray-900">{selectedHospital.address}</p>
+                    <p className="text-gray-600">{selectedHospital.city}, {selectedHospital.state}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500">Phone</p>
+                    <p className="text-gray-900">{selectedHospital.phone}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-gray-900">{selectedHospital.email}</p>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${selectedHospital.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <span className={selectedHospital.isActive ? 'text-emerald-600' : 'text-red-600'}>
+                      {selectedHospital.isActive ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="px-6 pb-6">
+                <Button
+                  className="w-full"
+                  onClick={() => setSelectedHospital(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Network Activity */}
       <motion.div variants={itemVariants}>

@@ -25,3 +25,10 @@ npm-debug.log*
 # Cache
 .cache/
 .parcel-cache/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Compiled config files
+vite.config.js
+vite.config.d.ts

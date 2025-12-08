@@ -1,51 +1,33 @@
-// ============================================================================
-// Hospital Theme System - Premium Brand Configuration
-// Each hospital has its unique visual identity and branding
-// ============================================================================
-
 export interface HospitalTheme {
-  // Basic Info
   id: string
   name: string
   shortName: string
   city: string
   tagline: string
   established: string
-  
-  // Color System
   primaryColor: string
   secondaryColor: string
   accentColor: string
-  
-  // Gradients
   headerGradient: string
   buttonGradient: string
   cardAccentGradient: string
   backgroundGlow: string
-  
-  // Tailwind Color Classes
   textColor: string
   bgLight: string
   bgMedium: string
   borderColor: string
   shadowColor: string
   badgeClass: string
-  
-  // Stats Card Colors
   statsGradients: string[]
-  
-  // Icon & Decorative
   iconBg: string
   iconColor: string
   pulseColor: string
-  
-  // Specialty Info
   specialties: string[]
   bedCount: number
   departments: number
 }
 
-export const hospitalThemes: Record<string, HospitalTheme> = {
+const hospitalThemes: Record<string, HospitalTheme> = {
   'hospital-kl': {
     id: 'hospital-kl',
     name: 'KL General Hospital',
@@ -247,19 +229,7 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
   },
 }
 
-// Get hospital theme with fallback
 export function getHospitalTheme(hospitalId: string | undefined): HospitalTheme {
   if (!hospitalId) return hospitalThemes['hospital-kl']
   return hospitalThemes[hospitalId] || hospitalThemes['hospital-kl']
-}
-
-// Get all hospitals for display
-export function getAllHospitalThemes(): HospitalTheme[] {
-  return Object.values(hospitalThemes)
-}
-
-// Hospital logo initials
-export function getHospitalInitials(hospitalId: string | undefined): string {
-  const theme = getHospitalTheme(hospitalId)
-  return theme.shortName
 }

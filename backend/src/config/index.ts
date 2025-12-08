@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Hospital configurations
 export const HOSPITALS = [
   {
     id: 'hospital-kl',
@@ -61,27 +60,14 @@ export const HOSPITALS = [
   },
 ];
 
-// Server configuration
 export const CONFIG = {
-  // Central Hub
   centralHub: {
     port: parseInt(process.env.CENTRAL_PORT || '3000'),
-    host: process.env.CENTRAL_HOST || 'localhost',
   },
-  
-  // JWT Settings
   jwt: {
     secret: process.env.JWT_SECRET || 'medlink-secret-key-2024-hackathon',
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
-  
-  // Database paths
-  database: {
-    centralDb: process.env.CENTRAL_DB_PATH || './data/central.db',
-    hospitalDbPrefix: process.env.HOSPITAL_DB_PREFIX || './data/',
-  },
-  
-  // CORS settings
   cors: {
     origins: process.env.CORS_ORIGINS?.split(',') || [
       'http://localhost:5173',
@@ -89,19 +75,9 @@ export const CONFIG = {
       'https://medlink-my.netlify.app',
     ],
   },
-  
-  // Query settings
-  query: {
-    timeout: parseInt(process.env.QUERY_TIMEOUT || '5000'),
-    maxConcurrent: parseInt(process.env.MAX_CONCURRENT_QUERIES || '10'),
-  },
-  
-  // Environment
-  env: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
 };
 
-// Drug interaction database (simplified for demo)
 export const DRUG_INTERACTIONS = [
   {
     drug1: 'Warfarin',
@@ -146,5 +122,3 @@ export const DRUG_INTERACTIONS = [
     recommendation: 'Limit simvastatin dose to 20mg when combined with amlodipine',
   },
 ];
-
-export default CONFIG;

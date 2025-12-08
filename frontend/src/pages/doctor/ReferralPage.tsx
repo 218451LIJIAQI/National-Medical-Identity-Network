@@ -1,4 +1,3 @@
-// Referral Page Wrapper
 import { Referral } from './modules'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'

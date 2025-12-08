@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -19,7 +18,6 @@ export default {
         'nunito': ['Nunito', 'system-ui', 'sans-serif'],
         'poppins': ['Poppins', 'system-ui', 'sans-serif'],
         'space': ['Space Grotesk', 'system-ui', 'sans-serif'],
-        'dm': ['DM Sans', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

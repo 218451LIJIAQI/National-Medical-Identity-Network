@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
 import { 
   Search, Shield, Eye, Download, Building2, Clock, AlertTriangle, CheckCircle, Loader2,
-  Activity, FileText, Zap, Filter, RefreshCw, ChevronLeft, ChevronRight
+  Activity, FileText, Zap, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, X, Siren, User
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -33,10 +33,21 @@ export default function AuditLogs() {
   const [filterAction, setFilterAction] = useState<string>('all')
   const [refreshing, setRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  
+  // Date range filter
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  
+  // Emergency access detail modal
+  const [selectedEmergency, setSelectedEmergency] = useState<AuditLog | null>(null)
 
   const loadLogs = async () => {
     try {
-      const response = await centralApi.getAuditLogs({ limit: 50 })
+      const response = await centralApi.getAuditLogs({ 
+        limit: 100,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
+      })
       if (response.success && response.data) {
         const apiLogs = (response.data as any[]).map((log: any) => {
           // Map action types
@@ -44,7 +55,7 @@ export default function AuditLogs() {
           if (log.action === 'query') action = 'CROSS_HOSPITAL_QUERY'
           else if (log.action === 'create') action = 'RECORD_CREATE'
           else if (log.action === 'login') action = 'LOGIN'
-          else if (log.action === 'emergency') action = 'EMERGENCY_ACCESS'
+          else if (log.action === 'emergency' || log.action === 'emergency_access') action = 'EMERGENCY_ACCESS'
           
           return {
             id: log.id,
@@ -248,31 +259,86 @@ export default function AuditLogs() {
       >
         <Card className="border-0 shadow-lg">
           <CardContent className="py-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  placeholder="Search by IC number, user ID, or hospital..."
-                  className="pl-12 h-12 rounded-xl border-gray-200 focus:border-violet-500 focus:ring-violet-500/20"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex flex-col gap-4">
+              {/* Row 1: Search and Action Filter */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Input
+                    placeholder="Search by IC number, user ID, or hospital..."
+                    className="pl-12 h-12 rounded-xl border-gray-200 focus:border-violet-500 focus:ring-violet-500/20"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-gray-400" />
+                  <select
+                    title="Filter by action type"
+                    className="h-12 border border-gray-200 rounded-xl px-4 pr-10 text-sm bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                    value={filterAction}
+                    onChange={(e) => setFilterAction(e.target.value)}
+                  >
+                    <option value="all">All Actions</option>
+                    <option value="CROSS_HOSPITAL_QUERY">Cross-Hospital Queries</option>
+                    <option value="RECORD_VIEW">Record Views</option>
+                    <option value="RECORD_CREATE">Record Creates</option>
+                    <option value="LOGIN">Logins</option>
+                    <option value="EMERGENCY_ACCESS">Emergency Access</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-400" />
-                <select
-                  title="Filter by action type"
-                  className="h-12 border border-gray-200 rounded-xl px-4 pr-10 text-sm bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
-                  value={filterAction}
-                  onChange={(e) => setFilterAction(e.target.value)}
-                >
-                  <option value="all">All Actions</option>
-                  <option value="CROSS_HOSPITAL_QUERY">Cross-Hospital Queries</option>
-                  <option value="RECORD_VIEW">Record Views</option>
-                  <option value="RECORD_CREATE">Record Creates</option>
-                  <option value="LOGIN">Logins</option>
-                  <option value="EMERGENCY_ACCESS">Emergency Access</option>
-                </select>
+              
+              {/* Row 2: Date Range Filter */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-violet-50 rounded-xl">
+                <div className="flex items-center gap-2 text-violet-700">
+                  <Calendar className="w-5 h-5" />
+                  <span className="font-medium text-sm">Date Range:</span>
+                </div>
+                <div className="flex flex-1 items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">From</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-10 rounded-lg"
+                    />
+                  </div>
+                  <span className="text-gray-400 mt-5">→</span>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">To</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-10 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-5 sm:mt-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStartDate('')
+                      setEndDate('')
+                    }}
+                    className="h-10"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setRefreshing(true)
+                      loadLogs()
+                    }}
+                    className="h-10 bg-violet-600 hover:bg-violet-700"
+                  >
+                    Apply
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -313,18 +379,27 @@ export default function AuditLogs() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.03 }}
-                      className={`p-4 hover:bg-gray-50 transition-colors ${
-                        log.status === 'denied' ? 'bg-red-50/50' : ''
+                      className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        log.action === 'EMERGENCY_ACCESS' 
+                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-l-4 border-orange-500 hover:from-orange-100 hover:to-red-100' 
+                          : log.status === 'denied' 
+                            ? 'bg-red-50/50' 
+                            : ''
                       }`}
+                      onClick={() => log.action === 'EMERGENCY_ACCESS' && setSelectedEmergency(log)}
                     >
                       <div className="flex items-start gap-4">
                         {/* Status Icon */}
                         <div className={`mt-1 p-2 rounded-full ${
-                          log.status === 'success' 
-                            ? 'bg-emerald-100' 
-                            : 'bg-red-100'
+                          log.action === 'EMERGENCY_ACCESS'
+                            ? 'bg-gradient-to-br from-orange-400 to-red-500 animate-pulse'
+                            : log.status === 'success' 
+                              ? 'bg-emerald-100' 
+                              : 'bg-red-100'
                         }`}>
-                          {getStatusIcon(log.status)}
+                          {log.action === 'EMERGENCY_ACCESS' 
+                            ? <Siren className="w-4 h-4 text-white" />
+                            : getStatusIcon(log.status)}
                         </div>
                         
                         {/* Content */}
@@ -442,6 +517,128 @@ export default function AuditLogs() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Emergency Access Detail Modal */}
+      <AnimatePresence>
+        {selectedEmergency && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedEmergency(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-6 bg-gradient-to-r from-orange-500 to-red-600 text-white">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/20 rounded-xl animate-pulse">
+                      <Siren className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">Emergency Access</h2>
+                      <p className="text-white/80 text-sm">Critical patient data access event</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedEmergency(null)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-orange-700 font-medium mb-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    Emergency Access Warning
+                  </div>
+                  <p className="text-sm text-orange-600">
+                    This access was made without standard authentication. Emergency access bypasses normal consent requirements for critical medical situations.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Patient IC</p>
+                    <p className="font-mono font-semibold text-gray-900">
+                      {selectedEmergency.targetIcNumber || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Access Time</p>
+                    <p className="font-semibold text-gray-900">
+                      {new Date(selectedEmergency.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-500">Accessed By</p>
+                      <p className="text-gray-900">{selectedEmergency.userRole}</p>
+                      <p className="text-xs text-gray-500 font-mono">{selectedEmergency.userId}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-500">Source</p>
+                      <p className="text-gray-900">{selectedEmergency.sourceHospital}</p>
+                    </div>
+                  </div>
+
+                  {selectedEmergency.details && (
+                    <div className="flex items-start gap-3">
+                      <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-500">Details</p>
+                        <p className="text-gray-900">{selectedEmergency.details}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <Badge className={selectedEmergency.status === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
+                      {selectedEmergency.status === 'success' ? 'Access Granted' : 'Access Denied'}
+                    </Badge>
+                    <span className="text-xs text-gray-500">
+                      Log ID: {selectedEmergency.id.slice(0, 8)}...
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="px-6 pb-6">
+                <Button
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700"
+                  onClick={() => setSelectedEmergency(null)}
+                >
+                  Close Report
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

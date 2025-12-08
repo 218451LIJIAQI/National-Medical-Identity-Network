@@ -1,30 +1,26 @@
 import express from 'express';
 import cors from 'cors';
 import { CONFIG, HOSPITALS } from './config';
-import { initializeHospitals } from './database/central';
+import { initializeHospitals } from './database/central-multi';
 import authRoutes from './routes/auth';
 import centralRoutes from './routes/central';
 import hospitalRoutes from './routes/hospital';
 
-// Initialize Express app
 const app = express();
 
-// Middleware
 app.use(cors({
   origin: CONFIG.isProduction 
     ? CONFIG.cors.origins 
-    : true, // Allow all origins in development
+    : true,
   credentials: true,
 }));
 app.use(express.json());
 
-// Request logging
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
   next();
 });
 
-// Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({
     status: 'healthy',
@@ -33,12 +29,10 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/central', centralRoutes);
 app.use('/api/hospitals', hospitalRoutes);
 
-// Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
@@ -47,7 +41,6 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-// 404 handler
 app.use((_req, res) => {
   res.status(404).json({
     success: false,
@@ -55,11 +48,9 @@ app.use((_req, res) => {
   });
 });
 
-// Initialize database
 console.log('Initializing hospitals registry...');
 initializeHospitals();
 
-// Start server
 const PORT = process.env.PORT || CONFIG.centralHub.port;
 
 app.listen(PORT, () => {
@@ -85,5 +76,3 @@ app.listen(PORT, () => {
   });
   console.log('');
 });
-
-export default app;

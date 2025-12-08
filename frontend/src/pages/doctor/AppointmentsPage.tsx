@@ -1,4 +1,3 @@
-// Appointments Page Wrapper
 import { Appointments } from './modules'
 import { useAuthStore } from '@/store/auth'
 
