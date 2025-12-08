@@ -249,10 +249,10 @@ export default function PatientTimeline() {
         transition={{ delay: 0.3 }}
       >
         <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
-          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white border-b border-gray-100">
+          <div className={`h-1 bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient}`} />
+          <CardHeader className="bg-gradient-to-r from-gray-50/50 to-white border-b border-gray-100">
             <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/25">
+              <div className={`p-2.5 bg-gradient-to-br ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient} rounded-xl shadow-lg ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor}`}>
                 <FileText className="h-5 w-5 text-white" />
               </div>
               Medical Records Timeline
@@ -275,7 +275,7 @@ export default function PatientTimeline() {
                   className={`p-5 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
                     record.isReadOnly 
                       ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200' 
-                      : 'bg-gradient-to-r from-white to-blue-50/30 border-blue-200'
+                      : `bg-gradient-to-r from-white ${getHospitalTheme(user?.hospitalId || 'hospital-kl').bgLight}/30 ${getHospitalTheme(user?.hospitalId || 'hospital-kl').borderColor}`
                   }`}
                   style={{ borderLeftWidth: 4, borderLeftColor: getHospitalColor(record.hospitalId) }}
                 >
