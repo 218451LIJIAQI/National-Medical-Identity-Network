@@ -619,7 +619,26 @@ router.get('/my-access-logs', authenticate, async (req: Request, res: Response) 
     });
     
     const requestedLimit = limit ? parseInt(limit as string) : 20;
-    const logs = allLogs.filter(log => log.actorId !== userId).slice(0, requestedLimit);
+    const filteredLogs = allLogs.filter(log => log.actorId !== userId);
+    
+    // Deduplicate consecutive logs from the same actor within 5 minutes
+    const deduplicatedLogs: typeof filteredLogs = [];
+    for (const log of filteredLogs) {
+      const lastLog = deduplicatedLogs[deduplicatedLogs.length - 1];
+      if (lastLog && 
+          lastLog.actorId === log.actorId && 
+          lastLog.action === log.action &&
+          lastLog.actorHospitalId === log.actorHospitalId) {
+        const timeDiff = Math.abs(new Date(lastLog.timestamp).getTime() - new Date(log.timestamp).getTime());
+        // Skip if same actor, same action, same hospital within 5 minutes
+        if (timeDiff < 5 * 60 * 1000) {
+          continue;
+        }
+      }
+      deduplicatedLogs.push(log);
+    }
+    
+    const logs = deduplicatedLogs.slice(0, requestedLimit);
     
     const enrichedLogs = await Promise.all(logs.map(async (log) => {
       let actorName = log.actorId;
