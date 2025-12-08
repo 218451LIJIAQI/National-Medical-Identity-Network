@@ -63,13 +63,13 @@ export default function KLGeneralLayout() {
   ]
 
   const adminNavItems = [
-    { icon: Home, label: 'Dashboard', labelMY: 'Papan Pemuka', path: '/admin/hospital' },
-    { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit' },
-    { icon: Users, label: 'Staff', labelMY: 'Kakitangan', path: '/admin/staff' },
-    { icon: Building, label: 'Departments', labelMY: 'Jabatan', path: '/admin/departments' },
-    { icon: Bed, label: 'Beds', labelMY: 'Katil', path: '/admin/beds' },
-    { icon: Package, label: 'Inventory', labelMY: 'Inventori', path: '/admin/inventory' },
-    { icon: DollarSign, label: 'Finance', labelMY: 'Kewangan', path: '/admin/finance' },
+    { icon: Home, label: 'Dashboard', labelMY: 'Papan Pemuka', path: '/admin/hospital', status: 'main' as const },
+    { icon: Activity, label: 'Audit Logs', labelMY: 'Log Audit', path: '/admin/audit', status: 'main' as const },
+    { icon: Users, label: 'Staff', labelMY: 'Kakitangan', path: '/admin/staff', status: 'demo' as const },
+    { icon: Building, label: 'Departments', labelMY: 'Jabatan', path: '/admin/departments', status: 'demo' as const },
+    { icon: Bed, label: 'Beds', labelMY: 'Katil', path: '/admin/beds', status: 'demo' as const },
+    { icon: Package, label: 'Inventory', labelMY: 'Inventori', path: '/admin/inventory', status: 'demo' as const },
+    { icon: DollarSign, label: 'Finance', labelMY: 'Kewangan', path: '/admin/finance', status: 'demo' as const },
   ]
 
   const navItems = user?.role === 'doctor' ? [] : adminNavItems
@@ -279,7 +279,12 @@ export default function KLGeneralLayout() {
                       </div>
                       {sidebarOpen && (
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium">{item.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{item.label}</span>
+                            {item.status === 'demo' && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Demo</span>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-400 truncate">{item.labelMY}</p>
                         </div>
                       )}
