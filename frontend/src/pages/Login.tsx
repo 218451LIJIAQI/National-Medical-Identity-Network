@@ -219,7 +219,7 @@ export default function LoginPage() {
     setPendingLogin(null)
   }
   const handleIcScan = async () => {
-    const allAccounts = [...doctorAccounts, ...hospitalAdminAccounts, ...demoAccounts]
+    const allAccounts = [...doctorAccounts, ...hospitalAdminAccounts, ...patientAccounts, ...demoAccounts]
     const selectedDemo = allAccounts.find(demo => demo.ic === icNumber)
 
     if (!selectedDemo) {
