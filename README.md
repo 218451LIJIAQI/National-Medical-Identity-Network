@@ -11,11 +11,14 @@ MedLink MY addresses a critical challenge in Malaysian healthcare: **fragmented 
 - Delayed treatment in emergencies
 - Medication conflicts due to unknown prescriptions
 
+A major root cause is the lack of a secure, identity-verified way for hospitals to share patient records nationwide. Without trusted data exchange, medical history remains siloed.
+
 **MedLink MY solves this** by creating a federated network where:
 - Each hospital maintains its own database (data sovereignty)
 - A central hub indexes which patients have records at which hospitals
 - Authorized healthcare providers can query records across all participating hospitals
 - Patients control who can access their data
+- The Malaysian Identity Card (IC / MyKad) is used for strong patient authentication, and it stores a small index pointing to which hospitals hold the patient’s records—allowing instant, secure lookup without centralizing medical data
 
 ## 🏗️ Architecture
 
@@ -299,7 +302,7 @@ Patients can:
 
 ## 📝 License
 
-This project was created for the Malaysia Healthcare Hackathon.
+This project was created for the GODAM Lah! 2.0 MyKad Hackathon.
 
 ## 🤝 Contributing
 
