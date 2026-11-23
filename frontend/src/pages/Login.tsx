@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { useAuthStore, type User as AuthUser } from '@/store/auth'
+import { useAuthStore, type UserRole } from '@/store/auth'
 import { authApi } from '@/lib/api'
-import { getRoleHomePath } from '@/lib/utils'
+import { formatIC, getRoleHomePath } from '@/lib/utils'
 import {
   Loader2,
   CreditCard,
@@ -36,7 +36,7 @@ interface DemoAccount {
   desc: string
   ic: string
   password: string
-  role: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin'
+  role: UserRole
   icon: LucideIcon
   bgGradient: string
   glowColor: string
@@ -44,11 +44,11 @@ interface DemoAccount {
 }
 
 const DOCTOR_ACCOUNTS: DemoAccount[] = [
-  { label: 'Dr. Lim Wei Ming', hospital: 'KL General Hospital', city: 'Kuala Lumpur', desc: 'Internal Medicine', ic: '750101-14-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-blue-500 via-blue-600 to-indigo-600', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
-  { label: 'Dr. Tan Mei Ling', hospital: 'Penang Medical Centre', city: 'Georgetown', desc: 'Neurology', ic: '760612-07-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-emerald-500 via-teal-600 to-green-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
-  { label: 'Dr. Siti Aishah', hospital: 'Johor Specialist Hospital', city: 'Johor Bahru', desc: 'Oncology', ic: '770808-01-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-amber-500 via-orange-500 to-yellow-600', glowColor: 'shadow-amber-500/25', color: '#F59E0B' },
-  { label: 'Dr. James Wong', hospital: 'Sarawak General Hospital', city: 'Kuching', desc: 'Nephrology', ic: '790303-13-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-violet-500 via-purple-600 to-indigo-600', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
-  { label: 'Dr. Maria Gonzales', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Pulmonology', ic: '810707-12-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
+  { label: 'Dr. Lim Wei Ming', hospital: 'KL General Hospital', city: 'Kuala Lumpur', desc: 'Internal Medicine (Dual-Role)', ic: '750101-14-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-blue-500 via-blue-600 to-indigo-600', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
+  { label: 'Dr. Tan Mei Ling', hospital: 'Penang Medical Centre', city: 'Georgetown', desc: 'Neurology (Dual-Role)', ic: '760612-07-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-emerald-500 via-teal-600 to-green-600', glowColor: 'shadow-emerald-500/25', color: '#10B981' },
+  { label: 'Dr. Siti Aishah', hospital: 'Johor Specialist Hospital', city: 'Johor Bahru', desc: 'Oncology (Dual-Role)', ic: '770808-01-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-amber-500 via-orange-500 to-yellow-600', glowColor: 'shadow-amber-500/25', color: '#F59E0B' },
+  { label: 'Dr. James Wong', hospital: 'Sarawak General Hospital', city: 'Kuching', desc: 'Nephrology (Dual-Role)', ic: '790303-13-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-violet-500 via-purple-600 to-indigo-600', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
+  { label: 'Dr. Maria Gonzales', hospital: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', desc: 'Pulmonology (Dual-Role)', ic: '810707-12-5001', password: 'doctor123', role: 'doctor', icon: Stethoscope, bgGradient: 'from-red-500 via-rose-500 to-pink-600', glowColor: 'shadow-red-500/25', color: '#EF4444' },
 ]
 
 const HOSPITAL_ADMIN_ACCOUNTS: DemoAccount[] = [
@@ -66,8 +66,8 @@ const PATIENT_ACCOUNTS: DemoAccount[] = [
   { label: 'Raj Kumar a/l Muthu', city: 'Kuching', desc: 'Epilepsy', ic: '900808-01-5555', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-violet-500 via-purple-500 to-fuchsia-500', glowColor: 'shadow-violet-500/25', color: '#8B5CF6' },
   { label: 'Aishah binti Mohd Yusof', city: 'Kota Kinabalu', desc: 'Asthma', ic: '820425-12-7777', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-blue-500 via-indigo-500 to-violet-500', glowColor: 'shadow-blue-500/25', color: '#3B82F6' },
   { label: 'Lee Mei Fong', city: 'Kuala Lumpur', desc: 'Rheumatoid Arthritis', ic: '780312-14-2345', password: 'patient123', role: 'patient', icon: User, bgGradient: 'from-cyan-500 via-teal-500 to-emerald-500', glowColor: 'shadow-cyan-500/25', color: '#06B6D4' },
-  { label: 'Lim Wei Ming (Doctor)', city: 'Kuala Lumpur', desc: 'Hyperlipidemia - Also a Doctor', ic: '750101-14-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
-  { label: 'Tan Mei Ling (Doctor)', city: 'George Town', desc: 'Migraine - Also a Doctor', ic: '760612-07-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
+  { label: 'Lim Wei Ming (Patient View)', city: 'Kuala Lumpur', desc: 'Hyperlipidemia - Dual-Role Account', ic: '750101-14-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
+  { label: 'Tan Mei Ling (Patient View)', city: 'George Town', desc: 'Migraine - Dual-Role Account', ic: '760612-07-5001', password: 'doctor123', role: 'patient', icon: User, bgGradient: 'from-slate-500 via-gray-600 to-zinc-600', glowColor: 'shadow-slate-500/25', color: '#64748B' },
 ]
 
 const CENTRAL_ADMIN_ACCOUNT: DemoAccount = {
@@ -89,9 +89,51 @@ const ALL_DEMO_ACCOUNTS: DemoAccount[] = [
   CENTRAL_ADMIN_ACCOUNT,
 ]
 
-const MULTI_ROLE_USERS: Record<string, string[]> = {
-  '750101-14-5001': ['doctor', 'patient'],
-  '760612-07-5001': ['doctor', 'patient'],
+const ROLE_CARD_META: Record<UserRole, {
+  title: string
+  description: string
+  icon: LucideIcon
+  borderClass: string
+  bgClass: string
+  iconBgClass: string
+  iconTextClass: string
+}> = {
+  doctor: {
+    title: 'Doctor',
+    description: 'Access clinical workstation & federated patient timeline',
+    icon: Stethoscope,
+    borderClass: 'border-blue-200 hover:border-blue-400',
+    bgClass: 'from-blue-50 to-cyan-50 hover:shadow-blue-500/20',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+  },
+  patient: {
+    title: 'Patient',
+    description: 'View your personal health records, privacy & access logs',
+    icon: User,
+    borderClass: 'border-emerald-200 hover:border-emerald-400',
+    bgClass: 'from-emerald-50 to-teal-50 hover:shadow-emerald-500/20',
+    iconBgClass: 'bg-emerald-100',
+    iconTextClass: 'text-emerald-600',
+  },
+  hospital_admin: {
+    title: 'Hospital Admin',
+    description: 'Manage hospital staff, beds, inventory & local audit logs',
+    icon: Building2,
+    borderClass: 'border-indigo-200 hover:border-indigo-400',
+    bgClass: 'from-indigo-50 to-purple-50 hover:shadow-indigo-500/20',
+    iconBgClass: 'bg-indigo-100',
+    iconTextClass: 'text-indigo-600',
+  },
+  central_admin: {
+    title: 'Central Admin',
+    description: 'Monitor national patient index, nodes & break-glass audits',
+    icon: Network,
+    borderClass: 'border-cyan-200 hover:border-cyan-400',
+    bgClass: 'from-cyan-50 to-sky-50 hover:shadow-cyan-500/20',
+    iconBgClass: 'bg-cyan-100',
+    iconTextClass: 'text-cyan-600',
+  },
 }
 
 const CHIP_PHASES = ['detecting', 'reading', 'success'] as const
@@ -107,21 +149,21 @@ const MODAL_CONFIG: Record<Exclude<ModalKind, null>, {
 }> = {
   doctor: {
     title: 'Select Doctor',
-    subtitle: 'Choose from 5 hospitals',
+    subtitle: 'Choose from 5 connected hospitals',
     headerGradient: 'from-blue-500 via-cyan-500 to-emerald-500',
     icon: Stethoscope,
     accounts: DOCTOR_ACCOUNTS,
   },
   hospital_admin: {
     title: 'Select Hospital Admin',
-    subtitle: 'Choose from 5 hospitals',
+    subtitle: 'Choose from 5 connected hospitals',
     headerGradient: 'from-indigo-500 via-purple-500 to-pink-500',
     icon: Building2,
     accounts: HOSPITAL_ADMIN_ACCOUNTS,
   },
   patient: {
     title: 'Select Patient',
-    subtitle: 'Choose from 8 patients',
+    subtitle: 'Choose from 8 demo patient profiles',
     headerGradient: 'from-emerald-500 via-teal-500 to-cyan-500',
     icon: User,
     accounts: PATIENT_ACCOUNTS,
@@ -137,23 +179,33 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [icNumber, setIcNumber] = useState('')
   const [password, setPassword] = useState('')
-  const [selectedRole, setSelectedRole] = useState<string>('')
+  const [selectedRole, setSelectedRole] = useState<UserRole | ''>('')
   const [focusedField, setFocusedField] = useState<string | null>(null)
   const [activeModal, setActiveModal] = useState<ModalKind>(null)
   const [showChipAnimation, setShowChipAnimation] = useState(false)
   const [chipScanPhase, setChipScanPhase] = useState<(typeof CHIP_PHASES)[number]>('detecting')
   const [showRoleSelection, setShowRoleSelection] = useState(false)
-  const [pendingLogin, setPendingLogin] = useState<{ ic: string; password: string; roles: string[] } | null>(null)
+  const [pendingLogin, setPendingLogin] = useState<{ ic: string; password: string; roles: UserRole[] } | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const normalizedInputIc = formatIC(icNumber)
 
   const selectedDoctor = DOCTOR_ACCOUNTS.find(
-    d => d.ic === icNumber && (!selectedRole || selectedRole === 'doctor')
+    (d) => d.ic === normalizedInputIc && (selectedRole === 'doctor' || (!selectedRole && !PATIENT_ACCOUNTS.some((p) => p.ic === normalizedInputIc)))
   )
-  const selectedHospitalAdmin = HOSPITAL_ADMIN_ACCOUNTS.find(a => a.ic === icNumber)
+  const selectedHospitalAdmin = HOSPITAL_ADMIN_ACCOUNTS.find((a) => a.ic === icNumber.trim())
   const selectedPatient = PATIENT_ACCOUNTS.find(
-    p => p.ic === icNumber && (!MULTI_ROLE_USERS[icNumber] || selectedRole === 'patient')
+    (p) => p.ic === normalizedInputIc && (selectedRole === 'patient' || (!selectedRole && !DOCTOR_ACCOUNTS.some((d) => d.ic === normalizedInputIc)))
   )
 
-  const fillDemo = (demo: { ic: string; password: string; role: string }) => {
+  const fillDemo = (demo: { ic: string; password: string; role: UserRole }) => {
     setIcNumber(demo.ic)
     setPassword(demo.password)
     setSelectedRole(demo.role)
@@ -163,15 +215,25 @@ export default function LoginPage() {
   const executeLogin = async (
     ic: string,
     pwd: string,
-    role?: string,
+    role?: UserRole,
     customWelcome?: { title: string; description: string }
   ) => {
     setIsLoading(true)
     try {
-      const response = await authApi.login(ic, pwd, role || undefined)
+      const response = await authApi.login(ic.trim(), pwd, role)
 
-      if (response.success && response.data) {
-        const authUser = response.data.user as unknown as AuthUser
+      if (response.success && response.data?.requiresRoleSelection && response.data.availableRoles?.length) {
+        setPendingLogin({
+          ic: response.data.icNumber || formatIC(ic),
+          password: pwd,
+          roles: response.data.availableRoles,
+        })
+        setShowRoleSelection(true)
+        return true
+      }
+
+      if (response.success && response.data?.token && response.data?.user) {
+        const authUser = response.data.user
         login(response.data.token, authUser)
 
         const targetPath = getRoleHomePath(authUser.role, false)
@@ -202,14 +264,16 @@ export default function LoginPage() {
       })
       return false
     } finally {
-      setIsLoading(false)
+      if (mountedRef.current) {
+        setIsLoading(false)
+      }
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!icNumber || !password) {
+    if (!icNumber.trim() || !password) {
       toast({
         title: 'Error',
         description: 'Please enter both IC number and password',
@@ -218,17 +282,10 @@ export default function LoginPage() {
       return
     }
 
-    const multiRoleCheck = MULTI_ROLE_USERS[icNumber]
-    if (multiRoleCheck) {
-      setPendingLogin({ ic: icNumber, password, roles: multiRoleCheck })
-      setShowRoleSelection(true)
-      return
-    }
-
     await executeLogin(icNumber, password, selectedRole || undefined)
   }
 
-  const handleRoleSelect = async (role: string) => {
+  const handleRoleSelect = async (role: UserRole) => {
     if (!pendingLogin) return
     setShowRoleSelection(false)
     setSelectedRole(role)
@@ -236,54 +293,56 @@ export default function LoginPage() {
     setPendingLogin(null)
 
     await executeLogin(ic, pwd, role, {
-      title: role === 'doctor' ? 'Access Granted' : 'Welcome!',
-      description: role === 'doctor' ? 'Proceeding to hospital verification...' : 'Logged in as Patient',
+      title: role === 'doctor' || role === 'hospital_admin' ? 'Access Granted' : 'Welcome!',
+      description:
+        role === 'doctor' || role === 'hospital_admin'
+          ? 'Proceeding to hospital verification...'
+          : `Logged in as ${ROLE_CARD_META[role].title}`,
     })
   }
 
   const runChipScanAnimation = async (successHoldMs: number) => {
     setShowChipAnimation(true)
     setChipScanPhase('detecting')
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 900))
+    if (!mountedRef.current) return
     setChipScanPhase('reading')
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    if (!mountedRef.current) return
     setChipScanPhase('success')
-    await new Promise(resolve => setTimeout(resolve, successHoldMs))
+    await new Promise((resolve) => setTimeout(resolve, successHoldMs))
   }
 
   const handleIcScan = async () => {
     const selectedDemo =
-      ALL_DEMO_ACCOUNTS.find(d => d.ic === icNumber && (!selectedRole || d.role === selectedRole)) ||
-      ALL_DEMO_ACCOUNTS.find(d => d.ic === icNumber)
+      ALL_DEMO_ACCOUNTS.find((d) => (d.ic === normalizedInputIc || d.ic === icNumber.trim()) && (!selectedRole || d.role === selectedRole)) ||
+      ALL_DEMO_ACCOUNTS.find((d) => d.ic === normalizedInputIc || d.ic === icNumber.trim())
 
-    if (!selectedDemo) {
+    if (!selectedDemo && (!icNumber.trim() || !password)) {
       toast({
         title: 'No IC Card Selected',
-        description: 'Please select an account below first, then scan the IC card',
+        description: 'Please select a demo account below or enter credentials first, then scan the IC card',
         variant: 'destructive',
       })
       return
     }
 
-    const multiRole = MULTI_ROLE_USERS[icNumber]
-    if (multiRole) {
-      await runChipScanAnimation(800)
-      setShowChipAnimation(false)
-      setPendingLogin({ ic: icNumber, password: selectedDemo.password, roles: multiRole })
-      setShowRoleSelection(true)
-      return
-    }
+    const loginIc = selectedDemo ? selectedDemo.ic : icNumber.trim()
+    const loginPassword = password || selectedDemo?.password || ''
+    // When scanning an IC without an explicit role pre-selection, let the server detect multi-role accounts
+    const loginRole = selectedRole || undefined
 
-    await runChipScanAnimation(1000)
+    await runChipScanAnimation(600)
+    if (!mountedRef.current) return
     setShowChipAnimation(false)
 
     await executeLogin(
-      selectedDemo.ic,
-      selectedDemo.password,
-      selectedDemo.role,
-      selectedDemo.role === 'doctor' || selectedDemo.role === 'hospital_admin'
-        ? undefined
-        : { title: 'Access Granted', description: `Welcome, ${selectedDemo.label}!` }
+      loginIc,
+      loginPassword,
+      loginRole,
+      selectedDemo && selectedDemo.role !== 'doctor' && selectedDemo.role !== 'hospital_admin'
+        ? { title: 'Access Granted', description: `Welcome, ${selectedDemo.label}!` }
+        : undefined
     )
   }
 
@@ -326,7 +385,7 @@ export default function LoginPage() {
     },
     {
       key: 'central_admin',
-      selected: icNumber === CENTRAL_ADMIN_ACCOUNT.ic ? CENTRAL_ADMIN_ACCOUNT : undefined,
+      selected: icNumber.trim() === CENTRAL_ADMIN_ACCOUNT.ic ? CENTRAL_ADMIN_ACCOUNT : undefined,
       defaultTitle: CENTRAL_ADMIN_ACCOUNT.label,
       subtitle: CENTRAL_ADMIN_ACCOUNT.desc,
       meta: CENTRAL_ADMIN_ACCOUNT.ic,
@@ -525,7 +584,7 @@ export default function LoginPage() {
             />
 
             <div className="relative p-8 pt-10">
-              <div className="text-center mb-10">
+              <div className="text-center mb-8">
                 <motion.div
                   className="relative w-20 h-20 mx-auto mb-6"
                   initial={{ scale: 0 }}
@@ -567,6 +626,21 @@ export default function LoginPage() {
                   <p className="text-gray-500 mt-2 text-base">Sign in to access the National Medical Network</p>
                 </motion.div>
               </div>
+
+              {selectedRole && (
+                <div className="mb-4 flex items-center justify-between px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                  <span>
+                    Target Role: <strong className="capitalize">{selectedRole.replace('_', ' ')}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('')}
+                    className="text-blue-600 hover:text-blue-800 font-semibold underline"
+                  >
+                    Ask role on login
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <motion.div
@@ -716,7 +790,7 @@ export default function LoginPage() {
 
                       <div className="flex flex-col items-start">
                         <span className="text-white font-bold text-[15px]">Scan IC Card</span>
-                        <span className="text-xs text-white/80">Tap to scan and login instantly</span>
+                        <span className="text-xs text-white/80">Tap to scan MyKad chip and login</span>
                       </div>
 
                       <motion.div
@@ -753,7 +827,7 @@ export default function LoginPage() {
                 </motion.div>
                 <div>
                   <h2 className="font-bold text-gray-900">Quick Access</h2>
-                  <p className="text-sm text-gray-500">Click any role to auto-fill credentials</p>
+                  <p className="text-sm text-gray-500">Click any role to auto-fill credentials (all 10 doctors also hold patient profiles)</p>
                 </div>
               </div>
             </div>
@@ -851,7 +925,7 @@ export default function LoginPage() {
                   <div className="space-y-3">
                     {currentModalConfig.accounts.map((account, index) => {
                       const AccountIcon = account.icon
-                      const isPicked = icNumber === account.ic && (!selectedRole || selectedRole === account.role)
+                      const isPicked = normalizedInputIc === account.ic && (!selectedRole || selectedRole === account.role)
                       return (
                         <motion.div
                           key={`${account.role}-${account.ic}`}
@@ -992,44 +1066,38 @@ export default function LoginPage() {
                   <CreditCard className="w-10 h-10" />
                 </motion.div>
 
-                <h3 className="text-2xl font-bold mb-1">IC Card Verified</h3>
-                <p className="text-white/80">Multiple roles detected for this IC</p>
+                <h3 className="text-2xl font-bold mb-1">Multiple Roles Detected</h3>
+                <p className="text-white/80">Choose which portal you want to enter</p>
                 <p className="text-sm text-white/60 mt-2 font-mono">{pendingLogin.ic}</p>
               </div>
 
               <div className="p-8">
-                <p className="text-center text-gray-600 mb-6">How would you like to login?</p>
+                <p className="text-center text-gray-600 mb-6">Select active identity role:</p>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.03, y: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleRoleSelect('doctor')}
-                    className="relative group p-6 rounded-2xl border-2 border-blue-200 hover:border-blue-400 bg-gradient-to-br from-blue-50 to-cyan-50 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
-                  >
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-100 flex items-center justify-center">
-                      <Stethoscope className="w-8 h-8 text-blue-600" />
-                    </div>
-                    <h4 className="text-lg font-bold text-gray-900 mb-1">Doctor</h4>
-                    <p className="text-sm text-gray-500">Access medical records & create diagnoses</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.03, y: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleRoleSelect('patient')}
-                    className="relative group p-6 rounded-2xl border-2 border-emerald-200 hover:border-emerald-400 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/20"
-                  >
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                      <User className="w-8 h-8 text-emerald-600" />
-                    </div>
-                    <h4 className="text-lg font-bold text-gray-900 mb-1">Patient</h4>
-                    <p className="text-sm text-gray-500">View your health records & appointments</p>
-                  </motion.button>
+                  {pendingLogin.roles.map((roleOption) => {
+                    const meta = ROLE_CARD_META[roleOption]
+                    const RoleIcon = meta.icon
+                    return (
+                      <motion.button
+                        key={roleOption}
+                        whileHover={{ scale: 1.03, y: -4 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleRoleSelect(roleOption)}
+                        className={`relative group p-6 rounded-2xl border-2 ${meta.borderClass} bg-gradient-to-br ${meta.bgClass} transition-all duration-300 hover:shadow-xl`}
+                      >
+                        <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl ${meta.iconBgClass} flex items-center justify-center`}>
+                          <RoleIcon className={`w-8 h-8 ${meta.iconTextClass}`} />
+                        </div>
+                        <h4 className="text-lg font-bold text-gray-900 mb-1">{meta.title}</h4>
+                        <p className="text-sm text-gray-500">{meta.description}</p>
+                      </motion.button>
+                    )
+                  })}
                 </div>
 
                 <p className="text-center text-xs text-gray-400 mt-6">
-                  You can switch roles anytime by logging in again
+                  You can also switch roles directly inside the portal header at any time
                 </p>
               </div>
             </motion.div>

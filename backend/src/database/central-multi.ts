@@ -1,6 +1,13 @@
-import { PatientIndex, AuditLog, Hospital, User } from '../types';
+import { PatientIndex, AuditLog, Hospital, User, UserRole } from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
+
+const ROLE_PRIORITY: Record<string, number> = {
+  doctor: 1,
+  hospital_admin: 2,
+  central_admin: 3,
+  patient: 4,
+};
 
 function mapUser(user: {
   id: string;
@@ -14,12 +21,21 @@ function mapUser(user: {
   return {
     id: user.id,
     icNumber: user.icNumber,
-    role: user.role as User['role'],
+    role: user.role as UserRole,
     hospitalId: user.hospitalId || undefined,
     passwordHash: user.passwordHash,
     lastLogin: user.lastLogin?.toISOString(),
     isActive: user.isActive,
   };
+}
+
+function parseDateBoundary(dateStr: string, boundary: 'start' | 'end'): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(
+      boundary === 'start' ? `${dateStr}T00:00:00.000Z` : `${dateStr}T23:59:59.999Z`
+    );
+  }
+  return new Date(dateStr);
 }
 
 export async function getPatientIndex(icNumber: string): Promise<PatientIndex | null> {
@@ -50,11 +66,11 @@ export async function updatePatientIndex(icNumber: string, hospitalId: string): 
       await prisma.patientIndexHospital.create({
         data: { icNumber, hospitalId },
       });
-      await prisma.patientIndex.update({
-        where: { icNumber },
-        data: { lastUpdated: new Date() },
-      });
     }
+    await prisma.patientIndex.update({
+      where: { icNumber },
+      data: { lastUpdated: new Date() },
+    });
   } else {
     await prisma.patientIndex.create({
       data: {
@@ -68,6 +84,7 @@ export async function updatePatientIndex(icNumber: string, hospitalId: string): 
 export async function getAllPatientIndexes(): Promise<PatientIndex[]> {
   const indexes = await getCentralDb().patientIndex.findMany({
     include: { hospitals: { select: { hospitalId: true } } },
+    orderBy: { lastUpdated: 'desc' },
   });
 
   return indexes.map((idx: { icNumber: string; hospitals: { hospitalId: string }[]; lastUpdated: Date }) => ({
@@ -130,16 +147,25 @@ export async function initializeHospitals(): Promise<void> {
   }
 }
 
-export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
-  const user = await getCentralDb().user.findFirst({
+export async function getUsersByIc(icNumber: string): Promise<User[]> {
+  const users = await getCentralDb().user.findMany({
     where: {
       icNumber,
       isActive: true,
-      ...(role ? { role } : {}),
     },
   });
 
-  return user ? mapUser(user) : null;
+  return users
+    .map(mapUser)
+    .sort((a, b) => (ROLE_PRIORITY[a.role] || 99) - (ROLE_PRIORITY[b.role] || 99));
+}
+
+export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
+  const users = await getUsersByIc(icNumber);
+  if (role) {
+    return users.find(u => u.role === role) || null;
+  }
+  return users[0] || null;
 }
 
 export async function getUserById(id: string): Promise<User | null> {
@@ -206,25 +232,42 @@ export async function createAuditLog(log: Omit<AuditLog, 'id'>): Promise<void> {
 export async function getAuditLogs(filters?: {
   actorId?: string;
   targetIcNumber?: string;
+  hospitalScopeId?: string;
+  action?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
 }): Promise<AuditLog[]> {
-  const where: Record<string, unknown> = {};
+  const where: {
+    actorId?: string;
+    targetIcNumber?: string;
+    action?: string;
+    timestamp?: { gte?: Date; lte?: Date };
+    OR?: Array<{ actorHospitalId?: string; targetHospitalId?: string }>;
+  } = {};
 
   if (filters?.actorId) where.actorId = filters.actorId;
   if (filters?.targetIcNumber) where.targetIcNumber = filters.targetIcNumber;
+  if (filters?.action) where.action = filters.action;
+  if (filters?.hospitalScopeId) {
+    where.OR = [
+      { actorHospitalId: filters.hospitalScopeId },
+      { targetHospitalId: filters.hospitalScopeId },
+    ];
+  }
   if (filters?.startDate || filters?.endDate) {
     where.timestamp = {
-      ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
-      ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
+      ...(filters.startDate ? { gte: parseDateBoundary(filters.startDate, 'start') } : {}),
+      ...(filters.endDate ? { lte: parseDateBoundary(filters.endDate, 'end') } : {}),
     };
   }
+
+  const safeLimit = Math.min(Math.max(filters?.limit || 100, 1), 500);
 
   const logs = await getCentralDb().auditLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
-    take: filters?.limit || 100,
+    take: safeLimit,
   });
 
   return logs.map((log: {
@@ -286,6 +329,6 @@ export async function getCentralStats() {
     yesterdayQueries,
     queryChangePercent,
     newHospitalsThisMonth: 0,
-    avgResponseTime: 0.8 + Math.random() * 0.6,
+    avgResponseTime: 0.24,
   };
 }

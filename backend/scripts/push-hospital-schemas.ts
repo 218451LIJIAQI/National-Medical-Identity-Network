@@ -3,6 +3,7 @@ import { HOSPITALS } from '../src/config';
 
 async function main() {
   console.log('🏥 Pushing hospital schema to all hospital databases...\n');
+  let failures = 0;
 
   for (const hospital of HOSPITALS) {
     const dbUrl = process.env[hospital.envVar];
@@ -27,11 +28,20 @@ async function main() {
       );
       console.log(`✅ ${hospital.id} schema pushed successfully!\n`);
     } catch (error) {
+      failures++;
       console.error(`❌ Failed to push schema to ${hospital.id}:`, error);
     }
+  }
+
+  if (failures > 0) {
+    console.error(`❌ Schema push failed for ${failures} hospital database(s).`);
+    process.exit(1);
   }
 
   console.log('🎉 All hospital schemas pushed!');
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

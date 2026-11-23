@@ -89,6 +89,45 @@ export function getHospitalById(hospitalId?: string): HospitalConfig | undefined
   return HOSPITALS.find(h => h.id === hospitalId);
 }
 
+export function normalizeIcNumber(raw: string): string {
+  const trimmed = raw.trim();
+  const digitsOnly = trimmed.replace(/-/g, '');
+  if (/^\d{12}$/.test(digitsOnly)) {
+    return `${digitsOnly.slice(0, 6)}-${digitsOnly.slice(6, 8)}-${digitsOnly.slice(8)}`;
+  }
+  return trimmed;
+}
+
+export function inferDemographicsFromMyKad(icNumber: string): {
+  dateOfBirth: string;
+  gender: 'male' | 'female';
+} {
+  const digits = icNumber.replace(/-/g, '');
+  if (/^\d{12}$/.test(digits)) {
+    const yy = parseInt(digits.slice(0, 2), 10);
+    const mm = parseInt(digits.slice(2, 4), 10);
+    const dd = parseInt(digits.slice(4, 6), 10);
+    const currentTwoDigitYear = new Date().getFullYear() % 100;
+    const century = yy <= currentTwoDigitYear ? 2000 : 1900;
+    const year = century + yy;
+    const validDate =
+      mm >= 1 &&
+      mm <= 12 &&
+      dd >= 1 &&
+      dd <= 31 &&
+      !Number.isNaN(Date.parse(`${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`));
+    const dob = validDate
+      ? `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+      : '1990-01-01';
+    const lastDigit = parseInt(digits.slice(11, 12), 10);
+    return {
+      dateOfBirth: dob,
+      gender: lastDigit % 2 === 1 ? 'male' : 'female',
+    };
+  }
+  return { dateOfBirth: '1990-01-01', gender: 'male' };
+}
+
 export const CONFIG = {
   centralHub: {
     port: parseInt(process.env.CENTRAL_PORT || '3000', 10),
@@ -98,7 +137,7 @@ export const CONFIG = {
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
   cors: {
-    origins: process.env.CORS_ORIGINS?.split(',') || [
+    origins: process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || [
       'http://localhost:5173',
       'http://localhost:3000',
       'https://medlink-my.netlify.app',

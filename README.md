@@ -1,74 +1,83 @@
-# 🏥 MedLink MY
+# 🏥 MedLink MY — National Medical Identity Network
 
-A patient has visited two cities. Their earlier lab result is in George Town. Today’s appointment is in Kuala Lumpur. Which hospital database should the doctor ask? In this demo, that question has its own data model. 🗺️
+A patient has visited two cities. Their earlier lab result is in George Town. Today’s appointment is in Kuala Lumpur. Which hospital database should the doctor ask? In **MedLink MY**, that question has its own federated data model. 🗺️
 
-**MedLink MY** is a Malaysian healthcare hackathon prototype that uses a MyKad identity number to connect a patient’s visits across **five demo hospitals**. The central hub keeps a directory of where to look. Each hospital holds its local clinical history. A timeline brings the relevant records together when someone opens a lookup.
+**MedLink MY** is a Malaysian healthcare interoperability platform prototype that uses a MyKad identity number to connect a patient’s clinical visits across **five regional hospital databases** via a **zero-clinical-text Central Pointer Hub**.
 
-## 🗺️ Five places on the map
+---
 
-| Demo hospital | City | The connection the registry selects |
-| --- | --- | --- |
-| 🏙️ Kuala Lumpur General Hospital | Kuala Lumpur | `DATABASE_URL_HOSPITAL_KL` |
-| 🌉 Penang General Hospital | George Town | `DATABASE_URL_HOSPITAL_PENANG` |
-| 🌳 Sultanah Aminah Hospital | Johor Bahru | `DATABASE_URL_HOSPITAL_JB` |
-| 🌺 Sarawak General Hospital | Kuching | `DATABASE_URL_HOSPITAL_KUCHING` |
-| ⛰️ Queen Elizabeth Hospital | Kota Kinabalu | `DATABASE_URL_HOSPITAL_KK` |
+## 🗺️ Five Federated Hospital Nodes + One Central Hub
 
-All five use the same clinical schema. The connection manager uses the hospital ID to find the database URL in the registry, creates a Prisma client on first use and reuses it for later requests. A separate client serves the central index. [Hospital registry](backend/src/config/index.ts) · [Prisma connection manager](backend/src/database/multi-db-manager.ts)
+| Institution | City | Hospital ID | Environment Variable |
+| --- | --- | --- | --- |
+| 🏙️ Kuala Lumpur General Hospital | Kuala Lumpur | `hospital-kl` | `DATABASE_URL_HOSPITAL_KL` |
+| 🌉 Penang General Hospital | George Town | `hospital-penang` | `DATABASE_URL_HOSPITAL_PENANG` |
+| 🌳 Sultanah Aminah Hospital | Johor Bahru | `hospital-jb` | `DATABASE_URL_HOSPITAL_JB` |
+| 🌺 Sarawak General Hospital | Kuching | `hospital-kuching` | `DATABASE_URL_HOSPITAL_KUCHING` |
+| ⛰️ Queen Elizabeth Hospital | Kota Kinabalu | `hospital-kk` | `DATABASE_URL_HOSPITAL_KK` |
 
-## 🔎 Follow one lookup
+All five hospital nodes run identical clinical Prisma schemas (`backend/prisma/schema.hospital.prisma`), while the Central Hub (`backend/prisma/schema.central.prisma`) stores only **hospital metadata, MyKad-to-hospital index pointers (`PatientIndex`), authentication accounts (`User`), hospital-level patient consent rules (`PatientPrivacySetting`), and immutable security audit trails (`AuditLog`)**.
 
-Imagine a seeded patient with an entry in Kuala Lumpur and an earlier visit in Penang. Here’s what the doctor’s timeline asks the application to do.
+---
+
+## 🔐 End-to-End Security, RBAC & Privacy Architecture
 
 ```mermaid
 flowchart LR
-    W["Doctor's workstation"] --> Q["Express query route"]
-    Q -->|Find participating sites| I[("Central patient index")]
-    Q -->|Read local history| K[("Kuala Lumpur")]
-    Q -->|Read local history| P[("Penang")]
-    Q -->|Return grouped records| W
+    W["Role-Scoped Client"] --> A["JWT + RBAC + Scope Guard"]
+    A --> Q["Federated Query Engine"]
+    Q -->|1. Lookup participating hospitals| I[("Central Index DB")]
+    Q -->|2. Enforce PatientPrivacySetting| I
+    Q -->|3. Parallel clinical read| K[("KL Hospital DB")]
+    Q -->|3. Parallel clinical read| P[("Penang Hospital DB")]
+    Q -->|4. Write AuditLog| I
 ```
 
-1. **Find the sites.** The hub reads the patient index and its hospital links. This example produces two destinations out of the five available.
-2. **Check the requesting hospital.** The query takes account of the patient’s hospital-specific privacy settings before it reads those clinical histories.
-3. **Read the sites in parallel.** Each result carries its hospital, record count, status and elapsed time. If one hospital read fails, the route records that site’s error while preserving the other results.
-4. **Assemble the visit history.** The frontend can show where an encounter came from. The response marks records from another hospital read-only. The query also produces steps for the interface and an entry for the audit trail.
+1. **Strict Object-Level Authorization (Zero IDOR)**:
+   - **`patient`**: Restricted strictly to their own `icNumber` across `/api/central/query/:icNumber`, `/api/central/patient/:icNumber`, and `/api/hospitals/:hospitalId/patients/:icNumber/records`. Cross-patient lookups return `403` and record a denied `AuditLog` entry.
+   - **`doctor` & `hospital_admin`**: Scoped to their authenticated `hospitalId` for local hospital stats, staff lists, encounter creation/updating, and hospital audit logs (`/api/central/audit-logs`). Cross-hospital clinical history is retrieved exclusively through the audited federated query workflow, and foreign hospital records are enforced `isReadOnly: true` on both backend and frontend.
+   - **`central_admin`**: Authorized to govern the national pointer index, connected hospital health, and full network/emergency audit logs.
+2. **Hospital-Level Patient Privacy Blacklist**:
+   - When a patient blocks a hospital in `/patient/privacy`, doctors from that hospital are denied access across `/api/central/query/:icNumber`, `/api/central/patient/:icNumber`, and local patient record endpoints (`403` with `accessDenied: true`), with every blocked attempt logged to `AuditLog`.
+   - Patients viewing their own records and `central_admin` index checks remain unaffected.
+   - The frontend explicitly distinguishes **privacy-blocked (`403`)**, **partial hospital node failure (`status: 'error'`)**, **empty clinical history**, and **network errors**—never disguising failures or blocks as "no records".
+3. **Full Clinical Write & Read-Only Integrity**:
+   - Creating or updating an encounter (`POST /api/hospitals/:hospitalId/records` and `PUT /api/hospitals/:hospitalId/records/:recordId`) persists nested **`Prescription`** and **`LabReport`** rows in a single transaction, synchronizes patient demographics (name, DOB, gender, blood type, allergies, chronic conditions, emergency contact) on first visit at a new hospital, and updates the Central Pointer Index.
+4. **Multi-Role MyKad Authentication & Hospital Verification**:
+   - Users holding multiple roles under one MyKad (e.g., a doctor who is also a patient) can select their role at sign-in or switch roles seamlessly via `POST /api/auth/switch-role`.
+   - Hospital staff complete second-step facility verification (`POST /api/auth/verify-hospital`) before accessing hospital clinical portals.
+5. **Break-Glass Emergency Access**:
+   - `GET /api/central/emergency/:icNumber` aggregates critical life-saving fields (blood type, allergies, chronic conditions, emergency contact, and active medications across all hospitals), enforces a per-IP+IC 60-second cooldown (`429`), returns `404` for unknown ICs, and writes high-priority `emergency_access` audit records.
 
-The reverse trip is worth reading too. When a doctor creates an encounter, the hospital route writes the local record, updates the central pointer for that site and records the action. The next lookup knows where to go. [Query implementation](backend/src/routes/central.ts) · [Encounter creation](backend/src/routes/hospital.ts) · [Timeline screen](frontend/src/pages/doctor/PatientTimeline.tsx)
+---
 
-<details>
-<summary>🔍 A site reports zero records. Did it answer?</summary>
+## 🖥️ Federated Database vs. Workstation Session Tools
 
-Look at the **status** beside the **record count**. A successful read can return an empty list. A failed site read also carries zero records, but its status and query step report an error. That distinction matters when a reader is trying to understand what a partial timeline actually contains. [Per-site results](backend/src/routes/central.ts)
-
-</details>
-
-## 🪪 Four views of the same visit
-
-- **🩺 Doctor.** Search for a demo patient, inspect encounters from indexed hospitals and create a record in the local workspace. The hospital data model connects a visit to its clinician, prescriptions and lab reports. [Doctor workspace](frontend/src/pages/doctor/HospitalWorkstation.tsx) · [Clinical schema](backend/prisma/schema.hospital.prisma)
-- **👤 Patient.** Revisit your own records, change hospital-specific access preferences and inspect the access history. A patient can see which facility a preference applies to before changing it. [Records](frontend/src/pages/patient/Records.tsx) · [Privacy controls](frontend/src/pages/patient/Privacy.tsx)
-- **🏨 Hospital administrator.** Open a site dashboard, review activity and explore operations screens. Some workstation tools, including the bed-management display, illustrate workflows with local demo data. [Hospital admin](frontend/src/pages/admin/HospitalAdmin.tsx) · [Bed-management example](frontend/src/pages/admin/modules/BedManagement.tsx)
-- **🗂️ Central administrator.** Browse the patient index, inspect hospital participation and review audit events. The emergency report displays the recorded actor, target, source, time and access result together. [Patient index](frontend/src/pages/admin/PatientIndex.tsx) · [Emergency report](frontend/src/components/EmergencyReportModal.tsx)
-
-The login page offers seeded roles and animates the MyKad chip-reading sequence in the browser. The emergency view demonstrates a shorter summary with fields such as allergies and an emergency contact. These are prototype workflows for the supplied demo records. [Demo sign-in](frontend/src/pages/Login.tsx) · [Emergency view](frontend/src/pages/EmergencyAccess.tsx)
-
-## 🗄️ What lives in which database?
-
-| Central hub · one PostgreSQL database | Hospital sites · five PostgreSQL databases |
+| Persistence Layer | Modules & Capabilities |
 | --- | --- |
-| `Hospital` identifies a participating site. | `Patient` and `Doctor` describe people within a site. |
-| `PatientIndex` and `PatientIndexHospital` connect an identity to facilities that have records. | `MedicalRecord` holds the local encounter and links it to the clinician. |
-| `User`, `PatientPrivacySetting` and `AuditLog` support sign-in, preferences and activity history. | `Prescription` and `LabReport` belong to the clinical side of the encounter. |
+| **PostgreSQL Federated Persistence** (Central + 5 Hospital DBs) | Authentication & role switching, Cross-Hospital Patient Search & Timeline, New Encounter creation & local Encounter updates (with Prescriptions & Lab Reports), Patient Portal (Dashboard, Records, Hospital Privacy Controls, Access History), Emergency Break-Glass Lookup, Central & Hospital Audit Logs, National Patient Index, Hospital Doctor Directory (`StaffManagement` DB physicians). |
+| **Session-Persisted Workstation Tools** (`sessionStorage` + real print/CSV/JSON export) | Outpatient Queue Management, Appointments, E-Prescription builder (also syncs to federated `MedicalRecord` when patient exists), Lab Orders, Radiology viewer, Medical Certificate (MC) generator, Inter-Hospital Referral drafts, Nursing Notes & Vitals chart, Subsidized Billing & Receipts, and Hospital Admin ward/department/inventory/financial operations boards. |
 
-The backend is **TypeScript, Express and Prisma**. It generates separate clients for the central and clinical schemas. The **React and TypeScript** client uses **Vite**, **Zustand**, **Tailwind CSS** and shared hospital layouts. The doctor's dashboard hook lets the five themed workspaces reuse data-loading behavior. [Central schema](backend/prisma/schema.central.prisma) · [Hospital database adapter](backend/src/database/hospital-multi.ts) · [Shared dashboard hook](frontend/src/pages/doctor/dashboards/useDoctorDashboard.ts)
+---
 
-## 🧪 Set up the five demo hospitals
+## 🚀 Setup, Build & Automated Verification
 
-Prepare **six fresh PostgreSQL databases** and a Node.js/npm environment. Set `JWT_SECRET` and `DATABASE_URL_CENTRAL` in `backend/.env`, then set the five hospital URLs listed above. For Prisma CLI operations set `DATABASE_URL_HOSPITAL` to one of those demo hospital connections. The setup command pushes the schemas and replaces existing seed data in the configured databases. Use dedicated demo databases. [Schema setup script](backend/scripts/push-hospital-schemas.ts) · [Seed script](backend/prisma/seed-multi.ts)
+### 1. Local & Production Setup (PostgreSQL)
 
-| Terminal | Working directory | Commands |
+Configure six PostgreSQL databases in `backend/.env` (`JWT_SECRET`, `DATABASE_URL_CENTRAL`, `DATABASE_URL_HOSPITAL`, and `DATABASE_URL_HOSPITAL_KL` / `PENANG` / `JB` / `KUCHING` / `KK`):
+
+| Terminal | Directory | Commands |
 | --- | --- | --- |
-| API | `backend/` | `npm ci`, then `npm run multi:setup`, then `npm run dev` |
-| Browser client | `frontend/` | `npm ci`, then `npm run dev` |
+| Backend API | `backend/` | `npm ci && npm run multi:setup && npm run dev` |
+| Frontend App | `frontend/` | `npm ci && npm run dev` |
 
-Open `http://localhost:5173`. Vite forwards `/api` to the backend on port **3000**. For a quick tour, pick a seeded doctor and inspect a patient timeline, then switch to the patient view and look at the access history. You’ll see the same lookup from both ends. 🔍 [Vite settings](frontend/vite.config.ts)
+Open `http://localhost:5173` (Vite proxies `/api` to `http://localhost:3000`).
+
+### 2. Offline Contract & Unit Test Suites
+
+Both `backend/` and `frontend/` include self-contained `node:test` verification suites covering Express RBAC/IDOR/privacy/clinical persistence/emergency rate-limiting contracts, full-repo TypeScript/TSX compilation, `en`/`ms`/`zh` i18n parity, and frontend state/utility behavior:
+
+```bash
+cd backend && npm test
+cd ../frontend && npm test
+```

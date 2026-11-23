@@ -1,19 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { centralApi } from '@/lib/api'
+import { formatIC, maskIC } from '@/lib/utils'
+import { useSessionState } from '@/lib/workstation-storage'
 import {
   AlertTriangle, Heart, Pill, Phone, User,
   Shield, Wifi, WifiOff, ArrowLeft, Search, Loader2, CheckCircle,
-  Camera, Video, Circle
+  Camera, Video, Circle, Building2
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface EmergencyInfo {
   icNumber: string
+  rawIc: string
   name: string
   bloodType: string
   allergies: string[]
@@ -23,19 +26,16 @@ interface EmergencyInfo {
     relationship: string
     phone: string
   }
-  currentMedications: {
+  currentMedications: Array<{
     name: string
     dosage: string
-  }[]
+    frequency?: string
+    hospitalName?: string
+  }>
+  hospitalsWithRecords: number
   lastUpdated: string
-}
-
-const maskEmergencyIc = (ic: string): string => {
-  if (ic.length >= 12) {
-    const clean = ic.replace(/-/g, '')
-    return `${clean.slice(0, 6)}-**-${clean.slice(8)}`
-  }
-  return ic.replace(/(.{6})(.{2})(.+)/, '$1-**-$3')
+  accessedAt: string
+  fromCache?: boolean
 }
 
 export default function EmergencyAccess() {
@@ -47,19 +47,45 @@ export default function EmergencyAccess() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [emergencyConfirmed, setEmergencyConfirmed] = useState(false)
   const [statusError, setStatusError] = useState('')
-  const [lastQueryTime, setLastQueryTime] = useState(0)
+  const [cooldownUntil, setCooldownUntil] = useState(0)
   const [showCameraDialog, setShowCameraDialog] = useState(false)
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingCountdown, setRecordingCountdown] = useState(3)
   const [faceDetected, setFaceDetected] = useState(false)
+  const [cachedEmergencyRecords, setCachedEmergencyRecords] = useSessionState<Record<string, EmergencyInfo>>(
+    'emergency-cache',
+    {}
+  )
+
+  const faceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const clearCameraTimers = useCallback(() => {
+    if (faceTimerRef.current) {
+      clearTimeout(faceTimerRef.current)
+      faceTimerRef.current = null
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => clearCameraTimers()
+  }, [clearCameraTimers])
 
   const handleSearchClick = () => {
-    if (!icNumber.trim()) return
-    const timeSinceLastQuery = Date.now() - lastQueryTime
-    if (lastQueryTime > 0 && timeSinceLastQuery < 60000) {
-      const remainingSeconds = Math.ceil((60000 - timeSinceLastQuery) / 1000)
-      setStatusError(`Please wait ${remainingSeconds} seconds before next query`)
+    const clean = formatIC(icNumber)
+    if (!clean) {
+      setStatusError('Please enter a valid patient IC number')
+      return
+    }
+    const remainingMs = cooldownUntil - Date.now()
+    if (remainingMs > 0) {
+      const remainingSeconds = Math.ceil(remainingMs / 1000)
+      setStatusError(`Rate limit active: please wait ${remainingSeconds} seconds before the next emergency query`)
       return
     }
 
@@ -68,12 +94,15 @@ export default function EmergencyAccess() {
   }
 
   const closeCameraDialog = () => {
+    clearCameraTimers()
     setShowCameraDialog(false)
+    setIsRecording(false)
     setEmergencyConfirmed(false)
   }
 
   const handleConfirmSearch = () => {
     if (!emergencyConfirmed) return
+    clearCameraTimers()
     setShowConfirmDialog(false)
     setShowCameraDialog(true)
     setCameraPermissionGranted(false)
@@ -83,57 +112,90 @@ export default function EmergencyAccess() {
   }
 
   const handleGrantCameraPermission = () => {
+    clearCameraTimers()
     setCameraPermissionGranted(true)
-    setTimeout(() => {
+    faceTimerRef.current = setTimeout(() => {
       setFaceDetected(true)
-    }, 1500)
-  }
-
-  const handleStartRecording = () => {
-    setIsRecording(true)
-    let count = 3
-    const countdownInterval = setInterval(() => {
-      count--
-      setRecordingCountdown(count)
-      if (count === 0) {
-        clearInterval(countdownInterval)
-        setShowCameraDialog(false)
-        performSearch()
-      }
-    }, 1000)
+    }, 900)
   }
 
   const performSearch = async () => {
+    const normalizedIc = formatIC(icNumber)
     setLoading(true)
-    setLastQueryTime(Date.now())
     setStatusError('')
 
+    if (isOffline) {
+      const cached = cachedEmergencyRecords[normalizedIc]
+      setLoading(false)
+      if (cached) {
+        setPatientInfo({ ...cached, fromCache: true })
+      } else {
+        setPatientInfo(null)
+        setStatusError(`Offline mode active: no session-cached emergency data found for ${normalizedIc}`)
+      }
+      return
+    }
+
     try {
-      const response = await centralApi.emergencyQuery(icNumber.trim())
+      const response = await centralApi.emergencyQuery(normalizedIc)
+
+      if (response.rateLimited || response.status === 429) {
+        const waitSec = response.retryAfter || 60
+        setCooldownUntil(Date.now() + waitSec * 1000)
+        setPatientInfo(null)
+        setStatusError(response.error || `Emergency query rate-limited. Please wait ${waitSec} seconds.`)
+        return
+      }
 
       if (response.success && response.data?.found) {
+        setCooldownUntil(Date.now() + 60_000)
         const data = response.data
-        setPatientInfo({
-          icNumber: maskEmergencyIc(icNumber.trim()),
+        const activeMeds =
+          data.activeMedications && data.activeMedications.length > 0
+            ? data.activeMedications.map((m) => ({
+                name: m.medicationName,
+                dosage: m.dosage,
+                frequency: m.frequency,
+                hospitalName: m.hospitalName,
+              }))
+            : []
+
+        const resolvedInfo: EmergencyInfo = {
+          icNumber: maskIC(normalizedIc),
+          rawIc: normalizedIc,
           name: data.fullName || 'Unknown Patient',
           bloodType: data.bloodType || 'Unknown',
           allergies: data.allergies?.length ? data.allergies : ['None recorded'],
           chronicConditions: data.chronicConditions?.length ? data.chronicConditions : ['None recorded'],
           emergencyContact: {
             name: data.emergencyContact || 'Not Available',
-            relationship: 'Emergency Contact',
+            relationship: 'Registered Emergency Contact',
             phone: data.emergencyPhone || '-',
           },
-          currentMedications: [
-            { name: 'Contact hospital for medication details', dosage: '-' },
-          ],
-          lastUpdated: new Date().toISOString(),
-        })
+          currentMedications: activeMeds,
+          hospitalsWithRecords: data.hospitalsWithRecords ?? 0,
+          lastUpdated: data.lastUpdated || new Date().toISOString(),
+          accessedAt: new Date().toISOString(),
+          fromCache: false,
+        }
+
+        setPatientInfo(resolvedInfo)
+        setCachedEmergencyRecords((prev) => ({
+          ...prev,
+          [normalizedIc]: resolvedInfo,
+        }))
       } else {
+        if (response.status !== 400) {
+          setCooldownUntil(Date.now() + 60_000)
+        }
+        const cached = cachedEmergencyRecords[normalizedIc]
+        if (!response.status && cached) {
+          setPatientInfo({ ...cached, fromCache: true })
+          setStatusError('Network unreachable — displaying cached emergency profile from earlier in this session.')
+          return
+        }
         setPatientInfo(null)
-        setStatusError(
-          response.error || response.data?.message || 'Patient not found in any hospital'
-        )
+        setStatusError(response.error || response.data?.message || 'Patient not found in any connected hospital')
       }
     } catch (error) {
       console.error('Emergency search failed:', error)
@@ -141,7 +203,25 @@ export default function EmergencyAccess() {
       setStatusError('Failed to retrieve emergency patient information')
     } finally {
       setLoading(false)
+      setEmergencyConfirmed(false)
     }
+  }
+
+  const handleStartRecording = () => {
+    clearCameraTimers()
+    setIsRecording(true)
+    let count = 3
+    setRecordingCountdown(count)
+    countdownIntervalRef.current = setInterval(() => {
+      count -= 1
+      setRecordingCountdown(count)
+      if (count <= 0) {
+        clearCameraTimers()
+        setShowCameraDialog(false)
+        setIsRecording(false)
+        performSearch()
+      }
+    }, 800)
   }
 
   return (
@@ -152,148 +232,121 @@ export default function EmergencyAccess() {
         animate={{ y: 0 }}
         transition={{ type: 'spring', stiffness: 100 }}
       >
-        <motion.div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)',
-          }}
-          animate={{ backgroundPosition: ['0px 0px', '40px 0px'] }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-        />
-
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20 rounded-xl"
-                  onClick={() => navigate(-1)}
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-              </motion.div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 rounded-xl"
+                onClick={() => navigate(-1)}
+                aria-label="Go back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
               <div className="flex items-center gap-3">
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                >
-                  <AlertTriangle className="w-7 h-7 drop-shadow-lg" />
-                </motion.div>
+                <AlertTriangle className="w-7 h-7 drop-shadow-lg" />
                 <div>
                   <span className="font-bold text-2xl drop-shadow-lg">Emergency Access Mode</span>
-                  <p className="text-red-100 text-xs">Critical information only</p>
+                  <p className="text-red-100 text-xs">Critical break-glass medical summary • All lookups audited</p>
                 </div>
               </div>
             </div>
-            <motion.div whileHover={{ scale: 1.05 }}>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`text-white rounded-xl px-4 py-2 ${isOffline ? 'bg-yellow-500/80' : 'bg-emerald-500/80'} backdrop-blur-sm`}
-                onClick={() => setIsOffline(!isOffline)}
-              >
-                {isOffline ? <WifiOff className="w-4 h-4 mr-2" /> : <Wifi className="w-4 h-4 mr-2" />}
-                {isOffline ? 'Offline Mode' : 'Online'}
-              </Button>
-            </motion.div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`text-white rounded-xl px-4 py-2 ${isOffline ? 'bg-yellow-500/80 hover:bg-yellow-500' : 'bg-emerald-500/80 hover:bg-emerald-500'} backdrop-blur-sm`}
+              onClick={() => setIsOffline(!isOffline)}
+            >
+              {isOffline ? <WifiOff className="w-4 h-4 mr-2" /> : <Wifi className="w-4 h-4 mr-2" />}
+              {isOffline ? `Offline Cache (${Object.keys(cachedEmergencyRecords).length})` : 'Online'}
+            </Button>
           </div>
         </div>
       </motion.header>
 
       <div className="container mx-auto px-4 py-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="relative border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 mb-8 shadow-lg shadow-amber-500/10 overflow-hidden">
-            <motion.div
-              className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400"
-              style={{ backgroundSize: '200% 100%' }}
-              animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            />
-            <CardContent className="py-5 flex items-start gap-4">
-              <motion.div
-                className="p-3 bg-amber-100 rounded-xl"
-                animate={{ rotate: [0, 5, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
+        <Card className="relative border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 mb-8 shadow-lg shadow-amber-500/10 overflow-hidden">
+          <CardContent className="py-5 flex items-start gap-4">
+            <div className="p-3 bg-amber-100 rounded-xl">
+              <AlertTriangle className="w-7 h-7 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-900 text-lg">Emergency Break-Glass Access Only</h3>
+              <p className="text-amber-700 text-sm mt-1">
+                Provides life-critical allergies, blood type, chronic conditions, active prescriptions, and emergency contact details when a patient cannot consent. Every query is permanently recorded in the National Audit Ledger and rate-limited (1 query / minute).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-8 border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500" />
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Search className="w-5 h-5 text-red-600" />
+              </div>
+              Quick Patient Lookup
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Enter Patient IC Number (e.g., 880101-14-5678)"
+                  value={icNumber}
+                  onChange={(e) => setIcNumber(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                  className="text-lg py-7 px-5 rounded-xl border-gray-200 focus:border-red-500 focus:ring-red-500/20"
+                />
+              </div>
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 px-8 h-14 rounded-xl shadow-lg shadow-red-500/25 font-semibold"
+                onClick={handleSearchClick}
+                disabled={loading}
               >
-                <AlertTriangle className="w-7 h-7 text-amber-600" />
-              </motion.div>
-              <div>
-                <h3 className="font-bold text-amber-900 text-lg">Emergency Access Only</h3>
-                <p className="text-amber-700 text-sm mt-1">
-                  This mode provides critical medical information for emergency situations.
-                  All access is logged and audited. Use only when patient is unable to provide consent.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="w-5 h-5 mr-2" />
+                    Search
+                  </>
+                )}
+              </Button>
+            </div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="mb-8 border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500" />
-            <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <Search className="w-5 h-5 text-red-600" />
-                </div>
-                Quick Patient Lookup
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="flex gap-4">
-                <div className="relative flex-1 group">
-                  <motion.div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl opacity-0 blur transition-all duration-300 group-hover:opacity-30" />
-                  <div className="relative">
-                    <Input
-                      placeholder="Enter Patient IC Number (e.g., 880101-14-5678)"
-                      value={icNumber}
-                      onChange={(e) => setIcNumber(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-                      className="text-lg py-7 px-5 rounded-xl border-gray-200 focus:border-red-500 focus:ring-red-500/20"
-                    />
-                  </div>
-                </div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    size="lg"
-                    className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 px-8 h-14 rounded-xl shadow-lg shadow-red-500/25 font-semibold"
-                    onClick={handleSearchClick}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>
-                        <Search className="w-5 h-5 mr-2" />
-                        Search
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
-              </div>
-
-              {statusError && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-sm text-red-600 mt-3 flex items-center gap-2 bg-red-50 p-3 rounded-lg border border-red-200"
+            <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-gray-500">
+              <span>Demo emergency ICs:</span>
+              {['880101-14-5678', '550715-07-9999', '950320-10-1234'].map((demoIc) => (
+                <button
+                  key={demoIc}
+                  type="button"
+                  onClick={() => setIcNumber(demoIc)}
+                  className="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-red-50 hover:text-red-700 font-mono transition-colors"
                 >
-                  <AlertTriangle className="w-4 h-4" />
-                  {statusError}
-                </motion.p>
-              )}
+                  {demoIc}
+                </button>
+              ))}
+            </div>
 
-              {isOffline && (
-                <p className="text-sm text-yellow-600 mt-2 flex items-center gap-1">
-                  <WifiOff className="w-4 h-4" />
-                  Offline mode: Only cached patient data will be available
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
+            {statusError && (
+              <p className="text-sm text-red-700 mt-3 flex items-center gap-2 bg-red-50 p-3 rounded-lg border border-red-200">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {statusError}
+              </p>
+            )}
+
+            {isOffline && (
+              <p className="text-sm text-amber-700 mt-2 flex items-center gap-1.5 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                <WifiOff className="w-4 h-4 shrink-0" />
+                Offline mode enabled: lookups read from emergency profiles cached during this browser session ({Object.keys(cachedEmergencyRecords).length} cached).
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         <AnimatePresence>
           {patientInfo && (
@@ -303,211 +356,206 @@ export default function EmergencyAccess() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
+              {patientInfo.fromCache && (
+                <div className="p-3.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-sm font-medium flex items-center gap-2">
+                  <WifiOff className="w-4 h-4" />
+                  Showing Offline Session Cache snapshot captured at {new Date(patientInfo.accessedAt).toLocaleString()}
+                </div>
+              )}
+
               <div className="grid md:grid-cols-2 gap-6">
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-                  <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden hover:shadow-2xl transition-shadow">
-                    <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
-                    <CardHeader className="pb-2 bg-gradient-to-r from-blue-50/50 to-white">
-                      <CardTitle className="flex items-center gap-3 text-lg">
-                        <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200">
-                          <User className="w-5 h-5 text-white" />
-                        </div>
-                        Patient Identity
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                      <div className="space-y-4">
+                <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
+                  <CardHeader className="pb-2 bg-gradient-to-r from-blue-50/50 to-white">
+                    <CardTitle className="flex items-center gap-3 text-lg">
+                      <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200">
+                        <User className="w-5 h-5 text-white" />
+                      </div>
+                      Patient Identity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Full Name</p>
+                        <p className="text-2xl font-bold text-gray-900">{patientInfo.name}</p>
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
                         <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Full Name</p>
-                          <p className="text-2xl font-bold text-gray-900">{patientInfo.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">IC Number</p>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Masked IC</p>
                           <p className="font-mono text-lg bg-gray-100 px-3 py-1.5 rounded-lg inline-block">{patientInfo.icNumber}</p>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Blood Type</p>
-                            <Badge className="text-xl px-5 py-2 bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold shadow-lg shadow-red-200 rounded-xl">
-                              {patientInfo.bloodType}
-                            </Badge>
-                          </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Blood Type</p>
+                          <Badge className="text-xl px-5 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold shadow-lg shadow-red-200 rounded-xl">
+                            {patientInfo.bloodType}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Connected Nodes</p>
+                          <Badge variant="outline" className="text-sm px-3 py-1.5 gap-1">
+                            <Building2 className="w-3.5 h-3.5" />
+                            {patientInfo.hospitalsWithRecords} hospital(s)
+                          </Badge>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-                  <Card className="border-0 shadow-xl shadow-emerald-100/50 overflow-hidden hover:shadow-2xl transition-shadow">
-                    <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-500" />
-                    <CardHeader className="pb-2 bg-gradient-to-r from-emerald-50/50 to-white">
-                      <CardTitle className="flex items-center gap-3 text-lg">
-                        <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl shadow-lg shadow-emerald-200">
-                          <Phone className="w-5 h-5 text-white" />
-                        </div>
-                        Emergency Contact
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Name</p>
-                          <p className="text-2xl font-bold text-gray-900">{patientInfo.emergencyContact.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Relationship</p>
-                          <p className="text-gray-700 font-medium">{patientInfo.emergencyContact.relationship}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Phone</p>
-                          <motion.a
+                <Card className="border-0 shadow-xl shadow-emerald-100/50 overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-500" />
+                  <CardHeader className="pb-2 bg-gradient-to-r from-emerald-50/50 to-white">
+                    <CardTitle className="flex items-center gap-3 text-lg">
+                      <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl shadow-lg shadow-emerald-200">
+                        <Phone className="w-5 h-5 text-white" />
+                      </div>
+                      Emergency Contact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Name</p>
+                        <p className="text-2xl font-bold text-gray-900">{patientInfo.emergencyContact.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Relationship</p>
+                        <p className="text-gray-700 font-medium">{patientInfo.emergencyContact.relationship}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Phone</p>
+                        {patientInfo.emergencyContact.phone !== '-' ? (
+                          <a
                             href={`tel:${patientInfo.emergencyContact.phone}`}
                             className="inline-flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-emerald-500 to-green-500 text-white px-5 py-2 rounded-xl shadow-lg shadow-emerald-200 hover:shadow-xl transition-shadow"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
                           >
                             <Phone className="w-5 h-5" />
                             {patientInfo.emergencyContact.phone}
-                          </motion.a>
-                        </div>
+                          </a>
+                        ) : (
+                          <span className="text-gray-500 font-medium">No phone number on file</span>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Card className="border-0 shadow-xl shadow-red-200/50 overflow-hidden">
-                  <div className="h-2 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 animate-pulse" />
-                  <CardHeader className="pb-3 bg-gradient-to-r from-red-50 to-rose-50">
-                    <CardTitle className="flex items-center gap-3 text-xl text-red-700">
-                      <motion.div
-                        className="p-2.5 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl shadow-lg shadow-red-300"
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 1, repeat: Infinity }}
+              <Card className="border-0 shadow-xl shadow-red-200/50 overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-red-500 via-rose-500 to-red-500" />
+                <CardHeader className="pb-3 bg-gradient-to-r from-red-50 to-rose-50">
+                  <CardTitle className="flex items-center gap-3 text-xl text-red-700">
+                    <div className="p-2.5 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl shadow-lg shadow-red-300">
+                      <AlertTriangle className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="font-bold">ALLERGIES - CRITICAL</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="flex flex-wrap gap-3">
+                    {patientInfo.allergies.map((allergy) => (
+                      <Badge
+                        key={allergy}
+                        className="text-lg px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-300 rounded-xl"
                       >
-                        <AlertTriangle className="w-6 h-6 text-white" />
-                      </motion.div>
-                      <span className="font-bold">⚠️ ALLERGIES - CRITICAL</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="flex flex-wrap gap-3">
-                      {patientInfo.allergies.map((allergy, i) => (
-                        <motion.div
-                          key={allergy}
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ delay: 0.4 + i * 0.1 }}
-                        >
-                          <Badge className="text-lg px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-300 rounded-xl">
-                            {allergy}
-                          </Badge>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                        {allergy}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <Card className="border-0 shadow-xl shadow-orange-100/50 overflow-hidden">
-                  <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
-                  <CardHeader className="pb-3 bg-gradient-to-r from-orange-50/50 to-amber-50/50">
-                    <CardTitle className="flex items-center gap-3 text-xl text-orange-700">
-                      <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl shadow-lg shadow-orange-200">
-                        <Heart className="w-5 h-5 text-white" />
-                      </div>
-                      Chronic Conditions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="flex flex-wrap gap-3">
-                      {patientInfo.chronicConditions.map((condition, i) => (
-                        <motion.div
-                          key={condition}
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ delay: 0.5 + i * 0.1 }}
-                        >
-                          <Badge className="text-base px-5 py-2 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 font-semibold rounded-xl border border-orange-200">
-                            {condition}
-                          </Badge>
-                        </motion.div>
-                      ))}
+              <Card className="border-0 shadow-xl shadow-orange-100/50 overflow-hidden">
+                <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
+                <CardHeader className="pb-3 bg-gradient-to-r from-orange-50/50 to-amber-50/50">
+                  <CardTitle className="flex items-center gap-3 text-xl text-orange-700">
+                    <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl shadow-lg shadow-orange-200">
+                      <Heart className="w-5 h-5 text-white" />
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                    Chronic Conditions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="flex flex-wrap gap-3">
+                    {patientInfo.chronicConditions.map((condition) => (
+                      <Badge
+                        key={condition}
+                        className="text-base px-5 py-2 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 font-semibold rounded-xl border border-orange-200"
+                      >
+                        {condition}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-                <Card className="border-0 shadow-xl shadow-violet-100/50 overflow-hidden">
-                  <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
-                  <CardHeader className="pb-3 bg-gradient-to-r from-violet-50/50 to-white">
-                    <CardTitle className="flex items-center gap-3 text-xl">
-                      <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200">
-                        <Pill className="w-5 h-5 text-white" />
-                      </div>
-                      Current Medications
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
+              <Card className="border-0 shadow-xl shadow-violet-100/50 overflow-hidden">
+                <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
+                <CardHeader className="pb-3 bg-gradient-to-r from-violet-50/50 to-white">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200">
+                      <Pill className="w-5 h-5 text-white" />
+                    </div>
+                    Active Prescriptions Across Connected Hospitals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {patientInfo.currentMedications.length > 0 ? (
                     <div className="grid md:grid-cols-3 gap-4">
-                      {patientInfo.currentMedications.map((med, i) => (
-                        <motion.div
-                          key={med.name}
-                          className="p-5 bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100 hover:shadow-lg transition-shadow"
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ delay: 0.6 + i * 0.1 }}
-                          whileHover={{ scale: 1.02 }}
+                      {patientInfo.currentMedications.map((med, idx) => (
+                        <div
+                          key={`${med.name}-${idx}`}
+                          className="p-5 bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100"
                         >
                           <p className="font-bold text-violet-900 text-lg">{med.name}</p>
-                          <p className="text-sm text-violet-600 font-medium mt-1">{med.dosage}</p>
-                        </motion.div>
+                          <p className="text-sm text-violet-700 font-medium mt-1">
+                            {med.dosage} {med.frequency ? `• ${med.frequency}` : ''}
+                          </p>
+                          {med.hospitalName && (
+                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                              <Building2 className="w-3.5 h-3.5" />
+                              {med.hospitalName}
+                            </p>
+                          )}
+                        </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No active prescriptions recorded in connected hospitals.</p>
+                  )}
+                </CardContent>
+              </Card>
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-                <Card className="border-0 bg-gradient-to-r from-gray-50 to-slate-50 shadow-lg">
-                  <CardContent className="py-5 px-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-gradient-to-br from-gray-400 to-slate-500 rounded-xl">
-                        <Shield className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-700 font-medium flex items-center gap-2">
-                          <CheckCircle className="w-5 h-5 text-emerald-500" />
-                          Emergency access logged at {new Date(patientInfo.lastUpdated).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Data last updated: {new Date(patientInfo.lastUpdated).toLocaleString()}
-                        </p>
-                      </div>
+              <Card className="border-0 bg-gradient-to-r from-gray-50 to-slate-50 shadow-lg">
+                <CardContent className="py-5 px-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-gray-400 to-slate-500 rounded-xl">
+                      <Shield className="w-6 h-6 text-white" />
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                    <div>
+                      <p className="text-sm text-gray-700 font-medium flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-emerald-500" />
+                        Emergency access logged at {new Date(patientInfo.accessedAt).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Central index last updated: {new Date(patientInfo.lastUpdated).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
         </AnimatePresence>
 
         {!patientInfo && !loading && (
-          <motion.div
-            className="grid md:grid-cols-3 gap-6 mt-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
+          <div className="grid md:grid-cols-3 gap-6 mt-8">
             {[
               {
                 icon: Heart,
                 title: 'Critical Allergies',
-                desc: 'View patient allergies and drug interactions',
+                desc: 'Aggregated drug & food allergies across all connected hospitals',
                 topBar: 'from-red-500 to-rose-500',
                 cardShadow: 'shadow-red-100/50',
                 iconShadow: 'shadow-red-200',
@@ -515,7 +563,7 @@ export default function EmergencyAccess() {
               {
                 icon: Pill,
                 title: 'Current Medications',
-                desc: 'Access active prescriptions and dosages',
+                desc: 'Live active prescriptions and dosages to avoid interactions',
                 topBar: 'from-violet-500 to-purple-500',
                 cardShadow: 'shadow-violet-100/50',
                 iconShadow: 'shadow-violet-200',
@@ -523,27 +571,22 @@ export default function EmergencyAccess() {
               {
                 icon: Phone,
                 title: 'Emergency Contacts',
-                desc: 'Quickly reach family members',
+                desc: 'Direct tap-to-call family & next-of-kin contact numbers',
                 topBar: 'from-emerald-500 to-green-500',
                 cardShadow: 'shadow-emerald-100/50',
                 iconShadow: 'shadow-emerald-200',
               },
             ].map((card) => (
-              <motion.div key={card.title} whileHover={{ scale: 1.03, y: -5 }} whileTap={{ scale: 0.98 }}>
-                <Card className={`relative text-center p-8 border-0 shadow-xl ${card.cardShadow} cursor-pointer overflow-hidden group`}>
-                  <div className={`h-1 bg-gradient-to-r ${card.topBar} absolute top-0 left-0 right-0`} />
-                  <motion.div
-                    className={`w-16 h-16 mx-auto mb-5 bg-gradient-to-br ${card.topBar} rounded-2xl flex items-center justify-center shadow-lg ${card.iconShadow} group-hover:shadow-xl transition-shadow`}
-                    whileHover={{ rotate: 5 }}
-                  >
-                    <card.icon className="w-8 h-8 text-white" />
-                  </motion.div>
-                  <h3 className="font-bold text-xl mb-2 text-gray-900">{card.title}</h3>
-                  <p className="text-gray-500 text-sm">{card.desc}</p>
-                </Card>
-              </motion.div>
+              <Card key={card.title} className={`relative text-center p-8 border-0 shadow-xl ${card.cardShadow} overflow-hidden`}>
+                <div className={`h-1 bg-gradient-to-r ${card.topBar} absolute top-0 left-0 right-0`} />
+                <div className={`w-16 h-16 mx-auto mb-5 bg-gradient-to-br ${card.topBar} rounded-2xl flex items-center justify-center shadow-lg ${card.iconShadow}`}>
+                  <card.icon className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="font-bold text-xl mb-2 text-gray-900">{card.title}</h3>
+                <p className="text-gray-500 text-sm">{card.desc}</p>
+              </Card>
             ))}
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -659,7 +702,7 @@ export default function EmergencyAccess() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold">Identity Verification Recording</h2>
-                    <p className="text-red-100 text-xs">For security audit purposes</p>
+                    <p className="text-red-100 text-xs">Simulated responder verification capture for audit trail</p>
                   </div>
                   {isRecording && (
                     <div className="ml-auto flex items-center gap-2">
@@ -679,20 +722,11 @@ export default function EmergencyAccess() {
                   {!cameraPermissionGranted ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                       <Camera className="w-16 h-16 mb-4 opacity-50" />
-                      <p className="text-sm">Camera access required</p>
+                      <p className="text-sm">Responder verification check required</p>
                     </div>
                   ) : (
                     <>
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-br from-gray-700 via-gray-800 to-gray-700"
-                        animate={{
-                          background: [
-                            'linear-gradient(135deg, #374151 0%, #1f2937 50%, #374151 100%)',
-                            'linear-gradient(135deg, #1f2937 0%, #374151 50%, #1f2937 100%)',
-                          ],
-                        }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
+                      <div className="absolute inset-0 bg-gradient-to-br from-gray-700 via-gray-800 to-gray-700" />
 
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="relative">
@@ -718,38 +752,23 @@ export default function EmergencyAccess() {
                           {faceDetected ? (
                             <>
                               <CheckCircle className="w-4 h-4" />
-                              Face detected - Ready to record
+                              Responder verified - Ready to log break-glass access
                             </>
                           ) : (
                             <>
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                              >
-                                <Circle className="w-4 h-4" />
-                              </motion.div>
-                              Detecting face...
+                              <Circle className="w-4 h-4 animate-spin" />
+                              Verifying responder frame...
                             </>
                           )}
                         </div>
                       </div>
 
                       {isRecording && (
-                        <motion.div
-                          className="absolute inset-0 flex items-center justify-center bg-black/50"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <motion.div
-                            key={recordingCountdown}
-                            initial={{ scale: 2, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.5, opacity: 0 }}
-                            className="text-7xl font-bold text-white drop-shadow-lg"
-                          >
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <div className="text-7xl font-bold text-white drop-shadow-lg">
                             {recordingCountdown}
-                          </motion.div>
-                        </motion.div>
+                          </div>
+                        </div>
                       )}
                     </>
                   )}
@@ -759,53 +778,44 @@ export default function EmergencyAccess() {
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-red-200">
-                      <p className="font-semibold mb-1">Recording Notice</p>
+                      <p className="font-semibold mb-1">Audit Trail Notice</p>
                       <p className="text-red-300 text-xs leading-relaxed">
-                        Your face will be recorded during this emergency access session.
-                        This recording will be stored as evidence and may be used for
-                        security audits and legal proceedings if misuse is suspected.
+                        Break-glass emergency access metadata (timestamp, client IP, user-agent, and queried IC) is recorded in the Central Audit Ledger for compliance review.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex gap-3">
-                  {isRecording ? (
-                    <div className="flex-1 text-center text-gray-400">
-                      <p className="text-sm">Recording in progress...</p>
-                    </div>
-                  ) : (
-                    <>
-                      <Button
-                        variant="ghost"
-                        className="flex-1 h-12 rounded-xl bg-gray-700 text-white border border-gray-600 hover:bg-gray-600"
-                        onClick={closeCameraDialog}
-                      >
-                        Cancel
-                      </Button>
-                      {!cameraPermissionGranted ? (
-                        <Button
-                          className="flex-1 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
-                          onClick={handleGrantCameraPermission}
-                        >
-                          <Camera className="w-5 h-5 mr-2" />
-                          Allow Camera Access
-                        </Button>
-                      ) : (
-                        <Button
-                          className={`flex-1 h-12 rounded-xl transition-all duration-300 text-white ${
-                            faceDetected
-                              ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
-                              : 'bg-gray-600 cursor-not-allowed'
-                          }`}
-                          disabled={!faceDetected}
-                          onClick={handleStartRecording}
-                        >
-                          <Video className="w-5 h-5 mr-2" />
-                          {faceDetected ? 'Start Recording & Access' : 'Waiting for face...'}
-                        </Button>
-                      )}
-                    </>
+                  <Button
+                    variant="ghost"
+                    className="flex-1 h-12 rounded-xl bg-gray-700 text-white border border-gray-600 hover:bg-gray-600"
+                    onClick={closeCameraDialog}
+                  >
+                    Cancel
+                  </Button>
+                  {!isRecording && !cameraPermissionGranted && (
+                    <Button
+                      className="flex-1 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                      onClick={handleGrantCameraPermission}
+                    >
+                      <Camera className="w-5 h-5 mr-2" />
+                      Verify Responder
+                    </Button>
+                  )}
+                  {!isRecording && cameraPermissionGranted && (
+                    <Button
+                      className={`flex-1 h-12 rounded-xl transition-all duration-300 text-white ${
+                        faceDetected
+                          ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
+                          : 'bg-gray-600 cursor-not-allowed'
+                      }`}
+                      disabled={!faceDetected}
+                      onClick={handleStartRecording}
+                    >
+                      <Video className="w-5 h-5 mr-2" />
+                      {faceDetected ? 'Confirm & Retrieve Critical Data' : 'Waiting...'}
+                    </Button>
                   )}
                 </div>
               </div>

@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
+import { useSettingsStore } from '@/store/settings'
+import { authApi } from '@/lib/api'
+import { getRoleHomePath } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Building2 } from 'lucide-react'
 
@@ -55,6 +58,33 @@ function ScrollToTop() {
   return null
 }
 
+function GlobalRuntimeSync() {
+  const { fontSize, highContrast, language } = useSettingsStore()
+  const { isAuthenticated, token, _hasHydrated, updateUser } = useAuthStore()
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.setAttribute('data-font-size', fontSize)
+    root.lang = language === 'ms' ? 'ms' : language === 'zh' ? 'zh' : 'en'
+    root.classList.toggle('high-contrast', highContrast)
+  }, [fontSize, highContrast, language])
+
+  useEffect(() => {
+    if (!_hasHydrated || !isAuthenticated || !token) return
+    let active = true
+    authApi.me().then((res) => {
+      if (active && res.success && res.data?.user) {
+        updateUser(res.data.user)
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [_hasHydrated, isAuthenticated, token, updateUser])
+
+  return null
+}
+
 function PremiumLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -93,8 +123,14 @@ function PremiumLoader() {
   )
 }
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore()
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode
+  allowedRoles?: string[]
+}) {
+  const { isAuthenticated, user, isHospitalVerified, _hasHydrated } = useAuthStore()
 
   if (!_hasHydrated) {
     return <PremiumLoader />
@@ -105,7 +141,11 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />
+    return <Navigate to={getRoleHomePath(user.role, isHospitalVerified)} replace />
+  }
+
+  if ((user.role === 'doctor' || user.role === 'hospital_admin') && !isHospitalVerified) {
+    return <Navigate to="/verify" replace />
   }
 
   return <>{children}</>
@@ -136,6 +176,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <GlobalRuntimeSync />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />

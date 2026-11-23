@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
-import { Button } from '@/components/ui/button'
+import { authApi } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import {
-  Search, LogOut, User, Menu, X, Bell, Settings, ChevronDown, MapPin, Clock, Shield
+  LogOut, User, Menu, X, ChevronDown, MapPin, Clock, Shield
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -14,6 +14,9 @@ import {
   formatStaffDisplayName,
   formatStaffSubtitle,
   LiveClock,
+  QuickCommandTrigger,
+  ActivityNotificationsPopover,
+  PortalPreferencesInline,
 } from './shared'
 
 export default function KLGeneralLayout() {
@@ -27,6 +30,7 @@ export default function KLGeneralLayout() {
   const navSections = getHospitalNavSections(user?.role)
 
   const handleLogout = () => {
+    authApi.logout().catch(() => {})
     logout()
     navigate('/login')
   }
@@ -34,7 +38,7 @@ export default function KLGeneralLayout() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-white border-b border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between h-full px-4">
+        <div className="flex items-center justify-between h-full px-4 gap-3">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -57,22 +61,19 @@ export default function KLGeneralLayout() {
               </div>
             </div>
 
-            <div className="hidden lg:flex items-center gap-2 ml-6 pl-6 border-l border-slate-200">
+            <div className="hidden xl:flex items-center gap-2 ml-4 pl-4 border-l border-slate-200">
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-medium">
                 {user?.role === 'doctor' ? 'Doctor Portal' : 'Admin Portal'}
               </Badge>
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-slate-600 gap-2">
-              <Search className="w-4 h-4" />
-              Quick Search
-              <kbd className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-xs text-slate-500">⌘K</kbd>
-            </Button>
+          <div className="hidden lg:flex items-center gap-3">
+            <QuickCommandTrigger />
+            <PortalPreferencesInline />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-slate-50 rounded-md border border-slate-200">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -85,13 +86,7 @@ export default function KLGeneralLayout() {
               </div>
             </div>
 
-            <button
-              className="relative p-2 hover:bg-slate-100 rounded-md transition-colors"
-              aria-label="View notifications"
-            >
-              <Bell className="w-5 h-5 text-slate-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+            <ActivityNotificationsPopover />
 
             <div className="relative">
               <button
@@ -112,28 +107,30 @@ export default function KLGeneralLayout() {
 
               <AnimatePresence>
                 {showProfileMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50"
-                  >
-                    <div className="px-4 py-3 border-b border-slate-100">
-                      <p className="text-sm font-medium text-slate-900">{user?.fullName}</p>
-                      <p className="text-xs text-slate-500">{user?.icNumber}</p>
-                    </div>
-                    <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
-                      <Settings className="w-4 h-4" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50"
                     >
-                      <LogOut className="w-4 h-4" />
-                      Logout
-                    </button>
-                  </motion.div>
+                      <div className="px-4 py-3 border-b border-slate-100">
+                        <p className="text-sm font-medium text-slate-900">{user?.fullName}</p>
+                        <p className="text-xs text-slate-500 font-mono">{user?.icNumber}</p>
+                      </div>
+                      <div className="px-4 py-2.5 border-b border-slate-100 lg:hidden">
+                        <PortalPreferencesInline />
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </motion.div>
+                  </>
                 )}
               </AnimatePresence>
             </div>
@@ -149,7 +146,7 @@ export default function KLGeneralLayout() {
       >
         <div className="flex flex-col h-full overflow-hidden">
           <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
-            {navSections.map((section, sectionIndex) => (
+            {navSections.map((section) => (
               <div key={section.title}>
                 {sidebarOpen && (
                   <div className="px-3 mb-3 mt-4 first:mt-0">
@@ -163,45 +160,39 @@ export default function KLGeneralLayout() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  {section.items.map((item, index) => {
+                  {section.items.map((item) => {
                     const Icon = item.icon
                     const isActive = location.pathname === item.path
                     return (
-                      <motion.div
+                      <Link
                         key={item.path}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.03 * (sectionIndex * 3 + index) }}
+                        to={item.path}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group',
+                          isActive
+                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-l-4 border-blue-600 shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        )}
+                        title={!sidebarOpen ? item.label : undefined}
                       >
-                        <Link
-                          to={item.path}
+                        <div
                           className={cn(
-                            'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group',
-                            isActive
-                              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-l-3 border-blue-600 shadow-sm'
-                              : 'text-slate-600 hover:bg-slate-50'
+                            'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors',
+                            isActive ? 'bg-blue-100' : 'bg-slate-100 group-hover:bg-slate-200'
                           )}
-                          title={!sidebarOpen ? item.label : undefined}
                         >
-                          <div
-                            className={cn(
-                              'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors',
-                              isActive ? 'bg-blue-100' : 'bg-slate-100 group-hover:bg-slate-200'
-                            )}
-                          >
-                            <Icon className={cn('w-5 h-5', isActive ? 'text-blue-600' : 'text-slate-500')} />
+                          <Icon className={cn('w-5 h-5', isActive ? 'text-blue-600' : 'text-slate-500')} />
+                        </div>
+                        {sidebarOpen && (
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium">{item.label}</span>
+                            <p className="text-xs text-slate-400 truncate">{item.labelMY}</p>
                           </div>
-                          {sidebarOpen && (
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium">{item.label}</span>
-                              <p className="text-xs text-slate-400 truncate">{item.labelMY}</p>
-                            </div>
-                          )}
-                          {isActive && sidebarOpen && (
-                            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                          )}
-                        </Link>
-                      </motion.div>
+                        )}
+                        {isActive && sidebarOpen && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                        )}
+                      </Link>
                     )
                   })}
                 </div>

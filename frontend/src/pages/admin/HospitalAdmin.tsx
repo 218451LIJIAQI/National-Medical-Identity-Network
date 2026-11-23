@@ -1,343 +1,402 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth'
-import { hospitalApi, centralApi } from '@/lib/api'
-import { deduplicateByWindow, formatTimeAgo } from '@/lib/utils'
-import { Users, FileText, Activity, Building2, Loader2, Shield, TrendingUp, Clock, CheckCircle, Server, Database, Wifi, ArrowRight } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { hospitalApi, centralApi, type HospitalDetailResponse } from '@/lib/api'
+import { formatActorDisplayName, formatTimeAgo } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
+import {
+  Building2,
+  Users,
+  FileText,
+  Stethoscope,
+  Activity,
+  CheckCircle2,
+  MapPin,
+  Phone,
+  Mail,
+  ArrowRight,
+  Zap,
+  Shield,
+  Database,
+  RefreshCw,
+  Sparkles,
+  Bed,
+  Package,
+  DollarSign,
+  AlertCircle,
+} from 'lucide-react'
+import { motion } from 'framer-motion'
 
-interface HospitalStats {
-  totalPatients: number
-  totalRecords: number
-  totalDoctors: number
-  todayVisits?: number
-}
-
-interface HospitalInfo {
+interface ActivityItem {
   id: string
-  name: string
-  city: string
-}
-
-interface RecentActivity {
   action: string
-  user: string
+  doctor: string
+  patient: string
   time: string
-  type: 'create' | 'query' | 'upload' | 'update'
+  type: string
+  success: boolean
 }
 
-interface AuditLogEntry {
-  timestamp: string
-  actorId?: string
-  actorName?: string
-  actorHospitalId?: string
-  action?: string
-  targetIcNumber?: string
-  details?: string
-}
-
-export default function HospitalAdminDashboard() {
+export default function HospitalAdmin() {
   const { user } = useAuthStore()
-  const [stats, setStats] = useState<HospitalStats>({ totalPatients: 0, totalRecords: 0, totalDoctors: 0, todayVisits: 0 })
-  const [hospitalInfo, setHospitalInfo] = useState<HospitalInfo | null>(null)
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const navigate = useNavigate()
+  const [hospitalData, setHospitalData] = useState<HospitalDetailResponse | null>(null)
+  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const theme = getHospitalTheme(user?.hospitalId)
 
-  useEffect(() => {
-    async function loadData() {
-      if (!user?.hospitalId) return
-      try {
-        const [hospitalRes, logsRes] = await Promise.all([
-          hospitalApi.getHospital(user.hospitalId),
-          centralApi.getAuditLogs({ limit: 20 }),
-        ])
+  const loadData = useCallback(async () => {
+    if (!user?.hospitalId) return
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [hospitalRes, logsRes] = await Promise.all([
+        hospitalApi.getHospital(user.hospitalId),
+        centralApi.getAuditLogs({ limit: 25 }),
+      ])
 
-        if (hospitalRes.success && hospitalRes.data) {
-          const h = hospitalRes.data
-          setHospitalInfo({
-            id: h.id,
-            name: h.name,
-            city: h.city,
-          })
-          if (h.stats) {
-            setStats({
-              totalPatients: h.stats.totalPatients || 0,
-              totalRecords: h.stats.totalRecords || 0,
-              totalDoctors: h.stats.totalDoctors || 0,
-              todayVisits: h.stats.todayVisits || 0,
-            })
-          }
-        }
-
-        if (logsRes.success && logsRes.data) {
-          const hospitalLogs = (logsRes.data as unknown as AuditLogEntry[])
-            .filter((log) => log.actorHospitalId === user.hospitalId || !log.actorHospitalId)
-
-          const deduplicatedLogs = deduplicateByWindow(
-            hospitalLogs,
-            (a, b) => a.actorId === b.actorId && a.action === b.action && a.targetIcNumber === b.targetIcNumber
-          )
-
-          const activities = deduplicatedLogs.slice(0, 4).map((log) => {
-            let actionDesc = log.details || 'System action'
-            if (log.action === 'login') actionDesc = `${log.actorName || 'User'} logged in successfully`
-            else if (log.action === 'logout') actionDesc = `${log.actorName || 'User'} logged out`
-            else if (log.action === 'query') actionDesc = log.details || 'Cross-hospital query'
-            else if (log.action === 'view') actionDesc = log.details || 'Viewed patient record'
-            else if (log.action === 'create') actionDesc = log.details || 'Created new record'
-
-            return {
-              action: actionDesc,
-              user: log.actorName || 'System',
-              time: formatTimeAgo(log.timestamp),
-              type: log.action === 'query' ? 'query' as const : 'create' as const,
-            }
-          })
-          setRecentActivity(activities)
-        }
-      } catch (error) {
-        console.error('Failed to load hospital data:', error)
-      } finally {
-        setLoading(false)
+      if (hospitalRes.success && hospitalRes.data) {
+        setHospitalData(hospitalRes.data)
+      } else {
+        setLoadError(hospitalRes.error || 'Failed to load hospital profile and statistics.')
       }
+
+      if (logsRes.success && logsRes.data) {
+        const actionLabels: Record<string, string> = {
+          query: 'Cross-Hospital Query',
+          view: 'Medical Record Viewed',
+          create: 'Medical Record Created',
+          update: 'Record / Consent Updated',
+          login: 'Staff Login',
+          logout: 'Staff Logout',
+          emergency_access: 'Emergency Break-Glass',
+        }
+        setRecentActivities(
+          logsRes.data.slice(0, 6).map((log) => ({
+            id: String(log.id || ''),
+            action: actionLabels[String(log.action)] || String(log.action),
+            doctor: formatActorDisplayName(
+              log.actorName ? String(log.actorName) : undefined,
+              log.actorId ? String(log.actorId) : undefined,
+              log.actorType ? String(log.actorType) : undefined
+            ),
+            patient: log.targetIcNumber ? `IC: ${String(log.targetIcNumber)}` : 'Hospital Portal',
+            time: formatTimeAgo(String(log.timestamp)),
+            type: String(log.action || 'view'),
+            success: Boolean(log.success),
+          }))
+        )
+      }
+    } catch {
+      setLoadError('Network error while loading hospital administration data.')
+    } finally {
+      setLoading(false)
     }
-    loadData()
   }, [user?.hospitalId])
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  }
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-500">Loading hospital data...</p>
-        </div>
-      </div>
-    )
+  const stats = hospitalData?.stats || {
+    totalPatients: 0,
+    totalRecords: 0,
+    totalDoctors: 0,
+    todayVisits: 0,
   }
 
   return (
-    <motion.div
-      className="space-y-8"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      <motion.div
-        variants={itemVariants}
-        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+      <div
+        className="relative overflow-hidden rounded-3xl p-8 text-white shadow-2xl"
+        style={{
+          background: `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.secondaryColor}dd 50%, #1e293b 100%)`,
+        }}
       >
-        <motion.div
-          className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-        />
-        <motion.div
-          className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"
-          animate={{ scale: [1.2, 1, 1.2] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        />
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full filter blur-3xl" />
+        </div>
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-4 mb-4">
-            <motion.div
-              className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg"
-              whileHover={{ scale: 1.1, rotate: 5 }}
-            >
-              <Building2 className="w-9 h-9 drop-shadow" />
-            </motion.div>
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-start gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-xl shrink-0">
+              <Building2 className="h-10 w-10 text-white" />
+            </div>
             <div>
-              <Badge variant="glass" className="mb-2">🏥 Hospital Administrator</Badge>
-              <h1 className="text-4xl font-bold drop-shadow-lg">{hospitalInfo?.name || 'Hospital'}</h1>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-sm mb-2">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+                Connected to MedLink MY Network
+              </div>
+              <h1 className="text-3xl font-bold">{hospitalData?.name || theme.name}</h1>
+              <p className="text-white/80 mt-1 flex items-center gap-4 flex-wrap text-sm">
+                {hospitalData && (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4" />
+                      {hospitalData.city}, {hospitalData.state}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-4 w-4" />
+                      {hospitalData.phone}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-4 w-4" />
+                      {hospitalData.email}
+                    </span>
+                  </>
+                )}
+              </p>
             </div>
           </div>
-          <p className="text-white/80 max-w-xl mb-6">
-            Manage your hospital's medical records and monitor network connectivity with the National Medical Identity Network.
-          </p>
+
           <div className="flex gap-3">
-            <Link to="/admin/audit">
-              <Button variant="outline" className="bg-white/90 hover:bg-white border-white/50 gap-2" style={{ color: theme.primaryColor }}>
-                <Shield className="w-4 h-4" />
-                View Audit Logs
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            <Button
+              variant="secondary"
+              onClick={() => void loadData()}
+              disabled={loading}
+              className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur-sm gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => navigate('/admin/audit')}
+              className="bg-white text-gray-900 hover:bg-gray-100 shadow-lg gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Hospital Audit Logs
+            </Button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {loadError && (
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between gap-3 text-red-700 text-sm">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {loadError}
+          </span>
+          <Button size="sm" variant="outline" onClick={() => void loadData()}>
+            Retry
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           {
-            label: 'Total Patients',
-            value: stats.totalPatients.toLocaleString(),
+            title: 'Registered Patients',
+            value: stats.totalPatients,
+            subtitle: 'Local hospital database',
             icon: Users,
-            gradient: 'from-blue-500 to-blue-600',
-            change: '+12 this week',
-            changeType: 'up'
+            gradient: 'from-blue-500 to-indigo-600',
+            footer: 'PostgreSQL verified',
           },
           {
-            label: 'Medical Records',
-            value: stats.totalRecords.toLocaleString(),
+            title: 'Medical Records',
+            value: stats.totalRecords,
+            subtitle: `${stats.todayVisits ?? 0} visits recorded today`,
             icon: FileText,
-            gradient: 'from-emerald-500 to-emerald-600',
-            change: '+45 this week',
-            changeType: 'up'
+            gradient: 'from-emerald-500 to-teal-600',
+            footer: 'Federated index linked',
           },
           {
-            label: 'Visits Today',
-            value: stats.todayVisits || 0,
-            icon: Activity,
-            gradient: 'from-violet-500 to-violet-600',
-            change: 'Today\'s activity',
-            changeType: 'up'
-          },
-          {
-            label: 'Active Doctors',
+            title: 'Active Doctors',
             value: stats.totalDoctors,
-            icon: Users,
-            gradient: 'from-amber-500 to-amber-600',
-            change: 'Currently online',
-            changeType: 'status'
+            subtitle: 'Credentialed clinicians',
+            icon: Stethoscope,
+            gradient: 'from-purple-500 to-pink-600',
+            footer: 'MMC licensed',
           },
-        ].map((stat) => (
+          {
+            title: 'Hospital Bed Capacity',
+            value: theme.bedCount,
+            subtitle: `${theme.departments} clinical departments`,
+            icon: Zap,
+            gradient: 'from-amber-500 to-orange-600',
+            footer: 'Facility baseline',
+          },
+        ].map((stat, i) => (
           <motion.div
-            key={stat.label}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            key={stat.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
           >
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-              <div className={`h-1 bg-gradient-to-r ${stat.gradient}`} />
-              <CardContent className="pt-5">
+            <Card className="border-0 shadow-xl hover:shadow-2xl transition-all overflow-hidden group">
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
-                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      {stat.changeType === 'up' && <TrendingUp className="w-3 h-3 text-emerald-500" />}
-                      {stat.changeType === 'status' && <Clock className="w-3 h-3 text-amber-500" />}
-                      <span className={`text-xs ${stat.changeType === 'up' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {stat.change}
-                      </span>
-                    </div>
+                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                      {loading ? '-' : stat.value}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{stat.subtitle}</p>
                   </div>
-                  <div className={`p-3 bg-gradient-to-br ${stat.gradient} rounded-xl shadow-lg`}>
-                    <stat.icon className="w-6 h-6 text-white" />
+                  <div className={`p-3 rounded-2xl bg-gradient-to-br ${stat.gradient} text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                    <stat.icon className="h-6 w-6" />
                   </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    {stat.footer}
+                  </span>
+                  <Sparkles className="h-4 w-4 text-gray-300" />
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         ))}
-      </motion.div>
+      </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <motion.div variants={itemVariants}>
-          <Card className="border-0 shadow-lg h-full">
-            <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-                  <div className="absolute inset-0 w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Hospital Operations Suite</h2>
+            <p className="text-sm text-gray-500">
+              Manage staff roster, departments, inpatient wards, medical inventory, and financial summaries
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[
+            { label: 'Staff Roster', desc: 'Doctors & support staff', icon: Users, path: '/admin/staff', color: 'text-blue-600 bg-blue-50' },
+            { label: 'Departments', desc: 'Units & operating status', icon: Building2, path: '/admin/departments', color: 'text-indigo-600 bg-indigo-50' },
+            { label: 'Bed Capacity', desc: 'Ward admissions & beds', icon: Bed, path: '/admin/beds', color: 'text-emerald-600 bg-emerald-50' },
+            { label: 'Inventory', desc: 'Pharmacy & supply stock', icon: Package, path: '/admin/inventory', color: 'text-amber-600 bg-amber-50' },
+            { label: 'Financials', desc: 'Subsidies & revenue', icon: DollarSign, path: '/admin/finance', color: 'text-purple-600 bg-purple-50' },
+          ].map((item) => (
+            <Card
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className="border-0 shadow-md hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <CardContent className="p-5 flex flex-col justify-between h-full">
+                <div className={`w-11 h-11 rounded-xl ${item.color} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                  <item.icon className="h-5 w-5" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900">System Health</h2>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">All systems operational</p>
-            </div>
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                {[
-                  { name: 'Central Hub Connection', status: 'Connected', icon: Wifi, latency: '23ms' },
-                  { name: 'Database Status', status: 'Healthy', icon: Database, latency: '5ms' },
-                  { name: 'API Gateway', status: 'Online', icon: Server, latency: '12ms' },
-                  { name: 'Security Module', status: 'Active', icon: Shield, latency: '-' },
-                ].map((item, i) => (
-                  <motion.div
-                    key={item.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex items-center justify-between p-4 rounded-xl bg-emerald-50 border border-emerald-100"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-emerald-100 rounded-lg">
-                        <item.icon className="w-5 h-5 text-emerald-600" />
-                      </div>
-                      <span className="font-medium text-gray-900">{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {item.latency !== '-' && (
-                        <span className="text-xs text-gray-500">{item.latency}</span>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="w-4 h-4 text-emerald-500" />
-                        <span className="text-sm text-emerald-600 font-medium">{item.status}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                <div>
+                  <h3 className="font-bold text-gray-900 flex items-center justify-between">
+                    {item.label}
+                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
 
-        <motion.div variants={itemVariants}>
-          <Card className="border-0 shadow-lg h-full">
-            <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-              <p className="text-sm text-gray-500">Latest actions in your hospital</p>
-            </div>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {recentActivity.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    No recent activity
-                  </div>
-                ) : recentActivity.map((activity, i) => (
-                  <motion.div
-                    key={i}
-                    className="p-4 hover:bg-gray-50 transition-colors"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        activity.type === 'create' ? 'bg-blue-100' :
-                        activity.type === 'query' ? 'bg-violet-100' :
-                        activity.type === 'upload' ? 'bg-emerald-100' : 'bg-amber-100'
-                      }`}>
-                        <Activity className={`w-4 h-4 ${
-                          activity.type === 'create' ? 'text-blue-600' :
-                          activity.type === 'query' ? 'text-violet-600' :
-                          activity.type === 'upload' ? 'text-emerald-600' : 'text-amber-600'
-                        }`} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                        <p className="text-xs text-gray-500">{activity.user}</p>
-                      </div>
-                      <span className="text-xs text-gray-400">{activity.time}</span>
-                    </div>
-                  </motion.div>
-                ))}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 border-0 shadow-xl">
+          <div className="p-6 border-b flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-xl">
+                <Activity className="h-5 w-5 text-blue-600" />
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <div>
+                <h3 className="font-bold text-gray-900">Recent Hospital Activity</h3>
+                <p className="text-xs text-gray-500">Incoming & outgoing clinical events involving this facility</p>
+              </div>
+            </div>
+            <Badge variant="outline">Live Audit Trail</Badge>
+          </div>
+          <CardContent className="p-4 space-y-3">
+            {recentActivities.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">No recent hospital audit events recorded</p>
+            ) : (
+              recentActivities.map((activity, i) => (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`p-2.5 rounded-xl ${
+                        !activity.success
+                          ? 'bg-red-100 text-red-600'
+                          : activity.type === 'create'
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : activity.type === 'query'
+                              ? 'bg-purple-100 text-purple-600'
+                              : 'bg-blue-100 text-blue-600'
+                      }`}
+                    >
+                      {activity.type === 'create' ? (
+                        <FileText className="h-5 w-5" />
+                      ) : activity.type === 'query' ? (
+                        <Database className="h-5 w-5" />
+                      ) : (
+                        <Shield className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {activity.action}
+                        {!activity.success && (
+                          <span className="ml-2 text-xs text-red-600 font-medium">(Blocked)</span>
+                        )}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {activity.doctor} • <span className="font-mono text-xs">{activity.patient}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400">{activity.time}</span>
+                </motion.div>
+              ))
+            )}
+
+            <Button variant="ghost" className="w-full text-blue-600 mt-2" onClick={() => navigate('/admin/audit')}>
+              View All Hospital Logs <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-xl">
+          <div className="p-6 border-b">
+            <h3 className="font-bold text-gray-900">Network Connection</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Central Hub linkage & compliance status</p>
+          </div>
+          <CardContent className="p-6 space-y-4">
+            {[
+              { label: 'Central Index Link', status: 'Connected', ok: true },
+              { label: 'Local Hospital PostgreSQL', status: hospitalData ? 'Synced' : 'Pending', ok: Boolean(hospitalData) },
+              { label: 'Patient Privacy Enforcement', status: 'Active', ok: true },
+              { label: 'JWT & Hospital Scope Guard', status: 'Verified', ok: true },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+                <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                <Badge className={item.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {item.status}
+                </Badge>
+              </div>
+            ))}
+
+            <div className="pt-4 border-t">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
+                <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm">
+                  <Shield className="h-4 w-4" />
+                  Data Sovereignty Active
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  Clinical encounters remain stored in this hospital&apos;s isolated database. Only MyKad pointer references are indexed centrally.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </motion.div>
   )

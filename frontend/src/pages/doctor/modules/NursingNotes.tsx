@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useAuthStore } from '@/store/auth'
+import { useSessionState } from '@/lib/workstation-storage'
+import { WorkstationPatientBar, useWorkstationPatient } from '@/components/WorkstationPatientBar'
+import { useToast } from '@/components/ui/use-toast'
 import {
   Stethoscope, Plus, Clock, FileText, CheckCircle2,
-  AlertTriangle, Heart, Droplets,
-  User, Save, History, Edit3
+  AlertTriangle, Heart, Droplets, Save, History, Edit3
 } from 'lucide-react'
 
 interface VitalSigns {
@@ -28,16 +30,31 @@ interface NursingNote {
   priority: 'routine' | 'important' | 'urgent'
 }
 
-const mockVitalsHistory: VitalSigns[] = [
-  { timestamp: '2024-01-15 08:00', bp: '120/80', pulse: 72, temp: 36.5, rr: 16, spo2: 98, gcs: '15/15', painScore: 2, bloodSugar: 6.5, recordedBy: 'Nurse Fatimah' },
-  { timestamp: '2024-01-15 12:00', bp: '118/78', pulse: 74, temp: 36.8, rr: 18, spo2: 97, gcs: '15/15', painScore: 3, recordedBy: 'Nurse Siti' },
-  { timestamp: '2024-01-15 16:00', bp: '122/82', pulse: 70, temp: 36.6, rr: 16, spo2: 98, gcs: '15/15', painScore: 2, bloodSugar: 7.2, recordedBy: 'Nurse Ahmad' },
+interface IOEntry {
+  id: string
+  kind: 'input' | 'output'
+  category: string
+  volumeMl: number
+  timestamp: string
+}
+
+const INITIAL_VITALS: VitalSigns[] = [
+  { timestamp: '08:00', bp: '120/80', pulse: 72, temp: 36.5, rr: 16, spo2: 98, gcs: '15/15', painScore: 2, bloodSugar: 6.5, recordedBy: 'SN Fatimah' },
+  { timestamp: '12:00', bp: '118/78', pulse: 74, temp: 36.8, rr: 18, spo2: 97, gcs: '15/15', painScore: 3, recordedBy: 'SN Siti' },
+  { timestamp: '16:00', bp: '122/82', pulse: 70, temp: 36.6, rr: 16, spo2: 98, gcs: '15/15', painScore: 2, bloodSugar: 7.2, recordedBy: 'SN Ahmad' },
 ]
 
-const mockNotes: NursingNote[] = [
-  { id: '1', timestamp: '2024-01-15 08:30', type: 'assessment', content: 'Patient is conscious and oriented. No signs of distress. Surgical wound is dry and clean.', nurse: 'Nurse Fatimah', priority: 'routine' },
-  { id: '2', timestamp: '2024-01-15 10:00', type: 'intervention', content: 'Medication given as scheduled. IV drip running smoothly. Wound dressing done.', nurse: 'Nurse Fatimah', priority: 'routine' },
-  { id: '3', timestamp: '2024-01-15 14:00', type: 'evaluation', content: 'Patient complains of pain level 3/10 at wound area. PRN analgesia given.', nurse: 'Nurse Siti', priority: 'important' },
+const INITIAL_NOTES: NursingNote[] = [
+  { id: '1', timestamp: '08:30', type: 'assessment', content: 'Patient is conscious, alert, and oriented. Comfortable on room air.', nurse: 'SN Fatimah', priority: 'routine' },
+  { id: '2', timestamp: '10:00', type: 'intervention', content: 'Scheduled morning medications administered per MAR. IV cannula patent.', nurse: 'SN Fatimah', priority: 'routine' },
+  { id: '3', timestamp: '14:00', type: 'evaluation', content: 'Mild wound site discomfort 3/10; responded well to oral Paracetamol.', nurse: 'SN Siti', priority: 'important' },
+]
+
+const INITIAL_IO: IOEntry[] = [
+  { id: 'io-1', kind: 'input', category: 'Oral Fluids', volumeMl: 1200, timestamp: '08:00 - 16:00' },
+  { id: 'io-2', kind: 'input', category: 'IV Normal Saline', volumeMl: 1500, timestamp: '08:00 - 16:00' },
+  { id: 'io-3', kind: 'output', category: 'Urine Output', volumeMl: 1800, timestamp: '08:00 - 16:00' },
+  { id: 'io-4', kind: 'output', category: 'Surgical Drain', volumeMl: 150, timestamp: '08:00 - 16:00' },
 ]
 
 const NOTE_TYPE_CONFIG: Record<NursingNote['type'], { label: string; borderClass: string; badgeClass: string }> = {
@@ -55,25 +72,33 @@ interface NursingNotesProps {
 }
 
 export default function NursingNotes({
-  patientName = 'Ahmad bin Abdullah',
-  patientIC = '880515-14-5678',
+  patientName,
+  patientIC,
   ward = 'Ward 5A',
-  bedNumber = 'Bed 12'
+  bedNumber = 'Bed 12',
 }: NursingNotesProps) {
-  const [vitalsHistory, setVitalsHistory] = useState<VitalSigns[]>(mockVitalsHistory)
-  const [notes, setNotes] = useState<NursingNote[]>(mockNotes)
+  const { user } = useAuthStore()
+  const { toast } = useToast()
+  const { patient, lookupPatient, loading, lookupNotice } = useWorkstationPatient(patientName, patientIC)
+  const recorderName = user?.fullName || 'On-Duty Clinician'
+
+  const [vitalsHistory, setVitalsHistory] = useSessionState<VitalSigns[]>(`nursing-vitals:${patient.icNumber}`, INITIAL_VITALS)
+  const [notes, setNotes] = useSessionState<NursingNote[]>(`nursing-notes:${patient.icNumber}`, INITIAL_NOTES)
+  const [ioEntries, setIoEntries] = useSessionState<IOEntry[]>(`nursing-io:${patient.icNumber}`, INITIAL_IO)
+
   const [activeTab, setActiveTab] = useState<'vitals' | 'notes' | 'io'>('vitals')
   const [showNewVitals, setShowNewVitals] = useState(false)
   const [showNewNote, setShowNewNote] = useState(false)
 
-  const [newVitals, setNewVitals] = useState<Partial<VitalSigns>>({
-    bp: '',
-    pulse: 0,
-    temp: 36.5,
-    rr: 16,
-    spo2: 98,
+  const [newVitals, setNewVitals] = useState({
+    bp: '120/80',
+    pulse: '72',
+    temp: '36.6',
+    rr: '16',
+    spo2: '98',
     gcs: '15/15',
-    painScore: 0,
+    painScore: '0',
+    bloodSugar: '',
   })
 
   const [newNote, setNewNote] = useState({
@@ -82,490 +107,467 @@ export default function NursingNotes({
     priority: 'routine' as NursingNote['priority'],
   })
 
+  const [newIo, setNewIo] = useState({
+    kind: 'input' as 'input' | 'output',
+    category: 'Oral Fluids',
+    volumeMl: '250',
+  })
+
   const addVitals = () => {
     const vitals: VitalSigns = {
-      timestamp: new Date().toLocaleString('en-MY'),
-      bp: newVitals.bp || '',
-      pulse: newVitals.pulse || 0,
-      temp: newVitals.temp || 36.5,
-      rr: newVitals.rr || 16,
-      spo2: newVitals.spo2 || 98,
+      timestamp: new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }),
+      bp: newVitals.bp.trim() || '120/80',
+      pulse: Math.max(0, parseInt(newVitals.pulse, 10) || 72),
+      temp: Number.parseFloat(newVitals.temp) || 36.5,
+      rr: Math.max(0, parseInt(newVitals.rr, 10) || 16),
+      spo2: Math.min(100, Math.max(0, parseInt(newVitals.spo2, 10) || 98)),
       gcs: newVitals.gcs || '15/15',
-      painScore: newVitals.painScore || 0,
-      bloodSugar: newVitals.bloodSugar,
-      recordedBy: 'Current Nurse',
+      painScore: Math.min(10, Math.max(0, parseInt(newVitals.painScore, 10) || 0)),
+      bloodSugar: newVitals.bloodSugar ? Number.parseFloat(newVitals.bloodSugar) || undefined : undefined,
+      recordedBy: recorderName,
     }
-    setVitalsHistory([vitals, ...vitalsHistory])
+    setVitalsHistory((prev) => [vitals, ...prev])
     setShowNewVitals(false)
-    setNewVitals({ bp: '', pulse: 0, temp: 36.5, rr: 16, spo2: 98, gcs: '15/15', painScore: 0 })
+    toast({ title: 'Vital Signs Recorded', description: `BP ${vitals.bp}, SpO2 ${vitals.spo2}% logged` })
   }
 
   const addNote = () => {
+    if (!newNote.content.trim()) return
     const note: NursingNote = {
       id: `note-${Date.now()}`,
-      timestamp: new Date().toLocaleString('en-MY'),
+      timestamp: new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }),
       type: newNote.type,
-      content: newNote.content,
-      nurse: 'Current Nurse',
+      content: newNote.content.trim(),
+      nurse: recorderName,
       priority: newNote.priority,
     }
-    setNotes([note, ...notes])
+    setNotes((prev) => [note, ...prev])
     setShowNewNote(false)
     setNewNote({ type: 'assessment', content: '', priority: 'routine' })
+    toast({ title: 'Nursing Note Saved', description: `${NOTE_TYPE_CONFIG[note.type].label} note recorded` })
+  }
+
+  const addIoEntry = (e: React.FormEvent) => {
+    e.preventDefault()
+    const vol = Math.max(1, parseInt(newIo.volumeMl, 10) || 0)
+    if (!vol || !newIo.category.trim()) return
+    setIoEntries((prev) => [
+      ...prev,
+      {
+        id: `io-${Date.now()}`,
+        kind: newIo.kind,
+        category: newIo.category.trim(),
+        volumeMl: vol,
+        timestamp: new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }),
+      },
+    ])
+    setNewIo((prev) => ({ ...prev, volumeMl: '200' }))
+    toast({ title: 'I/O Chart Updated', description: `Recorded ${vol} ml (${newIo.kind})` })
   }
 
   const latestVitals = vitalsHistory[0]
+  const totalInput = ioEntries.filter((e) => e.kind === 'input').reduce((s, e) => s + e.volumeMl, 0)
+  const totalOutput = ioEntries.filter((e) => e.kind === 'output').reduce((s, e) => s + e.volumeMl, 0)
+  const netBalance = totalInput - totalOutput
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Nursing Records</h2>
-          <p className="text-gray-500">Nursing Documentation • Patient Care Notes</p>
+          <h2 className="text-2xl font-bold text-gray-800">Nursing Records & Charting</h2>
+          <p className="text-gray-500 text-sm">{ward} • {bedNumber} (session-persisted per patient IC)</p>
         </div>
-      </div>
-
-      <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-pink-100 rounded-full flex items-center justify-center">
-              <User className="w-7 h-7 text-pink-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-800 text-lg">{patientName}</p>
-              <div className="flex items-center gap-4 mt-1">
-                <code className="text-sm text-gray-600 bg-white px-2 py-0.5 rounded">{patientIC}</code>
-                <span className="text-sm text-pink-600 font-medium">{ward} • {bedNumber}</span>
-              </div>
-            </div>
+        {latestVitals && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-lg text-xs font-semibold text-pink-800">
+              Latest BP: {latestVitals.bp}
+            </span>
+            <span className="px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-lg text-xs font-semibold text-pink-800">
+              HR: {latestVitals.pulse} bpm
+            </span>
+            <span className="px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-lg text-xs font-semibold text-pink-800">
+              SpO2: {latestVitals.spo2}%
+            </span>
           </div>
-
-          {latestVitals && (
-            <div className="flex items-center gap-4">
-              <div className="text-center px-3 py-2 bg-white rounded-lg">
-                <p className="text-xs text-gray-500">BP</p>
-                <p className="font-bold text-gray-800">{latestVitals.bp}</p>
-              </div>
-              <div className="text-center px-3 py-2 bg-white rounded-lg">
-                <p className="text-xs text-gray-500">HR</p>
-                <p className="font-bold text-gray-800">{latestVitals.pulse}</p>
-              </div>
-              <div className="text-center px-3 py-2 bg-white rounded-lg">
-                <p className="text-xs text-gray-500">Temp</p>
-                <p className="font-bold text-gray-800">{latestVitals.temp}°C</p>
-              </div>
-              <div className="text-center px-3 py-2 bg-white rounded-lg">
-                <p className="text-xs text-gray-500">SpO2</p>
-                <p className="font-bold text-gray-800">{latestVitals.spo2}%</p>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      <WorkstationPatientBar
+        patient={patient}
+        onLookup={lookupPatient}
+        loading={loading}
+        notice={lookupNotice}
+        accentClass="from-pink-50 to-rose-50 border-pink-200"
+      />
 
       <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
         {[
           { id: 'vitals', label: 'Vital Signs', icon: Heart },
-          { id: 'notes', label: 'Notes', icon: FileText },
-          { id: 'io', label: 'I/O Chart', icon: Droplets },
-        ].map(tab => (
+          { id: 'notes', label: 'Nursing Notes', icon: FileText },
+          { id: 'io', label: '24h I/O Balance', icon: Droplets },
+        ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-pink-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all text-sm ${
+              activeTab === tab.id ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            <tab.icon className="w-5 h-5" />
+            <tab.icon className="w-4 h-4" />
             {tab.label}
           </button>
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'vitals' && (
-          <motion.div
-            key="vitals"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
-          >
-            <div className="flex justify-end">
-              <motion.button
-                onClick={() => setShowNewVitals(!showNewVitals)}
-                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-lg hover:bg-pink-700"
-                whileHover={{ scale: 1.02 }}
-              >
-                <Plus className="w-5 h-5" />
-                Record Vital Signs
-              </motion.button>
-            </div>
+      {activeTab === 'vitals' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowNewVitals(!showNewVitals)}
+              className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-md hover:bg-pink-700 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Record Vital Signs
+            </button>
+          </div>
 
-            <AnimatePresence>
-              {showNewVitals && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg"
-                >
-                  <h3 className="font-semibold text-gray-800 mb-4">New Vital Signs Record</h3>
-                  <div className="grid grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">BP (mmHg)</label>
-                      <input
-                        type="text"
-                        placeholder="120/80"
-                        value={newVitals.bp}
-                        onChange={(e) => setNewVitals({...newVitals, bp: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Pulse (bpm)</label>
-                      <input
-                        type="number"
-                        value={newVitals.pulse}
-                        onChange={(e) => setNewVitals({...newVitals, pulse: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Temp (°C)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={newVitals.temp}
-                        onChange={(e) => setNewVitals({...newVitals, temp: parseFloat(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">RR (/min)</label>
-                      <input
-                        type="number"
-                        value={newVitals.rr}
-                        onChange={(e) => setNewVitals({...newVitals, rr: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">SpO2 (%)</label>
-                      <input
-                        type="number"
-                        value={newVitals.spo2}
-                        onChange={(e) => setNewVitals({...newVitals, spo2: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">GCS</label>
-                      <input
-                        type="text"
-                        value={newVitals.gcs}
-                        onChange={(e) => setNewVitals({...newVitals, gcs: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Pain Score (0-10)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={newVitals.painScore}
-                        onChange={(e) => setNewVitals({...newVitals, painScore: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Blood Sugar (mmol/L)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={newVitals.bloodSugar || ''}
-                        onChange={(e) => setNewVitals({...newVitals, bloodSugar: parseFloat(e.target.value)})}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 mt-4">
-                    <button
-                      onClick={() => setShowNewVitals(false)}
-                      className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addVitals}
-                      className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2"
-                    >
-                      <Save className="w-4 h-4" />
-                      Save
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                <History className="w-5 h-5 text-pink-600" />
-                <h3 className="font-semibold text-gray-800">Vital Signs History</h3>
+          {showNewVitals && (
+            <div className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg">
+              <h3 className="font-semibold text-gray-800 mb-4">New Vital Signs Observation</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">BP (mmHg)</label>
+                  <input
+                    type="text"
+                    value={newVitals.bp}
+                    onChange={(e) => setNewVitals({ ...newVitals, bp: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pulse (bpm)</label>
+                  <input
+                    type="number"
+                    value={newVitals.pulse}
+                    onChange={(e) => setNewVitals({ ...newVitals, pulse: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Temp (°C)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newVitals.temp}
+                    onChange={(e) => setNewVitals({ ...newVitals, temp: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">RR (/min)</label>
+                  <input
+                    type="number"
+                    value={newVitals.rr}
+                    onChange={(e) => setNewVitals({ ...newVitals, rr: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">SpO2 (%)</label>
+                  <input
+                    type="number"
+                    value={newVitals.spo2}
+                    onChange={(e) => setNewVitals({ ...newVitals, spo2: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">GCS</label>
+                  <input
+                    type="text"
+                    value={newVitals.gcs}
+                    onChange={(e) => setNewVitals({ ...newVitals, gcs: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pain Score (0-10)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={newVitals.painScore}
+                    onChange={(e) => setNewVitals({ ...newVitals, painScore: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Blood Sugar (mmol/L)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newVitals.bloodSugar}
+                    onChange={(e) => setNewVitals({ ...newVitals, bloodSugar: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Time</th>
-                      <th className="px-4 py-3 text-center">BP</th>
-                      <th className="px-4 py-3 text-center">Pulse</th>
-                      <th className="px-4 py-3 text-center">Temp</th>
-                      <th className="px-4 py-3 text-center">RR</th>
-                      <th className="px-4 py-3 text-center">SpO2</th>
-                      <th className="px-4 py-3 text-center">GCS</th>
-                      <th className="px-4 py-3 text-center">Pain</th>
-                      <th className="px-4 py-3 text-center">BSL</th>
-                      <th className="px-4 py-3 text-left">Recorded By</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {vitalsHistory.map((v, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-600">{v.timestamp}</td>
-                        <td className="px-4 py-3 text-center font-medium">{v.bp}</td>
-                        <td className="px-4 py-3 text-center">{v.pulse}</td>
-                        <td className="px-4 py-3 text-center">{v.temp}°C</td>
-                        <td className="px-4 py-3 text-center">{v.rr}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={v.spo2 < 95 ? 'text-red-600 font-bold' : ''}>{v.spo2}%</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">{v.gcs}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${
-                            v.painScore >= 7 ? 'bg-red-100 text-red-700' :
-                            v.painScore >= 4 ? 'bg-amber-100 text-amber-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {v.painScore}/10
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">{v.bloodSugar || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{v.recordedBy}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setShowNewVitals(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">
+                  Cancel
+                </button>
+                <button onClick={addVitals} className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2 text-sm">
+                  <Save className="w-4 h-4" />
+                  Save Vitals
+                </button>
               </div>
             </div>
-          </motion.div>
-        )}
+          )}
 
-        {activeTab === 'notes' && (
-          <motion.div
-            key="notes"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
-          >
-            <div className="flex justify-end">
-              <motion.button
-                onClick={() => setShowNewNote(!showNewNote)}
-                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-lg hover:bg-pink-700"
-                whileHover={{ scale: 1.02 }}
-              >
-                <Edit3 className="w-5 h-5" />
-                Add Note
-              </motion.button>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <History className="w-5 h-5 text-pink-600" />
+              <h3 className="font-semibold text-gray-800">Vital Signs Flowsheet</h3>
             </div>
-
-            <AnimatePresence>
-              {showNewNote && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg"
-                >
-                  <h3 className="font-semibold text-gray-800 mb-4">New Nursing Note</h3>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Note Type</label>
-                        <select
-                          value={newNote.type}
-                          onChange={(e) => setNewNote({...newNote, type: e.target.value as NursingNote['type']})}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                        >
-                          <option value="assessment">Assessment</option>
-                          <option value="intervention">Intervention</option>
-                          <option value="evaluation">Evaluation</option>
-                          <option value="handover">Handover</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Priority</label>
-                        <select
-                          value={newNote.priority}
-                          onChange={(e) => setNewNote({...newNote, priority: e.target.value as NursingNote['priority']})}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500"
-                        >
-                          <option value="routine">Routine</option>
-                          <option value="important">Important</option>
-                          <option value="urgent">Urgent</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Notes</label>
-                      <textarea
-                        value={newNote.content}
-                        onChange={(e) => setNewNote({...newNote, content: e.target.value})}
-                        placeholder="Enter nursing notes..."
-                        className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 resize-none h-32"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 mt-4">
-                    <button
-                      onClick={() => setShowNewNote(false)}
-                      className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addNote}
-                      disabled={!newNote.content}
-                      className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <Save className="w-4 h-4" />
-                      Save
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="space-y-4">
-              {notes.map((note, idx) => {
-                const typeStyle = NOTE_TYPE_CONFIG[note.type]
-                return (
-                  <motion.div
-                    key={note.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className={`p-5 bg-white rounded-xl border-l-4 ${typeStyle.borderClass} shadow-sm`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 ${typeStyle.badgeClass} text-xs font-semibold rounded-full`}>
-                          {typeStyle.label}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Time</th>
+                    <th className="px-4 py-3 text-center">BP</th>
+                    <th className="px-4 py-3 text-center">Pulse</th>
+                    <th className="px-4 py-3 text-center">Temp</th>
+                    <th className="px-4 py-3 text-center">RR</th>
+                    <th className="px-4 py-3 text-center">SpO2</th>
+                    <th className="px-4 py-3 text-center">GCS</th>
+                    <th className="px-4 py-3 text-center">Pain</th>
+                    <th className="px-4 py-3 text-center">BSL</th>
+                    <th className="px-4 py-3 text-left">Recorded By</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {vitalsHistory.map((v, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-600">{v.timestamp}</td>
+                      <td className="px-4 py-3 text-center font-medium">{v.bp}</td>
+                      <td className="px-4 py-3 text-center">{v.pulse}</td>
+                      <td className="px-4 py-3 text-center">{v.temp}°C</td>
+                      <td className="px-4 py-3 text-center">{v.rr}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={v.spo2 < 95 ? 'text-red-600 font-bold' : ''}>{v.spo2}%</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">{v.gcs}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          v.painScore >= 7 ? 'bg-red-100 text-red-700' : v.painScore >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {v.painScore}/10
                         </span>
-                        {note.priority === 'urgent' && (
-                          <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
-                            URGENT
-                          </span>
-                        )}
-                        {note.priority === 'important' && (
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
-                            IMPORTANT
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Clock className="w-4 h-4" />
-                        {note.timestamp}
-                      </div>
-                    </div>
-                    <p className="text-gray-700 leading-relaxed">{note.content}</p>
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-sm text-gray-500">
-                      <Stethoscope className="w-4 h-4" />
-                      <span>{note.nurse}</span>
-                    </div>
-                  </motion.div>
-                )
-              })}
+                      </td>
+                      <td className="px-4 py-3 text-center">{v.bloodSugar ?? '-'}</td>
+                      <td className="px-4 py-3 text-gray-600">{v.recordedBy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </motion.div>
-        )}
+          </div>
+        </div>
+      )}
 
-        {activeTab === 'io' && (
-          <motion.div
-            key="io"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-white rounded-xl border border-gray-200 shadow-sm p-6"
-          >
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+      {activeTab === 'notes' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowNewNote(!showNewNote)}
+              className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl font-medium shadow-md hover:bg-pink-700 text-sm"
+            >
+              <Edit3 className="w-4 h-4" />
+              Add Nursing Note
+            </button>
+          </div>
+
+          {showNewNote && (
+            <div className="p-6 bg-white rounded-xl border-2 border-pink-200 shadow-lg space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Note Type</label>
+                  <select
+                    value={newNote.type}
+                    onChange={(e) => setNewNote({ ...newNote, type: e.target.value as NursingNote['type'] })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  >
+                    <option value="assessment">Assessment</option>
+                    <option value="intervention">Intervention</option>
+                    <option value="evaluation">Evaluation</option>
+                    <option value="handover">Shift Handover</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
+                  <select
+                    value={newNote.priority}
+                    onChange={(e) => setNewNote({ ...newNote, priority: e.target.value as NursingNote['priority'] })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  >
+                    <option value="routine">Routine</option>
+                    <option value="important">Important</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+              <textarea
+                value={newNote.content}
+                onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                placeholder="Document clinical observation, nursing action, or shift handover..."
+                className="w-full p-3 border border-gray-200 rounded-lg resize-none h-28 text-sm"
+              />
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowNewNote(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={addNote}
+                  disabled={!newNote.content.trim()}
+                  className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2 disabled:opacity-50 text-sm"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Note
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {notes.map((note) => {
+              const typeStyle = NOTE_TYPE_CONFIG[note.type]
+              return (
+                <div key={note.id} className={`p-5 bg-white rounded-xl border-l-4 ${typeStyle.borderClass} shadow-sm border`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-0.5 ${typeStyle.badgeClass} text-xs font-semibold rounded-full`}>
+                        {typeStyle.label}
+                      </span>
+                      {note.priority === 'urgent' && (
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> URGENT
+                        </span>
+                      )}
+                      {note.priority === 'important' && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                          IMPORTANT
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> {note.timestamp}
+                    </span>
+                  </div>
+                  <p className="text-gray-700 text-sm leading-relaxed">{note.content}</p>
+                  <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
+                    <Stethoscope className="w-3.5 h-3.5" />
+                    <span>{note.nurse}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'io' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">
               <Droplets className="w-5 h-5 text-blue-500" />
-              Input/Output Chart (24 Hours)
+              24-Hour Fluid Input / Output Chart
             </h3>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="p-4 bg-blue-50 rounded-xl">
-                <h4 className="font-semibold text-blue-800 mb-3">INPUT</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between py-2 border-b border-blue-200">
-                    <span className="text-gray-600">Oral</span>
-                    <span className="font-medium">1200 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-blue-200">
-                    <span className="text-gray-600">IV Fluid</span>
-                    <span className="font-medium">1500 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-blue-200">
-                    <span className="text-gray-600">Blood Products</span>
-                    <span className="font-medium">0 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 font-bold text-blue-800">
-                    <span>TOTAL INPUT</span>
-                    <span>2700 ml</span>
-                  </div>
-                </div>
-              </div>
+            <form onSubmit={addIoEntry} className="flex flex-wrap items-center gap-2">
+              <select
+                value={newIo.kind}
+                onChange={(e) =>
+                  setNewIo({
+                    ...newIo,
+                    kind: e.target.value as 'input' | 'output',
+                    category: e.target.value === 'input' ? 'Oral Fluids' : 'Urine Output',
+                  })
+                }
+                className="px-3 py-1.5 border rounded-lg text-xs bg-white"
+              >
+                <option value="input">Input (+)</option>
+                <option value="output">Output (-)</option>
+              </select>
+              <input
+                type="text"
+                value={newIo.category}
+                onChange={(e) => setNewIo({ ...newIo, category: e.target.value })}
+                placeholder="Fluid type"
+                className="px-3 py-1.5 border rounded-lg text-xs w-36"
+              />
+              <input
+                type="number"
+                min={1}
+                value={newIo.volumeMl}
+                onChange={(e) => setNewIo({ ...newIo, volumeMl: e.target.value })}
+                placeholder="ml"
+                className="px-3 py-1.5 border rounded-lg text-xs w-24"
+              />
+              <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">
+                + Add ml
+              </button>
+            </form>
+          </div>
 
-              <div className="p-4 bg-amber-50 rounded-xl">
-                <h4 className="font-semibold text-amber-800 mb-3">OUTPUT</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between py-2 border-b border-amber-200">
-                    <span className="text-gray-600">Urine</span>
-                    <span className="font-medium">1800 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-amber-200">
-                    <span className="text-gray-600">Drain</span>
-                    <span className="font-medium">150 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b border-amber-200">
-                    <span className="text-gray-600">Vomitus / NG</span>
-                    <span className="font-medium">0 ml</span>
-                  </div>
-                  <div className="flex justify-between py-2 font-bold text-amber-800">
-                    <span>TOTAL OUTPUT</span>
-                    <span>1950 ml</span>
-                  </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="p-4 bg-blue-50 rounded-xl">
+              <h4 className="font-semibold text-blue-800 mb-3 text-sm">FLUID INPUT</h4>
+              <div className="space-y-2 text-sm">
+                {ioEntries
+                  .filter((e) => e.kind === 'input')
+                  .map((e) => (
+                    <div key={e.id} className="flex justify-between py-1.5 border-b border-blue-200/70">
+                      <span className="text-gray-700">{e.category} <span className="text-xs text-gray-400">({e.timestamp})</span></span>
+                      <span className="font-medium">{e.volumeMl} ml</span>
+                    </div>
+                  ))}
+                <div className="flex justify-between pt-2 font-bold text-blue-900">
+                  <span>TOTAL INPUT</span>
+                  <span>{totalInput} ml</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                  <span className="font-semibold text-gray-800">BALANCE (24 hours)</span>
+            <div className="p-4 bg-amber-50 rounded-xl">
+              <h4 className="font-semibold text-amber-800 mb-3 text-sm">FLUID OUTPUT</h4>
+              <div className="space-y-2 text-sm">
+                {ioEntries
+                  .filter((e) => e.kind === 'output')
+                  .map((e) => (
+                    <div key={e.id} className="flex justify-between py-1.5 border-b border-amber-200/70">
+                      <span className="text-gray-700">{e.category} <span className="text-xs text-gray-400">({e.timestamp})</span></span>
+                      <span className="font-medium">{e.volumeMl} ml</span>
+                    </div>
+                  ))}
+                <div className="flex justify-between pt-2 font-bold text-amber-900">
+                  <span>TOTAL OUTPUT</span>
+                  <span>{totalOutput} ml</span>
                 </div>
-                <span className="text-2xl font-bold text-emerald-600">+750 ml</span>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+
+          <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+              <span className="font-semibold text-gray-800">NET FLUID BALANCE (24h)</span>
+            </div>
+            <span className={`text-2xl font-bold ${netBalance >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {netBalance >= 0 ? `+${netBalance}` : netBalance} ml
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

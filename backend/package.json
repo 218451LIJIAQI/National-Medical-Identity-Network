@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "build": "tsc",
     "start": "node dist/index.js",
+    "test": "node tests/run-tests.cjs",
     "postinstall": "npm run multi:generate",
     "multi:generate": "prisma generate --schema=prisma/schema.central.prisma && prisma generate --schema=prisma/schema.hospital.prisma",
     "multi:push": "prisma db push --schema=prisma/schema.central.prisma --accept-data-loss && tsx scripts/push-hospital-schemas.ts",
@@ -26,7 +28,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^6.19.0",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

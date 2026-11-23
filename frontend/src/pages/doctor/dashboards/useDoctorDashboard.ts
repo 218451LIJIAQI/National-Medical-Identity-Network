@@ -7,6 +7,7 @@ import { formatTimeAgo, maskIC } from '@/lib/utils'
 export interface DoctorRecentActivity {
   patient: string
   ic: string
+  rawIc: string
   action: string
   time: string
   type: 'view' | 'create'
@@ -16,6 +17,9 @@ export interface DoctorDashboardStats {
   totalPatients: number
   activeHospitals: number
   todayQueries: number
+  yesterdayQueries: number
+  queryChangePercent: number
+  newHospitalsThisMonth: number
   avgResponseTime: number
 }
 
@@ -26,6 +30,9 @@ export function useDoctorDashboard(activityLimit = 5) {
     totalPatients: 0,
     activeHospitals: 0,
     todayQueries: 0,
+    yesterdayQueries: 0,
+    queryChangePercent: 0,
+    newHospitalsThisMonth: 0,
     avgResponseTime: 0,
   })
   const [recentActivity, setRecentActivity] = useState<DoctorRecentActivity[]>([])
@@ -49,12 +56,13 @@ export function useDoctorDashboard(activityLimit = 5) {
 
         if (logsRes.success && logsRes.data) {
           setRecentActivity(
-            logsRes.data.map(log => ({
+            logsRes.data.map((log) => ({
               patient: log.patientName || 'Patient',
               ic: log.targetIcNumber ? maskIC(log.targetIcNumber) : 'N/A',
+              rawIc: log.targetIcNumber || '',
               action: log.details || log.action || 'Query',
               time: formatTimeAgo(log.timestamp),
-              type: log.action === 'query' ? 'view' : 'create',
+              type: log.action === 'create' ? 'create' : 'view',
             }))
           )
         }

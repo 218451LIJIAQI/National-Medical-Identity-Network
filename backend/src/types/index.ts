@@ -1,3 +1,5 @@
+export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin';
+
 export interface Hospital {
   id: string;
   name: string;
@@ -53,14 +55,14 @@ export interface MedicalRecord {
 }
 
 export interface VitalSigns {
-  bloodPressureSystolic: number;
-  bloodPressureDiastolic: number;
-  heartRate: number;
-  temperature: number;
-  respiratoryRate: number;
-  oxygenSaturation: number;
-  weight: number;
-  height: number;
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  heartRate?: number;
+  temperature?: number;
+  respiratoryRate?: number;
+  oxygenSaturation?: number;
+  weight?: number;
+  height?: number;
 }
 
 export interface Prescription {
@@ -104,7 +106,7 @@ export interface Doctor {
 export interface User {
   id: string;
   icNumber: string;
-  role: 'patient' | 'doctor' | 'hospital_admin' | 'central_admin';
+  role: UserRole;
   hospitalId?: string;
   passwordHash: string;
   lastLogin?: string;
@@ -117,12 +119,26 @@ export interface PatientIndex {
   lastUpdated: string;
 }
 
+export type AuditAction =
+  | 'query'
+  | 'view'
+  | 'create'
+  | 'update'
+  | 'login'
+  | 'logout'
+  | 'emergency_access';
+
+export type AuditActorType =
+  | UserRole
+  | 'system'
+  | 'emergency';
+
 export interface AuditLog {
   id: string;
   timestamp: string;
-  action: 'query' | 'view' | 'create' | 'update' | 'login' | 'logout' | 'emergency_access';
+  action: AuditAction;
   actorId?: string;
-  actorType: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin' | 'system' | 'emergency';
+  actorType: AuditActorType;
   actorHospitalId?: string;
   targetIcNumber?: string;
   targetHospitalId?: string;
@@ -143,6 +159,7 @@ export interface QueryFlowStep {
 
 export interface CrossHospitalQueryResult {
   icNumber: string;
+  found: boolean;
   querySteps: QueryFlowStep[];
   hospitals: HospitalQueryResult[];
   totalRecords: number;
@@ -161,10 +178,17 @@ export interface HospitalQueryResult {
   error?: string;
 }
 
+export interface ActiveEmergencyMedication {
+  medicationName: string;
+  dosage: string;
+  frequency: string;
+  hospitalName: string;
+}
+
 export interface JwtPayload {
   userId: string;
   icNumber: string;
-  role: string;
+  role: UserRole;
   hospitalId?: string;
   iat?: number;
   exp?: number;

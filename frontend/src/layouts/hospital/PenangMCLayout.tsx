@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
+import { authApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LogOut, User, Menu, X, Leaf, Heart, Sun } from 'lucide-react'
@@ -11,6 +12,9 @@ import {
   getHospitalNavSections,
   formatStaffDisplayName,
   formatStaffSubtitle,
+  QuickCommandTrigger,
+  ActivityNotificationsPopover,
+  PortalPreferencesInline,
 } from './shared'
 
 export default function PenangMCLayout() {
@@ -29,6 +33,7 @@ export default function PenangMCLayout() {
   })()
 
   const handleLogout = () => {
+    authApi.logout().catch(() => {})
     logout()
     navigate('/login')
   }
@@ -46,11 +51,6 @@ export default function PenangMCLayout() {
           animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.6, 0.4] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
-        <motion.div
-          className="absolute top-1/2 left-1/3 w-64 h-64 bg-cyan-200/20 rounded-full blur-3xl"
-          animate={{ x: [0, 50, 0], y: [0, -30, 0] }}
-          transition={{ duration: 15, repeat: Infinity }}
-        />
       </div>
 
       <motion.aside
@@ -63,27 +63,19 @@ export default function PenangMCLayout() {
         onMouseLeave={() => setSidebarExpanded(false)}
       >
         <div className="p-4 flex items-center justify-center">
-          <motion.div
-            className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 shadow-lg"
-            whileHover={{ rotate: 10, scale: 1.1 }}
-            transition={{ type: 'spring', stiffness: 300 }}
-          >
+          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 shadow-lg">
             <Leaf className="w-6 h-6 text-white" />
-          </motion.div>
+          </div>
           {sidebarExpanded && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="ml-3"
-            >
+            <div className="ml-3">
               <span className="text-white font-bold text-sm">{theme.shortName}</span>
               <p className="text-white/60 text-xs">Medical Centre</p>
-            </motion.div>
+            </div>
           )}
         </div>
 
         <nav className="flex-1 py-4 flex flex-col gap-2 overflow-y-auto scrollbar-hide">
-          {navSections.map((section, sectionIndex) => {
+          {navSections.map((section) => {
             const SectionIcon = section.sectionIcon
             return (
               <div key={section.title} className="px-3">
@@ -98,49 +90,36 @@ export default function PenangMCLayout() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  {section.items.map((item, index) => {
+                  {section.items.map((item) => {
                     const Icon = item.icon
                     const isActive = location.pathname === item.path
                     return (
-                      <motion.div
+                      <Link
                         key={item.path}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.05 * (sectionIndex * 3 + index) }}
+                        to={item.path}
+                        className={cn(
+                          'flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group',
+                          isActive
+                            ? 'bg-white/25 text-white shadow-lg backdrop-blur-sm'
+                            : 'text-white/70 hover:bg-white/10 hover:text-white'
+                        )}
+                        title={!sidebarExpanded ? item.label : undefined}
                       >
-                        <Link
-                          to={item.path}
+                        <div
                           className={cn(
-                            'flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group',
-                            isActive
-                              ? 'bg-white/25 text-white shadow-lg backdrop-blur-sm'
-                              : 'text-white/70 hover:bg-white/10 hover:text-white'
+                            'w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0',
+                            isActive ? 'bg-white/20' : 'group-hover:bg-white/10'
                           )}
-                          title={!sidebarExpanded ? item.label : undefined}
                         >
-                          <motion.div
-                            whileHover={{ scale: 1.2, rotate: 5 }}
-                            className={cn(
-                              'w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0',
-                              isActive ? 'bg-white/20' : 'group-hover:bg-white/10'
-                            )}
-                          >
-                            <Icon className="w-5 h-5" />
-                          </motion.div>
-                          {sidebarExpanded && (
-                            <motion.span
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              className="font-medium whitespace-nowrap"
-                            >
-                              {item.shortLabel}
-                            </motion.span>
-                          )}
-                          {isActive && sidebarExpanded && (
-                            <div className="w-2 h-2 bg-white rounded-full animate-pulse ml-auto" />
-                          )}
-                        </Link>
-                      </motion.div>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        {sidebarExpanded && (
+                          <span className="font-medium whitespace-nowrap">{item.shortLabel}</span>
+                        )}
+                        {isActive && sidebarExpanded && (
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse ml-auto" />
+                        )}
+                      </Link>
                     )
                   })}
                 </div>
@@ -150,36 +129,33 @@ export default function PenangMCLayout() {
         </nav>
 
         <div className="p-4 space-y-3">
-          <motion.div
+          <div
             className={cn(
               'p-3 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20',
               sidebarExpanded ? 'flex items-center gap-3' : 'flex justify-center'
             )}
-            whileHover={{ scale: 1.02 }}
           >
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
               <User className="w-5 h-5 text-white" />
             </div>
             {sidebarExpanded && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-w-0">
+              <div className="min-w-0">
                 <p className="text-white text-sm font-medium truncate">{displayName}</p>
                 <p className="text-white/60 text-xs truncate">{formatStaffSubtitle(user)}</p>
-              </motion.div>
+              </div>
             )}
-          </motion.div>
+          </div>
 
-          <motion.button
+          <button
             onClick={handleLogout}
             className={cn(
               'w-full p-3 text-white/70 hover:bg-red-500/20 hover:text-red-200 rounded-2xl transition-all',
               sidebarExpanded ? 'flex items-center gap-3' : 'flex justify-center'
             )}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
             <LogOut className="w-5 h-5" />
             {sidebarExpanded && <span className="font-medium">Logout</span>}
-          </motion.button>
+          </button>
         </div>
       </motion.aside>
 
@@ -204,11 +180,10 @@ export default function PenangMCLayout() {
         </div>
 
         {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/95 backdrop-blur-xl border-b border-emerald-100 p-4 shadow-xl max-h-[80vh] overflow-y-auto"
-          >
+          <div className="bg-white/95 backdrop-blur-xl border-b border-emerald-100 p-4 shadow-xl max-h-[80vh] overflow-y-auto">
+            <div className="mb-4">
+              <PortalPreferencesInline />
+            </div>
             {navSections.map((section) => {
               const SectionIcon = section.sectionIcon
               return (
@@ -248,40 +223,32 @@ export default function PenangMCLayout() {
               <LogOut className="w-5 h-5 mr-3" />
               Logout
             </Button>
-          </motion.div>
+          </div>
         )}
       </div>
 
       <main className="lg:pl-20 pt-16 lg:pt-0 min-h-screen relative z-10">
         <div className="p-6 lg:p-10">
-          <motion.div
-            className="mb-8 flex items-center justify-between"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Sun className="w-5 h-5 text-amber-500" />
                 <span className="text-sm text-emerald-600 font-medium">Good {greeting}</span>
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Welcome, {displayName}
-                <motion.span
-                  className="inline-block ml-2"
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                >
-                  🌿
-                </motion.span>
+                Welcome, {displayName} <span className="inline-block ml-1">🌿</span>
               </h1>
             </div>
             <div className="hidden md:flex items-center gap-3">
+              <QuickCommandTrigger />
+              <PortalPreferencesInline />
+              <ActivityNotificationsPopover />
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 px-3 py-1">
                 <Heart className="w-3 h-3 mr-1.5" />
                 Caring for Penang
               </Badge>
             </div>
-          </motion.div>
+          </div>
 
           <Outlet />
         </div>

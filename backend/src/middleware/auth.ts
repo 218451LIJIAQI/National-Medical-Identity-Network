@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { JwtPayload } from '../types';
-import { CONFIG } from '../config';
+import { JwtPayload, UserRole } from '../types';
+import { CONFIG, getHospitalById } from '../config';
 import { getUserById } from '../database/central-multi';
 
 declare global {
@@ -19,7 +19,7 @@ export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string 
   } as jwt.SignOptions);
 }
 
-function verifyToken(token: string): JwtPayload | null {
+export function verifyToken(token: string): JwtPayload | null {
   try {
     return jwt.verify(token, CONFIG.jwt.secret) as JwtPayload;
   } catch {
@@ -38,7 +38,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return;
   }
 
-  const payload = verifyToken(authHeader.slice(7));
+  const payload = verifyToken(authHeader.slice(7).trim());
   if (!payload) {
     res.status(401).json({
       success: false,
@@ -47,20 +47,35 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return;
   }
 
-  const user = await getUserById(payload.userId);
-  if (!user || !user.isActive) {
-    res.status(401).json({
-      success: false,
-      error: 'User account is inactive or not found',
-    });
-    return;
-  }
+  try {
+    const user = await getUserById(payload.userId);
+    if (!user || !user.isActive) {
+      res.status(401).json({
+        success: false,
+        error: 'User account is inactive or not found',
+      });
+      return;
+    }
 
-  req.user = payload;
-  next();
+    req.user = {
+      userId: user.id,
+      icNumber: user.icNumber,
+      role: user.role,
+      hospitalId: user.hospitalId,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
+    next();
+  } catch (error) {
+    console.error('Authentication check failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Authentication service unavailable',
+    });
+  }
 }
 
-export function authorize(...roles: string[]) {
+export function authorize(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
@@ -91,13 +106,24 @@ export function authorizeHospital(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  const hospitalId = req.params.hospitalId || req.body?.hospitalId;
+  if (!hospitalId || !getHospitalById(hospitalId)) {
+    res.status(404).json({
+      success: false,
+      error: 'Hospital not found',
+    });
+    return;
+  }
+
   if (req.user.role === 'central_admin') {
     next();
     return;
   }
 
-  const hospitalId = req.params.hospitalId || req.body.hospitalId;
-  if (req.user.hospitalId !== hospitalId) {
+  if (
+    (req.user.role !== 'doctor' && req.user.role !== 'hospital_admin') ||
+    req.user.hospitalId !== hospitalId
+  ) {
     res.status(403).json({
       success: false,
       error: 'Access denied to this hospital',
@@ -113,5 +139,8 @@ export function hashPassword(password: string): string {
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+  const candidate = Buffer.from(hashPassword(password), 'utf8');
+  const expected = Buffer.from(hash, 'utf8');
+  if (candidate.length !== expected.length) return false;
+  return crypto.timingSafeEqual(candidate, expected);
 }
