@@ -9,11 +9,13 @@ export interface ApiResponse<T> {
   message?: string
   status?: number
   accessDenied?: boolean
+  notFound?: boolean
+  verificationRequired?: boolean
   rateLimited?: boolean
   retryAfter?: number
 }
 
-export interface PrescriptionPayload {
+export interface PrescriptionDto {
   id?: string
   recordId?: string
   medicationName: string
@@ -25,7 +27,7 @@ export interface PrescriptionPayload {
   isActive: boolean
 }
 
-export interface LabReportPayload {
+export interface LabReportDto {
   id?: string
   recordId?: string
   testType: string
@@ -38,7 +40,7 @@ export interface LabReportPayload {
   notes: string
 }
 
-export interface MedicalRecordPayload {
+export interface MedicalRecordDto {
   id: string
   icNumber: string
   hospitalId: string
@@ -49,12 +51,21 @@ export interface MedicalRecordPayload {
   visitType: 'outpatient' | 'inpatient' | 'emergency'
   chiefComplaint: string
   diagnosis: string[]
-  diagnosisCodes?: string[]
+  diagnosisCodes: string[]
   symptoms: string[]
   notes: string
-  vitalSigns?: Record<string, number>
-  prescriptions?: PrescriptionPayload[]
-  labReports?: LabReportPayload[]
+  vitalSigns?: {
+    bloodPressureSystolic?: number
+    bloodPressureDiastolic?: number
+    heartRate?: number
+    temperature?: number
+    respiratoryRate?: number
+    oxygenSaturation?: number
+    weight?: number
+    height?: number
+  }
+  prescriptions?: PrescriptionDto[]
+  labReports?: LabReportDto[]
   followUpDate?: string
   isReadOnly?: boolean
   sourceHospital?: string
@@ -77,10 +88,11 @@ export interface HospitalDetailResponse {
     totalRecords: number
     totalDoctors: number
     todayVisits?: number
+    recentRecords: MedicalRecordDto[]
   }
 }
 
-export interface HospitalDoctorItem {
+export interface DoctorDto {
   id: string
   icNumber: string
   fullName: string
@@ -96,8 +108,6 @@ export interface HospitalDoctorItem {
 function getToken(): string | null {
   return useAuthStore.getState().token
 }
-
-const AUTH_EXEMPT_401 = ['/auth/login', '/auth/verify-hospital']
 
 async function fetchApi<T>(
   endpoint: string,
@@ -121,17 +131,26 @@ async function fetchApi<T>(
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      const isExempt = AUTH_EXEMPT_401.some(p => endpoint.startsWith(p))
-      if (response.status === 401 && !isExempt && getToken()) {
+      if (
+        response.status === 401 &&
+        !endpoint.includes('/auth/login') &&
+        !endpoint.includes('/auth/verify-hospital') &&
+        getToken()
+      ) {
         useAuthStore.getState().logout()
+      } else if (response.status === 403 && data.verificationRequired) {
+        useAuthStore.getState().markHospitalUnverified()
       }
+
       return {
         success: false,
         status: response.status,
         error: data.error || 'An error occurred',
         data: data.data,
         accessDenied: Boolean(data.accessDenied),
-        rateLimited: Boolean(data.rateLimited),
+        notFound: Boolean(data.notFound || response.status === 404),
+        verificationRequired: Boolean(data.verificationRequired),
+        rateLimited: Boolean(data.rateLimited || response.status === 429),
         retryAfter: typeof data.retryAfter === 'number' ? data.retryAfter : undefined,
       }
     }
@@ -144,12 +163,13 @@ async function fetchApi<T>(
     console.error('API Error:', error)
     return {
       success: false,
-      error: 'Network error. Please check your connection and try again.',
+      status: 0,
+      error: 'Network error. Please try again.',
     }
   }
 }
 
-export interface LoginResult {
+export interface LoginResponseData {
   token?: string
   user?: User
   requiresRoleSelection?: boolean
@@ -159,25 +179,21 @@ export interface LoginResult {
 
 export const authApi = {
   login: (icNumber: string, password: string, role?: string) =>
-    fetchApi<LoginResult>('/auth/login', {
+    fetchApi<LoginResponseData>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ icNumber, password, role }),
-    }),
+    }, true),
 
   verifyHospital: (payload: {
-    staffId?: string
+    method: 'credentials' | 'ic_chip'
+    username?: string
     password?: string
-    method?: 'credentials' | 'ic_card'
+    icNumber?: string
   }) =>
-    fetchApi<{ verified: boolean; hospitalId: string; hospitalName: string }>(
-      '/auth/verify-hospital',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
-    ),
-
-  me: () => fetchApi<{ user: User }>('/auth/me'),
+    fetchApi<{ token: string; user: User }>('/auth/verify-hospital', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   switchRole: (role: UserRole) =>
     fetchApi<{ token: string; user: User }>('/auth/switch-role', {
@@ -189,21 +205,14 @@ export const authApi = {
     fetchApi<{ message: string }>('/auth/logout', {
       method: 'POST',
     }),
+
+  me: () =>
+    fetchApi<{ user: User }>('/auth/me'),
 }
 
 export const centralApi = {
   getHospitals: () =>
-    fetchApi<Array<{
-      id: string
-      name: string
-      shortName: string
-      city: string
-      state: string
-      address: string
-      phone: string
-      email: string
-      isActive: boolean
-    }>>('/central/hospitals'),
+    fetchApi<Array<Record<string, unknown>>>('/central/hospitals', {}, true),
 
   getStats: () =>
     fetchApi<{
@@ -219,9 +228,6 @@ export const centralApi = {
   queryPatient: (icNumber: string) =>
     fetchApi<{
       icNumber: string
-      found: boolean
-      accessDenied?: boolean
-      message?: string
       querySteps: Array<{
         step: number
         action: string
@@ -229,12 +235,11 @@ export const centralApi = {
         to: string
         status: string
         timestamp: string
-        data?: Record<string, unknown>
       }>
       hospitals: Array<{
         hospitalId: string
         hospitalName: string
-        records: MedicalRecordPayload[]
+        records: MedicalRecordDto[]
         recordCount: number
         status: 'success' | 'error' | 'timeout'
         responseTime: number
@@ -242,55 +247,57 @@ export const centralApi = {
       }>
       totalRecords: number
       queryTime: number
-    }>(`/central/query/${encodeURIComponent(icNumber.trim())}`),
+      accessDenied?: boolean
+      notFound?: boolean
+      partialFailure?: boolean
+      failedHospitals?: string[]
+      message?: string
+    }>(`/central/query/${encodeURIComponent(icNumber)}`),
 
   emergencyQuery: (icNumber: string) =>
     fetchApi<{
       found: boolean
       icNumber: string
       fullName?: string
+      dateOfBirth?: string
+      gender?: string
       bloodType?: string
       allergies?: string[]
       chronicConditions?: string[]
-      emergencyContact?: string
-      emergencyPhone?: string
-      activeMedications?: Array<{
-        medicationName: string
+      recentDiagnoses?: Array<{
+        diagnosis: string
+        hospitalName: string
+        visitDate: string
+      }>
+      currentMedications?: Array<{
+        name: string
         dosage: string
         frequency: string
-        hospitalName: string
+        instructions?: string
+        hospitalName?: string
+        visitDate?: string
       }>
+      emergencyContact?: string
+      emergencyPhone?: string
       hospitalsWithRecords?: number
-      lastUpdated?: string
+      respondingHospitals?: number
+      partialFailure?: boolean
       accessType?: string
       warning?: string
       message?: string
-    }>(`/central/emergency/${encodeURIComponent(icNumber.trim())}`, { method: 'GET' }, true),
+    }>(`/central/emergency/${encodeURIComponent(icNumber)}`, { method: 'GET' }, true),
 
   getPatient: (icNumber: string) =>
     fetchApi<{
-      patient: {
-        icNumber: string
-        fullName: string
-        dateOfBirth: string
-        gender: 'male' | 'female'
-        bloodType: string
-        phone?: string
-        email?: string
-        address?: string
-        emergencyContact?: string
-        emergencyPhone?: string
-        allergies: string[]
-        chronicConditions: string[]
-      } | null
+      patient: Record<string, unknown>
       hospitals: string[]
       lastUpdated: string
-    }>(`/central/patient/${encodeURIComponent(icNumber.trim())}`),
+    }>(`/central/patient/${encodeURIComponent(icNumber)}`),
 
   getAuditLogs: (params?: {
     actorId?: string
     targetIcNumber?: string
-    action?: string
+    hospitalId?: string
     startDate?: string
     endDate?: string
     limit?: number
@@ -298,7 +305,7 @@ export const centralApi = {
     const searchParams = new URLSearchParams()
     if (params?.actorId) searchParams.set('actorId', params.actorId)
     if (params?.targetIcNumber) searchParams.set('targetIcNumber', params.targetIcNumber)
-    if (params?.action) searchParams.set('action', params.action)
+    if (params?.hospitalId) searchParams.set('hospitalId', params.hospitalId)
     if (params?.startDate) searchParams.set('startDate', params.startDate)
     if (params?.endDate) searchParams.set('endDate', params.endDate)
     if (params?.limit) searchParams.set('limit', params.limit.toString())
@@ -337,7 +344,7 @@ export const centralApi = {
       totalHospitals: number
       totalRecords: number
       lastUpdated: string
-    }>(`/central/index/${encodeURIComponent(icNumber.trim())}`),
+    }>(`/central/index/${encodeURIComponent(icNumber)}`),
 
   getMyAccessLogs: (limit?: number) => {
     const searchParams = new URLSearchParams()
@@ -386,48 +393,57 @@ export const centralApi = {
   },
 }
 
+export interface SaveRecordRequest {
+  icNumber: string
+  doctorId?: string
+  visitDate: string
+  visitType: string
+  chiefComplaint?: string
+  diagnosis: string[]
+  diagnosisCodes?: string[]
+  symptoms?: string[]
+  notes?: string
+  vitalSigns?: Record<string, unknown>
+  prescriptions?: PrescriptionDto[]
+  labReports?: LabReportDto[]
+  followUpDate?: string
+  patientName?: string
+  dateOfBirth?: string
+  gender?: 'male' | 'female'
+  bloodType?: string
+  phone?: string
+  emergencyContact?: string
+  emergencyPhone?: string
+  allergies?: string[]
+  chronicConditions?: string[]
+}
+
 export const hospitalApi = {
   getHospital: (hospitalId: string) =>
     fetchApi<HospitalDetailResponse>(`/hospitals/${encodeURIComponent(hospitalId)}`),
 
   getStats: (hospitalId: string) =>
-    fetchApi<{
-      totalPatients: number
-      totalRecords: number
-      totalDoctors: number
-      todayVisits: number
-    }>(`/hospitals/${encodeURIComponent(hospitalId)}/stats`),
+    fetchApi<NonNullable<HospitalDetailResponse['stats']>>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/stats`
+    ),
 
   getDoctors: (hospitalId: string) =>
-    fetchApi<HospitalDoctorItem[]>(`/hospitals/${encodeURIComponent(hospitalId)}/doctors`),
+    fetchApi<DoctorDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/doctors`),
 
-  createRecord: (
-    hospitalId: string,
-    record: {
-      icNumber: string
-      doctorId: string
-      visitDate: string
-      visitType: string
-      chiefComplaint?: string
-      diagnosis: string[]
-      diagnosisCodes?: string[]
-      symptoms?: string[]
-      notes?: string
-      vitalSigns?: Record<string, number>
-      prescriptions?: PrescriptionPayload[]
-      labReports?: LabReportPayload[]
-      followUpDate?: string
-      patientName?: string
-      dateOfBirth?: string
-      gender?: 'male' | 'female'
-      bloodType?: string
-      emergencyContact?: string
-      emergencyPhone?: string
-      allergies?: string[]
-      chronicConditions?: string[]
-    }
-  ) =>
-    fetchApi<{ recordId: string; record: MedicalRecordPayload }>(
+  getPatient: (hospitalId: string, icNumber: string) =>
+    fetchApi<{
+      patient: Record<string, unknown>
+      isLocal: boolean
+      federatedFrom?: string[]
+    }>(`/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}`),
+
+  getRecord: (hospitalId: string, recordId: string) =>
+    fetchApi<MedicalRecordDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}`
+    ),
+
+  createRecord: (hospitalId: string, record: SaveRecordRequest) =>
+    fetchApi<{ recordId: string; record: MedicalRecordDto }>(
       `/hospitals/${encodeURIComponent(hospitalId)}/records`,
       {
         method: 'POST',
@@ -435,16 +451,12 @@ export const hospitalApi = {
       }
     ),
 
-  updateRecord: (
-    hospitalId: string,
-    recordId: string,
-    updates: Partial<MedicalRecordPayload>
-  ) =>
-    fetchApi<{ record: MedicalRecordPayload }>(
+  updateRecord: (hospitalId: string, recordId: string, record: Partial<SaveRecordRequest>) =>
+    fetchApi<{ record: MedicalRecordDto }>(
       `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}`,
       {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(record),
       }
     ),
 }

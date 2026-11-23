@@ -6,132 +6,238 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
+import { useClinicalStore } from '@/store/clinical'
+import { hospitalApi, type PrescriptionDto, type LabReportDto } from '@/lib/api'
+import { useTranslation } from '@/lib/i18n'
 import {
-  hospitalApi,
-  centralApi,
-  type PrescriptionPayload,
-  type LabReportPayload,
-} from '@/lib/api'
-import {
-  ArrowLeft, Save, Loader2, FileText, Calendar, Stethoscope, User,
-  AlertTriangle, Heart, Thermometer, Activity, Pill, FlaskConical, Plus, Trash2
+  ArrowLeft,
+  Save,
+  Loader2,
+  FileText,
+  Calendar,
+  Stethoscope,
+  User,
+  AlertTriangle,
+  Heart,
+  Thermometer,
+  Activity,
+  Pill,
+  FlaskConical,
+  Plus,
+  Trash2,
+  ShieldAlert,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { formatIC, parseMyKadDemographics } from '@/lib/utils'
 
+const EMPTY_PRESCRIPTION: PrescriptionDto = {
+  medicationName: '',
+  dosage: '',
+  frequency: 'Once daily',
+  duration: '7 days',
+  quantity: 7,
+  instructions: 'Take after meals',
+  isActive: true,
+}
+
+const EMPTY_LAB_REPORT: LabReportDto = {
+  testType: 'Blood Chemistry',
+  testName: '',
+  result: '',
+  unit: '',
+  referenceRange: '',
+  isAbnormal: false,
+  reportDate: new Date().toISOString().split('T')[0],
+  notes: '',
+}
+
 export default function NewRecord() {
-  const { icNumber } = useParams<{ icNumber: string }>()
-  const cleanIc = formatIC(icNumber || '')
-  const inferred = parseMyKadDemographics(cleanIc)
+  const { icNumber, recordId } = useParams<{ icNumber: string; recordId?: string }>()
+  const isEditMode = Boolean(recordId)
+  const formattedIc = formatIC(icNumber || '')
+
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { t } = useTranslation()
   const { user } = useAuthStore()
+  const { setActivePatient } = useClinicalStore()
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [saving, setSaving] = useState(false)
-  const [loadingPatient, setLoadingPatient] = useState(true)
+  const [loadingInitial, setLoadingInitial] = useState(true)
+  const [blockingError, setBlockingError] = useState<string | null>(null)
   const [patientExists, setPatientExists] = useState(false)
-  const [accessRestricted, setAccessRestricted] = useState(false)
+  const [isFederatedFirstVisit, setIsFederatedFirstVisit] = useState(false)
+
   const [patientInfo, setPatientInfo] = useState<{
     fullName: string
     dateOfBirth: string
-    gender: string
+    gender: 'male' | 'female'
     bloodType: string
     allergies: string[]
     chronicConditions: string[]
   } | null>(null)
+
+  const inferredDemographics = parseMyKadDemographics(formattedIc)
 
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split('T')[0],
     visitType: 'outpatient',
     chiefComplaint: '',
     diagnosis: '',
+    diagnosisCodes: '',
     symptoms: '',
     notes: '',
     followUpDate: '',
     patientName: '',
-    dateOfBirth: inferred.dateOfBirth,
-    gender: inferred.gender as 'male' | 'female',
-    bloodType: 'O+',
+    dateOfBirth: inferredDemographics?.dateOfBirth || '',
+    gender: (inferredDemographics?.gender || 'male') as 'male' | 'female',
+    bloodType: '',
     allergiesInput: '',
     chronicConditionsInput: '',
-    emergencyContact: '',
-    emergencyPhone: '',
     bloodPressureSystolic: '',
     bloodPressureDiastolic: '',
     heartRate: '',
     temperature: '',
+    oxygenSaturation: '',
     weight: '',
     height: '',
   })
 
-  const [prescriptions, setPrescriptions] = useState<PrescriptionPayload[]>([])
-  const [labReports, setLabReports] = useState<LabReportPayload[]>([])
+  const [prescriptions, setPrescriptions] = useState<PrescriptionDto[]>([])
+  const [labReports, setLabReports] = useState<LabReportDto[]>([])
 
   useEffect(() => {
-    let active = true
-    async function loadPatient() {
-      if (!cleanIc) return
+    async function initializeForm() {
+      if (!formattedIc || !user?.hospitalId) {
+        setLoadingInitial(false)
+        return
+      }
+
+      setLoadingInitial(true)
+      setBlockingError(null)
+
       try {
-        const response = await centralApi.getPatient(cleanIc)
-        if (!active) return
-        if (response.accessDenied) {
-          setAccessRestricted(true)
-          setPatientExists(false)
+        const patientRes = await hospitalApi.getPatient(user.hospitalId, formattedIc)
+
+        if (patientRes.accessDenied) {
+          setBlockingError(patientRes.error || t.privacyRestrictedDesc)
+          setLoadingInitial(false)
           return
         }
-        if (response.success && response.data?.patient) {
-          const p = response.data.patient
+
+        if (patientRes.success && patientRes.data?.patient) {
+          const p = patientRes.data.patient
           const fullName = String(p.fullName || '')
+          const genderVal = p.gender === 'female' ? 'female' : 'male'
+          const allergiesArr = Array.isArray(p.allergies) ? (p.allergies as string[]) : []
+          const conditionsArr = Array.isArray(p.chronicConditions) ? (p.chronicConditions as string[]) : []
+
           setPatientExists(true)
+          setIsFederatedFirstVisit(!patientRes.data.isLocal)
           setPatientInfo({
             fullName,
-            dateOfBirth: String(p.dateOfBirth || inferred.dateOfBirth),
-            gender: String(p.gender || inferred.gender),
+            dateOfBirth: String(p.dateOfBirth || ''),
+            gender: genderVal,
             bloodType: String(p.bloodType || ''),
-            allergies: p.allergies || [],
-            chronicConditions: p.chronicConditions || [],
+            allergies: allergiesArr,
+            chronicConditions: conditionsArr,
+          })
+          setActivePatient({
+            icNumber: formattedIc,
+            fullName,
+            dateOfBirth: String(p.dateOfBirth || ''),
+            gender: genderVal,
+            bloodType: String(p.bloodType || ''),
+            allergies: allergiesArr,
+            chronicConditions: conditionsArr,
           })
           setFormData((prev) => ({
             ...prev,
             patientName: fullName,
-            dateOfBirth: p.dateOfBirth || prev.dateOfBirth,
-            gender: p.gender === 'female' ? 'female' : 'male',
-            bloodType: p.bloodType || prev.bloodType,
+            dateOfBirth: String(p.dateOfBirth || prev.dateOfBirth),
+            gender: genderVal,
+            bloodType: String(p.bloodType || ''),
+            allergiesInput: allergiesArr.join(', '),
+            chronicConditionsInput: conditionsArr.join(', '),
           }))
         } else {
           setPatientExists(false)
         }
+
+        if (isEditMode && recordId) {
+          const recordRes = await hospitalApi.getRecord(user.hospitalId, recordId)
+          if (!recordRes.success || !recordRes.data) {
+            setBlockingError(
+              recordRes.error || 'Record not found or cross-hospital records cannot be modified.'
+            )
+            setLoadingInitial(false)
+            return
+          }
+
+          const rec = recordRes.data
+          if (rec.hospitalId !== user.hospitalId || rec.isReadOnly) {
+            setBlockingError('Cross-hospital records are strictly read-only.')
+            setLoadingInitial(false)
+            return
+          }
+
+          setFormData((prev) => ({
+            ...prev,
+            visitDate: rec.visitDate || prev.visitDate,
+            visitType: rec.visitType || 'outpatient',
+            chiefComplaint: rec.chiefComplaint || '',
+            diagnosis: (rec.diagnosis || []).join(', '),
+            diagnosisCodes: (rec.diagnosisCodes || []).join(', '),
+            symptoms: (rec.symptoms || []).join(', '),
+            notes: rec.notes || '',
+            followUpDate: rec.followUpDate || '',
+            bloodPressureSystolic: rec.vitalSigns?.bloodPressureSystolic
+              ? String(rec.vitalSigns.bloodPressureSystolic)
+              : '',
+            bloodPressureDiastolic: rec.vitalSigns?.bloodPressureDiastolic
+              ? String(rec.vitalSigns.bloodPressureDiastolic)
+              : '',
+            heartRate: rec.vitalSigns?.heartRate ? String(rec.vitalSigns.heartRate) : '',
+            temperature: rec.vitalSigns?.temperature ? String(rec.vitalSigns.temperature) : '',
+            oxygenSaturation: rec.vitalSigns?.oxygenSaturation
+              ? String(rec.vitalSigns.oxygenSaturation)
+              : '',
+            weight: rec.vitalSigns?.weight ? String(rec.vitalSigns.weight) : '',
+            height: rec.vitalSigns?.height ? String(rec.vitalSigns.height) : '',
+          }))
+          setPrescriptions(rec.prescriptions || [])
+          setLabReports(rec.labReports || [])
+        }
       } catch {
-        if (active) setPatientExists(false)
+        setBlockingError('Unable to load clinical record context.')
       } finally {
-        if (active) setLoadingPatient(false)
+        setLoadingInitial(false)
       }
     }
-    loadPatient()
-    return () => {
-      active = false
-    }
-  }, [cleanIc, inferred.dateOfBirth, inferred.gender])
 
-  const addPrescriptionRow = () => {
-    setPrescriptions((prev) => [
-      ...prev,
-      {
-        medicationName: '',
-        dosage: '',
-        frequency: 'Once daily',
-        duration: '7 days',
-        quantity: 7,
-        instructions: 'Take after meals',
-        isActive: true,
-      },
-    ])
+    initializeForm()
+  }, [formattedIc, isEditMode, recordId, user?.hospitalId, setActivePatient, t.privacyRestrictedDesc])
+
+  const knownAllergies = (
+    patientInfo?.allergies?.length
+      ? patientInfo.allergies
+      : formData.allergiesInput.split(',').map((a) => a.trim()).filter(Boolean)
+  ).map((a) => a.toLowerCase())
+
+  const conflictingMeds = prescriptions.filter((rx) => {
+    const medLower = rx.medicationName.trim().toLowerCase()
+    if (!medLower) return false
+    return knownAllergies.some((alg) => medLower.includes(alg) || alg.includes(medLower))
+  })
+
+  const addPrescription = () => {
+    setPrescriptions((prev) => [...prev, { ...EMPTY_PRESCRIPTION }])
   }
 
-  const updatePrescriptionRow = (idx: number, patch: Partial<PrescriptionPayload>) => {
+  const updatePrescriptionRow = (idx: number, patch: Partial<PrescriptionDto>) => {
     setPrescriptions((prev) => prev.map((item, i) => (i === idx ? { ...item, ...patch } : item)))
   }
 
@@ -139,23 +245,11 @@ export default function NewRecord() {
     setPrescriptions((prev) => prev.filter((_, i) => i !== idx))
   }
 
-  const addLabReportRow = () => {
-    setLabReports((prev) => [
-      ...prev,
-      {
-        testType: 'Biochemistry',
-        testName: '',
-        result: '',
-        unit: '',
-        referenceRange: '',
-        isAbnormal: false,
-        reportDate: formData.visitDate,
-        notes: '',
-      },
-    ])
+  const addLabReport = () => {
+    setLabReports((prev) => [...prev, { ...EMPTY_LAB_REPORT, reportDate: formData.visitDate }])
   }
 
-  const updateLabReportRow = (idx: number, patch: Partial<LabReportPayload>) => {
+  const updateLabReportRow = (idx: number, patch: Partial<LabReportDto>) => {
     setLabReports((prev) => prev.map((item, i) => (i === idx ? { ...item, ...patch } : item)))
   }
 
@@ -166,149 +260,208 @@ export default function NewRecord() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.diagnosis.trim()) {
+    const diagnoses = formData.diagnosis
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean)
+    if (diagnoses.length === 0) {
       toast({
         title: 'Validation Error',
-        description: 'Please enter at least one diagnosis',
+        description: 'At least one clinical diagnosis is required',
         variant: 'destructive',
       })
       return
     }
 
-    if (!user?.hospitalId || !user?.doctorId) {
+    if (!user?.hospitalId) {
       toast({
-        title: 'Error',
-        description: 'Hospital ID or Doctor ID not found. Please sign in again.',
+        title: 'Session Error',
+        description: 'Hospital context missing. Please sign in again.',
         variant: 'destructive',
       })
       return
     }
+
+    const cleanedPrescriptions = prescriptions
+      .filter((rx) => rx.medicationName.trim().length > 0)
+      .map((rx) => ({
+        ...rx,
+        medicationName: rx.medicationName.trim(),
+        dosage: rx.dosage.trim() || 'Standard',
+        quantity: Number(rx.quantity) || 1,
+      }))
+
+    const cleanedLabReports = labReports
+      .filter((lab) => lab.testName.trim().length > 0 && lab.result.trim().length > 0)
+      .map((lab) => ({
+        ...lab,
+        testName: lab.testName.trim(),
+        result: lab.result.trim(),
+        reportDate: lab.reportDate || formData.visitDate,
+      }))
 
     setSaving(true)
     try {
-      const vitalSigns: Record<string, number> = {}
+      const vitalSigns: Record<string, unknown> = {}
       const numericFields = [
         'bloodPressureSystolic',
         'bloodPressureDiastolic',
         'heartRate',
         'temperature',
+        'oxygenSaturation',
         'weight',
         'height',
       ] as const
       for (const field of numericFields) {
-        const val = Number(formData[field])
-        if (formData[field] && Number.isFinite(val) && val > 0) {
-          vitalSigns[field] = val
+        if (formData[field] !== '') {
+          const parsed = Number(formData[field])
+          if (!Number.isNaN(parsed)) {
+            vitalSigns[field] = parsed
+          }
         }
       }
 
-      const validPrescriptions = prescriptions.filter((rx) => rx.medicationName.trim().length > 0)
-      const validLabs = labReports.filter((lab) => lab.testName.trim().length > 0)
-
-      const response = await hospitalApi.createRecord(user.hospitalId, {
-        icNumber: cleanIc,
-        doctorId: user.doctorId,
+      const payload = {
+        icNumber: formattedIc,
         visitDate: formData.visitDate,
         visitType: formData.visitType,
-        chiefComplaint: formData.chiefComplaint,
-        diagnosis: formData.diagnosis.split(',').map((d) => d.trim()).filter(Boolean),
-        symptoms: formData.symptoms.split(',').map((s) => s.trim()).filter(Boolean),
-        notes: formData.notes,
+        chiefComplaint: formData.chiefComplaint.trim(),
+        diagnosis: diagnoses,
+        diagnosisCodes: formData.diagnosisCodes
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean),
+        symptoms: formData.symptoms
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        notes: formData.notes.trim(),
         followUpDate: formData.followUpDate || undefined,
         vitalSigns: Object.keys(vitalSigns).length > 0 ? vitalSigns : undefined,
-        prescriptions: validPrescriptions.length > 0 ? validPrescriptions : undefined,
-        labReports: validLabs.length > 0 ? validLabs : undefined,
-        patientName: formData.patientName || undefined,
-        dateOfBirth: !patientExists ? formData.dateOfBirth : undefined,
-        gender: !patientExists ? formData.gender : undefined,
-        bloodType: !patientExists ? formData.bloodType : undefined,
-        allergies:
-          !patientExists && formData.allergiesInput.trim()
-            ? formData.allergiesInput.split(',').map((a) => a.trim()).filter(Boolean)
-            : undefined,
-        chronicConditions:
-          !patientExists && formData.chronicConditionsInput.trim()
-            ? formData.chronicConditionsInput.split(',').map((c) => c.trim()).filter(Boolean)
-            : undefined,
-        emergencyContact: !patientExists && formData.emergencyContact.trim() ? formData.emergencyContact.trim() : undefined,
-        emergencyPhone: !patientExists && formData.emergencyPhone.trim() ? formData.emergencyPhone.trim() : undefined,
-      })
+        prescriptions: cleanedPrescriptions,
+        labReports: cleanedLabReports,
+        patientName: formData.patientName.trim() || undefined,
+        dateOfBirth: formData.dateOfBirth || undefined,
+        gender: formData.gender,
+        bloodType: formData.bloodType.trim() || undefined,
+        allergies: formData.allergiesInput
+          .split(',')
+          .map((a) => a.trim())
+          .filter(Boolean),
+        chronicConditions: formData.chronicConditionsInput
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean),
+      }
+
+      const response =
+        isEditMode && recordId
+          ? await hospitalApi.updateRecord(user.hospitalId, recordId, payload)
+          : await hospitalApi.createRecord(user.hospitalId, payload)
 
       if (response.success) {
         toast({
-          title: 'Success',
-          description: 'Medical record (including prescriptions & lab reports) saved to hospital database',
+          title: isEditMode ? 'Record Updated' : 'Medical Record Created',
+          description: `Saved consultation with ${cleanedPrescriptions.length} prescription(s) and ${cleanedLabReports.length} lab report(s).`,
         })
-        navigate(accessRestricted ? '/doctor/search' : `/doctor/patient/${encodeURIComponent(cleanIc)}`)
+        navigate(`/doctor/patient/${encodeURIComponent(formattedIc)}`)
       } else {
         toast({
-          title: 'Error',
-          description: response.error || 'Failed to save record',
+          title: 'Save Rejected',
+          description: response.error || 'Failed to persist medical record',
           variant: 'destructive',
         })
       }
-    } catch {
-      toast({
-        title: 'Error',
-        description: 'An error occurred while saving',
-        variant: 'destructive',
-      })
     } finally {
       setSaving(false)
     }
   }
 
+  if (loadingInitial) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className={`w-8 h-8 animate-spin ${theme.iconColor}`} />
+      </div>
+    )
+  }
+
+  if (blockingError) {
+    return (
+      <Card className="border-2 border-red-300 bg-red-50 rounded-2xl max-w-2xl mx-auto mt-10">
+        <CardContent className="p-8 space-y-4">
+          <div className="flex items-center gap-3 text-red-800">
+            <ShieldAlert className="w-7 h-7 text-red-600 shrink-0" />
+            <h2 className="text-xl font-bold">Action Blocked</h2>
+          </div>
+          <p className="text-sm text-red-800">{blockingError}</p>
+          <Button variant="outline" onClick={() => navigate(-1)} className="rounded-xl">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Go Back
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.headerGradient} p-8 text-white shadow-2xl ${theme.shadowColor}`}>
+    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {/* Header */}
+      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${theme.headerGradient} p-7 text-white shadow-xl`}>
         <div className="relative z-10 flex items-center gap-4">
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             onClick={() => navigate(-1)}
-            className="bg-white/20 hover:bg-white/30 rounded-xl text-white"
+            className="bg-white/20 hover:bg-white/30 text-white rounded-xl"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30">
-              <FileText className="w-7 h-7" />
-            </div>
-            <div>
-              <Badge className="bg-white/20 text-white border-0 mb-1">
-                <Stethoscope className="w-3 h-3 mr-1" /> New Clinical Entry
-              </Badge>
-              <h1 className="text-3xl font-bold drop-shadow-lg">New Medical Record</h1>
-              <p className="text-white/80">Patient IC: <span className="font-mono font-semibold">{cleanIc}</span></p>
-            </div>
+          <div className="p-3 bg-white/20 rounded-2xl border border-white/30">
+            <FileText className="w-7 h-7" />
+          </div>
+          <div>
+            <Badge className="bg-white/20 text-white border-0 mb-1">
+              <Stethoscope className="w-3 h-3 mr-1" />
+              {isEditMode ? t.editRecord : t.newRecord} • {theme.shortName}
+            </Badge>
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              {isEditMode ? 'Edit Local Medical Record' : 'New Clinical Consultation Record'}
+            </h1>
+            <p className="text-white/85 text-sm">
+              Patient MyKad IC: <span className="font-mono font-semibold">{formattedIc}</span>
+            </p>
           </div>
         </div>
       </div>
 
-      {loadingPatient ? (
-        <Card className="border-0 shadow-lg">
-          <CardContent className="p-6 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400 mr-2" />
-            <span className="text-gray-500">Loading patient demographics...</span>
-          </CardContent>
-        </Card>
-      ) : patientInfo ? (
-        <Card className="border-0 shadow-lg overflow-hidden">
+      {/* Patient Banner */}
+      {patientExists && patientInfo ? (
+        <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-          <CardContent className="p-5">
+          <CardContent className="p-5 flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className={`p-3 ${theme.bgLight} rounded-xl`}>
                 <User className={`w-6 h-6 ${theme.iconColor}`} />
               </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-lg">{patientInfo.fullName}</h3>
-                <p className="text-gray-500 text-sm capitalize">
-                  {patientInfo.gender} • {patientInfo.bloodType || 'Blood type unknown'} • DOB: {patientInfo.dateOfBirth}
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-lg text-slate-900">{patientInfo.fullName}</h3>
+                  {isFederatedFirstVisit && (
+                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
+                      Cross-Hospital First Visit • Federated Profile Inherited
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-slate-600 text-sm mt-0.5 capitalize">
+                  {patientInfo.gender} • Blood: <strong>{patientInfo.bloodType || 'Unknown'}</strong> • DOB: {patientInfo.dateOfBirth}
                 </p>
                 {patientInfo.allergies.length > 0 && (
-                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <span className="text-red-700 text-sm font-medium">Allergies: {patientInfo.allergies.join(', ')}</span>
+                  <div className="mt-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg inline-flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <span className="text-red-800 text-xs font-bold">
+                      Allergies: {patientInfo.allergies.join(', ')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -316,35 +469,109 @@ export default function NewRecord() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-amber-200 bg-amber-50 rounded-2xl">
           <CardContent className="p-4 flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <p className="font-medium text-amber-900">
-                {accessRestricted ? 'Cross-Hospital Demographics Restricted' : 'First-Time Hospital Registration'}
-              </p>
-              <p className="text-sm text-amber-700">
-                Date of birth ({inferred.dateOfBirth}) and gender ({inferred.gender}) have been pre-filled from the MyKad IC structure. Complete demographic fields below.
+            <div className="text-sm">
+              <p className="font-bold text-amber-900">New Network Patient Registration</p>
+              <p className="text-amber-800 text-xs">
+                Date of birth and gender have been pre-parsed from MyKad IC ({formattedIc}). Complete patient profile below.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-        <div className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-        <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <div className={`p-2 ${theme.bgLight} rounded-lg`}>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* New Patient Demographics Section */}
+        {!patientExists && (
+          <Card className="border border-slate-200 shadow-sm rounded-2xl">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className={`w-5 h-5 ${theme.iconColor}`} />
+                New Patient Demographics & Baseline Allergies
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 grid md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="patientName">Patient Full Name *</Label>
+                <Input
+                  id="patientName"
+                  required
+                  placeholder="e.g., Muhammad Faiz bin Ismail"
+                  value={formData.patientName}
+                  onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="dob">Date of Birth</Label>
+                <Input
+                  id="dob"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gender">Gender</Label>
+                <select
+                  id="gender"
+                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm"
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'male' | 'female' })}
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bloodType">Blood Type</Label>
+                <select
+                  id="bloodType"
+                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm"
+                  value={formData.bloodType}
+                  onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                >
+                  <option value="">Unknown</option>
+                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bt) => (
+                    <option key={bt} value={bt}>{bt}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="allergiesInput">Known Allergies (comma-separated)</Label>
+                <Input
+                  id="allergiesInput"
+                  placeholder="e.g., Penicillin, Aspirin"
+                  value={formData.allergiesInput}
+                  onChange={(e) => setFormData({ ...formData, allergiesInput: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="chronicInput">Chronic Conditions (comma-separated)</Label>
+                <Input
+                  id="chronicInput"
+                  placeholder="e.g., Asthma, Hypertension"
+                  value={formData.chronicConditionsInput}
+                  onChange={(e) => setFormData({ ...formData, chronicConditionsInput: e.target.value })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Consultation & Vitals */}
+        <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
+          <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className={`w-5 h-5 ${theme.iconColor}`} />
-            </div>
-            Consultation, Sub-Entities & Clinical Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+              Encounter Details & Vital Signs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
             <div className="grid md:grid-cols-3 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="visitDate">Visit Date</Label>
                 <Input
                   id="visitDate"
@@ -353,12 +580,12 @@ export default function NewRecord() {
                   onChange={(e) => setFormData({ ...formData, visitDate: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="visitType">Visit Type</Label>
                 <select
                   id="visitType"
                   title="Visit Type"
-                  className="w-full h-10 px-3 border border-gray-200 rounded-md bg-white text-sm font-medium text-gray-900"
+                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm font-medium"
                   value={formData.visitType}
                   onChange={(e) => setFormData({ ...formData, visitType: e.target.value })}
                 >
@@ -367,8 +594,8 @@ export default function NewRecord() {
                   <option value="emergency">Emergency</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="followUpDate">Follow-up Date (Optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="followUpDate">Follow-Up Date (Optional)</Label>
                 <Input
                   id="followUpDate"
                   type="date"
@@ -378,352 +605,349 @@ export default function NewRecord() {
               </div>
             </div>
 
-            {!patientExists && (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                <p className="text-sm font-bold text-gray-800">Patient Registration Demographics</p>
-                <div className="grid md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2 space-y-1.5">
-                    <Label htmlFor="patientName">Patient Full Name *</Label>
-                    <Input
-                      id="patientName"
-                      placeholder="Enter patient's full name"
-                      value={formData.patientName}
-                      onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                      required={!patientExists}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="dob">Date of Birth</Label>
-                    <Input
-                      id="dob"
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="gender">Gender</Label>
-                      <select
-                        id="gender"
-                        className="w-full h-10 px-2 border border-gray-200 rounded-md bg-white text-sm"
-                        value={formData.gender}
-                        onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'male' | 'female' })}
-                      >
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="bloodType">Blood</Label>
-                      <select
-                        id="bloodType"
-                        className="w-full h-10 px-2 border border-gray-200 rounded-md bg-white text-sm"
-                        value={formData.bloodType}
-                        onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
-                      >
-                        {['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'].map((bt) => (
-                          <option key={bt} value={bt}>{bt}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="allergies">Known Allergies (comma-separated)</Label>
-                    <Input
-                      id="allergies"
-                      placeholder="e.g., Penicillin, Aspirin"
-                      value={formData.allergiesInput}
-                      onChange={(e) => setFormData({ ...formData, allergiesInput: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="chronic">Chronic Conditions (comma-separated)</Label>
-                    <Input
-                      id="chronic"
-                      placeholder="e.g., Hypertension, Asthma"
-                      value={formData.chronicConditionsInput}
-                      onChange={(e) => setFormData({ ...formData, chronicConditionsInput: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="emergContact">Emergency Contact Name</Label>
-                    <Input
-                      id="emergContact"
-                      placeholder="Next of kin name"
-                      value={formData.emergencyContact}
-                      onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="emergPhone">Emergency Contact Phone</Label>
-                    <Input
-                      id="emergPhone"
-                      placeholder="+6012-3456789"
-                      value={formData.emergencyPhone}
-                      onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-gray-500" />
+            {/* Vital Signs */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5 text-slate-700">
+                <Activity className="w-4 h-4 text-slate-500" />
                 Vital Signs
               </Label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className="space-y-1 col-span-2 md:col-span-1">
-                  <Label htmlFor="bp" className="text-xs text-gray-500 flex items-center gap-1">
-                    <Heart className="w-3 h-3" /> BP (mmHg)
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div>
+                  <Label className="text-xs text-slate-500 flex items-center gap-1">
+                    <Heart className="w-3 h-3" /> Systolic BP
                   </Label>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      id="bp"
-                      placeholder="120"
-                      value={formData.bloodPressureSystolic}
-                      onChange={(e) => setFormData({ ...formData, bloodPressureSystolic: e.target.value })}
-                    />
-                    <span>/</span>
-                    <Input
-                      placeholder="80"
-                      value={formData.bloodPressureDiastolic}
-                      onChange={(e) => setFormData({ ...formData, bloodPressureDiastolic: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="hr" className="text-xs text-gray-500">Heart Rate (bpm)</Label>
                   <Input
-                    id="hr"
+                    placeholder="120"
+                    value={formData.bloodPressureSystolic}
+                    onChange={(e) => setFormData({ ...formData, bloodPressureSystolic: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">Diastolic BP</Label>
+                  <Input
+                    placeholder="80"
+                    value={formData.bloodPressureDiastolic}
+                    onChange={(e) => setFormData({ ...formData, bloodPressureDiastolic: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">Heart Rate (bpm)</Label>
+                  <Input
                     placeholder="72"
                     value={formData.heartRate}
                     onChange={(e) => setFormData({ ...formData, heartRate: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="temp" className="text-xs text-gray-500 flex items-center gap-1">
+                <div>
+                  <Label className="text-xs text-slate-500 flex items-center gap-1">
                     <Thermometer className="w-3 h-3" /> Temp (°C)
                   </Label>
                   <Input
-                    id="temp"
-                    placeholder="36.5"
+                    placeholder="36.6"
                     value={formData.temperature}
                     onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="weight" className="text-xs text-gray-500">Weight (kg)</Label>
+                <div>
+                  <Label className="text-xs text-slate-500">SpO2 (%)</Label>
                   <Input
-                    id="weight"
+                    placeholder="98"
+                    value={formData.oxygenSaturation}
+                    onChange={(e) => setFormData({ ...formData, oxygenSaturation: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">Weight (kg)</Label>
+                  <Input
                     placeholder="70"
                     value={formData.weight}
                     onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="height" className="text-xs text-gray-500">Height (cm)</Label>
-                  <Input
-                    id="height"
-                    placeholder="170"
-                    value={formData.height}
-                    onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                  />
-                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="chiefComplaint">Chief Complaint</Label>
-              <textarea
-                id="chiefComplaint"
-                className="w-full p-3 border border-gray-200 rounded-xl bg-white text-sm text-gray-900"
-                rows={2}
-                placeholder="Patient's main reason for visit..."
-                value={formData.chiefComplaint}
-                onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
-              />
-            </div>
-
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="symptoms">Symptoms (comma-separated)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="chiefComplaint">Chief Complaint</Label>
+                <Input
+                  id="chiefComplaint"
+                  placeholder="Patient's primary reason for consultation..."
+                  value={formData.chiefComplaint}
+                  onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="symptoms">Presenting Symptoms (comma-separated)</Label>
                 <Input
                   id="symptoms"
-                  placeholder="e.g., Headache, Fever, Fatigue"
+                  placeholder="e.g., Fever, Headache, Cough"
                   value={formData.symptoms}
                   onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
                 />
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="diagnosis">Diagnosis * (comma-separated)</Label>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-1.5">
+                <Label htmlFor="diagnosis">Clinical Diagnosis * (comma-separated)</Label>
                 <Input
                   id="diagnosis"
+                  required
                   placeholder="e.g., Essential Hypertension, Type 2 Diabetes"
                   value={formData.diagnosis}
                   onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
-                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="diagnosisCodes">ICD-10 Codes (comma-separated)</Label>
+                <Input
+                  id="diagnosisCodes"
+                  placeholder="e.g., I10, E11.9"
+                  value={formData.diagnosisCodes}
+                  onChange={(e) => setFormData({ ...formData, diagnosisCodes: e.target.value })}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Clinical Notes</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="notes">Clinical Assessment & Plan</Label>
               <textarea
                 id="notes"
-                className="w-full p-3 border border-gray-200 rounded-xl bg-white text-sm text-gray-900"
                 rows={3}
-                placeholder="Detailed clinical notes, examination findings, treatment plan..."
+                className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                placeholder="Examination findings, assessment, and management plan..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="p-4 rounded-2xl bg-violet-50/50 border border-violet-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-violet-900 font-semibold">
-                  <Pill className="w-4 h-4 text-violet-600" />
-                  Prescriptions ({prescriptions.length})
-                </Label>
-                <Button type="button" size="sm" variant="outline" onClick={addPrescriptionRow} className="bg-white">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Medication
-                </Button>
+        {/* Prescriptions Editor */}
+        <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="bg-emerald-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2 text-emerald-950">
+              <Pill className="w-5 h-5 text-emerald-600" />
+              Prescriptions ({prescriptions.length})
+            </CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={addPrescription} className="rounded-xl gap-1">
+              <Plus className="w-4 h-4" /> Add Medication
+            </Button>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            {conflictingMeds.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-red-50 border-2 border-red-300 text-red-900 text-sm flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+                <span>
+                  <strong>Drug Allergy Alert:</strong> {conflictingMeds.map((m) => m.medicationName).join(', ')} matches recorded patient allergies ({patientInfo?.allergies.join(', ') || formData.allergiesInput})!
+                </span>
               </div>
-              {prescriptions.map((rx, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 bg-white rounded-xl border border-violet-100 items-center">
-                  <Input
-                    placeholder="Medication (e.g. Amlodipine)"
-                    value={rx.medicationName}
-                    onChange={(e) => updatePrescriptionRow(idx, { medicationName: e.target.value })}
-                    className="md:col-span-2"
-                  />
-                  <Input
-                    placeholder="Dosage (e.g. 5mg)"
-                    value={rx.dosage}
-                    onChange={(e) => updatePrescriptionRow(idx, { dosage: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Frequency"
-                    value={rx.frequency}
-                    onChange={(e) => updatePrescriptionRow(idx, { frequency: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Duration"
-                    value={rx.duration}
-                    onChange={(e) => updatePrescriptionRow(idx, { duration: e.target.value })}
-                  />
-                  <div className="flex items-center gap-2">
+            )}
+
+            {prescriptions.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-3">
+                No prescriptions attached to this encounter. Click "Add Medication" to prescribe.
+              </p>
+            ) : (
+              prescriptions.map((rx, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="grid sm:grid-cols-2 md:grid-cols-6 gap-3">
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Medication Name *</Label>
+                      <Input
+                        placeholder="e.g., Metformin"
+                        value={rx.medicationName}
+                        onChange={(e) => updatePrescriptionRow(idx, { medicationName: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Dosage</Label>
+                      <Input
+                        placeholder="500mg"
+                        value={rx.dosage}
+                        onChange={(e) => updatePrescriptionRow(idx, { dosage: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Frequency</Label>
+                      <Input
+                        placeholder="Twice daily"
+                        value={rx.frequency}
+                        onChange={(e) => updatePrescriptionRow(idx, { frequency: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Duration</Label>
+                      <Input
+                        placeholder="30 days"
+                        value={rx.duration}
+                        onChange={(e) => updatePrescriptionRow(idx, { duration: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Qty</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={rx.quantity}
+                        onChange={(e) => updatePrescriptionRow(idx, { quantity: Number(e.target.value) || 1 })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <Input
-                      type="number"
-                      min={1}
-                      placeholder="Qty"
-                      value={rx.quantity}
-                      onChange={(e) => updatePrescriptionRow(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                      placeholder="Instructions (e.g. Take after meals)"
+                      value={rx.instructions}
+                      onChange={(e) => updatePrescriptionRow(idx, { instructions: e.target.value })}
+                      className="flex-1 min-w-[200px]"
                     />
-                    <button
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={rx.isActive}
+                        onChange={(e) => updatePrescriptionRow(idx, { isActive: e.target.checked })}
+                      />
+                      Active Medication
+                    </label>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removePrescriptionRow(idx)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      title="Remove prescription"
+                      className="text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-            <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-100 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-teal-900 font-semibold">
-                  <FlaskConical className="w-4 h-4 text-teal-600" />
-                  Lab Reports ({labReports.length})
-                </Label>
-                <Button type="button" size="sm" variant="outline" onClick={addLabReportRow} className="bg-white">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Lab Result
-                </Button>
-              </div>
-              {labReports.map((lab, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 bg-white rounded-xl border border-teal-100 items-center">
-                  <Input
-                    placeholder="Test Name (e.g. HbA1c)"
-                    value={lab.testName}
-                    onChange={(e) => updateLabReportRow(idx, { testName: e.target.value })}
-                    className="md:col-span-2"
-                  />
-                  <Input
-                    placeholder="Result (e.g. 6.8)"
-                    value={lab.result}
-                    onChange={(e) => updateLabReportRow(idx, { result: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Unit (e.g. %)"
-                    value={lab.unit}
-                    onChange={(e) => updateLabReportRow(idx, { unit: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Ref Range (e.g. 4.0-5.6)"
-                    value={lab.referenceRange}
-                    onChange={(e) => updateLabReportRow(idx, { referenceRange: e.target.value })}
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+        {/* Lab Reports Editor */}
+        <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="bg-indigo-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2 text-indigo-950">
+              <FlaskConical className="w-5 h-5 text-indigo-600" />
+              Laboratory Reports ({labReports.length})
+            </CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={addLabReport} className="rounded-xl gap-1">
+              <Plus className="w-4 h-4" /> Add Lab Result
+            </Button>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            {labReports.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-3">
+                No laboratory results attached to this encounter. Click "Add Lab Result" to record findings.
+              </p>
+            ) : (
+              labReports.map((lab, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                      <Label className="text-xs">Category</Label>
+                      <Input
+                        placeholder="Blood Chemistry"
+                        value={lab.testType}
+                        onChange={(e) => updateLabReportRow(idx, { testType: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Test Name *</Label>
+                      <Input
+                        placeholder="HbA1c"
+                        value={lab.testName}
+                        onChange={(e) => updateLabReportRow(idx, { testName: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Result *</Label>
+                      <Input
+                        placeholder="6.8"
+                        value={lab.result}
+                        onChange={(e) => updateLabReportRow(idx, { result: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Unit</Label>
+                      <Input
+                        placeholder="%"
+                        value={lab.unit}
+                        onChange={(e) => updateLabReportRow(idx, { unit: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Ref Range</Label>
+                      <Input
+                        placeholder="4.0 - 5.6"
+                        value={lab.referenceRange}
+                        onChange={(e) => updateLabReportRow(idx, { referenceRange: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Input
+                      placeholder="Lab notes..."
+                      value={lab.notes}
+                      onChange={(e) => updateLabReportRow(idx, { notes: e.target.value })}
+                      className="flex-1 min-w-[200px]"
+                    />
+                    <label className="flex items-center gap-2 text-xs font-medium text-red-700">
                       <input
                         type="checkbox"
                         checked={lab.isAbnormal}
                         onChange={(e) => updateLabReportRow(idx, { isAbnormal: e.target.checked })}
                       />
-                      Abnormal
+                      Flag Abnormal
                     </label>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeLabReportRow(idx)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      title="Remove lab report"
+                      className="text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-            <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate(-1)}
-                disabled={saving}
-                className="h-12 px-6 rounded-xl border-2 font-semibold"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} shadow-xl font-semibold`}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Saving Record...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-5 w-5" />
-                    Save Medical Record
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-2 pb-8">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(-1)}
+            disabled={saving}
+            className="h-12 px-6 rounded-xl font-semibold"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={saving}
+            className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} text-white shadow-lg font-semibold`}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-5 w-5" />
+                {isEditMode ? 'Update Medical Record' : 'Save Medical Record'}
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
     </motion.div>
   )
 }

@@ -16,6 +16,8 @@ export interface HospitalConfig {
   envVar: string;
 }
 
+export const DEV_DEFAULT_JWT_SECRET = 'medlink-secret-key-2024-hackathon';
+
 export const HOSPITALS: HospitalConfig[] = [
   {
     id: 'hospital-kl',
@@ -89,59 +91,61 @@ export function getHospitalById(hospitalId?: string): HospitalConfig | undefined
   return HOSPITALS.find(h => h.id === hospitalId);
 }
 
-export function normalizeIcNumber(raw: string): string {
-  const trimmed = raw.trim();
-  const digitsOnly = trimmed.replace(/-/g, '');
-  if (/^\d{12}$/.test(digitsOnly)) {
-    return `${digitsOnly.slice(0, 6)}-${digitsOnly.slice(6, 8)}-${digitsOnly.slice(8)}`;
+export function validateEnvironmentConfig(env: NodeJS.ProcessEnv = process.env): void {
+  const isProd = env.NODE_ENV === 'production';
+  if (!isProd) return;
+
+  const missingOrInvalid: string[] = [];
+
+  const jwtSecret = env.JWT_SECRET?.trim();
+  if (!jwtSecret || jwtSecret === DEV_DEFAULT_JWT_SECRET || jwtSecret.length < 32) {
+    missingOrInvalid.push(
+      'JWT_SECRET (must be explicitly set in production, non-default, and at least 32 characters)'
+    );
   }
-  return trimmed;
+
+  if (!env.DATABASE_URL_CENTRAL?.trim()) {
+    missingOrInvalid.push('DATABASE_URL_CENTRAL');
+  }
+
+  for (const hospital of HOSPITALS) {
+    if (!env[hospital.envVar]?.trim()) {
+      missingOrInvalid.push(hospital.envVar);
+    }
+  }
+
+  if (missingOrInvalid.length > 0) {
+    throw new Error(
+      `Production configuration validation failed. Missing or insecure environment variables: ${missingOrInvalid.join(', ')}`
+    );
+  }
 }
 
-export function inferDemographicsFromMyKad(icNumber: string): {
-  dateOfBirth: string;
-  gender: 'male' | 'female';
-} {
-  const digits = icNumber.replace(/-/g, '');
-  if (/^\d{12}$/.test(digits)) {
-    const yy = parseInt(digits.slice(0, 2), 10);
-    const mm = parseInt(digits.slice(2, 4), 10);
-    const dd = parseInt(digits.slice(4, 6), 10);
-    const currentTwoDigitYear = new Date().getFullYear() % 100;
-    const century = yy <= currentTwoDigitYear ? 2000 : 1900;
-    const year = century + yy;
-    const validDate =
-      mm >= 1 &&
-      mm <= 12 &&
-      dd >= 1 &&
-      dd <= 31 &&
-      !Number.isNaN(Date.parse(`${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`));
-    const dob = validDate
-      ? `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
-      : '1990-01-01';
-    const lastDigit = parseInt(digits.slice(11, 12), 10);
-    return {
-      dateOfBirth: dob,
-      gender: lastDigit % 2 === 1 ? 'male' : 'female',
-    };
-  }
-  return { dateOfBirth: '1990-01-01', gender: 'male' };
+export function createConfig(env: NodeJS.ProcessEnv = process.env) {
+  validateEnvironmentConfig(env);
+  const isProduction = env.NODE_ENV === 'production';
+
+  const parsedOrigins = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+    : [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://medlink-my.netlify.app',
+      ];
+
+  return {
+    centralHub: {
+      port: parseInt(env.CENTRAL_PORT || '3000', 10) || 3000,
+    },
+    jwt: {
+      secret: isProduction ? env.JWT_SECRET!.trim() : env.JWT_SECRET?.trim() || DEV_DEFAULT_JWT_SECRET,
+      expiresIn: env.JWT_EXPIRES_IN || '24h',
+    },
+    cors: {
+      origins: parsedOrigins,
+    },
+    isProduction,
+  };
 }
 
-export const CONFIG = {
-  centralHub: {
-    port: parseInt(process.env.CENTRAL_PORT || '3000', 10),
-  },
-  jwt: {
-    secret: process.env.JWT_SECRET || 'medlink-secret-key-2024-hackathon',
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
-  },
-  cors: {
-    origins: process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://medlink-my.netlify.app',
-    ],
-  },
-  isProduction: process.env.NODE_ENV === 'production',
-};
+export const CONFIG = createConfig(process.env);

@@ -12,7 +12,9 @@ export interface User {
   fullName?: string
   specialization?: string
   department?: string
+  licenseNumber?: string
   availableRoles?: UserRole[]
+  hospitalVerified?: boolean
 }
 
 interface AuthState {
@@ -22,25 +24,17 @@ interface AuthState {
   isHospitalVerified: boolean
   _hasHydrated: boolean
   login: (token: string, user: User) => void
-  updateUser: (user: User) => void
-  completeHospitalVerification: () => void
+  completeHospitalVerification: (token: string, user: User) => void
+  setSession: (token: string, user: User) => void
+  markHospitalUnverified: () => void
   logout: () => void
   setHasHydrated: (state: boolean) => void
 }
 
-function clearSessionCaches() {
-  try {
-    if (typeof sessionStorage !== 'undefined') {
-      const keysToRemove: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key && key.startsWith('medlink:')) {
-          keysToRemove.push(key)
-        }
-      }
-      keysToRemove.forEach(k => sessionStorage.removeItem(k))
-    }
-  } catch {}
+function resolveHospitalVerified(user: User): boolean {
+  const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin'
+  if (!requiresHospitalStep) return true
+  return Boolean(user.hospitalVerified)
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -53,25 +47,47 @@ export const useAuthStore = create<AuthState>()(
       _hasHydrated: false,
 
       login: (token: string, user: User) => {
-        const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin'
         set({
           token,
           user,
           isAuthenticated: true,
-          isHospitalVerified: !requiresHospitalStep,
+          isHospitalVerified: resolveHospitalVerified(user),
         })
       },
 
-      updateUser: (user: User) => {
-        set({ user })
+      completeHospitalVerification: (token: string, user: User) => {
+        set({
+          token,
+          user: { ...user, hospitalVerified: true },
+          isAuthenticated: true,
+          isHospitalVerified: true,
+        })
       },
 
-      completeHospitalVerification: () => {
-        set({ isHospitalVerified: true })
+      setSession: (token: string, user: User) => {
+        set({
+          token,
+          user,
+          isAuthenticated: true,
+          isHospitalVerified: resolveHospitalVerified(user),
+        })
+      },
+
+      markHospitalUnverified: () => {
+        set((state) => ({
+          isHospitalVerified: false,
+          user: state.user ? { ...state.user, hospitalVerified: false } : null,
+        }))
       },
 
       logout: () => {
-        clearSessionCaches()
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('medlink-active-clinical-patient')
+          }
+        } catch {
+          // Ignore storage errors in non-browser contexts
+        }
         set({
           token: null,
           user: null,

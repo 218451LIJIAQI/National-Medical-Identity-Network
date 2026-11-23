@@ -1,12 +1,4 @@
-import {
-  Patient,
-  MedicalRecord,
-  Doctor,
-  VitalSigns,
-  Prescription,
-  LabReport,
-  ActiveEmergencyMedication,
-} from '../types';
+import { Patient, MedicalRecord, Doctor, VitalSigns, Prescription, LabReport, normalizeIcNumber } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
 import { getHospitalById } from '../config';
 import { PrismaClient as HospitalPrismaClient } from '../../node_modules/.prisma/client/hospital';
@@ -20,6 +12,32 @@ function parseJson<T>(str: string | null, defaultValue: T): T {
   }
 }
 
+function normalizePrescriptionInput(p: Partial<Prescription>) {
+  return {
+    medicationName: String(p.medicationName || '').trim(),
+    dosage: String(p.dosage || '').trim(),
+    frequency: String(p.frequency || '').trim(),
+    duration: p.duration ? String(p.duration).trim() : null,
+    quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? Math.max(0, Math.trunc(p.quantity)) : null,
+    instructions: p.instructions ? String(p.instructions).trim() : null,
+    isActive: p.isActive !== false,
+  };
+}
+
+function normalizeLabReportInput(l: Partial<LabReport>, fallbackDate: Date) {
+  const parsedDate = l.reportDate ? new Date(l.reportDate) : fallbackDate;
+  return {
+    testType: String(l.testType || 'General Lab').trim(),
+    testName: String(l.testName || '').trim(),
+    result: String(l.result || 'Pending').trim(),
+    unit: l.unit ? String(l.unit).trim() : null,
+    referenceRange: l.referenceRange ? String(l.referenceRange).trim() : null,
+    isAbnormal: Boolean(l.isAbnormal),
+    reportDate: Number.isNaN(parsedDate.getTime()) ? fallbackDate : parsedDate,
+    notes: l.notes ? String(l.notes).trim() : null,
+  };
+}
+
 export class HospitalDatabaseMulti {
   private hospitalId: string;
   private prisma: HospitalPrismaClient;
@@ -29,7 +47,8 @@ export class HospitalDatabaseMulti {
     this.prisma = getHospitalDbClient(hospitalId);
   }
 
-  async getPatient(icNumber: string): Promise<Patient | null> {
+  async getPatient(rawIcNumber: string): Promise<Patient | null> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
     const patient = await this.prisma.patient.findUnique({
       where: { icNumber },
     });
@@ -40,7 +59,7 @@ export class HospitalDatabaseMulti {
       icNumber: patient.icNumber,
       fullName: patient.fullName,
       dateOfBirth: patient.dateOfBirth.toISOString().split('T')[0],
-      gender: patient.gender === 'female' ? 'female' : 'male',
+      gender: patient.gender as 'male' | 'female',
       bloodType: patient.bloodType || '',
       phone: patient.phone || '',
       email: patient.email || '',
@@ -55,35 +74,93 @@ export class HospitalDatabaseMulti {
   }
 
   async createPatient(patient: Patient): Promise<Patient> {
+    const icNumber = normalizeIcNumber(patient.icNumber);
+    const dob = new Date(patient.dateOfBirth);
+    const safeDob = Number.isNaN(dob.getTime()) ? new Date('1990-01-01T00:00:00.000Z') : dob;
+
     const created = await this.prisma.patient.create({
       data: {
-        icNumber: patient.icNumber,
+        icNumber,
         fullName: patient.fullName,
-        dateOfBirth: new Date(patient.dateOfBirth),
-        gender: patient.gender,
-        bloodType: patient.bloodType || null,
-        phone: patient.phone || null,
-        email: patient.email || null,
-        address: patient.address || null,
-        emergencyContact: patient.emergencyContact || null,
-        emergencyPhone: patient.emergencyPhone || null,
-        allergies: JSON.stringify(patient.allergies || []),
-        chronicConditions: JSON.stringify(patient.chronicConditions || []),
+        dateOfBirth: safeDob,
+        gender: patient.gender === 'female' ? 'female' : 'male',
+        bloodType: patient.bloodType || '',
+        phone: patient.phone || '',
+        email: patient.email || '',
+        address: patient.address || '',
+        emergencyContact: patient.emergencyContact || '',
+        emergencyPhone: patient.emergencyPhone || '',
+        allergies: JSON.stringify(Array.from(new Set(patient.allergies || []))),
+        chronicConditions: JSON.stringify(Array.from(new Set(patient.chronicConditions || []))),
       },
     });
 
     return {
       ...patient,
+      icNumber,
+      dateOfBirth: safeDob.toISOString().split('T')[0],
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
     };
   }
 
-  async countRecordsByPatient(icNumber: string): Promise<number> {
+  async updatePatient(rawIcNumber: string, updates: Partial<Patient>): Promise<Patient | null> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    const existing = await this.getPatient(icNumber);
+    if (!existing) return null;
+
+    const mergedAllergies = updates.allergies
+      ? Array.from(new Set([...existing.allergies, ...updates.allergies].filter(Boolean)))
+      : existing.allergies;
+    const mergedConditions = updates.chronicConditions
+      ? Array.from(new Set([...existing.chronicConditions, ...updates.chronicConditions].filter(Boolean)))
+      : existing.chronicConditions;
+
+    const nextDob = updates.dateOfBirth ? new Date(updates.dateOfBirth) : new Date(existing.dateOfBirth);
+    const safeDob = Number.isNaN(nextDob.getTime()) ? new Date(existing.dateOfBirth) : nextDob;
+
+    const updated = await this.prisma.patient.update({
+      where: { icNumber },
+      data: {
+        fullName: updates.fullName || existing.fullName,
+        dateOfBirth: safeDob,
+        gender: updates.gender || existing.gender,
+        bloodType: updates.bloodType ?? existing.bloodType,
+        phone: updates.phone ?? existing.phone,
+        email: updates.email ?? existing.email,
+        address: updates.address ?? existing.address,
+        emergencyContact: updates.emergencyContact ?? existing.emergencyContact,
+        emergencyPhone: updates.emergencyPhone ?? existing.emergencyPhone,
+        allergies: JSON.stringify(mergedAllergies),
+        chronicConditions: JSON.stringify(mergedConditions),
+      },
+    });
+
+    return {
+      icNumber: updated.icNumber,
+      fullName: updated.fullName,
+      dateOfBirth: updated.dateOfBirth.toISOString().split('T')[0],
+      gender: updated.gender as 'male' | 'female',
+      bloodType: updated.bloodType || '',
+      phone: updated.phone || '',
+      email: updated.email || '',
+      address: updated.address || '',
+      emergencyContact: updated.emergencyContact || '',
+      emergencyPhone: updated.emergencyPhone || '',
+      allergies: mergedAllergies,
+      chronicConditions: mergedConditions,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  async countRecordsByPatient(rawIcNumber: string): Promise<number> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
     return this.prisma.medicalRecord.count({ where: { icNumber } });
   }
 
-  async getRecordsByPatient(icNumber: string): Promise<MedicalRecord[]> {
+  async getRecordsByPatient(rawIcNumber: string): Promise<MedicalRecord[]> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
     const records = await this.prisma.medicalRecord.findMany({
       where: { icNumber },
       include: {
@@ -112,50 +189,33 @@ export class HospitalDatabaseMulti {
 
   async createRecord(record: MedicalRecord): Promise<MedicalRecord> {
     const visitDate = new Date(record.visitDate);
-    const prescriptionsInput = (record.prescriptions || [])
-      .filter(p => p.medicationName?.trim())
-      .map((p: Prescription) => ({
-        medicationName: p.medicationName.trim(),
-        dosage: p.dosage?.trim() || 'As directed',
-        frequency: p.frequency?.trim() || 'Once daily',
-        duration: p.duration?.trim() || null,
-        quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? p.quantity : null,
-        instructions: p.instructions?.trim() || null,
-        isActive: p.isActive !== false,
-      }));
-
-    const labReportsInput = (record.labReports || [])
-      .filter(l => l.testName?.trim())
-      .map((l: LabReport) => ({
-        testType: l.testType?.trim() || 'General Lab',
-        testName: l.testName.trim(),
-        result: l.result?.trim() || 'Pending',
-        unit: l.unit?.trim() || null,
-        referenceRange: l.referenceRange?.trim() || null,
-        isAbnormal: Boolean(l.isAbnormal),
-        reportDate: l.reportDate ? new Date(l.reportDate) : visitDate,
-        notes: l.notes?.trim() || null,
-      }));
+    const safeVisitDate = Number.isNaN(visitDate.getTime()) ? new Date() : visitDate;
+    const validPrescriptions = (record.prescriptions || [])
+      .map(normalizePrescriptionInput)
+      .filter(p => p.medicationName && p.dosage && p.frequency);
+    const validLabReports = (record.labReports || [])
+      .map(l => normalizeLabReportInput(l, safeVisitDate))
+      .filter(l => l.testName);
 
     const created = await this.prisma.medicalRecord.create({
       data: {
         id: record.id,
-        icNumber: record.icNumber,
+        icNumber: normalizeIcNumber(record.icNumber),
         doctorId: record.doctorId,
-        visitDate,
-        visitType: record.visitType,
-        chiefComplaint: record.chiefComplaint || null,
+        visitDate: safeVisitDate,
+        visitType: record.visitType || 'outpatient',
+        chiefComplaint: record.chiefComplaint || '',
         diagnosis: JSON.stringify(record.diagnosis || []),
         diagnosisCodes: JSON.stringify(record.diagnosisCodes || []),
         symptoms: JSON.stringify(record.symptoms || []),
-        notes: record.notes || null,
+        notes: record.notes || '',
         vitalSigns: record.vitalSigns ? JSON.stringify(record.vitalSigns) : null,
         followUpDate: record.followUpDate ? new Date(record.followUpDate) : null,
-        ...(prescriptionsInput.length > 0
-          ? { prescriptions: { create: prescriptionsInput } }
+        ...(validPrescriptions.length > 0
+          ? { prescriptions: { create: validPrescriptions } }
           : {}),
-        ...(labReportsInput.length > 0
-          ? { labReports: { create: labReportsInput } }
+        ...(validLabReports.length > 0
+          ? { labReports: { create: validLabReports } }
           : {}),
       },
       include: {
@@ -168,71 +228,62 @@ export class HospitalDatabaseMulti {
     return this.formatRecord(created);
   }
 
-  async updateRecord(
-    recordId: string,
-    updates: Partial<MedicalRecord>
-  ): Promise<MedicalRecord | null> {
+  async updateRecord(recordId: string, updates: Partial<MedicalRecord>): Promise<MedicalRecord | null> {
     const existing = await this.prisma.medicalRecord.findUnique({
       where: { id: recordId },
+      include: { doctor: true, prescriptions: true, labReports: true },
     });
+
     if (!existing) return null;
+
+    const visitDate = updates.visitDate ? new Date(updates.visitDate) : existing.visitDate;
+    const safeVisitDate = Number.isNaN(visitDate.getTime()) ? existing.visitDate : visitDate;
+
+    const data: Record<string, unknown> = {
+      visitDate: safeVisitDate,
+      visitType: updates.visitType || existing.visitType,
+      chiefComplaint: updates.chiefComplaint !== undefined ? updates.chiefComplaint : existing.chiefComplaint,
+      diagnosis: updates.diagnosis !== undefined ? JSON.stringify(updates.diagnosis) : existing.diagnosis,
+      diagnosisCodes: updates.diagnosisCodes !== undefined ? JSON.stringify(updates.diagnosisCodes) : existing.diagnosisCodes,
+      symptoms: updates.symptoms !== undefined ? JSON.stringify(updates.symptoms) : existing.symptoms,
+      notes: updates.notes !== undefined ? updates.notes : existing.notes,
+      vitalSigns:
+        updates.vitalSigns !== undefined
+          ? updates.vitalSigns
+            ? JSON.stringify(updates.vitalSigns)
+            : null
+          : existing.vitalSigns,
+      followUpDate:
+        updates.followUpDate !== undefined
+          ? updates.followUpDate
+            ? new Date(updates.followUpDate)
+            : null
+          : existing.followUpDate,
+    };
 
     if (updates.prescriptions !== undefined) {
       await this.prisma.prescription.deleteMany({ where: { recordId } });
+      const validPrescriptions = updates.prescriptions
+        .map(normalizePrescriptionInput)
+        .filter(p => p.medicationName && p.dosage && p.frequency);
+      if (validPrescriptions.length > 0) {
+        data.prescriptions = { create: validPrescriptions };
+      }
     }
+
     if (updates.labReports !== undefined) {
       await this.prisma.labReport.deleteMany({ where: { recordId } });
+      const validLabReports = updates.labReports
+        .map(l => normalizeLabReportInput(l, safeVisitDate))
+        .filter(l => l.testName);
+      if (validLabReports.length > 0) {
+        data.labReports = { create: validLabReports };
+      }
     }
-
-    const visitDate = updates.visitDate ? new Date(updates.visitDate) : existing.visitDate;
-    const prescriptionsInput = updates.prescriptions
-      ?.filter(p => p.medicationName?.trim())
-      .map(p => ({
-        medicationName: p.medicationName.trim(),
-        dosage: p.dosage?.trim() || 'As directed',
-        frequency: p.frequency?.trim() || 'Once daily',
-        duration: p.duration?.trim() || null,
-        quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? p.quantity : null,
-        instructions: p.instructions?.trim() || null,
-        isActive: p.isActive !== false,
-      }));
-
-    const labReportsInput = updates.labReports
-      ?.filter(l => l.testName?.trim())
-      .map(l => ({
-        testType: l.testType?.trim() || 'General Lab',
-        testName: l.testName.trim(),
-        result: l.result?.trim() || 'Pending',
-        unit: l.unit?.trim() || null,
-        referenceRange: l.referenceRange?.trim() || null,
-        isAbnormal: Boolean(l.isAbnormal),
-        reportDate: l.reportDate ? new Date(l.reportDate) : visitDate,
-        notes: l.notes?.trim() || null,
-      }));
 
     const updated = await this.prisma.medicalRecord.update({
       where: { id: recordId },
-      data: {
-        ...(updates.visitDate ? { visitDate } : {}),
-        ...(updates.visitType ? { visitType: updates.visitType } : {}),
-        ...(updates.chiefComplaint !== undefined ? { chiefComplaint: updates.chiefComplaint || null } : {}),
-        ...(updates.diagnosis !== undefined ? { diagnosis: JSON.stringify(updates.diagnosis) } : {}),
-        ...(updates.diagnosisCodes !== undefined ? { diagnosisCodes: JSON.stringify(updates.diagnosisCodes) } : {}),
-        ...(updates.symptoms !== undefined ? { symptoms: JSON.stringify(updates.symptoms) } : {}),
-        ...(updates.notes !== undefined ? { notes: updates.notes || null } : {}),
-        ...(updates.vitalSigns !== undefined
-          ? { vitalSigns: updates.vitalSigns ? JSON.stringify(updates.vitalSigns) : null }
-          : {}),
-        ...(updates.followUpDate !== undefined
-          ? { followUpDate: updates.followUpDate ? new Date(updates.followUpDate) : null }
-          : {}),
-        ...(prescriptionsInput && prescriptionsInput.length > 0
-          ? { prescriptions: { create: prescriptionsInput } }
-          : {}),
-        ...(labReportsInput && labReportsInput.length > 0
-          ? { labReports: { create: labReportsInput } }
-          : {}),
-      },
+      data,
       include: {
         doctor: true,
         prescriptions: true,
@@ -289,7 +340,7 @@ export class HospitalDatabaseMulti {
       hospitalId: this.hospitalId,
       hospitalName: getHospitalById(this.hospitalId)?.name || this.hospitalId,
       doctorId: record.doctorId,
-      doctorName: record.doctor.fullName,
+      doctorName: record.doctor?.fullName || record.doctorId,
       visitDate: record.visitDate.toISOString(),
       visitType: record.visitType as 'outpatient' | 'inpatient' | 'emergency',
       chiefComplaint: record.chiefComplaint || '',
@@ -298,7 +349,7 @@ export class HospitalDatabaseMulti {
       symptoms: parseJson<string[]>(record.symptoms, []),
       notes: record.notes || '',
       vitalSigns: parseJson<VitalSigns | undefined>(record.vitalSigns, undefined),
-      prescriptions: record.prescriptions.map(p => ({
+      prescriptions: (record.prescriptions || []).map(p => ({
         id: p.id,
         recordId: p.recordId,
         medicationName: p.medicationName,
@@ -309,7 +360,7 @@ export class HospitalDatabaseMulti {
         instructions: p.instructions || '',
         isActive: p.isActive,
       })),
-      labReports: record.labReports.map(l => ({
+      labReports: (record.labReports || []).map(l => ({
         id: l.id,
         recordId: l.recordId,
         testType: l.testType,
@@ -357,28 +408,33 @@ export class HospitalDatabaseMulti {
     return doctor ? this.mapDoctor(doctor) : null;
   }
 
-  async getDoctorByIc(icNumber: string): Promise<Doctor | null> {
-    const doctor = await this.prisma.doctor.findFirst({ where: { icNumber, isActive: true } });
+  async getDoctorByIc(rawIcNumber: string): Promise<Doctor | null> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    const doctor = await this.prisma.doctor.findFirst({ where: { icNumber } });
     return doctor ? this.mapDoctor(doctor) : null;
   }
 
   async getDoctors(): Promise<Doctor[]> {
     const doctors = await this.prisma.doctor.findMany({
-      where: { isActive: true },
       orderBy: { fullName: 'asc' },
     });
     return doctors.map(d => this.mapDoctor(d));
   }
 
   async getStats() {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const [totalPatients, totalRecords, totalDoctors, todayVisits] = await Promise.all([
+    const [totalPatients, totalRecords, totalDoctors, todayVisits, recentRecords] = await Promise.all([
       this.prisma.patient.count(),
       this.prisma.medicalRecord.count(),
       this.prisma.doctor.count({ where: { isActive: true } }),
-      this.prisma.medicalRecord.count({ where: { visitDate: { gte: startOfToday } } }),
+      this.prisma.medicalRecord.count({ where: { visitDate: { gte: today } } }),
+      this.prisma.medicalRecord.findMany({
+        include: { doctor: true, prescriptions: true, labReports: true },
+        orderBy: { visitDate: 'desc' },
+        take: 10,
+      }),
     ]);
 
     return {
@@ -386,6 +442,7 @@ export class HospitalDatabaseMulti {
       totalRecords,
       totalDoctors,
       todayVisits,
+      recentRecords: recentRecords.map(r => this.formatRecord(r)),
     };
   }
 }
@@ -405,81 +462,35 @@ export function resetHospitalDbInstances(): void {
   hospitalDbInstances.clear();
 }
 
-export async function findPatientInHospitals(icNumber: string, hospitalIds: string[]): Promise<Patient | null> {
-  const results = await Promise.all(
-    hospitalIds.map(async hospitalId => {
-      try {
-        return await getHospitalDb(hospitalId).getPatient(icNumber);
-      } catch {
-        return null;
-      }
-    })
+export async function findPatientInHospitals(rawIcNumber: string, hospitalIds: string[]): Promise<Patient | null> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
+  let merged: Patient | null = null;
+
+  const results = await Promise.allSettled(
+    hospitalIds.map(hospitalId => getHospitalDb(hospitalId).getPatient(icNumber))
   );
 
-  const validPatients = results.filter((p): p is Patient => p !== null);
-  if (validPatients.length === 0) return null;
-
-  const base = { ...validPatients[0] };
-  const allergiesSet = new Set<string>(base.allergies);
-  const conditionsSet = new Set<string>(base.chronicConditions);
-
-  for (const p of validPatients.slice(1)) {
-    if (!base.fullName && p.fullName) base.fullName = p.fullName;
-    if (!base.bloodType && p.bloodType) base.bloodType = p.bloodType;
-    if (!base.phone && p.phone) base.phone = p.phone;
-    if (!base.email && p.email) base.email = p.email;
-    if (!base.address && p.address) base.address = p.address;
-    if (!base.emergencyContact && p.emergencyContact) base.emergencyContact = p.emergencyContact;
-    if (!base.emergencyPhone && p.emergencyPhone) base.emergencyPhone = p.emergencyPhone;
-    if (p.updatedAt > base.updatedAt) base.updatedAt = p.updatedAt;
-    for (const a of p.allergies) allergiesSet.add(a);
-    for (const c of p.chronicConditions) conditionsSet.add(c);
-  }
-
-  base.allergies = Array.from(allergiesSet);
-  base.chronicConditions = Array.from(conditionsSet);
-  return base;
-}
-
-export async function getActiveMedicationsInHospitals(
-  icNumber: string,
-  hospitalIds: string[]
-): Promise<ActiveEmergencyMedication[]> {
-  const perHospital = await Promise.all(
-    hospitalIds.map(async hospitalId => {
-      try {
-        const hospitalName = getHospitalById(hospitalId)?.shortName || hospitalId;
-        const records = await getHospitalDb(hospitalId).getRecordsByPatient(icNumber);
-        const meds: ActiveEmergencyMedication[] = [];
-        for (const record of records) {
-          for (const rx of record.prescriptions || []) {
-            if (rx.isActive) {
-              meds.push({
-                medicationName: rx.medicationName,
-                dosage: rx.dosage,
-                frequency: rx.frequency,
-                hospitalName,
-              });
-            }
-          }
-        }
-        return meds;
-      } catch {
-        return [];
-      }
-    })
-  );
-
-  const seen = new Set<string>();
-  const aggregated: ActiveEmergencyMedication[] = [];
-  for (const list of perHospital) {
-    for (const med of list) {
-      const key = `${med.medicationName.toLowerCase()}|${med.dosage.toLowerCase()}|${med.hospitalName}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        aggregated.push(med);
-      }
+  for (const res of results) {
+    if (res.status !== 'fulfilled' || !res.value) continue;
+    const p = res.value;
+    if (!merged) {
+      merged = {
+        ...p,
+        allergies: [...p.allergies],
+        chronicConditions: [...p.chronicConditions],
+      };
+    } else {
+      merged.fullName = merged.fullName || p.fullName;
+      merged.bloodType = merged.bloodType || p.bloodType;
+      merged.phone = merged.phone || p.phone;
+      merged.email = merged.email || p.email;
+      merged.address = merged.address || p.address;
+      merged.emergencyContact = merged.emergencyContact || p.emergencyContact;
+      merged.emergencyPhone = merged.emergencyPhone || p.emergencyPhone;
+      merged.allergies = Array.from(new Set([...merged.allergies, ...p.allergies]));
+      merged.chronicConditions = Array.from(new Set([...merged.chronicConditions, ...p.chronicConditions]));
     }
   }
-  return aggregated;
+
+  return merged;
 }

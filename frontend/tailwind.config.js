@@ -19,12 +19,6 @@ export default {
         'poppins': ['Poppins', 'system-ui', 'sans-serif'],
         'space': ['Space Grotesk', 'system-ui', 'sans-serif'],
       },
-      borderWidth: {
-        3: '3px',
-      },
-      spacing: {
-        13: '3.25rem',
-      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

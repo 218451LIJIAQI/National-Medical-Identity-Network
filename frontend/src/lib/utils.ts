@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(dateString?: string): string {
   if (!dateString) return '-'
   const date = new Date(dateString)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (Number.isNaN(date.getTime())) return dateString
   return date.toLocaleDateString('en-MY', {
     year: 'numeric',
     month: 'short',
@@ -18,18 +18,45 @@ export function formatDate(dateString?: string): string {
 }
 
 export function formatIC(ic: string): string {
-  const trimmed = ic.trim()
-  const digits = trimmed.replace(/-/g, '')
+  const trimmed = String(ic || '').trim()
+  const digits = trimmed.replace(/[-\s]/g, '')
   if (/^\d{12}$/.test(digits)) {
     return `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`
   }
   return trimmed
 }
 
+export function parseMyKadDemographics(ic: string): {
+  dateOfBirth: string
+  gender: 'male' | 'female'
+} | null {
+  const digits = String(ic || '').replace(/\D/g, '')
+  if (digits.length !== 12) return null
+  const yy = parseInt(digits.slice(0, 2), 10)
+  const mm = parseInt(digits.slice(2, 4), 10)
+  const dd = parseInt(digits.slice(4, 6), 10)
+  const currentYY = new Date().getFullYear() % 100
+  const year = yy <= currentYY ? 2000 + yy : 1900 + yy
+  const candidate = new Date(Date.UTC(year, mm - 1, dd))
+  if (
+    Number.isNaN(candidate.getTime()) ||
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== mm - 1 ||
+    candidate.getUTCDate() !== dd
+  ) {
+    return null
+  }
+  const gender: 'male' | 'female' = parseInt(digits[11], 10) % 2 === 1 ? 'male' : 'female'
+  return {
+    dateOfBirth: candidate.toISOString().split('T')[0],
+    gender,
+  }
+}
+
 export function maskIC(ic?: string): string {
   if (!ic) return '******-**-****'
   const clean = ic.replace(/-/g, '')
-  if (clean.length >= 12) {
+  if (clean.length >= 12 && /^\d+$/.test(clean)) {
     return `${clean.slice(0, 6)}-${clean.slice(6, 8)}-****`
   }
   if (ic.length > 6) {
@@ -38,35 +65,10 @@ export function maskIC(ic?: string): string {
   return ic
 }
 
-export function parseMyKadDemographics(ic: string): {
-  dateOfBirth: string
-  age: number | null
-  gender: 'male' | 'female'
-} {
-  const digits = ic.replace(/-/g, '')
-  if (/^\d{12}$/.test(digits)) {
-    const yy = parseInt(digits.slice(0, 2), 10)
-    const mm = parseInt(digits.slice(2, 4), 10)
-    const dd = parseInt(digits.slice(4, 6), 10)
-    const nowYear = new Date().getFullYear()
-    const century = yy <= nowYear % 100 ? 2000 : 1900
-    const year = century + yy
-    const iso = `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
-    const valid = mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && !Number.isNaN(Date.parse(iso))
-    const lastDigit = parseInt(digits.slice(11, 12), 10)
-    return {
-      dateOfBirth: valid ? iso : '1990-01-01',
-      age: valid ? Math.max(0, nowYear - year) : null,
-      gender: lastDigit % 2 === 1 ? 'male' : 'female',
-    }
-  }
-  return { dateOfBirth: '1990-01-01', age: null, gender: 'male' }
-}
-
 export function formatTimeAgo(timestamp: string): string {
-  const parsed = new Date(timestamp).getTime()
-  if (Number.isNaN(parsed)) return '-'
-  const diffMs = Date.now() - parsed
+  const time = new Date(timestamp).getTime()
+  if (Number.isNaN(time)) return '-'
+  const diffMs = Date.now() - time
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
 
@@ -132,4 +134,76 @@ export function deduplicateByWindow<T extends { timestamp: string }>(
 
 export function getHospitalColor(hospitalId: string): string {
   return getHospitalTheme(hospitalId).primaryColor
+}
+
+export function downloadJsonFile(filename: string, payload: unknown): void {
+  const json = JSON.stringify(payload, null, 2)
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export function downloadCsvFile(
+  filename: string,
+  headers: string[],
+  rows: Array<Array<string | number | boolean | null | undefined>>
+): void {
+  const escapeCsv = (val: string | number | boolean | null | undefined): string => {
+    const str = val === null || val === undefined ? '' : String(val)
+    if (/[",\n\r]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
+
+  const lines = [
+    headers.map(escapeCsv).join(','),
+    ...rows.map(row => row.map(escapeCsv).join(',')),
+  ]
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export function printHtmlDocument(title: string, bodyHtml: string): void {
+  const printWindow = window.open('', '_blank', 'width=900,height=700')
+  if (!printWindow) {
+    window.print()
+    return
+  }
+  printWindow.document.open()
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; color: #111827; padding: 32px; line-height: 1.5; }
+    h1, h2, h3 { margin: 0 0 8px 0; color: #0f172a; }
+    .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .meta { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 20px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 13px; }
+    th { background: #f1f5f9; font-weight: 600; }
+    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  ${bodyHtml}
+  <script>window.onload = function() { window.print(); };</script>
+</body>
+</html>`)
+  printWindow.document.close()
 }

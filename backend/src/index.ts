@@ -9,10 +9,12 @@ import hospitalRoutes from './routes/hospital';
 export function createApp() {
   const app = express();
 
-  app.use(cors({
-    origin: CONFIG.isProduction ? CONFIG.cors.origins : true,
-    credentials: true,
-  }));
+  app.use(
+    cors({
+      origin: CONFIG.isProduction ? CONFIG.cors.origins : true,
+      credentials: true,
+    })
+  );
   app.use(express.json({ limit: '1mb' }));
 
   if (process.env.NODE_ENV !== 'test') {
@@ -34,13 +36,6 @@ export function createApp() {
   app.use('/api/central', centralRoutes);
   app.use('/api/hospitals', hospitalRoutes);
 
-  app.use((_req, res) => {
-    res.status(404).json({
-      success: false,
-      error: 'Endpoint not found',
-    });
-  });
-
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('Unhandled error:', err);
     res.status(500).json({
@@ -49,10 +44,17 @@ export function createApp() {
     });
   });
 
+  app.use((_req, res) => {
+    res.status(404).json({
+      success: false,
+      error: 'Endpoint not found',
+    });
+  });
+
   return app;
 }
 
-const app = createApp();
+export const app = createApp();
 
 if (require.main === module) {
   console.log('Initializing hospitals registry...');
@@ -72,10 +74,12 @@ if (require.main === module) {
     console.log(`║   Central Hub API running on port ${PORT}                       ║`);
     console.log('║                                                               ║');
     console.log('║   Endpoints:                                                  ║');
-    console.log('║   • POST /api/auth/login         - User authentication       ║');
-    console.log('║   • GET  /api/central/hospitals  - List all hospitals        ║');
-    console.log('║   • GET  /api/central/query/:ic  - Cross-hospital query      ║');
-    console.log('║   • GET  /api/hospitals/:id      - Hospital information      ║');
+    console.log('║   • POST /api/auth/login            - User authentication    ║');
+    console.log('║   • POST /api/auth/verify-hospital  - Hospital 2FA verify    ║');
+    console.log('║   • POST /api/auth/switch-role      - Multi-role switch      ║');
+    console.log('║   • GET  /api/central/hospitals     - List all hospitals     ║');
+    console.log('║   • GET  /api/central/query/:ic     - Cross-hospital query   ║');
+    console.log('║   • GET  /api/hospitals/:id         - Hospital information   ║');
     console.log('║                                                               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log('');
@@ -86,5 +90,3 @@ if (require.main === module) {
     console.log('');
   });
 }
-
-export default app;

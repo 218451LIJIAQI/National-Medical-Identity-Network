@@ -40,7 +40,7 @@ model Doctor {
 
   medicalRecords MedicalRecord[]
 
-  @@index([icNumber])
+  @@unique([icNumber])
 }
 
 model MedicalRecord {
@@ -58,7 +58,7 @@ model MedicalRecord {
   updatedAt      DateTime  @updatedAt
 
   icNumber      String
-  patient       Patient        @relation(fields: [icNumber], references: [icNumber])
+  patient       Patient        @relation(fields: [icNumber], references: [icNumber], onDelete: Cascade)
   doctorId      String
   doctor        Doctor         @relation(fields: [doctorId], references: [id])
   prescriptions Prescription[]
@@ -79,7 +79,9 @@ model Prescription {
   isActive       Boolean @default(true)
 
   recordId      String
-  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
 }
 
 model LabReport {
@@ -94,5 +96,7 @@ model LabReport {
   notes          String?
 
   recordId      String
-  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -24,50 +24,28 @@ function ICCardDemo() {
   const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [queryStep, setQueryStep] = useState(0)
-  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const clearTimers = useCallback(() => {
-    timersRef.current.forEach((t) => clearTimeout(t))
-    timersRef.current = []
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => clearTimers()
-  }, [clearTimers])
 
   const startScan = () => {
-    if (scanning) return
-    clearTimers()
     setScanning(true)
     setScanned(false)
     setQueryStep(0)
 
-    const scanDoneTimer = setTimeout(() => {
+    setTimeout(() => {
       setScanning(false)
       setScanned(true)
       let step = 1
-      intervalRef.current = setInterval(() => {
+      const interval = setInterval(() => {
         setQueryStep(step)
-        step += 1
+        step++
         if (step > 5) {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-          }
-          const resetTimer = setTimeout(() => {
+          clearInterval(interval)
+          setTimeout(() => {
             setScanned(false)
             setQueryStep(0)
           }, 3000)
-          timersRef.current.push(resetTimer)
         }
       }, 800)
     }, 1500)
-    timersRef.current.push(scanDoneTimer)
   }
 
   return (
@@ -490,7 +468,7 @@ export default function LandingPageV2() {
                 transition={{ delay: 0.8 }}
               >
                 {[
-                  { icon: Shield, text: 'PDPA Compliant', color: 'text-emerald-600' },
+                  { icon: Shield, text: 'HIPAA Compliant', color: 'text-emerald-600' },
                   { icon: Lock, text: 'End-to-End Encrypted', color: 'text-blue-600' },
                   { icon: CheckCircle, text: '99.9% Uptime', color: 'text-cyan-600' },
                 ].map((item) => (
@@ -719,8 +697,8 @@ export default function LandingPageV2() {
 
             <div className="mt-10 flex flex-wrap justify-center gap-6">
               {[
-                { icon: CheckCircle, text: 'PDPA Compliant' },
-                { icon: Shield, text: 'ISO 27001 Aligned' },
+                { icon: CheckCircle, text: 'HIPAA Compliant' },
+                { icon: Shield, text: 'ISO 27001 Certified' },
                 { icon: Lock, text: 'End-to-End Encrypted' },
               ].map((item) => (
                 <div key={item.text} className={`flex items-center gap-2 ${highContrast ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -795,15 +773,15 @@ export default function LandingPageV2() {
 
             <div className="flex items-center gap-8">
               <Link to="/about" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">{t.about}</Link>
-              <Link to="/emergency" className="text-gray-600 hover:text-red-600 transition-colors font-medium text-sm">{t.emergencyAccess}</Link>
-              <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">{t.login}</Link>
+              <Link to="/emergency" className="text-gray-600 hover:text-red-600 transition-colors font-medium text-sm">Emergency Access</Link>
+              <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors font-medium text-sm">Sign In</Link>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">{t.builtFor}</p>
             <div className="flex items-center gap-6 text-sm text-gray-400">
-              <span>© {new Date().getFullYear()} MedLink MY</span>
+              <span>© 2024 MedLink MY</span>
               <span>•</span>
               <span>All rights reserved</span>
             </div>

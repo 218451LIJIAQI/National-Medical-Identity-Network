@@ -1,83 +1,49 @@
-# 🏥 MedLink MY — National Medical Identity Network
+# MedLink MY — National Medical Identity Network
 
-A patient has visited two cities. Their earlier lab result is in George Town. Today’s appointment is in Kuala Lumpur. Which hospital database should the doctor ask? In **MedLink MY**, that question has its own federated data model. 🗺️
+**MedLink MY** is a federated healthcare identity and clinical record network prototype for Malaysia. Using a citizen's MyKad IC number as a universal pointer, a central hub indexes participating hospitals while each hospital maintains sovereign local storage of clinical encounters, prescriptions, and laboratory reports.
 
-**MedLink MY** is a Malaysian healthcare interoperability platform prototype that uses a MyKad identity number to connect a patient’s clinical visits across **five regional hospital databases** via a **zero-clinical-text Central Pointer Hub**.
+## Participating Hospital Nodes
 
----
-
-## 🗺️ Five Federated Hospital Nodes + One Central Hub
-
-| Institution | City | Hospital ID | Environment Variable |
+| Hospital ID | Facility | City | Database Environment Variable |
 | --- | --- | --- | --- |
-| 🏙️ Kuala Lumpur General Hospital | Kuala Lumpur | `hospital-kl` | `DATABASE_URL_HOSPITAL_KL` |
-| 🌉 Penang General Hospital | George Town | `hospital-penang` | `DATABASE_URL_HOSPITAL_PENANG` |
-| 🌳 Sultanah Aminah Hospital | Johor Bahru | `hospital-jb` | `DATABASE_URL_HOSPITAL_JB` |
-| 🌺 Sarawak General Hospital | Kuching | `hospital-kuching` | `DATABASE_URL_HOSPITAL_KUCHING` |
-| ⛰️ Queen Elizabeth Hospital | Kota Kinabalu | `hospital-kk` | `DATABASE_URL_HOSPITAL_KK` |
+| `hospital-kl` | Kuala Lumpur General Hospital (HKL) | Kuala Lumpur | `DATABASE_URL_HOSPITAL_KL` |
+| `hospital-penang` | Penang General Hospital (HPP) | George Town | `DATABASE_URL_HOSPITAL_PENANG` |
+| `hospital-jb` | Sultanah Aminah Hospital (HSA) | Johor Bahru | `DATABASE_URL_HOSPITAL_JB` |
+| `hospital-kuching` | Sarawak General Hospital (SGH) | Kuching | `DATABASE_URL_HOSPITAL_KUCHING` |
+| `hospital-kk` | Queen Elizabeth Hospital (QEH) | Kota Kinabalu | `DATABASE_URL_HOSPITAL_KK` |
 
-All five hospital nodes run identical clinical Prisma schemas (`backend/prisma/schema.hospital.prisma`), while the Central Hub (`backend/prisma/schema.central.prisma`) stores only **hospital metadata, MyKad-to-hospital index pointers (`PatientIndex`), authentication accounts (`User`), hospital-level patient consent rules (`PatientPrivacySetting`), and immutable security audit trails (`AuditLog`)**.
+All five hospitals use `backend/prisma/schema.hospital.prisma`, while the central directory, RBAC accounts, privacy blacklist policies, and audit trails reside in `backend/prisma/schema.central.prisma` (`DATABASE_URL_CENTRAL`).
 
----
+## Security, Privacy & Clinical Architecture
 
-## 🔐 End-to-End Security, RBAC & Privacy Architecture
+1. **Multi-Role MyKad Authentication & Step-Up Hospital Verification**:
+   - Citizens holding multiple roles under the same MyKad IC (for example, an attending clinician who is also a patient) discover available roles only **after** password verification (`POST /api/auth/login`) and can switch roles mid-session (`POST /api/auth/switch-role`).
+   - Hospital staff (`doctor` and `hospital_admin`) receive a pre-verification JWT upon initial sign-in and must complete hospital step-up verification (`POST /api/auth/verify-hospital` via staff credentials or MyKad staff chip) before accessing hospital or clinical endpoints.
+   - Sign-out (`POST /api/auth/logout`) revokes the active JWT `jti` immediately.
+2. **Zero-Trust RBAC, IDOR Prevention & Patient Privacy Blacklist**:
+   - Patients can only query their own IC (`403` + denied audit log on cross-IC attempts).
+   - Hospital privacy blocks configured by a patient are enforced uniformly across `/api/central/query/:icNumber`, `/api/central/patient/:icNumber`, and `/api/hospitals/:hospitalId/*`, returning HTTP `403` with `accessDenied: true` and recording a denied audit entry.
+   - Hospital administrators (`hospital_admin`) are strictly scoped to audit logs involving their own hospital (`actorHospitalId` or `targetHospitalId`), with inclusive end-of-day date filtering (`YYYY-MM-DDT23:59:59.999Z`).
+3. **Clinical Data Integrity & Federated First-Visit Inheritance**:
+   - Encounter creation (`POST /api/hospitals/:hospitalId/records`) and local record updates (`PUT /api/hospitals/:hospitalId/records/:recordId`) bind strictly to the authenticated active local doctor (`getDoctorByIc`) and persist nested `prescriptions` and `labReports`. Cross-hospital encounters remain strictly read-only.
+   - When a patient visits a new hospital for the first time, the local patient profile inherits verified demographics, blood type, allergies, and chronic conditions from existing federated hospital nodes (falling back to MyKad birth date/gender derivation if completely new).
+4. **Emergency Break-Glass (`GET /api/central/emergency/:icNumber`)**:
+   - Aggregates critical allergies, blood type, chronic conditions, recent diagnoses, and active medications across reachable hospital nodes.
+   - Applies a 60-second cooldown per `IP + IC` **only after a successful break-glass lookup** (so mistyping an unindexed IC returns `404` without locking out the emergency room), alongside an IP-wide anti-enumeration cap.
 
-```mermaid
-flowchart LR
-    W["Role-Scoped Client"] --> A["JWT + RBAC + Scope Guard"]
-    A --> Q["Federated Query Engine"]
-    Q -->|1. Lookup participating hospitals| I[("Central Index DB")]
-    Q -->|2. Enforce PatientPrivacySetting| I
-    Q -->|3. Parallel clinical read| K[("KL Hospital DB")]
-    Q -->|3. Parallel clinical read| P[("Penang Hospital DB")]
-    Q -->|4. Write AuditLog| I
-```
+## Environment Configuration
 
-1. **Strict Object-Level Authorization (Zero IDOR)**:
-   - **`patient`**: Restricted strictly to their own `icNumber` across `/api/central/query/:icNumber`, `/api/central/patient/:icNumber`, and `/api/hospitals/:hospitalId/patients/:icNumber/records`. Cross-patient lookups return `403` and record a denied `AuditLog` entry.
-   - **`doctor` & `hospital_admin`**: Scoped to their authenticated `hospitalId` for local hospital stats, staff lists, encounter creation/updating, and hospital audit logs (`/api/central/audit-logs`). Cross-hospital clinical history is retrieved exclusively through the audited federated query workflow, and foreign hospital records are enforced `isReadOnly: true` on both backend and frontend.
-   - **`central_admin`**: Authorized to govern the national pointer index, connected hospital health, and full network/emergency audit logs.
-2. **Hospital-Level Patient Privacy Blacklist**:
-   - When a patient blocks a hospital in `/patient/privacy`, doctors from that hospital are denied access across `/api/central/query/:icNumber`, `/api/central/patient/:icNumber`, and local patient record endpoints (`403` with `accessDenied: true`), with every blocked attempt logged to `AuditLog`.
-   - Patients viewing their own records and `central_admin` index checks remain unaffected.
-   - The frontend explicitly distinguishes **privacy-blocked (`403`)**, **partial hospital node failure (`status: 'error'`)**, **empty clinical history**, and **network errors**—never disguising failures or blocks as "no records".
-3. **Full Clinical Write & Read-Only Integrity**:
-   - Creating or updating an encounter (`POST /api/hospitals/:hospitalId/records` and `PUT /api/hospitals/:hospitalId/records/:recordId`) persists nested **`Prescription`** and **`LabReport`** rows in a single transaction, synchronizes patient demographics (name, DOB, gender, blood type, allergies, chronic conditions, emergency contact) on first visit at a new hospital, and updates the Central Pointer Index.
-4. **Multi-Role MyKad Authentication & Hospital Verification**:
-   - Users holding multiple roles under one MyKad (e.g., a doctor who is also a patient) can select their role at sign-in or switch roles seamlessly via `POST /api/auth/switch-role`.
-   - Hospital staff complete second-step facility verification (`POST /api/auth/verify-hospital`) before accessing hospital clinical portals.
-5. **Break-Glass Emergency Access**:
-   - `GET /api/central/emergency/:icNumber` aggregates critical life-saving fields (blood type, allergies, chronic conditions, emergency contact, and active medications across all hospitals), enforces a per-IP+IC 60-second cooldown (`429`), returns `404` for unknown ICs, and writes high-priority `emergency_access` audit records.
+- **Development / Demo**: `backend/src/config/index.ts` provides local PostgreSQL defaults (`localhost:5432`) when `NODE_ENV !== 'production'`.
+- **Production (`NODE_ENV=production`)**: Fail-fast startup validation requires:
+  - `JWT_SECRET` set to a strong non-default secret (`>= 32` characters)
+  - `DATABASE_URL_CENTRAL` and all five `DATABASE_URL_HOSPITAL_*` connection strings explicitly configured
 
----
+## Setup & Automated Verification
 
-## 🖥️ Federated Database vs. Workstation Session Tools
-
-| Persistence Layer | Modules & Capabilities |
-| --- | --- |
-| **PostgreSQL Federated Persistence** (Central + 5 Hospital DBs) | Authentication & role switching, Cross-Hospital Patient Search & Timeline, New Encounter creation & local Encounter updates (with Prescriptions & Lab Reports), Patient Portal (Dashboard, Records, Hospital Privacy Controls, Access History), Emergency Break-Glass Lookup, Central & Hospital Audit Logs, National Patient Index, Hospital Doctor Directory (`StaffManagement` DB physicians). |
-| **Session-Persisted Workstation Tools** (`sessionStorage` + real print/CSV/JSON export) | Outpatient Queue Management, Appointments, E-Prescription builder (also syncs to federated `MedicalRecord` when patient exists), Lab Orders, Radiology viewer, Medical Certificate (MC) generator, Inter-Hospital Referral drafts, Nursing Notes & Vitals chart, Subsidized Billing & Receipts, and Hospital Admin ward/department/inventory/financial operations boards. |
-
----
-
-## 🚀 Setup, Build & Automated Verification
-
-### 1. Local & Production Setup (PostgreSQL)
-
-Configure six PostgreSQL databases in `backend/.env` (`JWT_SECRET`, `DATABASE_URL_CENTRAL`, `DATABASE_URL_HOSPITAL`, and `DATABASE_URL_HOSPITAL_KL` / `PENANG` / `JB` / `KUCHING` / `KK`):
-
-| Terminal | Directory | Commands |
+| Component | Directory | Commands |
 | --- | --- | --- |
 | Backend API | `backend/` | `npm ci && npm run multi:setup && npm run dev` |
 | Frontend App | `frontend/` | `npm ci && npm run dev` |
+| Automated Tests | `backend/` & `frontend/` | `npm test` |
 
-Open `http://localhost:5173` (Vite proxies `/api` to `http://localhost:3000`).
-
-### 2. Offline Contract & Unit Test Suites
-
-Both `backend/` and `frontend/` include self-contained `node:test` verification suites covering Express RBAC/IDOR/privacy/clinical persistence/emergency rate-limiting contracts, full-repo TypeScript/TSX compilation, `en`/`ms`/`zh` i18n parity, and frontend state/utility behavior:
-
-```bash
-cd backend && npm test
-cd ../frontend && npm test
-```
+Run `npm test` in `backend/` for HTTP route contract, RBAC/IDOR/privacy security, clinical persistence, break-glass, and production config integration tests, and run `npm test` in `frontend/` for full TypeScript/JSX compilation, case-sensitive import verification, Tailwind class safety checks, and trilingual (`en`/`ms`/`zh`) dictionary parity tests.

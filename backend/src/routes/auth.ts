@@ -6,51 +6,56 @@ import {
   createAuditLog,
   getPatientIndex,
 } from '../database/central-multi';
-import { authenticate, authorize, generateToken, verifyPassword } from '../middleware/auth';
+import {
+  authenticate,
+  authorize,
+  generateToken,
+  revokeToken,
+  verifyPassword,
+} from '../middleware/auth';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
-import { getHospitalById, normalizeIcNumber } from '../config';
-import { User, UserRole } from '../types';
+import { getHospitalById } from '../config';
+import { User, UserRole, normalizeIcNumber } from '../types';
 
 const router = Router();
 
-async function buildUserProfile(user: User, availableRoles: UserRole[]) {
+async function buildUserResponse(
+  user: User,
+  availableRoles: UserRole[],
+  hospitalVerified: boolean
+): Promise<Record<string, unknown>> {
   const userInfo: Record<string, unknown> = {
     id: user.id,
     icNumber: user.icNumber,
     role: user.role,
     hospitalId: user.hospitalId,
     availableRoles,
+    hospitalVerified,
   };
 
   if (user.role === 'doctor' && user.hospitalId) {
-    try {
-      const doctor = await getHospitalDb(user.hospitalId).getDoctorByIc(user.icNumber);
-      if (doctor) {
-        Object.assign(userInfo, {
-          doctorId: doctor.id,
-          fullName: doctor.fullName,
-          specialization: doctor.specialization,
-          department: doctor.department,
-        });
-      }
-    } catch (err) {
-      console.warn('Failed to enrich doctor profile:', err);
+    const doctor = await getHospitalDb(user.hospitalId).getDoctorByIc(user.icNumber);
+    if (!doctor || !doctor.isActive) {
+      throw new Error('INACTIVE_DOCTOR');
     }
+    Object.assign(userInfo, {
+      doctorId: doctor.id,
+      fullName: doctor.fullName,
+      specialization: doctor.specialization,
+      department: doctor.department,
+      licenseNumber: doctor.licenseNumber,
+    });
   } else if (user.role === 'hospital_admin' && user.hospitalId) {
     userInfo.fullName = getHospitalById(user.hospitalId)?.adminName || 'Hospital Administrator';
   } else if (user.role === 'central_admin') {
     userInfo.fullName = 'Central Administrator';
   } else if (user.role === 'patient') {
-    try {
-      const patientIndex = await getPatientIndex(user.icNumber);
-      if (patientIndex && patientIndex.hospitals.length > 0) {
-        const patient = await findPatientInHospitals(user.icNumber, patientIndex.hospitals);
-        if (patient) {
-          userInfo.fullName = patient.fullName;
-        }
+    const patientIndex = await getPatientIndex(user.icNumber);
+    if (patientIndex && patientIndex.hospitals.length > 0) {
+      const patient = await findPatientInHospitals(user.icNumber, patientIndex.hospitals);
+      if (patient) {
+        userInfo.fullName = patient.fullName;
       }
-    } catch (err) {
-      console.warn('Failed to enrich patient profile:', err);
     }
   }
 
@@ -59,13 +64,9 @@ async function buildUserProfile(user: User, availableRoles: UserRole[]) {
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const rawIc = typeof req.body?.icNumber === 'string' ? req.body.icNumber : '';
-    const password = typeof req.body?.password === 'string' ? req.body.password : '';
-    const requestedRole = typeof req.body?.role === 'string' && req.body.role ? req.body.role : undefined;
+    const { icNumber: rawIc, password, role } = req.body || {};
 
-    const icNumber = normalizeIcNumber(rawIc);
-
-    if (!icNumber || !password) {
+    if (!rawIc || !password) {
       res.status(400).json({
         success: false,
         error: 'IC number and password are required',
@@ -73,10 +74,25 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    const usersForIc = await getUsersByIc(icNumber);
-    const matchingUsers = usersForIc.filter(u => verifyPassword(password, u.passwordHash));
+    const icNumber = normalizeIcNumber(String(rawIc));
+    const candidates = await getUsersByIc(icNumber);
+    const matchingUsers = candidates.filter(u => verifyPassword(String(password), u.passwordHash));
 
     if (matchingUsers.length === 0) {
+      try {
+        await createAuditLog({
+          timestamp: new Date().toISOString(),
+          action: 'login',
+          actorType: 'system',
+          targetIcNumber: icNumber,
+          details: `Failed login attempt for ${icNumber}`,
+          ipAddress: req.ip || 'unknown',
+          success: false,
+        });
+      } catch {
+        // Do not mask auth failure if audit DB write fails
+      }
+
       res.status(401).json({
         success: false,
         error: 'Invalid credentials',
@@ -84,28 +100,44 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    if (!requestedRole && matchingUsers.length > 1) {
+    const availableRoles = Array.from(new Set(matchingUsers.map(u => u.role)));
+
+    if (!role && matchingUsers.length > 1) {
       res.json({
         success: true,
         data: {
           requiresRoleSelection: true,
-          icNumber,
-          availableRoles: matchingUsers.map(u => u.role),
+          icNumber: matchingUsers[0].icNumber,
+          availableRoles,
         },
       });
       return;
     }
 
-    const user = requestedRole
-      ? matchingUsers.find(u => u.role === requestedRole)
-      : matchingUsers[0];
-
+    const user = role ? matchingUsers.find(u => u.role === role) : matchingUsers[0];
     if (!user) {
       res.status(401).json({
         success: false,
-        error: 'Invalid credentials for selected role',
+        error: 'Invalid credentials for the requested role',
       });
       return;
+    }
+
+    const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin';
+    const hospitalVerified = !requiresHospitalStep;
+
+    let userInfo: Record<string, unknown>;
+    try {
+      userInfo = await buildUserResponse(user, availableRoles, hospitalVerified);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor profile is inactive or not registered at the assigned hospital',
+        });
+        return;
+      }
+      throw err;
     }
 
     await updateUserLastLogin(user.id);
@@ -115,10 +147,8 @@ router.post('/login', async (req: Request, res: Response) => {
       icNumber: user.icNumber,
       role: user.role,
       hospitalId: user.hospitalId,
+      hospitalVerified,
     });
-
-    const allRolesForIc = usersForIc.map(u => u.role);
-    const userInfo = await buildUserProfile(user, allRolesForIc);
 
     const userName = (userInfo.fullName as string) || user.icNumber;
     await createAuditLog({
@@ -127,7 +157,9 @@ router.post('/login', async (req: Request, res: Response) => {
       actorId: user.id,
       actorType: user.role,
       actorHospitalId: user.hospitalId,
-      details: `${userName} logged in as ${user.role}`,
+      details: requiresHospitalStep
+        ? `${userName} authenticated (pending hospital verification)`
+        : `${userName} logged in successfully`,
       ipAddress: req.ip || 'unknown',
       success: true,
     });
@@ -155,21 +187,10 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const currentUser = req.user!;
-      const method = req.body?.method === 'ic_card' ? 'ic_card' : 'credentials';
-
-      if (!currentUser.hospitalId) {
+      if (!currentUser.hospitalId || !getHospitalById(currentUser.hospitalId)) {
         res.status(403).json({
           success: false,
-          error: 'No hospital assigned to this account',
-        });
-        return;
-      }
-
-      const hospital = getHospitalById(currentUser.hospitalId);
-      if (!hospital) {
-        res.status(404).json({
-          success: false,
-          error: 'Assigned hospital not found',
+          error: 'No valid hospital affiliation found for this account',
         });
         return;
       }
@@ -178,16 +199,62 @@ router.post(
       if (!dbUser || !dbUser.isActive) {
         res.status(401).json({
           success: false,
-          error: 'Account inactive or not found',
+          error: 'User account is inactive or not found',
         });
         return;
       }
 
-      if (method === 'credentials') {
-        const staffId = typeof req.body?.staffId === 'string' ? normalizeIcNumber(req.body.staffId) : '';
-        const password = typeof req.body?.password === 'string' ? req.body.password : '';
+      const { method = 'credentials', username, staffId, password, icNumber } = req.body || {};
+      const hospitalName = getHospitalById(currentUser.hospitalId)?.name || currentUser.hospitalId;
 
-        if (!staffId || !password) {
+      let doctorRecord = null;
+      if (dbUser.role === 'doctor') {
+        doctorRecord = await getHospitalDb(currentUser.hospitalId).getDoctorByIc(dbUser.icNumber);
+        if (!doctorRecord || !doctorRecord.isActive) {
+          await createAuditLog({
+            timestamp: new Date().toISOString(),
+            action: 'verify',
+            actorId: dbUser.id,
+            actorType: dbUser.role,
+            actorHospitalId: currentUser.hospitalId,
+            targetHospitalId: currentUser.hospitalId,
+            details: `Hospital verification rejected: inactive or missing doctor profile at ${hospitalName}`,
+            ipAddress: req.ip || 'unknown',
+            success: false,
+          });
+          res.status(403).json({
+            success: false,
+            error: 'Active clinician profile not found at this hospital',
+          });
+          return;
+        }
+      }
+
+      if (method === 'ic_chip') {
+        const scannedIc = icNumber ? normalizeIcNumber(String(icNumber)) : dbUser.icNumber;
+        if (scannedIc !== normalizeIcNumber(dbUser.icNumber)) {
+          await createAuditLog({
+            timestamp: new Date().toISOString(),
+            action: 'verify',
+            actorId: dbUser.id,
+            actorType: dbUser.role,
+            actorHospitalId: currentUser.hospitalId,
+            targetHospitalId: currentUser.hospitalId,
+            details: `IC chip verification failed at ${hospitalName}: identity mismatch`,
+            ipAddress: req.ip || 'unknown',
+            success: false,
+          });
+          res.status(401).json({
+            success: false,
+            error: 'Scanned MyKad IC does not match authenticated user identity',
+          });
+          return;
+        }
+      } else {
+        const providedId = normalizeIcNumber(String(username || staffId || '').trim());
+        const providedPassword = String(password || '');
+
+        if (!providedId || !providedPassword) {
           res.status(400).json({
             success: false,
             error: 'Hospital staff ID and password are required',
@@ -195,46 +262,58 @@ router.post(
           return;
         }
 
-        if (
-          staffId.toLowerCase() !== dbUser.icNumber.toLowerCase() ||
-          !verifyPassword(password, dbUser.passwordHash)
-        ) {
+        const validStaffIdentifiers = new Set<string>([normalizeIcNumber(dbUser.icNumber)]);
+        if (doctorRecord) {
+          if (doctorRecord.licenseNumber) validStaffIdentifiers.add(doctorRecord.licenseNumber);
+          validStaffIdentifiers.add(doctorRecord.id);
+        }
+
+        const idMatches = validStaffIdentifiers.has(providedId) || validStaffIdentifiers.has(String(username || staffId || '').trim());
+        const pwdMatches = verifyPassword(providedPassword, dbUser.passwordHash);
+
+        if (!idMatches || !pwdMatches) {
           await createAuditLog({
             timestamp: new Date().toISOString(),
-            action: 'login',
+            action: 'verify',
             actorId: dbUser.id,
             actorType: dbUser.role,
-            actorHospitalId: dbUser.hospitalId,
-            details: `Failed hospital verification attempt at ${hospital.shortName}`,
+            actorHospitalId: currentUser.hospitalId,
+            targetHospitalId: currentUser.hospitalId,
+            details: `Hospital credential verification failed at ${hospitalName}`,
             ipAddress: req.ip || 'unknown',
             success: false,
           });
           res.status(401).json({
             success: false,
-            error: 'Invalid hospital staff ID or password',
+            error: 'Invalid hospital staff credentials',
           });
           return;
         }
       }
 
-      if (dbUser.role === 'doctor') {
-        const doctor = await getHospitalDb(currentUser.hospitalId).getDoctorByIc(dbUser.icNumber);
-        if (!doctor || !doctor.isActive) {
-          res.status(403).json({
-            success: false,
-            error: 'Doctor profile is not registered or active at this hospital',
-          });
-          return;
-        }
-      }
+      if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
+      if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+
+      const allSameIcUsers = await getUsersByIc(dbUser.icNumber);
+      const availableRoles = Array.from(new Set(allSameIcUsers.map(u => u.role)));
+      const userInfo = await buildUserResponse(dbUser, availableRoles, true);
+
+      const verifiedToken = generateToken({
+        userId: dbUser.id,
+        icNumber: dbUser.icNumber,
+        role: dbUser.role,
+        hospitalId: dbUser.hospitalId,
+        hospitalVerified: true,
+      });
 
       await createAuditLog({
         timestamp: new Date().toISOString(),
-        action: 'login',
+        action: 'verify',
         actorId: dbUser.id,
         actorType: dbUser.role,
-        actorHospitalId: dbUser.hospitalId,
-        details: `Verified hospital access for ${hospital.shortName} (${method === 'ic_card' ? 'IC Card' : 'Staff Credentials'})`,
+        actorHospitalId: currentUser.hospitalId,
+        targetHospitalId: currentUser.hospitalId,
+        details: `Hospital secondary verification (${method}) completed for ${hospitalName}`,
         ipAddress: req.ip || 'unknown',
         success: true,
       });
@@ -242,55 +321,26 @@ router.post(
       res.json({
         success: true,
         data: {
-          verified: true,
-          hospitalId: hospital.id,
-          hospitalName: hospital.name,
+          token: verifiedToken,
+          user: userInfo,
         },
       });
     } catch (error) {
       console.error('Hospital verification error:', error);
       res.status(500).json({
         success: false,
-        error: 'Hospital verification failed',
+        error: 'Failed to complete hospital verification',
       });
     }
   }
 );
 
-router.get('/me', authenticate, async (req: Request, res: Response) => {
-  try {
-    const dbUser = await getUserById(req.user!.userId);
-    if (!dbUser) {
-      res.status(401).json({
-        success: false,
-        error: 'User not found',
-      });
-      return;
-    }
-
-    const usersForIc = await getUsersByIc(dbUser.icNumber);
-    const userInfo = await buildUserProfile(
-      dbUser,
-      usersForIc.map(u => u.role)
-    );
-
-    res.json({
-      success: true,
-      data: { user: userInfo },
-    });
-  } catch (error) {
-    console.error('Get current user error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve user session',
-    });
-  }
-});
-
 router.post('/switch-role', authenticate, async (req: Request, res: Response) => {
   try {
-    const targetRole = typeof req.body?.role === 'string' ? (req.body.role as UserRole) : undefined;
-    if (!targetRole) {
+    const { role } = req.body || {};
+    const currentUser = req.user!;
+
+    if (!role || typeof role !== 'string') {
       res.status(400).json({
         success: false,
         error: 'Target role is required',
@@ -298,29 +348,47 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
       return;
     }
 
-    const usersForIc = await getUsersByIc(req.user!.icNumber);
-    const targetUser = usersForIc.find(u => u.role === targetRole);
+    const allUsers = await getUsersByIc(currentUser.icNumber);
+    const targetUser = allUsers.find(u => u.role === role);
+
     if (!targetUser) {
       res.status(403).json({
         success: false,
-        error: 'Role is not available for this identity',
+        error: 'Requested role is not assigned to this MyKad identity',
       });
       return;
     }
 
+    const requiresHospitalStep = targetUser.role === 'doctor' || targetUser.role === 'hospital_admin';
+    const hospitalVerified = !requiresHospitalStep;
+    const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
+
+    let userInfo: Record<string, unknown>;
+    try {
+      userInfo = await buildUserResponse(targetUser, availableRoles, hospitalVerified);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor profile is inactive at the assigned hospital',
+        });
+        return;
+      }
+      throw err;
+    }
+
+    if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
+    if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+
     await updateUserLastLogin(targetUser.id);
 
-    const token = generateToken({
+    const newToken = generateToken({
       userId: targetUser.id,
       icNumber: targetUser.icNumber,
       role: targetUser.role,
       hospitalId: targetUser.hospitalId,
+      hospitalVerified,
     });
-
-    const userInfo = await buildUserProfile(
-      targetUser,
-      usersForIc.map(u => u.role)
-    );
 
     await createAuditLog({
       timestamp: new Date().toISOString(),
@@ -328,7 +396,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
       actorId: targetUser.id,
       actorType: targetUser.role,
       actorHospitalId: targetUser.hospitalId,
-      details: `Switched active session role to ${targetUser.role}`,
+      details: `Switched active session role from ${currentUser.role} to ${targetUser.role}`,
       ipAddress: req.ip || 'unknown',
       success: true,
     });
@@ -336,7 +404,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
     res.json({
       success: true,
       data: {
-        token,
+        token: newToken,
         user: userInfo,
       },
     });
@@ -351,13 +419,17 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
 
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
+    const currentUser = req.user!;
+    if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
+    if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'logout',
-      actorId: req.user!.userId,
-      actorType: req.user!.role,
-      actorHospitalId: req.user!.hospitalId,
-      details: `${req.user!.icNumber} logged out`,
+      actorId: currentUser.userId,
+      actorType: currentUser.role,
+      actorHospitalId: currentUser.hospitalId,
+      details: `User ${currentUser.icNumber} (${currentUser.role}) logged out`,
       ipAddress: req.ip || 'unknown',
       success: true,
     });
@@ -370,7 +442,38 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
     console.error('Logout error:', error);
     res.status(500).json({
       success: false,
-      error: 'Logout failed',
+      error: 'Failed to complete logout',
+    });
+  }
+});
+
+router.get('/me', authenticate, async (req: Request, res: Response) => {
+  try {
+    const currentUser = req.user!;
+    const dbUser = await getUserById(currentUser.userId);
+    if (!dbUser || !dbUser.isActive) {
+      res.status(401).json({
+        success: false,
+        error: 'User account is inactive or not found',
+      });
+      return;
+    }
+
+    const allUsers = await getUsersByIc(dbUser.icNumber);
+    const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
+    const userInfo = await buildUserResponse(dbUser, availableRoles, Boolean(currentUser.hospitalVerified));
+
+    res.json({
+      success: true,
+      data: {
+        user: userInfo,
+      },
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve session profile',
     });
   }
 });

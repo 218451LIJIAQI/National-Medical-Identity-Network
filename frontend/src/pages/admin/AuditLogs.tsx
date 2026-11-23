@@ -1,510 +1,506 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
-import { exportToCsv } from '@/lib/workstation-storage'
-import { formatActorDisplayName } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { EmergencyReportModal, type EmergencyReportData } from '@/components/EmergencyReportModal'
+import { EmergencyReportModal } from '@/components/EmergencyReportModal'
 import {
-  FileText,
   Search,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  LogIn,
-  LogOut,
-  Eye,
-  Plus,
   Shield,
-  Clock,
-  Building2,
-  User,
+  Eye,
   Download,
-  Siren,
+  Building2,
+  Clock,
   AlertTriangle,
+  CheckCircle,
+  Loader2,
+  Activity,
+  FileText,
+  Zap,
+  Filter,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
   Calendar,
-  ExternalLink,
-  AlertCircle,
+  Siren,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-
-type AuditActionCode =
-  | 'LOGIN'
-  | 'LOGOUT'
-  | 'CROSS_HOSPITAL_QUERY'
-  | 'RECORD_VIEW'
-  | 'RECORD_CREATE'
-  | 'RECORD_UPDATE'
-  | 'PATIENT_CONSENT_UPDATE'
-  | 'EMERGENCY_ACCESS'
-  | 'ACCESS_DENIED'
+import { downloadCsvFile, formatDate } from '@/lib/utils'
+import { motion } from 'framer-motion'
 
 interface AuditLog {
   id: string
-  action: AuditActionCode
-  rawAction: string
-  userId?: string
-  userName?: string
-  userRole?: string
-  targetIcNumber?: string
-  sourceHospital?: string
-  targetHospitals?: string[]
-  details?: string
-  ipAddress?: string
   timestamp: string
-  success: boolean
+  action: string
+  userId: string
+  userName: string
+  userRole: string
+  targetIcNumber?: string
+  sourceHospital: string
+  targetHospitals?: string[]
+  status: 'success' | 'denied'
+  details?: string
 }
 
-const ACTION_MAP: Record<string, AuditActionCode> = {
-  login: 'LOGIN',
-  logout: 'LOGOUT',
+const ITEMS_PER_PAGE = 10
+
+const ACTION_MAP: Record<string, string> = {
   query: 'CROSS_HOSPITAL_QUERY',
   view: 'RECORD_VIEW',
   create: 'RECORD_CREATE',
-  update: 'PATIENT_CONSENT_UPDATE',
+  update: 'RECORD_UPDATE',
+  login: 'LOGIN',
+  verify: 'HOSPITAL_VERIFY',
+  logout: 'LOGOUT',
+  emergency: 'EMERGENCY_ACCESS',
   emergency_access: 'EMERGENCY_ACCESS',
-}
-
-function mapRawAuditAction(rawAction: string, actorType: string, details: string, success: boolean): AuditActionCode {
-  if (!success && (rawAction === 'query' || rawAction === 'view')) {
-    return 'ACCESS_DENIED'
-  }
-  if (rawAction === 'update') {
-    if (actorType === 'patient' || details.toLowerCase().includes('privacy') || details.toLowerCase().includes('access')) {
-      return 'PATIENT_CONSENT_UPDATE'
-    }
-    return 'RECORD_UPDATE'
-  }
-  return ACTION_MAP[rawAction] || 'RECORD_VIEW'
-}
-
-const actionConfig: Record<
-  AuditActionCode,
-  { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; label: string; isAlert?: boolean }
-> = {
-  LOGIN: { icon: LogIn, color: 'text-blue-600', bg: 'bg-blue-100', label: 'User Login' },
-  LOGOUT: { icon: LogOut, color: 'text-slate-600', bg: 'bg-slate-100', label: 'User Logout' },
-  CROSS_HOSPITAL_QUERY: { icon: Search, color: 'text-purple-600', bg: 'bg-purple-100', label: 'Cross-Hospital Query' },
-  RECORD_VIEW: { icon: Eye, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Record Viewed' },
-  RECORD_CREATE: { icon: Plus, color: 'text-emerald-600', bg: 'bg-emerald-100', label: 'Record Created' },
-  RECORD_UPDATE: { icon: FileText, color: 'text-amber-600', bg: 'bg-amber-100', label: 'Record Updated' },
-  PATIENT_CONSENT_UPDATE: { icon: Shield, color: 'text-indigo-600', bg: 'bg-indigo-100', label: 'Privacy Consent Updated' },
-  EMERGENCY_ACCESS: { icon: Siren, color: 'text-orange-600', bg: 'bg-orange-100', label: 'Emergency Access', isAlert: true },
-  ACCESS_DENIED: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-100', label: 'Access Blocked', isAlert: true },
+  consent_change: 'PATIENT_CONSENT_UPDATE',
+  access_denied: 'ACCESS_DENIED',
 }
 
 export default function AuditLogs() {
   const { user } = useAuthStore()
+  const [searchParams] = useSearchParams()
+  const initialTargetIc = searchParams.get('targetIcNumber') || ''
+  const hospitalTheme = getHospitalTheme(user?.hospitalId)
+
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [actionFilter, setActionFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'failed'>('all')
+  const [searchTerm, setSearchTerm] = useState(initialTargetIc)
+  const [filterAction, setFilterAction] = useState<string>('all')
+  const [refreshing, setRefreshing] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [selectedEmergencyLog, setSelectedEmergencyLog] = useState<AuditLog | null>(null)
+  const [selectedEmergency, setSelectedEmergency] = useState<AuditLog | null>(null)
 
-  const loadLogs = useCallback(async (overrideStart?: string, overrideEnd?: string) => {
-    setLoading(true)
-    setLoadError(null)
+  const loadLogs = async (overrideStart?: string, overrideEnd?: string) => {
+    const effectiveStart = overrideStart !== undefined ? overrideStart : startDate
+    const effectiveEnd = overrideEnd !== undefined ? overrideEnd : endDate
     try {
-      const effectiveStart = overrideStart !== undefined ? overrideStart : startDate
-      const effectiveEnd = overrideEnd !== undefined ? overrideEnd : endDate
       const response = await centralApi.getAuditLogs({
         limit: 150,
         startDate: effectiveStart || undefined,
         endDate: effectiveEnd || undefined,
       })
       if (response.success && response.data) {
-        const mappedLogs: AuditLog[] = response.data.map((raw) => {
-          const rawAction = String(raw.action || 'view')
-          const actorType = String(raw.actorType || '')
-          const details = raw.details ? String(raw.details) : ''
-          const success = Boolean(raw.success)
-          const actorHospitalId = raw.actorHospitalId ? String(raw.actorHospitalId) : undefined
-          const targetHospitalId = raw.targetHospitalId ? String(raw.targetHospitalId) : undefined
-          const hospitalName = raw.hospitalName ? String(raw.hospitalName) : undefined
+        const apiLogs = (response.data as Array<Record<string, unknown>>).map((log) => {
+          const rawAction = String(log.action || '')
+          const mappedAction =
+            !log.success && rawAction !== 'emergency_access'
+              ? ACTION_MAP[rawAction] || 'ACCESS_DENIED'
+              : ACTION_MAP[rawAction] || 'RECORD_VIEW'
           return {
-            id: String(raw.id || ''),
-            action: mapRawAuditAction(rawAction, actorType, details, success),
-            rawAction,
-            userId: raw.actorId ? String(raw.actorId) : undefined,
-            userName: formatActorDisplayName(
-              raw.actorName ? String(raw.actorName) : undefined,
-              raw.actorId ? String(raw.actorId) : undefined,
-              actorType
-            ),
-            userRole: actorType || undefined,
-            targetIcNumber: raw.targetIcNumber ? String(raw.targetIcNumber) : undefined,
-            sourceHospital:
-              hospitalName && hospitalName !== 'Central MedLink'
-                ? hospitalName
-                : actorHospitalId
-                  ? getHospitalTheme(actorHospitalId).name
-                  : undefined,
-            targetHospitals: targetHospitalId ? [getHospitalTheme(targetHospitalId).name] : undefined,
-            details: details || undefined,
-            ipAddress: raw.ipAddress ? String(raw.ipAddress) : undefined,
-            timestamp: String(raw.timestamp || new Date().toISOString()),
-            success,
+            id: String(log.id || ''),
+            timestamp: String(log.timestamp || ''),
+            action: mappedAction,
+            userId: String(log.actorId || '').slice(0, 14) || 'System',
+            userName: String(log.actorName || log.actorId || 'System'),
+            userRole: String(log.actorType || 'unknown'),
+            targetIcNumber: log.targetIcNumber ? String(log.targetIcNumber) : undefined,
+            sourceHospital: String(log.hospitalName || log.actorHospitalId || 'Central Hub'),
+            targetHospitals: log.targetHospitalId ? [String(log.targetHospitalId)] : undefined,
+            status: log.success ? ('success' as const) : ('denied' as const),
+            details: log.details ? String(log.details) : undefined,
           }
         })
-        setLogs(mappedLogs)
-      } else {
-        setLoadError(response.error || 'Failed to retrieve audit logs.')
+        setLogs(apiLogs)
       }
-    } catch {
-      setLoadError('Network error while loading audit logs.')
+    } catch (error) {
+      console.error('Failed to load audit logs:', error)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }, [startDate, endDate])
+  }
 
   useEffect(() => {
-    void loadLogs()
-  }, [loadLogs])
+    loadLogs()
+  }, [])
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadLogs()
+  }
+
+  const handleClearDates = () => {
+    setStartDate('')
+    setEndDate('')
+    setRefreshing(true)
+    loadLogs('', '')
+  }
 
   const filteredLogs = logs.filter((log) => {
-    const q = searchQuery.trim().toLowerCase()
+    const q = searchTerm.toLowerCase()
     const matchesSearch =
       !q ||
       log.targetIcNumber?.toLowerCase().includes(q) ||
-      log.userId?.toLowerCase().includes(q) ||
-      log.userName?.toLowerCase().includes(q) ||
-      log.sourceHospital?.toLowerCase().includes(q) ||
+      log.userName.toLowerCase().includes(q) ||
+      log.userId.toLowerCase().includes(q) ||
+      log.sourceHospital.toLowerCase().includes(q) ||
       log.details?.toLowerCase().includes(q)
 
-    const matchesAction = actionFilter === 'all' || log.action === actionFilter
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'success' && log.success) ||
-      (statusFilter === 'failed' && !log.success)
-
-    return matchesSearch && matchesAction && matchesStatus
+    const matchesFilter = filterAction === 'all' || log.action === filterAction
+    return matchesSearch && matchesFilter
   })
 
+  const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterAction])
+
   const handleExportCsv = () => {
-    exportToCsv(
-      `medlink-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Timestamp', 'Action', 'Status', 'Actor Name', 'Actor Role', 'Source Hospital', 'Target IC', 'Details'],
-      filteredLogs.map((log) => [
-        new Date(log.timestamp).toISOString(),
-        actionConfig[log.action]?.label || log.action,
-        log.success ? 'Success' : 'Blocked/Failed',
-        log.userName || log.userId || 'System',
-        log.userRole || '-',
-        log.sourceHospital || 'Central Hub',
-        log.targetIcNumber || '-',
-        log.details || '-',
+    downloadCsvFile(
+      `medlink-audit-logs-${new Date().toISOString().split('T')[0]}.csv`,
+      ['Timestamp', 'Action', 'Actor Name', 'Role', 'Source Hospital', 'Target IC', 'Status', 'Details'],
+      filteredLogs.map((l) => [
+        l.timestamp,
+        l.action,
+        l.userName,
+        l.userRole,
+        l.sourceHospital,
+        l.targetIcNumber || '',
+        l.status,
+        l.details || '',
       ])
     )
   }
 
-  const stats = {
-    total: logs.length,
-    successful: logs.filter((l) => l.success).length,
-    failed: logs.filter((l) => !l.success).length,
-    queries: logs.filter((l) => l.action === 'CROSS_HOSPITAL_QUERY').length,
-    emergency: logs.filter((l) => l.action === 'EMERGENCY_ACCESS').length,
+  const getActionBadge = (action: string) => {
+    const actionStyles: Record<string, { color: string; label: string }> = {
+      CROSS_HOSPITAL_QUERY: { color: 'bg-blue-100 text-blue-700', label: 'Cross-Hospital Query' },
+      RECORD_VIEW: { color: 'bg-emerald-100 text-emerald-700', label: 'Record View' },
+      RECORD_CREATE: { color: 'bg-purple-100 text-purple-700', label: 'Record Create' },
+      RECORD_UPDATE: { color: 'bg-indigo-100 text-indigo-700', label: 'Record Update' },
+      LOGIN: { color: 'bg-slate-100 text-slate-700', label: 'Login' },
+      HOSPITAL_VERIFY: { color: 'bg-cyan-100 text-cyan-700', label: 'Hospital Verify' },
+      LOGOUT: { color: 'bg-gray-100 text-gray-600', label: 'Logout' },
+      ACCESS_DENIED: { color: 'bg-red-100 text-red-700', label: 'Access Denied' },
+      PATIENT_CONSENT_UPDATE: { color: 'bg-amber-100 text-amber-800', label: 'Privacy Consent' },
+      EMERGENCY_ACCESS: { color: 'bg-orange-100 text-orange-800', label: 'Emergency Break-Glass' },
+    }
+    const style = actionStyles[action] || { color: 'bg-gray-100 text-gray-700', label: action }
+    return <Badge className={style.color}>{style.label}</Badge>
   }
 
-  const emergencyReport: EmergencyReportData | null = selectedEmergencyLog
-    ? {
-        id: selectedEmergencyLog.id,
-        timestamp: selectedEmergencyLog.timestamp,
-        targetIcNumber: selectedEmergencyLog.targetIcNumber,
-        actorRole: selectedEmergencyLog.userName || selectedEmergencyLog.userRole || 'Emergency Responder',
-        actorId: selectedEmergencyLog.userId || 'N/A',
-        sourceLocation: selectedEmergencyLog.sourceHospital || selectedEmergencyLog.ipAddress || 'Emergency Terminal',
-        details: selectedEmergencyLog.details,
-        granted: selectedEmergencyLog.success,
-      }
-    : null
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  const stats = [
+    {
+      label: 'Cross-Hospital Queries',
+      value: logs.filter((l) => l.action === 'CROSS_HOSPITAL_QUERY').length,
+      icon: Eye,
+      color: 'from-blue-500 to-cyan-500',
+      bgColor: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    },
+    {
+      label: 'Authorized Events',
+      value: logs.filter((l) => l.status === 'success').length,
+      icon: CheckCircle,
+      color: 'from-emerald-500 to-green-500',
+      bgColor: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      label: 'Denied / Blocked',
+      value: logs.filter((l) => l.status === 'denied').length,
+      icon: AlertTriangle,
+      color: 'from-red-500 to-rose-500',
+      bgColor: 'bg-red-50',
+      iconColor: 'text-red-600',
+    },
+    {
+      label: 'Emergency Break-Glass',
+      value: logs.filter((l) => l.action === 'EMERGENCY_ACCESS').length,
+      icon: Zap,
+      color: 'from-amber-500 to-orange-500',
+      bgColor: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+  ]
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl text-white">
-              <FileText className="h-6 w-6" />
+    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
+              <Badge variant="outline" className="text-xs">
+                {user?.role === 'hospital_admin'
+                  ? `Hospital Scoped: ${hospitalTheme.name}`
+                  : 'National Network Scope'}
+              </Badge>
             </div>
-            Audit Logs
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {user?.role === 'hospital_admin' && user.hospitalId
-              ? `Hospital-scoped security & clinical access trail for ${getHospitalTheme(user.hospitalId).name}`
-              : 'Complete activity trail across the National Medical Identity Network'}
-          </p>
+            <p className="text-gray-500 text-sm">
+              Immutable zero-trust audit trail of clinical queries, consent changes, and break-glass events
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void loadLogs()} className="gap-2" disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" className="gap-2 h-11 px-4 rounded-xl" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button
-            variant="outline"
             onClick={handleExportCsv}
             disabled={filteredLogs.length === 0}
-            className="gap-2"
+            className="gap-2 h-11 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md"
           >
-            <Download className="h-4 w-4" />
-            Export CSV ({filteredLogs.length})
+            <Download className="w-4 h-4" />
+            Export CSV
           </Button>
         </div>
       </div>
 
-      {loadError && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between gap-3 text-red-700 text-sm">
-          <span className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {loadError}
-          </span>
-          <Button size="sm" variant="outline" onClick={() => void loadLogs()}>
-            Retry
-          </Button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: 'Total Events', value: stats.total, color: 'from-slate-500 to-slate-700', icon: FileText },
-          { label: 'Successful', value: stats.successful, color: 'from-emerald-500 to-teal-600', icon: CheckCircle2 },
-          { label: 'Blocked / Failed', value: stats.failed, color: 'from-red-500 to-rose-600', icon: XCircle },
-          { label: 'Cross-Hospital Queries', value: stats.queries, color: 'from-purple-500 to-indigo-600', icon: Search },
-          { label: 'Emergency Access', value: stats.emergency, color: 'from-orange-500 to-amber-600', icon: Siren, isAlert: stats.emergency > 0 },
-        ].map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Card className={`border-0 shadow-md ${stat.isAlert ? 'ring-2 ring-orange-400 bg-orange-50/30' : ''}`}>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} text-white ${stat.isAlert ? 'animate-pulse' : ''}`}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">{loading ? '-' : stat.value}</p>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <Card key={stat.label} className="border-0 shadow-md overflow-hidden">
+            <div className={`h-1 bg-gradient-to-r ${stat.color}`} />
+            <CardContent className="pt-5 pb-4 flex items-center justify-between">
+              <div>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+              </div>
+              <div className={`p-3 ${stat.bgColor} rounded-xl`}>
+                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      <Card className="border-0 shadow-lg">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col md:flex-row gap-4">
+      <Card className="border-0 shadow-md">
+        <CardContent className="py-4 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
-                placeholder="Search by IC number, actor name, hospital, or details..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                placeholder="Search by IC number, clinician name, hospital, or detail..."
+                className="pl-10 h-11 rounded-xl"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-
-            <select
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-              aria-label="Filter by action type"
-            >
-              <option value="all">All Actions</option>
-              <option value="LOGIN">User Login</option>
-              <option value="LOGOUT">User Logout</option>
-              <option value="CROSS_HOSPITAL_QUERY">Cross-Hospital Query</option>
-              <option value="RECORD_VIEW">Record Viewed</option>
-              <option value="RECORD_CREATE">Record Created</option>
-              <option value="RECORD_UPDATE">Record Updated</option>
-              <option value="PATIENT_CONSENT_UPDATE">Privacy Consent Updated</option>
-              <option value="ACCESS_DENIED">Access Blocked</option>
-              <option value="EMERGENCY_ACCESS">Emergency Access</option>
-            </select>
-
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              {(['all', 'success', 'failed'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all capitalize ${
-                    statusFilter === status ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select
+                title="Filter by action type"
+                className="h-11 border border-gray-200 rounded-xl px-3 text-sm bg-white"
+                value={filterAction}
+                onChange={(e) => setFilterAction(e.target.value)}
+              >
+                <option value="all">All Actions</option>
+                <option value="CROSS_HOSPITAL_QUERY">Cross-Hospital Queries</option>
+                <option value="RECORD_VIEW">Record Views</option>
+                <option value="RECORD_CREATE">Record Creates</option>
+                <option value="RECORD_UPDATE">Record Updates</option>
+                <option value="PATIENT_CONSENT_UPDATE">Privacy Consent</option>
+                <option value="LOGIN">Logins</option>
+                <option value="HOSPITAL_VERIFY">Hospital Verifications</option>
+                <option value="EMERGENCY_ACCESS">Emergency Break-Glass</option>
+              </select>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Calendar className="h-4 w-4" />
-              <span>Date Range:</span>
+          <div className="flex flex-col sm:flex-row items-center gap-3 p-3.5 bg-violet-50/70 rounded-xl border border-violet-100">
+            <div className="flex items-center gap-2 text-violet-800 text-sm font-medium">
+              <Calendar className="w-4 h-4" />
+              <span>Date Range (Inclusive):</span>
             </div>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-1.5 border rounded-lg text-sm bg-white"
-              aria-label="Start date"
-            />
-            <span className="text-gray-400">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-1.5 border rounded-lg text-sm bg-white"
-              aria-label="End date"
-            />
-            <Button size="sm" onClick={() => void loadLogs()} className="gap-1">
-              Apply
-            </Button>
-            {(startDate || endDate) && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setStartDate('')
-                  setEndDate('')
-                  void loadLogs('', '')
-                }}
-              >
+            <div className="flex flex-1 items-center gap-2 w-full sm:w-auto">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-9 bg-white"
+              />
+              <span className="text-gray-400">→</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-9 bg-white"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleClearDates} className="h-9">
                 Clear
               </Button>
-            )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setRefreshing(true)
+                  loadLogs()
+                }}
+                className="h-9 bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                Apply Filter
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-xl overflow-hidden">
-        <div className="divide-y divide-gray-100">
-          {loading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="p-4 flex items-center gap-4">
-                <Skeleton className="h-10 w-10 rounded-xl" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-3 w-72" />
-                </div>
-                <Skeleton className="h-6 w-20 rounded-full" />
-              </div>
-            ))
-          ) : filteredLogs.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 font-medium">No audit logs matched your current filters</p>
+      <Card className="border-0 shadow-md overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500" />
+        <CardHeader className="border-b bg-gray-50/50 py-4 flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="w-5 h-5 text-violet-600" />
+            Audited Events
+          </CardTitle>
+          <Badge variant="secondary" className="rounded-full">
+            {filteredLogs.length} entries
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-0">
+          {paginatedLogs.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p>No audit logs found matching your filter criteria.</p>
             </div>
           ) : (
-            <AnimatePresence>
-              {filteredLogs.map((log, index) => {
-                const config = actionConfig[log.action] || actionConfig.RECORD_VIEW
-                const IconComponent = config.icon
-                const isEmergency = log.action === 'EMERGENCY_ACCESS'
-                const isDenied = log.action === 'ACCESS_DENIED' || !log.success
-
-                return (
-                  <motion.div
-                    key={log.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: Math.min(index * 0.015, 0.25) }}
-                    onClick={() => isEmergency && setSelectedEmergencyLog(log)}
-                    className={`p-4 transition-colors flex items-center gap-4 ${
-                      isEmergency
-                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/50 to-transparent border-l-4 border-l-orange-500 hover:from-orange-100/70 cursor-pointer'
-                        : isDenied
-                          ? 'bg-red-50/30 border-l-4 border-l-red-400 hover:bg-red-50/60'
-                          : 'hover:bg-gray-50/80'
-                    }`}
-                  >
-                    <div className={`p-2.5 rounded-xl ${config.bg} ${isEmergency ? 'ring-2 ring-orange-300 animate-pulse' : ''}`}>
-                      <IconComponent className={`h-5 w-5 ${config.color}`} />
+            <div className="divide-y">
+              {paginatedLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className={`p-4 hover:bg-gray-50 transition-colors ${
+                    log.action === 'EMERGENCY_ACCESS'
+                      ? 'bg-orange-50/70 border-l-4 border-orange-500 cursor-pointer'
+                      : log.status === 'denied'
+                        ? 'bg-red-50/40 border-l-4 border-red-400'
+                        : ''
+                  }`}
+                  onClick={() => log.action === 'EMERGENCY_ACCESS' && setSelectedEmergency(log)}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div
+                      className={`mt-1 p-2 rounded-full ${
+                        log.action === 'EMERGENCY_ACCESS'
+                          ? 'bg-orange-500 text-white'
+                          : log.status === 'success'
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : 'bg-red-100 text-red-600'
+                      }`}
+                    >
+                      {log.action === 'EMERGENCY_ACCESS' ? (
+                        <Siren className="w-4 h-4" />
+                      ) : log.status === 'success' ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4" />
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`font-semibold ${isEmergency ? 'text-orange-700' : 'text-gray-900'}`}>
-                          {config.label}
-                        </span>
-                        {isEmergency && (
-                          <Badge className="bg-orange-500 text-white text-xs gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            PRIORITY REVIEW
-                          </Badge>
+                        {getActionBadge(log.action)}
+                        <span className="text-sm font-semibold text-gray-900">{log.userName}</span>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {log.userRole.replace('_', ' ')}
+                        </Badge>
+                        {log.status === 'denied' && (
+                          <Badge variant="destructive" className="text-[10px]">DENIED</Badge>
                         )}
                         {log.targetIcNumber && (
-                          <Badge variant="outline" className="font-mono text-xs">
-                            IC: {log.targetIcNumber}
-                          </Badge>
-                        )}
-                        {log.sourceHospital && (
-                          <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            {log.sourceHospital}
+                          <span className="text-xs text-gray-600">
+                            Target IC: <code className="font-mono font-semibold">{log.targetIcNumber}</code>
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-3 flex-wrap">
-                        {log.userName && (
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {log.userName}
-                            {log.userRole && <span className="text-gray-400">({log.userRole})</span>}
-                          </span>
-                        )}
+
+                      <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>{log.sourceHospital}</span>
                         {log.targetHospitals && log.targetHospitals.length > 0 && (
-                          <span>→ Target: {log.targetHospitals.join(', ')}</span>
+                          <span className="text-violet-700 font-medium">
+                            → {log.targetHospitals.join(', ')}
+                          </span>
                         )}
-                        {log.details && <span className="text-gray-600 truncate max-w-md">{log.details}</span>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right hidden sm:block">
-                        <div className="text-xs text-gray-500 flex items-center gap-1 justify-end">
-                          <Clock className="h-3 w-3" />
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </div>
-                        <div className="text-xs text-gray-400">{new Date(log.timestamp).toLocaleDateString()}</div>
                       </div>
 
-                      {isEmergency && (
-                        <Button size="sm" variant="ghost" className="text-orange-600 hover:text-orange-700 hover:bg-orange-100 gap-1">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Details
-                        </Button>
-                      )}
-
-                      <Badge
-                        className={
-                          log.success
-                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-red-100 text-red-700 hover:bg-red-100'
-                        }
-                      >
-                        {log.success ? (
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                        ) : (
-                          <XCircle className="h-3 w-3 mr-1" />
-                        )}
-                        {log.success ? 'Success' : 'Blocked'}
-                      </Badge>
+                      {log.details && <p className="text-xs text-gray-600 mt-1.5">{log.details}</p>}
                     </div>
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
+
+                    <div className="text-right shrink-0 text-xs text-gray-500">
+                      <div className="flex items-center gap-1 justify-end font-medium text-gray-700">
+                        <Clock className="w-3.5 h-3.5" />
+                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <p className="mt-0.5">{formatDate(log.timestamp)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-3.5 border-t bg-gray-50/50 text-xs text-gray-600">
+              <span>
+                Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-2.5"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Prev
+                </Button>
+                <span className="px-2 font-semibold">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-2.5"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      <EmergencyReportModal report={emergencyReport} onClose={() => setSelectedEmergencyLog(null)} />
+      <EmergencyReportModal
+        report={
+          selectedEmergency
+            ? {
+                id: selectedEmergency.id,
+                timestamp: selectedEmergency.timestamp,
+                targetIcNumber: selectedEmergency.targetIcNumber,
+                actorRole: selectedEmergency.userRole,
+                actorId: selectedEmergency.userId,
+                sourceLocation: selectedEmergency.sourceHospital,
+                details: selectedEmergency.details,
+                granted: selectedEmergency.status === 'success',
+              }
+            : null
+        }
+        onClose={() => setSelectedEmergency(null)}
+      />
     </motion.div>
   )
 }

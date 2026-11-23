@@ -11,19 +11,16 @@ import {
   setHospitalAccess,
   getPrivacySettings,
 } from '../database/central-multi';
-import {
-  getHospitalDb,
-  findPatientInHospitals,
-  getActiveMedicationsInHospitals,
-} from '../database/hospital-multi';
-import { authenticate, authorize } from '../middleware/auth';
-import { getHospitalById, normalizeIcNumber } from '../config';
+import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
+import { authenticate, authorize, requireHospitalVerification } from '../middleware/auth';
+import { getHospitalById } from '../config';
 import {
   AuditLog,
   CrossHospitalQueryResult,
   QueryFlowStep,
   HospitalQueryResult,
   User,
+  normalizeIcNumber,
 } from '../types';
 
 const router = Router();
@@ -77,10 +74,10 @@ async function enrichAuditLogsWithActors(logs: AuditLog[], mode: 'admin' | 'pati
       const hospital = getHospitalById(log.actorHospitalId);
       const defaultHospital =
         log.actorType === 'emergency'
-          ? 'Emergency Responder Portal'
+          ? 'Emergency Terminal'
           : mode === 'admin'
             ? 'Central Hub'
-            : 'National Network';
+            : 'External Network';
       const hospitalName = hospital?.name || log.actorHospitalId || defaultHospital;
       let actorName =
         log.actorType === 'emergency'
@@ -148,7 +145,8 @@ router.get('/hospitals', async (_req: Request, res: Response) => {
 router.get(
   '/stats',
   authenticate,
-  authorize('doctor', 'hospital_admin', 'central_admin'),
+  requireHospitalVerification,
+  authorize('central_admin', 'hospital_admin', 'doctor'),
   async (_req: Request, res: Response) => {
     try {
       const stats = await getCentralStats();
@@ -166,27 +164,39 @@ router.get(
   }
 );
 
-export const emergencyRateLimits = new Map<string, number>();
-export const emergencyIpBurstCounts = new Map<string, { count: number; windowStart: number }>();
-export const EMERGENCY_RATE_LIMIT_MS = 60000;
-const EMERGENCY_MAX_IP_BURST_PER_MIN = 10;
+const emergencySuccessCooldowns = new Map<string, number>();
+const emergencyIpAttempts = new Map<string, number[]>();
+const EMERGENCY_COOLDOWN_MS = 60_000;
+const EMERGENCY_ENUM_WINDOW_MS = 60_000;
+const EMERGENCY_MAX_IP_ATTEMPTS_PER_WINDOW = 15;
+
+export function clearEmergencyRateLimitsForTesting(): void {
+  emergencySuccessCooldowns.clear();
+  emergencyIpAttempts.clear();
+}
 
 setInterval(() => {
   const now = Date.now();
-  for (const [key, timestamp] of emergencyRateLimits.entries()) {
-    if (now - timestamp > EMERGENCY_RATE_LIMIT_MS) {
-      emergencyRateLimits.delete(key);
+  for (const [key, timestamp] of emergencySuccessCooldowns.entries()) {
+    if (now - timestamp > EMERGENCY_COOLDOWN_MS) {
+      emergencySuccessCooldowns.delete(key);
     }
   }
-  for (const [ip, bucket] of emergencyIpBurstCounts.entries()) {
-    if (now - bucket.windowStart > EMERGENCY_RATE_LIMIT_MS) {
-      emergencyIpBurstCounts.delete(ip);
+  for (const [ip, timestamps] of emergencyIpAttempts.entries()) {
+    const recent = timestamps.filter(ts => now - ts < EMERGENCY_ENUM_WINDOW_MS);
+    if (recent.length === 0) {
+      emergencyIpAttempts.delete(ip);
+    } else {
+      emergencyIpAttempts.set(ip, recent);
     }
   }
-}, 300000).unref();
+}, 300_000).unref();
 
 router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
-  const icNumber = normalizeIcNumber(req.params.icNumber || '');
+  const icNumber = normalizeIcNumber(req.params.icNumber);
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+
   if (!icNumber) {
     res.status(400).json({
       success: false,
@@ -195,59 +205,44 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     return;
   }
 
-  const now = Date.now();
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-  const pairKey = `${clientIp}:${icNumber}`;
-  const lastPairAccess = emergencyRateLimits.get(pairKey);
-
-  if (lastPairAccess && now - lastPairAccess < EMERGENCY_RATE_LIMIT_MS) {
-    const remainingSeconds = Math.ceil((EMERGENCY_RATE_LIMIT_MS - (now - lastPairAccess)) / 1000);
-    res.setHeader('Retry-After', String(remainingSeconds));
+  const recentAttempts = (emergencyIpAttempts.get(clientIp) || []).filter(
+    ts => now - ts < EMERGENCY_ENUM_WINDOW_MS
+  );
+  if (recentAttempts.length >= EMERGENCY_MAX_IP_ATTEMPTS_PER_WINDOW) {
+    const oldest = recentAttempts[0];
+    const retryAfter = Math.max(1, Math.ceil((EMERGENCY_ENUM_WINDOW_MS - (now - oldest)) / 1000));
     res.status(429).json({
       success: false,
-      error: `Rate limit exceeded. Please wait ${remainingSeconds} seconds before next query.`,
+      error: `Too many emergency lookup attempts from this terminal. Please wait ${retryAfter} seconds.`,
+      rateLimited: true,
+      retryAfter,
+    });
+    return;
+  }
+
+  const pairKey = `${clientIp}:${icNumber}`;
+  const lastSuccessForPatient = emergencySuccessCooldowns.get(pairKey);
+  if (lastSuccessForPatient && now - lastSuccessForPatient < EMERGENCY_COOLDOWN_MS) {
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil((EMERGENCY_COOLDOWN_MS - (now - lastSuccessForPatient)) / 1000)
+    );
+    res.status(429).json({
+      success: false,
+      error: `Emergency summary for ${icNumber} was just retrieved. Please wait ${remainingSeconds} seconds before repeating the same IC query.`,
       rateLimited: true,
       retryAfter: remainingSeconds,
     });
     return;
   }
 
-  const ipBucket = emergencyIpBurstCounts.get(clientIp);
-  if (ipBucket && now - ipBucket.windowStart < EMERGENCY_RATE_LIMIT_MS) {
-    if (ipBucket.count >= EMERGENCY_MAX_IP_BURST_PER_MIN) {
-      const remainingSeconds = Math.ceil((EMERGENCY_RATE_LIMIT_MS - (now - ipBucket.windowStart)) / 1000);
-      res.setHeader('Retry-After', String(remainingSeconds));
-      res.status(429).json({
-        success: false,
-        error: `Too many emergency queries from this terminal. Retry in ${remainingSeconds}s.`,
-        rateLimited: true,
-        retryAfter: remainingSeconds,
-      });
-      return;
-    }
-    ipBucket.count += 1;
-  } else {
-    emergencyIpBurstCounts.set(clientIp, { count: 1, windowStart: now });
-  }
+  recentAttempts.push(now);
+  emergencyIpAttempts.set(clientIp, recentAttempts);
 
   try {
     const patientIndex = await getPatientIndex(icNumber);
 
     if (!patientIndex || patientIndex.hospitals.length === 0) {
-      try {
-        await createAuditLog({
-          timestamp: new Date().toISOString(),
-          action: 'emergency_access',
-          actorType: 'emergency',
-          targetIcNumber: icNumber,
-          details: `Emergency access lookup failed (patient not indexed) from IP: ${clientIp}`,
-          ipAddress: clientIp,
-          success: false,
-        });
-      } catch (logError) {
-        console.warn('Failed to log unsuccessful emergency lookup:', logError);
-      }
-
       res.status(404).json({
         success: false,
         error: 'Patient not found in any hospital',
@@ -260,29 +255,21 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
 
-    const [patient, activeMedications] = await Promise.all([
+    const [patient, recordsPerHospital] = await Promise.all([
       findPatientInHospitals(icNumber, patientIndex.hospitals),
-      getActiveMedicationsInHospitals(icNumber, patientIndex.hospitals),
+      Promise.allSettled(
+        patientIndex.hospitals.map(async hospitalId => ({
+          hospitalId,
+          hospitalName: getHospitalById(hospitalId)?.name || hospitalId,
+          records: await getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
+        }))
+      ),
     ]);
 
     if (!patient) {
-      try {
-        await createAuditLog({
-          timestamp: new Date().toISOString(),
-          action: 'emergency_access',
-          actorType: 'emergency',
-          targetIcNumber: icNumber,
-          details: `Emergency access lookup unavailable (hospital nodes unreachable) from IP: ${clientIp}`,
-          ipAddress: clientIp,
-          success: false,
-        });
-      } catch (logError) {
-        console.warn('Failed to log unavailable emergency lookup:', logError);
-      }
-
       res.status(404).json({
         success: false,
-        error: 'Patient data not available from hospital nodes',
+        error: 'Patient data not available',
         data: {
           found: false,
           icNumber,
@@ -292,16 +279,75 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
 
-    emergencyRateLimits.set(pairKey, Date.now());
+    const activeMedicationMap = new Map<
+      string,
+      {
+        name: string;
+        dosage: string;
+        frequency: string;
+        instructions: string;
+        hospitalName: string;
+        visitDate: string;
+      }
+    >();
+    const diagnosisSet = new Set<string>();
+    const recentDiagnoses: Array<{ diagnosis: string; hospitalName: string; visitDate: string }> = [];
+    let respondingHospitals = 0;
+    let failedHospitals = 0;
 
-    const accessedAt = new Date().toISOString();
+    for (const outcome of recordsPerHospital) {
+      if (outcome.status !== 'fulfilled') {
+        failedHospitals++;
+        continue;
+      }
+      respondingHospitals++;
+      const { hospitalName, records } = outcome.value;
+      for (const rec of records) {
+        for (const diag of rec.diagnosis || []) {
+          const cleanDiag = diag.trim();
+          if (cleanDiag && !diagnosisSet.has(cleanDiag.toLowerCase())) {
+            diagnosisSet.add(cleanDiag.toLowerCase());
+            recentDiagnoses.push({
+              diagnosis: cleanDiag,
+              hospitalName,
+              visitDate: rec.visitDate,
+            });
+          }
+        }
+        for (const rx of rec.prescriptions || []) {
+          if (!rx.isActive || !rx.medicationName) continue;
+          const dedupKey = `${rx.medicationName.toLowerCase()}|${rx.dosage.toLowerCase()}`;
+          if (!activeMedicationMap.has(dedupKey)) {
+            activeMedicationMap.set(dedupKey, {
+              name: rx.medicationName,
+              dosage: rx.dosage,
+              frequency: rx.frequency,
+              instructions: rx.instructions || '',
+              hospitalName,
+              visitDate: rec.visitDate,
+            });
+          }
+        }
+      }
+    }
+
+    const mergedConditions = Array.from(
+      new Set([
+        ...(patient.chronicConditions || []),
+        ...recentDiagnoses.map(d => d.diagnosis),
+      ])
+    );
+
+    emergencySuccessCooldowns.set(pairKey, Date.now());
+
     try {
       await createAuditLog({
-        timestamp: accessedAt,
+        timestamp: new Date().toISOString(),
         action: 'emergency_access',
+        actorId: undefined,
         actorType: 'emergency',
         targetIcNumber: icNumber,
-        details: `Emergency break-glass access from IP: ${clientIp} (${patientIndex.hospitals.length} indexed hospitals)`,
+        details: `Emergency break-glass access from IP: ${clientIp} (${respondingHospitals}/${patientIndex.hospitals.length} hospitals responded)`,
         ipAddress: clientIp,
         success: true,
       });
@@ -315,16 +361,20 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
         found: true,
         icNumber,
         fullName: patient.fullName,
+        dateOfBirth: patient.dateOfBirth,
+        gender: patient.gender,
         bloodType: patient.bloodType,
         allergies: patient.allergies,
-        chronicConditions: patient.chronicConditions,
+        chronicConditions: mergedConditions,
+        recentDiagnoses: recentDiagnoses.slice(0, 10),
+        currentMedications: Array.from(activeMedicationMap.values()),
         emergencyContact: patient.emergencyContact,
         emergencyPhone: patient.emergencyPhone,
-        activeMedications,
         hospitalsWithRecords: patientIndex.hospitals.length,
-        lastUpdated: patient.updatedAt || patientIndex.lastUpdated || accessedAt,
+        respondingHospitals,
+        partialFailure: failedHospitals > 0,
         accessType: 'emergency',
-        warning: 'This is emergency access. Full audit trail has been recorded.',
+        warning: 'This is emergency break-glass access. Full audit trail has been recorded.',
       },
     });
   } catch (error) {
@@ -339,31 +389,77 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
 router.get(
   '/query/:icNumber',
   authenticate,
-  authorize('doctor', 'patient', 'central_admin'),
+  requireHospitalVerification,
+  authorize('doctor', 'patient'),
   async (req: Request, res: Response) => {
     const startTime = Date.now();
-    const icNumber = normalizeIcNumber(req.params.icNumber || '');
-    const currentUser = req.user!;
+    const icNumber = normalizeIcNumber(req.params.icNumber);
     const querySteps: QueryFlowStep[] = [];
+    const user = req.user!;
 
     try {
-      if (currentUser.role === 'patient' && normalizeIcNumber(currentUser.icNumber) !== icNumber) {
+      if (user.role === 'patient' && normalizeIcNumber(user.icNumber) !== icNumber) {
         await createAuditLog({
           timestamp: new Date().toISOString(),
           action: 'query',
-          actorId: currentUser.userId,
-          actorType: currentUser.role,
+          actorId: user.userId,
+          actorType: 'patient',
           targetIcNumber: icNumber,
-          details: `Blocked unauthorized cross-patient query attempt by ${currentUser.icNumber}`,
+          details: `Blocked IDOR attempt: patient ${user.icNumber} attempted to query ${icNumber}`,
           ipAddress: req.ip || 'unknown',
           success: false,
         });
         res.status(403).json({
           success: false,
-          accessDenied: true,
-          error: 'Patients can only access their own medical records',
+          error: 'Forbidden: Patients may only query their own medical records',
         });
         return;
+      }
+
+      if (user.role === 'doctor' && user.hospitalId) {
+        const blockedHospitals = await getBlockedHospitals(icNumber);
+        if (blockedHospitals.includes(user.hospitalId)) {
+          querySteps.push({
+            step: 1,
+            action: 'Checking patient hospital consent policy',
+            from: 'Central Hub',
+            to: 'Privacy Guard',
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            data: { hospitalsFound: 0, accessDenied: true },
+          });
+
+          await createAuditLog({
+            timestamp: new Date().toISOString(),
+            action: 'query',
+            actorId: user.userId,
+            actorType: 'doctor',
+            actorHospitalId: user.hospitalId,
+            targetIcNumber: icNumber,
+            targetHospitalId: user.hospitalId,
+            details: `Access denied: patient ${icNumber} blocked ${user.hospitalId}`,
+            ipAddress: req.ip || 'unknown',
+            success: false,
+          });
+
+          const deniedResult: CrossHospitalQueryResult = {
+            icNumber,
+            querySteps,
+            hospitals: [],
+            totalRecords: 0,
+            queryTime: Date.now() - startTime,
+            accessDenied: true,
+            message: 'Patient has blocked access from your hospital',
+          };
+
+          res.status(403).json({
+            success: false,
+            accessDenied: true,
+            error: 'Patient has blocked access from your hospital',
+            data: deniedResult,
+          });
+          return;
+        }
       }
 
       querySteps.push({
@@ -380,85 +476,48 @@ router.get(
       querySteps[0].status = 'completed';
       querySteps[0].data = { hospitalsFound: patientIndex ? patientIndex.hospitals.length : 0 };
 
-      if (!patientIndex) {
-        const result: CrossHospitalQueryResult = {
+      if (!patientIndex || patientIndex.hospitals.length === 0) {
+        const emptyResult: CrossHospitalQueryResult = {
           icNumber,
-          found: false,
           querySteps,
           hospitals: [],
           totalRecords: 0,
           queryTime: Date.now() - startTime,
-          message: 'Patient is not registered in the National Medical Identity Index',
+          notFound: true,
+          message: 'Patient not found in any hospital',
         };
-        res.json({ success: true, data: result });
+        res.status(404).json({
+          success: false,
+          notFound: true,
+          error: 'Patient not found in any hospital',
+          data: emptyResult,
+        });
         return;
       }
 
-      if (currentUser.role === 'doctor' && currentUser.hospitalId) {
-        const blockedHospitals = await getBlockedHospitals(icNumber);
-        if (blockedHospitals.includes(currentUser.hospitalId)) {
-          const hospitalName = getHospitalById(currentUser.hospitalId)?.name || currentUser.hospitalId;
-          querySteps[0].data = { hospitalsFound: 0, accessDenied: true };
-
-          await createAuditLog({
-            timestamp: new Date().toISOString(),
-            action: 'query',
-            actorId: currentUser.userId,
-            actorType: currentUser.role,
-            actorHospitalId: currentUser.hospitalId,
-            targetIcNumber: icNumber,
-            targetHospitalId: currentUser.hospitalId,
-            details: `Access denied: patient blocked ${hospitalName}`,
-            ipAddress: req.ip || 'unknown',
-            success: false,
-          });
-
-          const result: CrossHospitalQueryResult = {
-            icNumber,
-            found: true,
-            querySteps,
-            hospitals: [],
-            totalRecords: 0,
-            queryTime: Date.now() - startTime,
-            accessDenied: true,
-            message: 'Patient has blocked access from your hospital',
-          };
-          res.status(403).json({
-            success: false,
-            accessDenied: true,
-            error: 'Patient has blocked access from your hospital',
-            data: result,
-          });
-          return;
-        }
-      }
-
-      const stepEntries = patientIndex.hospitals.map((hospitalId, index) => {
-        const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
-        const step: QueryFlowStep = {
-          step: index + 2,
-          action: `Querying ${hospitalName}`,
-          from: 'Central Hub',
-          to: hospitalName,
-          status: 'in_progress',
-          timestamp: new Date().toISOString(),
-        };
-        querySteps.push(step);
-        return { hospitalId, hospitalName, step };
-      });
-
       const hospitalResults: HospitalQueryResult[] = await Promise.all(
-        stepEntries.map(async ({ hospitalId, hospitalName, step }) => {
+        patientIndex.hospitals.map(async (hospitalId, index): Promise<HospitalQueryResult> => {
+          const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
+          const step: QueryFlowStep = {
+            step: index + 2,
+            action: `Querying ${hospitalName}`,
+            from: 'Central Hub',
+            to: hospitalName,
+            status: 'in_progress',
+            timestamp: new Date().toISOString(),
+          };
+          querySteps.push(step);
+
           const hospitalStartTime = Date.now();
+
           try {
             const records = await getHospitalDb(hospitalId).getRecordsByPatient(icNumber);
-            const isEditableOwnHospital =
-              currentUser.role === 'doctor' && currentUser.hospitalId === hospitalId;
+            const isOwnHospital = user.role === 'doctor' && user.hospitalId === hospitalId;
             const markedRecords = records.map(r => ({
               ...r,
               hospitalId,
               hospitalName,
-              isReadOnly: !isEditableOwnHospital,
+              isReadOnly: !isOwnHospital,
               sourceHospital: hospitalName,
             }));
 
@@ -470,7 +529,7 @@ router.get(
               hospitalName,
               records: markedRecords,
               recordCount: records.length,
-              status: 'success' as const,
+              status: 'success',
               responseTime: Date.now() - hospitalStartTime,
             };
           } catch {
@@ -480,27 +539,29 @@ router.get(
               hospitalName,
               records: [],
               recordCount: 0,
-              status: 'error' as const,
+              status: 'error',
               responseTime: Date.now() - hospitalStartTime,
-              error: 'Failed to query hospital node',
+              error: `Hospital node ${hospitalName} is currently unreachable`,
             };
           }
         })
       );
 
       const totalRecords = hospitalResults.reduce((sum, h) => sum + h.recordCount, 0);
-      const failedCount = hospitalResults.filter(h => h.status === 'error').length;
+      const failedHospitals = hospitalResults
+        .filter(h => h.status !== 'success')
+        .map(h => h.hospitalName);
 
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'query',
-        actorId: currentUser.userId,
-        actorType: currentUser.role,
-        actorHospitalId: currentUser.hospitalId,
+        actorId: user.userId,
+        actorType: user.role,
+        actorHospitalId: user.hospitalId,
         targetIcNumber: icNumber,
         details:
-          failedCount > 0
-            ? `Cross-hospital query: ${patientIndex.hospitals.length} hospitals (${failedCount} node error), ${totalRecords} records`
+          failedHospitals.length > 0
+            ? `Cross-hospital query: ${patientIndex.hospitals.length} hospitals (${failedHospitals.length} offline), ${totalRecords} records`
             : `Cross-hospital query: ${patientIndex.hospitals.length} hospitals, ${totalRecords} records`,
         ipAddress: req.ip || 'unknown',
         success: true,
@@ -508,11 +569,12 @@ router.get(
 
       const result: CrossHospitalQueryResult = {
         icNumber,
-        found: true,
         querySteps,
         hospitals: hospitalResults,
         totalRecords,
         queryTime: Date.now() - startTime,
+        partialFailure: failedHospitals.length > 0,
+        failedHospitals: failedHospitals.length > 0 ? failedHospitals : undefined,
       };
 
       res.json({ success: true, data: result });
@@ -529,54 +591,43 @@ router.get(
 router.get(
   '/patient/:icNumber',
   authenticate,
-  authorize('doctor', 'patient', 'central_admin'),
+  requireHospitalVerification,
+  authorize('doctor', 'patient'),
   async (req: Request, res: Response) => {
     try {
-      const icNumber = normalizeIcNumber(req.params.icNumber || '');
-      const currentUser = req.user!;
+      const icNumber = normalizeIcNumber(req.params.icNumber);
+      const user = req.user!;
 
-      if (currentUser.role === 'patient' && normalizeIcNumber(currentUser.icNumber) !== icNumber) {
+      if (user.role === 'patient' && normalizeIcNumber(user.icNumber) !== icNumber) {
         await createAuditLog({
           timestamp: new Date().toISOString(),
           action: 'view',
-          actorId: currentUser.userId,
-          actorType: currentUser.role,
+          actorId: user.userId,
+          actorType: 'patient',
           targetIcNumber: icNumber,
-          details: `Blocked unauthorized cross-patient profile lookup by ${currentUser.icNumber}`,
+          details: `Blocked IDOR attempt: patient ${user.icNumber} attempted to view profile ${icNumber}`,
           ipAddress: req.ip || 'unknown',
           success: false,
         });
         res.status(403).json({
           success: false,
-          accessDenied: true,
-          error: 'Patients can only access their own profile',
+          error: 'Forbidden: Patients may only view their own profile',
         });
         return;
       }
 
-      const patientIndex = await getPatientIndex(icNumber);
-
-      if (!patientIndex) {
-        res.status(404).json({
-          success: false,
-          error: 'Patient not found in any hospital',
-        });
-        return;
-      }
-
-      if (currentUser.role === 'doctor' && currentUser.hospitalId) {
+      if (user.role === 'doctor' && user.hospitalId) {
         const blockedHospitals = await getBlockedHospitals(icNumber);
-        if (blockedHospitals.includes(currentUser.hospitalId)) {
-          const hospitalName = getHospitalById(currentUser.hospitalId)?.name || currentUser.hospitalId;
+        if (blockedHospitals.includes(user.hospitalId)) {
           await createAuditLog({
             timestamp: new Date().toISOString(),
             action: 'view',
-            actorId: currentUser.userId,
-            actorType: currentUser.role,
-            actorHospitalId: currentUser.hospitalId,
+            actorId: user.userId,
+            actorType: 'doctor',
+            actorHospitalId: user.hospitalId,
             targetIcNumber: icNumber,
-            targetHospitalId: currentUser.hospitalId,
-            details: `Access denied to patient profile: patient blocked ${hospitalName}`,
+            targetHospitalId: user.hospitalId,
+            details: `Access denied: patient ${icNumber} blocked profile access from ${user.hospitalId}`,
             ipAddress: req.ip || 'unknown',
             success: false,
           });
@@ -589,7 +640,25 @@ router.get(
         }
       }
 
+      const patientIndex = await getPatientIndex(icNumber);
+
+      if (!patientIndex || patientIndex.hospitals.length === 0) {
+        res.status(404).json({
+          success: false,
+          notFound: true,
+          error: 'Patient not found in any hospital',
+        });
+        return;
+      }
+
       const patientInfo = await findPatientInHospitals(icNumber, patientIndex.hospitals);
+      if (!patientInfo) {
+        res.status(503).json({
+          success: false,
+          error: 'Indexed hospital nodes are currently unreachable',
+        });
+        return;
+      }
 
       res.json({
         success: true,
@@ -627,7 +696,7 @@ router.get('/indexes', authenticate, authorize('central_admin'), async (_req: Re
 
 router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (req: Request, res: Response) => {
   try {
-    const icNumber = normalizeIcNumber(req.params.icNumber || '');
+    const icNumber = normalizeIcNumber(req.params.icNumber);
     const patientIndex = await getPatientIndex(icNumber);
 
     if (!patientIndex) {
@@ -642,22 +711,26 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
       Promise.all(
         patientIndex.hospitals.map(async hospitalId => {
           const hospital = getHospitalById(hospitalId);
-          let recordCount = 0;
-          let isActive = true;
           try {
-            recordCount = await getHospitalDb(hospitalId).countRecordsByPatient(icNumber);
+            const recordCount = await getHospitalDb(hospitalId).countRecordsByPatient(icNumber);
+            return {
+              hospitalId,
+              hospitalName: hospital?.name || hospitalId,
+              shortName: hospital?.shortName || hospitalId,
+              city: hospital?.city || 'Unknown',
+              recordCount,
+              isActive: true,
+            };
           } catch {
-            isActive = false;
+            return {
+              hospitalId,
+              hospitalName: hospital?.name || hospitalId,
+              shortName: hospital?.shortName || hospitalId,
+              city: hospital?.city || 'Unknown',
+              recordCount: 0,
+              isActive: false,
+            };
           }
-
-          return {
-            hospitalId,
-            hospitalName: hospital?.name || hospitalId,
-            shortName: hospital?.shortName || hospitalId,
-            city: hospital?.city || 'Unknown',
-            recordCount,
-            isActive,
-          };
         })
       ),
       findPatientInHospitals(icNumber, patientIndex.hospitals),
@@ -698,32 +771,45 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
 router.get(
   '/audit-logs',
   authenticate,
+  requireHospitalVerification,
   authorize('central_admin', 'hospital_admin'),
   async (req: Request, res: Response) => {
     try {
-      const { actorId, targetIcNumber, action, startDate, endDate, limit } = req.query;
-      const currentUser = req.user!;
-
-      const hospitalScopeId =
-        currentUser.role === 'hospital_admin' ? currentUser.hospitalId : undefined;
-
-      if (currentUser.role === 'hospital_admin' && !hospitalScopeId) {
+      const user = req.user!;
+      if (user.role === 'hospital_admin' && !user.hospitalId) {
         res.status(403).json({
           success: false,
-          error: 'Hospital administrator has no assigned hospital',
+          error: 'Hospital administrator account is missing hospital assignment',
         });
         return;
       }
 
-      const logs = await getAuditLogs({
-        actorId: actorId as string | undefined,
-        targetIcNumber: targetIcNumber ? normalizeIcNumber(String(targetIcNumber)) : undefined,
-        hospitalScopeId,
-        action: action as string | undefined,
-        startDate: startDate as string | undefined,
-        endDate: endDate as string | undefined,
-        limit: limit ? parseInt(limit as string, 10) : 100,
-      });
+      const { actorId, targetIcNumber, startDate, endDate, limit, hospitalId } = req.query;
+      const hospitalScopeId =
+        user.role === 'hospital_admin'
+          ? user.hospitalId
+          : (hospitalId as string | undefined) || undefined;
+
+      let logs: AuditLog[];
+      try {
+        logs = await getAuditLogs({
+          actorId: actorId as string | undefined,
+          targetIcNumber: targetIcNumber as string | undefined,
+          hospitalScopeId,
+          startDate: startDate as string | undefined,
+          endDate: endDate as string | undefined,
+          limit: limit ? parseInt(limit as string, 10) : 100,
+        });
+      } catch (filterError) {
+        if (filterError instanceof Error && filterError.message.includes('Invalid')) {
+          res.status(400).json({
+            success: false,
+            error: filterError.message,
+          });
+          return;
+        }
+        throw filterError;
+      }
 
       const enrichedLogs = await enrichAuditLogsWithActors(logs, 'admin');
 
@@ -743,17 +829,27 @@ router.get(
 
 router.get('/my-access-logs', authenticate, authorize('patient'), async (req: Request, res: Response) => {
   try {
-    const userIcNumber = normalizeIcNumber(req.user!.icNumber);
+    const userIcNumber = req.user?.icNumber;
+
+    if (!userIcNumber) {
+      res.status(400).json({
+        success: false,
+        error: 'User IC number not found',
+      });
+      return;
+    }
+
     const requestedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const safeLimit = Math.min(Math.max(requestedLimit || 20, 1), 100);
-    const userId = req.user!.userId;
+    const userId = req.user?.userId;
 
     const allLogs = await getAuditLogs({
       targetIcNumber: userIcNumber,
-      limit: safeLimit * 3,
+      limit: requestedLimit * 3,
     });
 
-    const filteredLogs = allLogs.filter(log => log.actorId !== userId && log.actorType !== 'patient');
+    const filteredLogs = allLogs.filter(
+      log => log.actorId !== userId && !(log.actorType === 'patient' && log.targetIcNumber === userIcNumber)
+    );
     const deduplicated = deduplicateLogs(
       filteredLogs,
       (prev, curr) =>
@@ -761,7 +857,7 @@ router.get('/my-access-logs', authenticate, authorize('patient'), async (req: Re
         prev.action === curr.action &&
         prev.actorHospitalId === curr.actorHospitalId &&
         prev.success === curr.success
-    ).slice(0, safeLimit);
+    ).slice(0, requestedLimit);
 
     const enrichedLogs = await enrichAuditLogsWithActors(deduplicated, 'patient');
 
@@ -781,20 +877,33 @@ router.get('/my-access-logs', authenticate, authorize('patient'), async (req: Re
 router.get(
   '/my-activity-logs',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor', 'hospital_admin', 'central_admin'),
   async (req: Request, res: Response) => {
     try {
-      const userId = req.user!.userId;
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        res.status(400).json({
+          success: false,
+          error: 'User ID not found',
+        });
+        return;
+      }
+
       const requestedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
-      const safeLimit = Math.min(Math.max(requestedLimit || 10, 1), 50);
 
       const logs = await getAuditLogs({
         actorId: userId,
-        limit: safeLimit * 5,
+        limit: requestedLimit * 5,
       });
 
       const filteredLogs = logs.filter(
-        log => log.action !== 'login' && log.action !== 'logout' && log.targetIcNumber
+        log =>
+          log.action !== 'login' &&
+          log.action !== 'logout' &&
+          log.action !== 'verify' &&
+          log.targetIcNumber
       );
 
       const patientLogs = deduplicateLogs(
@@ -803,7 +912,7 @@ router.get(
           prev.targetIcNumber === curr.targetIcNumber &&
           prev.action === curr.action &&
           prev.success === curr.success
-      ).slice(0, safeLimit);
+      ).slice(0, requestedLimit);
 
       const patientNameCache = new Map<string, Promise<string>>();
       const resolvePatientName = (icNumber: string) => {
@@ -816,7 +925,9 @@ router.get(
                 const patient = await findPatientInHospitals(icNumber, patientIndex.hospitals);
                 if (patient) return patient.fullName;
               }
-            } catch {}
+            } catch {
+              // Ignore offline hospital lookup failure
+            }
             return 'Unknown Patient';
           })();
           patientNameCache.set(icNumber, pending);
@@ -847,7 +958,15 @@ router.get(
 
 router.get('/privacy-settings', authenticate, authorize('patient'), async (req: Request, res: Response) => {
   try {
-    const userIcNumber = normalizeIcNumber(req.user!.icNumber);
+    const userIcNumber = req.user?.icNumber;
+
+    if (!userIcNumber) {
+      res.status(400).json({
+        success: false,
+        error: 'User IC number not found',
+      });
+      return;
+    }
 
     const [settings, hospitals] = await Promise.all([
       getPrivacySettings(userIcNumber),
@@ -881,8 +1000,16 @@ router.post(
   authorize('patient'),
   async (req: Request, res: Response) => {
     try {
-      const userIcNumber = normalizeIcNumber(req.user!.icNumber);
-      const { hospitalId, isBlocked } = req.body;
+      const userIcNumber = req.user?.icNumber;
+      const { hospitalId, isBlocked } = req.body || {};
+
+      if (!userIcNumber) {
+        res.status(400).json({
+          success: false,
+          error: 'User IC number not found',
+        });
+        return;
+      }
 
       if (!hospitalId || typeof isBlocked !== 'boolean') {
         res.status(400).json({
@@ -892,25 +1019,24 @@ router.post(
         return;
       }
 
-      const hospital = getHospitalById(hospitalId);
-      if (!hospital) {
-        res.status(404).json({
+      if (!getHospitalById(String(hospitalId))) {
+        res.status(400).json({
           success: false,
-          error: 'Hospital not found',
+          error: 'Invalid hospital ID',
         });
         return;
       }
 
-      await setHospitalAccess(userIcNumber, hospitalId, isBlocked);
+      await setHospitalAccess(userIcNumber, String(hospitalId), isBlocked);
 
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'update',
-        actorId: req.user!.userId,
+        actorId: req.user?.userId || '',
         actorType: 'patient',
         targetIcNumber: userIcNumber,
-        targetHospitalId: hospitalId,
-        details: `Patient ${isBlocked ? 'blocked' : 'granted'} access for ${hospital.name}`,
+        targetHospitalId: String(hospitalId),
+        details: `Patient ${isBlocked ? 'blocked' : 'unblocked'} access for hospital ${hospitalId}`,
         ipAddress: req.ip || 'unknown',
         success: true,
       });

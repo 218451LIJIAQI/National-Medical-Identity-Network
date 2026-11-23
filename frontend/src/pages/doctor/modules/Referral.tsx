@@ -1,16 +1,27 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/auth'
+import { useClinicalStore } from '@/store/clinical'
+import { hospitalApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { triggerPrintDocument, useSessionState } from '@/lib/workstation-storage'
-import { WorkstationPatientBar, useWorkstationPatient } from '@/components/WorkstationPatientBar'
+import { printHtmlDocument } from '@/lib/utils'
+import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  ArrowRightLeft, Building2, FileText,
-  Send, Search, CheckCircle2, AlertCircle,
-  MapPin, ChevronRight, Printer
+  ArrowRightLeft,
+  Building2,
+  FileText,
+  Send,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  MapPin,
+  ChevronRight,
+  Printer,
+  Loader2,
 } from 'lucide-react'
 
-export interface ReferralData {
+interface ReferralData {
   patientName: string
   icNumber: string
   referToHospital: string
@@ -19,32 +30,29 @@ export interface ReferralData {
   reason: string
   clinicalSummary: string
   investigations: string[]
-  appointmentPreferred?: string
 }
 
 const hospitals = [
-  { id: 'hospital-kl', name: 'Kuala Lumpur General Hospital', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
-  { id: 'hospital-penang', name: 'Penang General Hospital', city: 'George Town', state: 'Pulau Pinang' },
-  { id: 'hospital-jb', name: 'Sultanah Aminah Hospital', city: 'Johor Bahru', state: 'Johor' },
+  { id: 'hospital-kl', name: 'KL General Hospital', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
+  { id: 'hospital-penang', name: 'Penang Medical Centre', city: 'Georgetown', state: 'Pulau Pinang' },
+  { id: 'hospital-jb', name: 'Johor Specialist Hospital', city: 'Johor Bahru', state: 'Johor' },
   { id: 'hospital-kuching', name: 'Sarawak General Hospital', city: 'Kuching', state: 'Sarawak' },
   { id: 'hospital-kk', name: 'Queen Elizabeth Hospital', city: 'Kota Kinabalu', state: 'Sabah' },
-  { id: 'ijn', name: 'National Heart Institute (IJN)', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
+  { id: 'ijn', name: 'Institut Jantung Negara (IJN)', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
   { id: 'ppum', name: 'University of Malaya Medical Centre', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
-  { id: 'hpj', name: 'Hospital Putrajaya', city: 'Putrajaya', state: 'W.P. Putrajaya' },
 ]
 
 const departments = [
   'General Medicine',
   'General Surgery',
   'Orthopaedics',
-  'Obstetrics & Gynaecology (O&G)',
-  'Paediatrics',
   'Cardiology',
   'Neurology',
   'Oncology',
   'Nephrology',
   'Pulmonology',
-  'Emergency & Trauma',
+  'Obstetrics & Gynaecology (O&G)',
+  'Paediatrics',
 ]
 
 const URGENCY_OPTIONS: Array<{
@@ -67,19 +75,19 @@ interface ReferralProps {
 }
 
 export default function Referral({
-  patientName,
-  patientIC,
+  patientName = '',
+  patientIC = '',
   fromHospital,
   onSubmit,
 }: ReferralProps) {
   const { user } = useAuthStore()
+  const { activePatient } = useClinicalStore()
   const { toast } = useToast()
   const resolvedFromHospital = fromHospital || getHospitalTheme(user?.hospitalId).name
-  const { patient, lookupPatient, loading, lookupNotice } = useWorkstationPatient(patientName, patientIC)
 
   const [formData, setFormData] = useState<ReferralData>({
-    patientName: patient.fullName,
-    icNumber: patient.icNumber,
+    patientName: activePatient?.fullName || patientName,
+    icNumber: activePatient?.icNumber || patientIC,
     referToHospital: '',
     referToDepartment: '',
     urgency: 'routine',
@@ -90,21 +98,22 @@ export default function Referral({
   const [searchHospital, setSearchHospital] = useState('')
   const [showHospitalList, setShowHospitalList] = useState(false)
   const [step, setStep] = useState(1)
-  const [referralsSent, setReferralsSent] = useSessionState<
-    Array<ReferralData & { refNo: string; sentAt: string }>
-  >(`referrals:${user?.hospitalId || 'default'}`, [])
+  const [submitting, setSubmitting] = useState(false)
+  const [submittedRef, setSubmittedRef] = useState<string | null>(null)
 
   useEffect(() => {
-    setFormData((prev) => ({
-      ...prev,
-      patientName: patient.fullName,
-      icNumber: patient.icNumber,
-    }))
-  }, [patient.fullName, patient.icNumber])
+    if (activePatient) {
+      setFormData((prev) => ({
+        ...prev,
+        patientName: activePatient.fullName,
+        icNumber: activePatient.icNumber,
+      }))
+    }
+  }, [activePatient])
 
   const filteredHospitals = hospitals.filter(
     (h) =>
-      h.id !== user?.hospitalId &&
+      h.name !== resolvedFromHospital &&
       (h.name.toLowerCase().includes(searchHospital.toLowerCase()) ||
         h.city.toLowerCase().includes(searchHospital.toLowerCase()))
   )
@@ -133,346 +142,343 @@ export default function Referral({
     return stepNum === 3
   }
 
-  const handlePrint = (data: ReferralData, refNo = 'DRAFT') => {
-    triggerPrintDocument(
-      `Referral Letter ${refNo}`,
-      `<h1>Inter-Hospital Specialist Referral Letter</h1>
-       <div class="meta">Ref: <strong>${refNo}</strong> • From: <strong>${resolvedFromHospital}</strong> (${user?.fullName || 'Medical Officer'})</div>
-       <p><strong>To:</strong> ${data.referToDepartment}, ${data.referToHospital}</p>
-       <p><strong>Patient:</strong> ${data.patientName} (IC: ${data.icNumber}) • <strong>Urgency:</strong> ${data.urgency.toUpperCase()}</p>
-       <h2>Reason for Referral</h2><p>${data.reason}</p>
-       <h2>Clinical Summary</h2><p>${data.clinicalSummary}</p>
-       <h2>Completed Investigations</h2><p>${data.investigations.join(', ') || 'None attached'}</p>`
+  const handlePrintReferral = () => {
+    printHtmlDocument(
+      `Inter-Hospital Referral ${submittedRef || ''}`,
+      `<div class="header">
+        <div><h1>Inter-Hospital Specialist Referral</h1><p>From: ${resolvedFromHospital}</p></div>
+        <div><strong>Ref: ${submittedRef || 'PENDING'}</strong></div>
+      </div>
+      <div class="meta">
+        <strong>Patient:</strong> ${formData.patientName || '-'} (${formData.icNumber || '-'})<br/>
+        <strong>Destination:</strong> ${formData.referToHospital} — ${formData.referToDepartment}<br/>
+        <strong>Urgency:</strong> ${formData.urgency.toUpperCase()}
+      </div>
+      <h3>Reason for Referral</h3><p>${formData.reason}</p>
+      <h3>Clinical Summary</h3><p>${formData.clinicalSummary}</p>
+      <h3>Completed Investigations</h3><p>${formData.investigations.join(', ') || 'None'}</p>
+      <div class="footer">Referring Clinician: ${user?.fullName || 'Medical Officer'} • ${new Date().toLocaleString()}</div>`
     )
   }
 
-  const handleSubmit = () => {
-    if (!isStepValid(1) || !isStepValid(2)) return
+  const handleSubmit = async () => {
+    if (!formData.icNumber.trim()) {
+      toast({
+        title: 'Patient Required',
+        description: 'Bind an active patient MyKad IC in the banner above before submitting referral.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     onSubmit?.(formData)
-    const refNo = `REF-${Date.now().toString().slice(-6)}`
-    setReferralsSent((prev) => [
-      {
-        ...formData,
-        refNo,
-        sentAt: new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }),
-      },
-      ...prev.slice(0, 9),
-    ])
-    toast({
-      title: `Referral ${refNo} Dispatched`,
-      description: `Referred ${formData.patientName} to ${formData.referToDepartment} at ${formData.referToHospital}`,
-    })
-    setFormData((prev) => ({
-      ...prev,
-      referToHospital: '',
-      referToDepartment: '',
-      reason: '',
-      clinicalSummary: '',
-      investigations: [],
-    }))
-    setSearchHospital('')
-    setStep(1)
+    setSubmitting(true)
+    try {
+      const refId = `REF-${Date.now().toString().slice(-6)}`
+      if (user?.role === 'doctor' && user.hospitalId) {
+        const res = await hospitalApi.createRecord(user.hospitalId, {
+          icNumber: formData.icNumber.trim(),
+          visitDate: new Date().toISOString().split('T')[0],
+          visitType: formData.urgency === 'emergency' ? 'emergency' : 'outpatient',
+          chiefComplaint: `Referral to ${formData.referToHospital} (${formData.referToDepartment})`,
+          diagnosis: [formData.reason.trim()],
+          notes: `[${refId}] Inter-hospital ${formData.urgency} referral to ${formData.referToHospital} (${formData.referToDepartment}). Summary: ${formData.clinicalSummary}. Investigations: ${formData.investigations.join(', ') || 'None'}.`,
+          patientName: formData.patientName.trim() || undefined,
+        })
+        if (!res.success) {
+          toast({
+            title: 'Referral Save Blocked',
+            description: res.error || 'Could not save referral note.',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
+
+      setSubmittedRef(refId)
+      toast({
+        title: 'Inter-Hospital Referral Transmitted',
+        description: `${refId} sent to ${formData.referToHospital} (${formData.referToDepartment}).`,
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <ClinicalPatientBanner />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Patient Referral</h2>
-          <p className="text-gray-500 text-sm">Inter-Hospital Specialist Transfer Letter (session-persisted)</p>
+          <h2 className="text-2xl font-bold text-gray-800">Inter-Hospital Patient Referral</h2>
+          <p className="text-gray-500 text-sm">Federated specialist transfer & clinical handover</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-xl">
-          <Building2 className="w-5 h-5 text-blue-600" />
-          <span className="text-blue-700 font-medium text-sm">{resolvedFromHospital}</span>
+        <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-xl text-sm">
+          <Building2 className="w-4 h-4 text-blue-600" />
+          <span className="text-blue-700 font-semibold">{resolvedFromHospital}</span>
           <ArrowRightLeft className="w-4 h-4 text-blue-400" />
         </div>
       </div>
 
-      <WorkstationPatientBar
-        patient={patient}
-        onLookup={lookupPatient}
-        loading={loading}
-        notice={lookupNotice}
-        accentClass="from-indigo-50 to-blue-50 border-indigo-200"
-      />
+      {submittedRef && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-emerald-900 text-sm font-semibold">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <span>Referral <code>{submittedRef}</code> recorded & transmitted to {formData.referToHospital}.</span>
+          </div>
+          <button
+            type="button"
+            onClick={handlePrintReferral}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800"
+          >
+            <Printer className="w-3.5 h-3.5" /> Print Letter
+          </button>
+        </div>
+      )}
 
-      <div className="flex items-center justify-center gap-3 flex-wrap">
+      <div className="flex items-center justify-center gap-3">
         {[
           { num: 1, label: 'Destination' },
           { num: 2, label: 'Clinical Summary' },
-          { num: 3, label: 'Review & Dispatch' },
+          { num: 3, label: 'Review & Transmit' },
         ].map((s, idx) => (
           <div key={s.num} className="flex items-center">
             <button
               type="button"
-              onClick={() => {
-                if (s.num === 1 || (s.num === 2 && isStepValid(1)) || (s.num === 3 && isStepValid(1) && isStepValid(2))) {
-                  setStep(s.num)
-                }
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all text-sm ${
+              onClick={() => setStep(s.num)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 step === s.num
-                  ? 'bg-indigo-600 text-white shadow-lg'
+                  ? 'bg-indigo-600 text-white shadow'
                   : step > s.num
                     ? 'bg-emerald-100 text-emerald-700'
                     : 'bg-gray-100 text-gray-500'
               }`}
             >
-              {step > s.num ? (
-                <CheckCircle2 className="w-4 h-4" />
-              ) : (
-                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                  {s.num}
-                </span>
-              )}
-              <span className="font-medium">{s.label}</span>
+              <span>{s.num}.</span>
+              <span>{s.label}</span>
             </button>
             {idx < 2 && <ChevronRight className="w-4 h-4 text-gray-300 mx-2" />}
           </div>
         ))}
       </div>
 
-      {step === 1 && (
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-indigo-600" />
-              Receiving Hospital
-            </h3>
-
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search destination hospital..."
-                value={searchHospital}
-                onChange={(e) => {
-                  setSearchHospital(e.target.value)
-                  setShowHospitalList(true)
-                }}
-                onFocus={() => setShowHospitalList(true)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
-              />
-
-              {showHospitalList && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-gray-200 shadow-xl z-50 max-h-64 overflow-y-auto">
-                  {filteredHospitals.map((hospital) => (
-                    <button
-                      key={hospital.id}
-                      type="button"
-                      onClick={() => selectHospital(hospital)}
-                      className="w-full p-3.5 text-left hover:bg-indigo-50 border-b border-gray-50 last:border-0"
-                    >
-                      <p className="font-medium text-gray-800 text-sm">{hospital.name}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3" />
-                        {hospital.city}, {hospital.state}
-                      </p>
-                    </button>
-                  ))}
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            className="grid md:grid-cols-2 gap-6"
+          >
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                Receiving Hospital
+              </h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search receiving hospital..."
+                  value={searchHospital}
+                  onChange={(e) => {
+                    setSearchHospital(e.target.value)
+                    setShowHospitalList(true)
+                  }}
+                  onFocus={() => setShowHospitalList(true)}
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm"
+                />
+                {showHospitalList && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl border border-gray-200 shadow-xl z-40 max-h-60 overflow-y-auto">
+                    {filteredHospitals.map((hospital) => (
+                      <button
+                        key={hospital.id}
+                        type="button"
+                        onClick={() => selectHospital(hospital)}
+                        className="w-full p-3 text-left hover:bg-indigo-50 border-b border-gray-50"
+                      >
+                        <p className="font-medium text-gray-900 text-sm">{hospital.name}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3" /> {hospital.city}, {hospital.state}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {formData.referToHospital && (
+                <div className="mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200 flex items-center gap-2 text-sm text-indigo-800 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                  <span>{formData.referToHospital}</span>
                 </div>
               )}
             </div>
 
-            {formData.referToHospital && (
-              <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200 flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <p className="font-medium text-indigo-800 text-sm">{formData.referToHospital}</p>
-                  <p className="text-xs text-indigo-600">Destination hospital selected</p>
-                </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                Specialty Department
+              </h3>
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {departments.map((dept) => (
+                  <button
+                    key={dept}
+                    type="button"
+                    onClick={() => updateField('referToDepartment', dept)}
+                    className={`w-full p-2.5 text-left rounded-lg text-sm transition-all ${
+                      formData.referToDepartment === dept
+                        ? 'bg-indigo-100 text-indigo-800 font-semibold border border-indigo-300'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {dept}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              Specialist Department
-            </h3>
-
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {departments.map((dept) => (
-                <button
-                  key={dept}
-                  type="button"
-                  onClick={() => updateField('referToDepartment', dept)}
-                  className={`w-full p-3 text-left rounded-lg text-sm transition-all ${
-                    formData.referToDepartment === dept
-                      ? 'bg-indigo-100 text-indigo-800 border-2 border-indigo-300 font-medium'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'
-                  }`}
-                >
-                  {dept}
-                </button>
-              ))}
             </div>
-          </div>
 
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-4">Urgency Level</h3>
-            <div className="grid md:grid-cols-3 gap-4">
-              {URGENCY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => updateField('urgency', opt.value)}
-                  className={`p-4 rounded-xl border-2 transition-all text-left ${
-                    formData.urgency === opt.value ? opt.activeClass : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className={`w-3 h-3 rounded-full ${opt.dotClass} mb-2`} />
-                  <p className="font-semibold text-gray-800">{opt.label}</p>
-                  <p className="text-sm text-gray-500">{opt.desc}</p>
-                </button>
-              ))}
+            <div className="md:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-3">Referral Urgency</h3>
+              <div className="grid sm:grid-cols-3 gap-4">
+                {URGENCY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateField('urgency', opt.value)}
+                    className={`p-4 rounded-xl border-2 text-left ${
+                      formData.urgency === opt.value ? opt.activeClass : 'border-gray-200'
+                    }`}
+                  >
+                    <div className={`w-2.5 h-2.5 rounded-full ${opt.dotClass} mb-2`} />
+                    <p className="font-semibold text-gray-900 text-sm">{opt.label}</p>
+                    <p className="text-xs text-gray-500">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
 
-      {step === 2 && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-3">Reason for Referral *</h3>
-            <textarea
-              value={formData.reason}
-              onChange={(e) => updateField('reason', e.target.value)}
-              placeholder="State clinical indication for specialist opinion or transfer..."
-              className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none h-28 text-sm"
-            />
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-3">Clinical Summary *</h3>
-            <textarea
-              value={formData.clinicalSummary}
-              onChange={(e) => updateField('clinicalSummary', e.target.value)}
-              placeholder="Relevant history, physical examination findings, current medications..."
-              className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none h-32 text-sm"
-            />
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-800 mb-3">Investigations Completed</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {['FBC', 'RFT', 'LFT', 'ECG', 'CXR', 'CT Scan', 'MRI', 'Ultrasound'].map((inv) => (
-                <button
-                  key={inv}
-                  type="button"
-                  onClick={() => toggleInvestigation(inv)}
-                  className={`p-3 rounded-lg text-sm font-medium transition-all ${
-                    formData.investigations.includes(inv)
-                      ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-transparent'
-                  }`}
-                >
-                  {inv}
-                </button>
-              ))}
+        {step === 2 && (
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            className="space-y-5"
+          >
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-2">Primary Reason for Referral *</h3>
+              <textarea
+                value={formData.reason}
+                onChange={(e) => updateField('reason', e.target.value)}
+                placeholder="Specify provisional diagnosis and reason for specialist intervention..."
+                className="w-full p-3 border border-gray-200 rounded-lg text-sm resize-none h-24"
+              />
             </div>
-          </div>
-        </div>
-      )}
 
-      {step === 3 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-8">
-          <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Referral Confirmation</h3>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-2">Clinical Handover Summary *</h3>
+              <textarea
+                value={formData.clinicalSummary}
+                onChange={(e) => updateField('clinicalSummary', e.target.value)}
+                placeholder="History of presenting illness, examination findings, current medications..."
+                className="w-full p-3 border border-gray-200 rounded-lg text-sm resize-none h-32"
+              />
+            </div>
 
-          <div className="max-w-2xl mx-auto space-y-5">
-            <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl grid sm:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-3">Completed Workup Attached</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {['FBC', 'RFT', 'LFT', 'ECG', 'CXR', 'CT Scan', 'MRI', 'Ultrasound'].map((inv) => (
+                  <button
+                    key={inv}
+                    type="button"
+                    onClick={() => toggleInvestigation(inv)}
+                    className={`p-2.5 rounded-lg text-xs font-semibold border ${
+                      formData.investigations.includes(inv)
+                        ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    {inv}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            className="bg-white rounded-xl border border-gray-200 shadow-lg p-7 max-w-2xl mx-auto space-y-5"
+          >
+            <h3 className="text-xl font-bold text-gray-900 text-center">Confirm Specialist Referral</h3>
+            <div className="grid grid-cols-2 gap-4 p-4 bg-indigo-50 rounded-xl text-sm">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Patient</p>
-                <p className="font-semibold text-gray-800">{formData.patientName}</p>
-                <code className="text-xs text-gray-600 font-mono">{formData.icNumber}</code>
+                <p className="text-xs text-gray-500">Patient</p>
+                <p className="font-bold text-gray-900">{formData.patientName || 'Unassigned'}</p>
+                <code className="text-xs text-gray-600">{formData.icNumber || '-'}</code>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Refer To</p>
-                <p className="font-semibold text-gray-800">{formData.referToHospital}</p>
-                <p className="text-sm text-gray-600">{formData.referToDepartment}</p>
+                <p className="text-xs text-gray-500">Destination</p>
+                <p className="font-bold text-gray-900">{formData.referToHospital}</p>
+                <p className="text-xs text-indigo-700">{formData.referToDepartment}</p>
               </div>
             </div>
-
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Reason for Referral</p>
-              <p className="text-gray-800 text-sm">{formData.reason}</p>
+            <div className="p-4 bg-gray-50 rounded-xl text-sm space-y-2">
+              <p><strong>Reason:</strong> {formData.reason}</p>
+              <p><strong>Summary:</strong> {formData.clinicalSummary}</p>
+              <p><strong>Urgency:</strong> <span className="uppercase font-bold">{formData.urgency}</span></p>
             </div>
-
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Clinical Summary</p>
-              <p className="text-gray-800 text-sm">{formData.clinicalSummary}</p>
-            </div>
-
-            <div className={`p-4 rounded-lg flex items-center gap-3 ${
-              formData.urgency === 'emergency' ? 'bg-red-100' : formData.urgency === 'urgent' ? 'bg-amber-100' : 'bg-emerald-100'
-            }`}>
-              <AlertCircle className="w-5 h-5 text-gray-700" />
-              <span className="font-semibold text-gray-800 uppercase text-sm">{formData.urgency} REFERRAL</span>
-            </div>
-
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => handlePrint(formData)}
-                className="px-5 py-3.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 flex items-center gap-2"
+                onClick={handlePrintReferral}
+                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-50"
               >
-                <Printer className="w-5 h-5" />
-                Print Letter
+                <Printer className="w-4 h-4" /> Print Letter
               </button>
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Send className="w-5 h-5" />
-                Dispatch Referral
+                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                Transmit Referral & Save
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex justify-between">
         <button
           type="button"
           onClick={() => setStep(Math.max(1, step - 1))}
           disabled={step === 1}
-          className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium disabled:opacity-50"
+          className="px-5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium disabled:opacity-40"
         >
-          Back
+          Previous Step
         </button>
         {step < 3 && (
           <button
             type="button"
             onClick={() => setStep(Math.min(3, step + 1))}
             disabled={!isStepValid(step)}
-            className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-medium disabled:opacity-50"
+            className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40"
           >
-            Next
+            Next Step
           </button>
         )}
       </div>
-
-      {referralsSent.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Dispatched Referrals This Session</h3>
-          <div className="space-y-2">
-            {referralsSent.map((r) => (
-              <div key={r.refNo} className="flex flex-wrap items-center justify-between gap-2 text-xs p-2.5 bg-gray-50 rounded-lg">
-                <span className="font-mono font-semibold text-indigo-700">{r.refNo}</span>
-                <span className="font-medium text-gray-800">{r.patientName} → {r.referToHospital} ({r.referToDepartment})</span>
-                <button
-                  type="button"
-                  onClick={() => handlePrint(r, r.refNo)}
-                  className="text-indigo-600 hover:underline font-medium"
-                >
-                  Print Letter
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

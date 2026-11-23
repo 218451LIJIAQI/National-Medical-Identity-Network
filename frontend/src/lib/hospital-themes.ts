@@ -8,6 +8,10 @@ export interface HospitalTheme {
   secondaryColor: string
   accentColor: string
   headerGradient: string
+  heroSoftGradient: string
+  cardHeaderGradient: string
+  orbPrimaryClass: string
+  orbSecondaryClass: string
   buttonGradient: string
   cardAccentGradient: string
   textColor: string
@@ -18,12 +22,14 @@ export interface HospitalTheme {
   badgeClass: string
   iconBg: string
   iconColor: string
+  activeNavClass: string
+  fontClass: string
   specialties: string[]
   bedCount: number
   departments: number
 }
 
-const hospitalThemes: Record<string, HospitalTheme> = {
+export const hospitalThemes: Record<string, HospitalTheme> = {
   'hospital-kl': {
     id: 'hospital-kl',
     name: 'KL General Hospital',
@@ -33,8 +39,11 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     primaryColor: '#3B82F6',
     secondaryColor: '#6366F1',
     accentColor: '#0EA5E9',
-
     headerGradient: 'from-blue-600 via-indigo-600 to-blue-700',
+    heroSoftGradient: 'from-blue-50 via-sky-50 to-indigo-50',
+    cardHeaderGradient: 'from-blue-50 to-white',
+    orbPrimaryClass: 'from-blue-200/40 to-sky-200/20',
+    orbSecondaryClass: 'from-cyan-200/30 to-transparent',
     buttonGradient: 'from-blue-600 via-blue-500 to-indigo-600',
     cardAccentGradient: 'from-blue-500 to-indigo-500',
     textColor: 'text-blue-600',
@@ -45,6 +54,8 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',
     iconBg: 'bg-blue-500',
     iconColor: 'text-blue-500',
+    activeNavClass: 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-l-4 border-blue-600 shadow-sm',
+    fontClass: 'font-inter',
     specialties: ['Cardiology', 'Neurology', 'Oncology', 'Pediatrics'],
     bedCount: 1200,
     departments: 45,
@@ -59,8 +70,11 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     primaryColor: '#10B981',
     secondaryColor: '#14B8A6',
     accentColor: '#34D399',
-
     headerGradient: 'from-emerald-600 via-teal-600 to-green-700',
+    heroSoftGradient: 'from-emerald-50 via-teal-50 to-cyan-50',
+    cardHeaderGradient: 'from-emerald-50 to-white',
+    orbPrimaryClass: 'from-emerald-200/40 to-teal-200/20',
+    orbSecondaryClass: 'from-teal-200/30 to-transparent',
     buttonGradient: 'from-emerald-600 via-emerald-500 to-teal-600',
     cardAccentGradient: 'from-emerald-500 to-teal-500',
     textColor: 'text-emerald-600',
@@ -71,6 +85,8 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     iconBg: 'bg-emerald-500',
     iconColor: 'text-emerald-500',
+    activeNavClass: 'bg-emerald-50 text-emerald-700 border-l-4 border-emerald-600 shadow-sm',
+    fontClass: 'font-nunito',
     specialties: ['Orthopedics', 'Dermatology', 'Gastroenterology', 'Psychiatry'],
     bedCount: 850,
     departments: 38,
@@ -85,8 +101,11 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     primaryColor: '#F59E0B',
     secondaryColor: '#F97316',
     accentColor: '#FBBF24',
-
     headerGradient: 'from-amber-500 via-orange-500 to-amber-600',
+    heroSoftGradient: 'from-amber-50 via-orange-50 to-yellow-50',
+    cardHeaderGradient: 'from-amber-50 to-white',
+    orbPrimaryClass: 'from-amber-200/40 to-orange-200/20',
+    orbSecondaryClass: 'from-yellow-200/30 to-transparent',
     buttonGradient: 'from-amber-500 via-amber-400 to-orange-500',
     cardAccentGradient: 'from-amber-500 to-orange-500',
     textColor: 'text-amber-600',
@@ -97,6 +116,8 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
     iconBg: 'bg-amber-500',
     iconColor: 'text-amber-500',
+    activeNavClass: 'bg-amber-50 text-amber-700 border-l-4 border-amber-500 shadow-sm',
+    fontClass: 'font-poppins',
     specialties: ['Surgery', 'ENT', 'Urology', 'Ophthalmology'],
     bedCount: 720,
     departments: 32,
@@ -111,8 +132,11 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     primaryColor: '#8B5CF6',
     secondaryColor: '#A855F7',
     accentColor: '#C084FC',
-
     headerGradient: 'from-violet-600 via-purple-600 to-indigo-700',
+    heroSoftGradient: 'from-violet-50 via-purple-50 to-fuchsia-50',
+    cardHeaderGradient: 'from-violet-50 to-white',
+    orbPrimaryClass: 'from-violet-200/40 to-fuchsia-200/20',
+    orbSecondaryClass: 'from-purple-200/30 to-transparent',
     buttonGradient: 'from-violet-600 via-violet-500 to-purple-600',
     cardAccentGradient: 'from-violet-500 to-purple-500',
     textColor: 'text-violet-600',
@@ -123,6 +147,8 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     badgeClass: 'bg-violet-100 text-violet-700 border-violet-200',
     iconBg: 'bg-violet-500',
     iconColor: 'text-violet-500',
+    activeNavClass: 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-l-4 border-violet-500 shadow-sm',
+    fontClass: 'font-space',
     specialties: ['Tropical Medicine', 'Rehabilitation', 'Nephrology', 'Pulmonology'],
     bedCount: 950,
     departments: 40,
@@ -137,8 +163,11 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     primaryColor: '#EF4444',
     secondaryColor: '#F43F5E',
     accentColor: '#FB7185',
-
     headerGradient: 'from-red-600 via-rose-600 to-red-700',
+    heroSoftGradient: 'from-rose-50 via-amber-50 to-red-50',
+    cardHeaderGradient: 'from-rose-50 to-white',
+    orbPrimaryClass: 'from-amber-200/40 to-rose-200/20',
+    orbSecondaryClass: 'from-red-200/30 to-transparent',
     buttonGradient: 'from-red-600 via-red-500 to-rose-600',
     cardAccentGradient: 'from-red-500 to-rose-500',
     textColor: 'text-red-600',
@@ -149,6 +178,8 @@ const hospitalThemes: Record<string, HospitalTheme> = {
     badgeClass: 'bg-red-100 text-red-700 border-red-200',
     iconBg: 'bg-red-500',
     iconColor: 'text-red-500',
+    activeNavClass: 'bg-rose-50 text-red-700 border-l-4 border-red-600 shadow-sm',
+    fontClass: 'font-inter',
     specialties: ['Emergency Medicine', 'Trauma Surgery', 'Obstetrics', 'Geriatrics'],
     bedCount: 1100,
     departments: 42,

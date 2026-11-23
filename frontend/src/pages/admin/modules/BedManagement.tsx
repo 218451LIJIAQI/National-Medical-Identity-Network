@@ -1,407 +1,356 @@
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { useAuthStore } from '@/store/auth'
-import { getHospitalTheme } from '@/lib/hospital-themes'
-import { useSessionState, exportToCsv } from '@/lib/workstation-storage'
-import { useToast } from '@/components/ui/use-toast'
+import { Input } from '@/components/ui/input'
 import {
   Bed,
-  CheckCircle2,
-  Clock,
+  User,
   AlertTriangle,
-  Wrench,
+  CheckCircle,
+  Clock,
+  RefreshCw,
   Plus,
   Minus,
-  Building2,
   Download,
-  RotateCcw,
   X,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { downloadCsvFile } from '@/lib/utils'
+import { useToast } from '@/components/ui/use-toast'
 
-interface WardSummary {
+interface Ward {
   id: string
   name: string
-  floor: string
+  nameMY: string
   totalBeds: number
   occupied: number
-  available: number
   reserved: number
   maintenance: number
-  specialty: string
+  type: 'general' | 'icu' | 'maternity' | 'pediatric' | 'isolation'
 }
 
-const DEFAULT_WARDS: WardSummary[] = [
-  { id: 'W1', name: 'Ward 1A - General Medicine', floor: 'Level 1', totalBeds: 40, occupied: 35, available: 3, reserved: 1, maintenance: 1, specialty: 'Internal Medicine' },
-  { id: 'W2', name: 'Ward 2A - Cardiology', floor: 'Level 2', totalBeds: 30, occupied: 26, available: 2, reserved: 2, maintenance: 0, specialty: 'Cardiology' },
-  { id: 'W3', name: 'Ward 2B - Surgery', floor: 'Level 2', totalBeds: 35, occupied: 28, available: 5, reserved: 1, maintenance: 1, specialty: 'General Surgery' },
-  { id: 'W4', name: 'Ward 3A - Pediatrics', floor: 'Level 3', totalBeds: 25, occupied: 18, available: 6, reserved: 1, maintenance: 0, specialty: 'Pediatrics' },
-  { id: 'W5', name: 'Ward 3B - Maternity', floor: 'Level 3', totalBeds: 30, occupied: 22, available: 6, reserved: 2, maintenance: 0, specialty: 'O&G' },
-  { id: 'W6', name: 'ICU - Intensive Care', floor: 'Level 4', totalBeds: 20, occupied: 18, available: 1, reserved: 1, maintenance: 0, specialty: 'Critical Care' },
-  { id: 'W7', name: 'HDU - High Dependency', floor: 'Level 4', totalBeds: 15, occupied: 12, available: 2, reserved: 1, maintenance: 0, specialty: 'Critical Care' },
-  { id: 'W8', name: 'Emergency Observation', floor: 'Ground', totalBeds: 25, occupied: 20, available: 4, reserved: 0, maintenance: 1, specialty: 'Emergency' },
+const initialWards: Ward[] = [
+  { id: '1', name: 'General Ward A', nameMY: 'Wad Am A', totalBeds: 30, occupied: 24, reserved: 3, maintenance: 1, type: 'general' },
+  { id: '2', name: 'General Ward B', nameMY: 'Wad Am B', totalBeds: 30, occupied: 28, reserved: 1, maintenance: 0, type: 'general' },
+  { id: '3', name: 'ICU', nameMY: 'Unit Rawatan Rapi', totalBeds: 10, occupied: 8, reserved: 1, maintenance: 0, type: 'icu' },
+  { id: '4', name: 'Maternity Ward', nameMY: 'Wad Bersalin', totalBeds: 20, occupied: 15, reserved: 2, maintenance: 1, type: 'maternity' },
+  { id: '5', name: 'Pediatric Ward', nameMY: 'Wad Pediatrik', totalBeds: 25, occupied: 18, reserved: 4, maintenance: 0, type: 'pediatric' },
+  { id: '6', name: 'Isolation Ward', nameMY: 'Wad Isolasi', totalBeds: 15, occupied: 5, reserved: 0, maintenance: 2, type: 'isolation' },
+  { id: '7', name: 'CCU', nameMY: 'Unit Jantung', totalBeds: 8, occupied: 6, reserved: 1, maintenance: 0, type: 'icu' },
+  { id: '8', name: 'Surgical Ward', nameMY: 'Wad Pembedahan', totalBeds: 25, occupied: 20, reserved: 2, maintenance: 1, type: 'general' },
 ]
 
+const wardTypeConfig = {
+  general: { color: 'bg-blue-100 text-blue-700', label: 'Wad Am' },
+  icu: { color: 'bg-red-100 text-red-700', label: 'ICU/CCU' },
+  maternity: { color: 'bg-pink-100 text-pink-700', label: 'Bersalin' },
+  pediatric: { color: 'bg-purple-100 text-purple-700', label: 'Pediatrik' },
+  isolation: { color: 'bg-yellow-100 text-yellow-700', label: 'Isolasi' },
+}
+
 export default function BedManagement() {
-  const { user } = useAuthStore()
   const { toast } = useToast()
-  const theme = getHospitalTheme(user?.hospitalId)
-  const hospitalKey = user?.hospitalId || 'hospital-kl'
+  const [wards, setWards] = useState<Ward[]>(initialWards)
+  const [selectedWard, setSelectedWard] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newWard, setNewWard] = useState({
+    name: '',
+    nameMY: '',
+    totalBeds: '20',
+    type: 'general' as Ward['type'],
+  })
 
-  const [wards, setWards] = useSessionState<WardSummary[]>(`admin-wards:${hospitalKey}`, DEFAULT_WARDS)
-  const [selectedWardId, setSelectedWardId] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [newWardName, setNewWardName] = useState('')
-  const [newWardFloor, setNewWardFloor] = useState('Level 5')
-  const [newWardSpecialty, setNewWardSpecialty] = useState('General Medicine')
-  const [newWardBeds, setNewWardBeds] = useState('20')
+  const totalStats = wards.reduce(
+    (acc, ward) => ({
+      totalBeds: acc.totalBeds + ward.totalBeds,
+      occupied: acc.occupied + ward.occupied,
+      reserved: acc.reserved + ward.reserved,
+      maintenance: acc.maintenance + ward.maintenance,
+    }),
+    { totalBeds: 0, occupied: 0, reserved: 0, maintenance: 0 }
+  )
 
-  const adjustWard = (
-    wardId: string,
-    action: 'admit' | 'discharge' | 'reserve' | 'maintenance_toggle' | 'add_bed'
-  ) => {
+  const availableTotal =
+    totalStats.totalBeds - totalStats.occupied - totalStats.reserved - totalStats.maintenance
+  const occupancyRate =
+    totalStats.totalBeds > 0 ? Math.round((totalStats.occupied / totalStats.totalBeds) * 100) : 0
+
+  const adjustWardOccupancy = (wardId: string, delta: number) => {
     setWards((prev) =>
       prev.map((w) => {
         if (w.id !== wardId) return w
-        if (action === 'admit' && w.available > 0) {
-          return { ...w, occupied: w.occupied + 1, available: w.available - 1 }
-        }
-        if (action === 'discharge' && w.occupied > 0) {
-          return { ...w, occupied: w.occupied - 1, available: w.available + 1 }
-        }
-        if (action === 'reserve' && w.available > 0) {
-          return { ...w, reserved: w.reserved + 1, available: w.available - 1 }
-        }
-        if (action === 'maintenance_toggle') {
-          if (w.maintenance > 0) {
-            return { ...w, maintenance: w.maintenance - 1, available: w.available + 1 }
-          }
-          if (w.available > 0) {
-            return { ...w, maintenance: w.maintenance + 1, available: w.available - 1 }
-          }
-        }
-        if (action === 'add_bed') {
-          return { ...w, totalBeds: w.totalBeds + 1, available: w.available + 1 }
-        }
-        return w
+        const maxOccupiable = w.totalBeds - w.reserved - w.maintenance
+        const nextOccupied = Math.max(0, Math.min(maxOccupiable, w.occupied + delta))
+        return { ...w, occupied: nextOccupied }
       })
     )
   }
 
-  const handleCreateWard = (e: React.FormEvent) => {
-    e.preventDefault()
-    const beds = Math.max(1, Number.parseInt(newWardBeds, 10) || 10)
-    if (!newWardName.trim()) return
-    const created: WardSummary = {
-      id: `W-${Date.now().toString().slice(-4)}`,
-      name: newWardName.trim(),
-      floor: newWardFloor.trim() || 'Level 1',
-      totalBeds: beds,
-      occupied: 0,
-      available: beds,
-      reserved: 0,
-      maintenance: 0,
-      specialty: newWardSpecialty.trim() || 'General',
+  const addBedToSelectedOrOpenModal = () => {
+    if (selectedWard) {
+      setWards((prev) =>
+        prev.map((w) => (w.id === selectedWard ? { ...w, totalBeds: w.totalBeds + 2 } : w))
+      )
+      toast({ title: 'Capacity Expanded', description: 'Added 2 beds to selected ward.' })
+    } else {
+      setShowAddModal(true)
     }
-    setWards((prev) => [...prev, created])
-    setSelectedWardId(created.id)
-    setNewWardName('')
-    setModalOpen(false)
-    toast({ title: 'Ward Added', description: `${created.name} (${beds} beds) added to ward board.` })
   }
 
-  const handleResetBaseline = () => {
-    setWards(DEFAULT_WARDS)
-    toast({ title: 'Baseline Restored', description: 'Ward bed allocations reset to default shift baseline.' })
+  const handleCreateWard = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newWard.name.trim()) return
+    const created: Ward = {
+      id: `ward-${Date.now()}`,
+      name: newWard.name.trim(),
+      nameMY: newWard.nameMY.trim() || newWard.name.trim(),
+      totalBeds: Math.max(1, Number(newWard.totalBeds) || 20),
+      occupied: 0,
+      reserved: 0,
+      maintenance: 0,
+      type: newWard.type,
+    }
+    setWards((prev) => [...prev, created])
+    setShowAddModal(false)
+    setNewWard({ name: '', nameMY: '', totalBeds: '20', type: 'general' })
+    toast({ title: 'Ward Added', description: `${created.name} (${created.totalBeds} beds) registered.` })
   }
 
   const handleExportCsv = () => {
-    exportToCsv(
-      `${theme.shortName.toLowerCase()}-bed-occupancy.csv`,
-      ['Ward', 'Floor', 'Specialty', 'Total Beds', 'Occupied', 'Available', 'Reserved', 'Maintenance', 'Occupancy %'],
+    downloadCsvFile(
+      'hospital-bed-capacity.csv',
+      ['Ward', 'Type', 'Total Beds', 'Occupied', 'Available', 'Reserved', 'Maintenance'],
       wards.map((w) => [
         w.name,
-        w.floor,
-        w.specialty,
+        w.type,
         w.totalBeds,
         w.occupied,
-        w.available,
+        w.totalBeds - w.occupied - w.reserved - w.maintenance,
         w.reserved,
         w.maintenance,
-        Math.round((w.occupied / Math.max(1, w.totalBeds)) * 100),
       ])
     )
   }
 
-  const totalStats = wards.reduce(
-    (acc, w) => ({
-      total: acc.total + w.totalBeds,
-      occupied: acc.occupied + w.occupied,
-      available: acc.available + w.available,
-      reserved: acc.reserved + w.reserved,
-      maintenance: acc.maintenance + w.maintenance,
-    }),
-    { total: 0, occupied: 0, available: 0, reserved: 0, maintenance: 0 }
-  )
-
-  const occupancyRate = totalStats.total > 0 ? Math.round((totalStats.occupied / totalStats.total) * 100) : 0
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl text-white" style={{ backgroundColor: theme.primaryColor }}>
-              <Bed className="h-6 w-6" />
-            </div>
-            Bed Management
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {theme.name} — Interactive ward allocation board (persisted in current browser session)
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Bed Management</h1>
+          <p className="text-gray-500 text-sm">Real-time ward census, admissions & bed capacity allocation</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleResetBaseline} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Reset Baseline
-          </Button>
+        <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportCsv} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export CSV
+            <Download className="w-4 h-4" /> Export CSV
           </Button>
-          <Button onClick={() => setModalOpen(true)} className="gap-2" style={{ backgroundColor: theme.primaryColor }}>
-            <Plus className="h-4 w-4" />
-            Add Ward / Beds
+          <Button
+            variant="outline"
+            onClick={() => toast({ title: 'Census Synced', description: 'Ward occupancy synchronized.' })}
+            className="gap-2"
+          >
+            <RefreshCw className="w-4 h-4" /> Sync
+          </Button>
+          <Button onClick={addBedToSelectedOrOpenModal} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+            <Bed className="w-4 h-4" />
+            {selectedWard ? '+2 Beds to Selected Ward' : 'Add Ward / Beds'}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="col-span-2 md:col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 text-white">
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Occupancy Rate</p>
-            <p className="text-3xl font-bold mt-1">{occupancyRate}%</p>
-            <div className="w-full h-2 bg-slate-700 rounded-full mt-2 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  occupancyRate > 85 ? 'bg-red-500' : occupancyRate > 70 ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}
-                style={{ width: `${Math.min(100, occupancyRate)}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {[
-          { label: 'Total Beds', value: totalStats.total, icon: Bed, bgClass: 'bg-blue-100', iconClass: 'text-blue-600' },
-          { label: 'Occupied', value: totalStats.occupied, icon: Clock, bgClass: 'bg-red-100', iconClass: 'text-red-600' },
-          { label: 'Available', value: totalStats.available, icon: CheckCircle2, bgClass: 'bg-emerald-100', iconClass: 'text-emerald-600' },
-          { label: 'Reserved / Maint.', value: totalStats.reserved + totalStats.maintenance, icon: Wrench, bgClass: 'bg-amber-100', iconClass: 'text-amber-600' },
-        ].map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`p-2.5 rounded-xl ${stat.bgClass}`}>
-                  <stat.icon className={`h-5 w-5 ${stat.iconClass}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+        <Card className="bg-slate-50 border-slate-200"><CardContent className="p-4 flex items-center gap-3"><Bed className="w-6 h-6 text-slate-600" /><div><p className="text-2xl font-bold text-slate-800">{totalStats.totalBeds}</p><p className="text-xs text-slate-500">Total Beds</p></div></CardContent></Card>
+        <Card className="bg-red-50 border-red-200"><CardContent className="p-4 flex items-center gap-3"><User className="w-6 h-6 text-red-600" /><div><p className="text-2xl font-bold text-red-700">{totalStats.occupied}</p><p className="text-xs text-red-600">Occupied</p></div></CardContent></Card>
+        <Card className="bg-green-50 border-green-200"><CardContent className="p-4 flex items-center gap-3"><CheckCircle className="w-6 h-6 text-green-600" /><div><p className="text-2xl font-bold text-green-700">{availableTotal}</p><p className="text-xs text-green-600">Available</p></div></CardContent></Card>
+        <Card className="bg-yellow-50 border-yellow-200"><CardContent className="p-4 flex items-center gap-3"><Clock className="w-6 h-6 text-yellow-600" /><div><p className="text-2xl font-bold text-yellow-700">{totalStats.reserved}</p><p className="text-xs text-yellow-600">Reserved</p></div></CardContent></Card>
+        <Card className="bg-orange-50 border-orange-200"><CardContent className="p-4 flex items-center gap-3"><AlertTriangle className="w-6 h-6 text-orange-600" /><div><p className="text-2xl font-bold text-orange-700">{totalStats.maintenance}</p><p className="text-xs text-orange-600">Maintenance</p></div></CardContent></Card>
       </div>
 
-      {occupancyRate > 80 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-            <div>
-              <p className="font-semibold text-amber-800">High Occupancy Alert ({occupancyRate}%)</p>
-              <p className="text-sm text-amber-700">
-                Hospital bed occupancy is above 80%. Click any ward card below to admit, discharge, reserve, or expand bed capacity.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Ward Overview
-          </CardTitle>
-          <CardDescription>Click a ward card to open quick admit / discharge / maintenance controls</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            {wards.map((ward, index) => {
-              const wardOccupancy = Math.round((ward.occupied / Math.max(1, ward.totalBeds)) * 100)
-              const isCritical = wardOccupancy >= 90
-              const isSelected = selectedWardId === ward.id
-
-              return (
-                <motion.div
-                  key={ward.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.04 }}
-                  className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${
-                    isCritical ? 'border-red-200 bg-red-50/30' : 'border-gray-100 bg-white hover:border-gray-200'
-                  } ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-                  onClick={() => setSelectedWardId(isSelected ? null : ward.id)}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{ward.name}</h3>
-                      <p className="text-xs text-gray-500">
-                        {ward.floor} • {ward.specialty}
-                      </p>
-                    </div>
-                    <Badge
-                      className={
-                        isCritical
-                          ? 'bg-red-100 text-red-700'
-                          : wardOccupancy > 75
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                      }
-                    >
-                      {wardOccupancy}% Full
-                    </Badge>
-                  </div>
-
-                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden flex mb-3">
-                    <div className="bg-red-500 h-full" style={{ width: `${(ward.occupied / ward.totalBeds) * 100}%` }} title={`Occupied: ${ward.occupied}`} />
-                    <div className="bg-amber-400 h-full" style={{ width: `${(ward.reserved / ward.totalBeds) * 100}%` }} title={`Reserved: ${ward.reserved}`} />
-                    <div className="bg-gray-400 h-full" style={{ width: `${(ward.maintenance / ward.totalBeds) * 100}%` }} title={`Maintenance: ${ward.maintenance}`} />
-                    <div className="bg-emerald-400 h-full" style={{ width: `${(ward.available / ward.totalBeds) * 100}%` }} title={`Available: ${ward.available}`} />
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-lg bg-red-50">
-                      <p className="font-bold text-red-700">{ward.occupied}</p>
-                      <p className="text-red-600">Occupied</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-emerald-50">
-                      <p className="font-bold text-emerald-700">{ward.available}</p>
-                      <p className="text-emerald-600">Available</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-amber-50">
-                      <p className="font-bold text-amber-700">{ward.reserved}</p>
-                      <p className="text-amber-600">Reserved</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-gray-100">
-                      <p className="font-bold text-gray-700">{ward.maintenance}</p>
-                      <p className="text-gray-600">Maint.</p>
-                    </div>
-                  </div>
-
-                  {isSelected && (
-                    <div
-                      className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap gap-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={ward.available === 0}
-                        onClick={() => adjustWard(ward.id, 'admit')}
-                        className="gap-1 text-xs"
-                      >
-                        <Plus className="h-3 w-3" /> Admit Patient
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={ward.occupied === 0}
-                        onClick={() => adjustWard(ward.id, 'discharge')}
-                        className="gap-1 text-xs"
-                      >
-                        <Minus className="h-3 w-3" /> Discharge
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={ward.available === 0}
-                        onClick={() => adjustWard(ward.id, 'reserve')}
-                        className="gap-1 text-xs"
-                      >
-                        Reserve Bed
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => adjustWard(ward.id, 'maintenance_toggle')}
-                        className="gap-1 text-xs"
-                      >
-                        <Wrench className="h-3 w-3" />
-                        {ward.maintenance > 0 ? 'Finish Maint.' : 'Mark Maint.'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => adjustWard(ward.id, 'add_bed')}
-                        className="gap-1 text-xs"
-                      >
-                        +1 Extra Bed
-                      </Button>
-                    </div>
-                  )}
-                </motion.div>
-              )
-            })}
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-base font-bold text-gray-900">Hospital Occupancy Rate</h3>
+              <p className="text-xs text-gray-500">Click any ward card below to admit or discharge beds</p>
+            </div>
+            <p className="text-3xl font-bold text-blue-600">{occupancyRate}%</p>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3.5">
+            <div
+              className={`h-3.5 rounded-full transition-all ${
+                occupancyRate > 90 ? 'bg-red-500' : occupancyRate > 75 ? 'bg-yellow-500' : 'bg-green-500'
+              }`}
+              style={{ width: `${occupancyRate}%` }}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b pb-3">
-              <h2 className="text-lg font-bold text-gray-900">Add New Ward</h2>
-              <button onClick={() => setModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100" aria-label="Close">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateWard} className="space-y-3">
-              <div>
-                <Label>Ward Name</Label>
-                <Input value={newWardName} onChange={(e) => setNewWardName(e.target.value)} required placeholder="e.g. Ward 5A - Isolation" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Floor / Wing</Label>
-                  <Input value={newWardFloor} onChange={(e) => setNewWardFloor(e.target.value)} required />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {wards.map((ward) => {
+          const available = ward.totalBeds - ward.occupied - ward.reserved - ward.maintenance
+          const occupancy = Math.round((ward.occupied / ward.totalBeds) * 100)
+          const typeConfig = wardTypeConfig[ward.type]
+          const isSelected = selectedWard === ward.id
+
+          return (
+            <Card
+              key={ward.id}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                isSelected ? 'ring-2 ring-blue-500 shadow-md' : ''
+              }`}
+              onClick={() => setSelectedWard(isSelected ? null : ward.id)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold">{ward.name}</CardTitle>
+                  <Badge className={typeConfig.color}>{typeConfig.label}</Badge>
                 </div>
+                <p className="text-xs text-gray-500">{ward.nameMY}</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-10 gap-1">
+                  {Array.from({ length: ward.totalBeds }).map((_, i) => {
+                    let status = 'available'
+                    if (i < ward.occupied) status = 'occupied'
+                    else if (i < ward.occupied + ward.reserved) status = 'reserved'
+                    else if (i < ward.occupied + ward.reserved + ward.maintenance) status = 'maintenance'
+                    return (
+                      <div
+                        key={i}
+                        className={`w-2 h-2 rounded-sm ${
+                          status === 'occupied'
+                            ? 'bg-red-400'
+                            : status === 'reserved'
+                              ? 'bg-yellow-400'
+                              : status === 'maintenance'
+                                ? 'bg-orange-400'
+                                : 'bg-green-400'
+                        }`}
+                      />
+                    )
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 text-xs text-gray-600">
+                  <span>Occupied: <strong>{ward.occupied}</strong></span>
+                  <span>Available: <strong className="text-green-700">{available}</strong></span>
+                  <span>Reserved: {ward.reserved}</span>
+                  <span>Maint: {ward.maintenance}</span>
+                </div>
+
                 <div>
-                  <Label>Total Beds</Label>
-                  <Input type="number" min={1} max={200} value={newWardBeds} onChange={(e) => setNewWardBeds(e.target.value)} required />
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-500">Occupancy</span>
+                    <span className="font-bold">{occupancy}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full ${
+                        occupancy > 90 ? 'bg-red-500' : occupancy > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${occupancy}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={ward.occupied <= 0}
+                    onClick={() => adjustWardOccupancy(ward.id, -1)}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Minus className="w-3 h-3 mr-1" /> Discharge
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={available <= 0}
+                    onClick={() => adjustWardOccupancy(ward.id, 1)}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Admit
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      <AnimatePresence>
+        {showAddModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowAddModal(false)}
+          >
+            <motion.form
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              onSubmit={handleCreateWard}
+              className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">Add New Ward</h3>
+                <button type="button" onClick={() => setShowAddModal(false)}>
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  required
+                  placeholder="Ward Name (e.g., Ward 6C) *"
+                  value={newWard.name}
+                  onChange={(e) => setNewWard({ ...newWard, name: e.target.value })}
+                />
+                <Input
+                  placeholder="Malay Label (e.g., Wad 6C)"
+                  value={newWard.nameMY}
+                  onChange={(e) => setNewWard({ ...newWard, nameMY: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    placeholder="Total Beds"
+                    value={newWard.totalBeds}
+                    onChange={(e) => setNewWard({ ...newWard, totalBeds: e.target.value })}
+                  />
+                  <select
+                    className="h-10 px-3 border rounded-md text-sm bg-white"
+                    value={newWard.type}
+                    onChange={(e) => setNewWard({ ...newWard, type: e.target.value as Ward['type'] })}
+                  >
+                    <option value="general">General Ward</option>
+                    <option value="icu">ICU / CCU</option>
+                    <option value="maternity">Maternity</option>
+                    <option value="pediatric">Pediatric</option>
+                    <option value="isolation">Isolation</option>
+                  </select>
                 </div>
               </div>
-              <div>
-                <Label>Specialty</Label>
-                <Input value={newWardSpecialty} onChange={(e) => setNewWardSpecialty(e.target.value)} required />
-              </div>
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" style={{ backgroundColor: theme.primaryColor }}>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
                   Create Ward
                 </Button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

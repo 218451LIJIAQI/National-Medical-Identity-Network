@@ -2,26 +2,79 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
 import {
-  getPatientIndex,
   updatePatientIndex,
   createAuditLog,
+  getPatientIndex,
   getBlockedHospitals,
 } from '../database/central-multi';
-import { authenticate, authorize, authorizeHospital } from '../middleware/auth';
-import { getHospitalById, inferDemographicsFromMyKad, normalizeIcNumber } from '../config';
-import { MedicalRecord, Prescription, LabReport } from '../types';
+import {
+  authenticate,
+  authorize,
+  authorizeHospital,
+  requireHospitalVerification,
+} from '../middleware/auth';
+import { getHospitalById } from '../config';
+import {
+  AuditAction,
+  MedicalRecord,
+  Patient,
+  inferDemographicsFromMyKad,
+  normalizeIcNumber,
+} from '../types';
 
 const router = Router();
+
+async function enforcePatientPrivacyConsent(
+  req: Request,
+  res: Response,
+  hospitalId: string,
+  rawIcNumber: string,
+  action: AuditAction
+): Promise<boolean> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
+  const blockedHospitals = await getBlockedHospitals(icNumber);
+  if (blockedHospitals.includes(hospitalId)) {
+    await createAuditLog({
+      timestamp: new Date().toISOString(),
+      action,
+      actorId: req.user?.userId,
+      actorType: (req.user?.role || 'doctor') as 'doctor' | 'hospital_admin' | 'central_admin',
+      actorHospitalId: hospitalId,
+      targetIcNumber: icNumber,
+      targetHospitalId: hospitalId,
+      details: `Access denied: patient ${icNumber} blocked ${hospitalId}`,
+      ipAddress: req.ip || 'unknown',
+      success: false,
+    });
+    res.status(403).json({
+      success: false,
+      accessDenied: true,
+      error: 'Patient has blocked access from your hospital',
+    });
+    return false;
+  }
+  return true;
+}
 
 router.get(
   '/:hospitalId',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor', 'hospital_admin', 'central_admin'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
       const { hospitalId } = req.params;
-      const hospital = getHospitalById(hospitalId)!;
+      const hospital = getHospitalById(hospitalId);
+
+      if (!hospital) {
+        res.status(404).json({
+          success: false,
+          error: 'Hospital not found',
+        });
+        return;
+      }
+
       const stats = await getHospitalDb(hospitalId).getStats();
 
       res.json({
@@ -45,11 +98,21 @@ router.get(
 router.get(
   '/:hospitalId/stats',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor', 'hospital_admin', 'central_admin'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
-      const stats = await getHospitalDb(req.params.hospitalId).getStats();
+      const { hospitalId } = req.params;
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({
+          success: false,
+          error: 'Hospital not found',
+        });
+        return;
+      }
+
+      const stats = await getHospitalDb(hospitalId).getStats();
 
       res.json({
         success: true,
@@ -68,11 +131,21 @@ router.get(
 router.get(
   '/:hospitalId/doctors',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor', 'hospital_admin', 'central_admin'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
-      const doctors = await getHospitalDb(req.params.hospitalId).getDoctors();
+      const { hospitalId } = req.params;
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({
+          success: false,
+          error: 'Hospital not found',
+        });
+        return;
+      }
+
+      const doctors = await getHospitalDb(hospitalId).getDoctors();
       res.json({
         success: true,
         data: doctors,
@@ -88,76 +161,111 @@ router.get(
 );
 
 router.get(
-  '/:hospitalId/patients/:icNumber/records',
+  '/:hospitalId/patients/:icNumber',
   authenticate,
-  authorize('doctor', 'central_admin'),
+  requireHospitalVerification,
+  authorize('doctor'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
       const { hospitalId } = req.params;
-      const icNumber = normalizeIcNumber(req.params.icNumber || '');
-      const currentUser = req.user!;
+      const icNumber = normalizeIcNumber(req.params.icNumber);
 
-      if (currentUser.role === 'doctor') {
-        const blockedHospitals = await getBlockedHospitals(icNumber);
-        if (blockedHospitals.includes(hospitalId)) {
-          const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
-          await createAuditLog({
-            timestamp: new Date().toISOString(),
-            action: 'view',
-            actorId: currentUser.userId,
-            actorType: currentUser.role,
-            actorHospitalId: hospitalId,
-            targetIcNumber: icNumber,
-            targetHospitalId: hospitalId,
-            details: `Access denied to local records: patient blocked ${hospitalName}`,
-            ipAddress: req.ip || 'unknown',
-            success: false,
-          });
-          res.status(403).json({
-            success: false,
-            accessDenied: true,
-            error: 'Patient has blocked access from your hospital',
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({ success: false, error: 'Hospital not found' });
+        return;
+      }
+
+      const consentAllowed = await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'view');
+      if (!consentAllowed) return;
+
+      const hospitalDb = getHospitalDb(hospitalId);
+      const localPatient = await hospitalDb.getPatient(icNumber);
+      if (localPatient) {
+        res.json({
+          success: true,
+          data: { patient: localPatient, isLocal: true },
+        });
+        return;
+      }
+
+      const index = await getPatientIndex(icNumber);
+      if (index && index.hospitals.length > 0) {
+        const federatedPatient = await findPatientInHospitals(icNumber, index.hospitals);
+        if (federatedPatient) {
+          res.json({
+            success: true,
+            data: { patient: federatedPatient, isLocal: false, federatedFrom: index.hospitals },
           });
           return;
         }
       }
 
-      const hospitalDb = getHospitalDb(hospitalId);
-      const [patient, records] = await Promise.all([
-        hospitalDb.getPatient(icNumber),
-        hospitalDb.getRecordsByPatient(icNumber),
-      ]);
-
-      const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
-      const markedRecords = records.map(r => ({
-        ...r,
-        hospitalId,
-        hospitalName,
-        isReadOnly: !(currentUser.role === 'doctor' && currentUser.hospitalId === hospitalId),
-        sourceHospital: hospitalName,
-      }));
-
-      res.json({
-        success: true,
-        data: {
-          patient,
-          records: markedRecords,
-        },
+      res.status(404).json({
+        success: false,
+        notFound: true,
+        error: 'Patient not found',
       });
     } catch (error) {
-      console.error('Get hospital patient records error:', error);
+      console.error('Get hospital patient error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to fetch hospital patient records',
+        error: 'Failed to fetch patient profile',
       });
     }
   }
 );
 
-interface CreateRecordPayload extends Partial<MedicalRecord> {
-  icNumber?: string;
-  doctorId?: string;
+router.get(
+  '/:hospitalId/records/:recordId',
+  authenticate,
+  requireHospitalVerification,
+  authorize('doctor'),
+  authorizeHospital,
+  async (req: Request, res: Response) => {
+    try {
+      const { hospitalId, recordId } = req.params;
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({ success: false, error: 'Hospital not found' });
+        return;
+      }
+
+      const record = await getHospitalDb(hospitalId).getRecordById(recordId);
+      if (!record) {
+        res.status(404).json({
+          success: false,
+          error: 'Medical record not found in this hospital',
+        });
+        return;
+      }
+
+      const consentAllowed = await enforcePatientPrivacyConsent(
+        req,
+        res,
+        hospitalId,
+        record.icNumber,
+        'view'
+      );
+      if (!consentAllowed) return;
+
+      res.json({
+        success: true,
+        data: {
+          ...record,
+          isReadOnly: false,
+        },
+      });
+    } catch (error) {
+      console.error('Get hospital record error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch medical record',
+      });
+    }
+  }
+);
+
+type CreateOrUpdateRecordPayload = Partial<MedicalRecord> & {
   patientName?: string;
   dateOfBirth?: string;
   gender?: 'male' | 'female';
@@ -169,21 +277,27 @@ interface CreateRecordPayload extends Partial<MedicalRecord> {
   emergencyPhone?: string;
   allergies?: string[];
   chronicConditions?: string[];
-  prescriptions?: Prescription[];
-  labReports?: LabReport[];
-}
+};
 
 router.post(
   '/:hospitalId/records',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
       const { hospitalId } = req.params;
-      const currentUser = req.user!;
-      const body: CreateRecordPayload = req.body || {};
-      const icNumber = normalizeIcNumber(body.icNumber || '');
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({
+          success: false,
+          error: 'Hospital not found',
+        });
+        return;
+      }
+
+      const recordData: CreateOrUpdateRecordPayload = req.body || {};
+      const icNumber = normalizeIcNumber(String(recordData.icNumber || ''));
 
       if (!icNumber) {
         res.status(400).json({
@@ -193,8 +307,8 @@ router.post(
         return;
       }
 
-      const diagnosisList = Array.isArray(body.diagnosis)
-        ? body.diagnosis.map(d => String(d).trim()).filter(Boolean)
+      const diagnosisList = Array.isArray(recordData.diagnosis)
+        ? recordData.diagnosis.map(d => String(d).trim()).filter(Boolean)
         : [];
       if (diagnosisList.length === 0) {
         res.status(400).json({
@@ -205,94 +319,125 @@ router.post(
       }
 
       const hospitalDb = getHospitalDb(hospitalId);
-      const authenticatedDoctor = await hospitalDb.getDoctorByIc(currentUser.icNumber);
-      const requestedDoctor = body.doctorId ? await hospitalDb.getDoctor(body.doctorId) : null;
+      const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
 
-      if (body.doctorId && !requestedDoctor) {
-        res.status(400).json({
-          success: false,
-          error: 'Invalid doctor ID for this hospital',
-        });
-        return;
-      }
-
-      const doctor = authenticatedDoctor || requestedDoctor;
-      if (!doctor || (requestedDoctor && authenticatedDoctor && requestedDoctor.id !== authenticatedDoctor.id)) {
+      if (!authDoctor || !authDoctor.isActive) {
         res.status(403).json({
           success: false,
-          error: 'Doctor identity does not match authenticated clinician in this hospital',
+          error: 'Authenticated user does not hold an active clinician license at this hospital',
         });
         return;
       }
+
+      if (recordData.doctorId && recordData.doctorId !== authDoctor.id) {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor ID mismatch: medical records must be authored under your own active clinician identity',
+        });
+        return;
+      }
+
+      const consentAllowed = await enforcePatientPrivacyConsent(
+        req,
+        res,
+        hospitalId,
+        icNumber,
+        'create'
+      );
+      if (!consentAllowed) return;
 
       const existingPatient = await hospitalDb.getPatient(icNumber);
       const nowIso = new Date().toISOString();
 
       if (!existingPatient) {
-        let federatedPatient = null;
-        const blockedHospitals = await getBlockedHospitals(icNumber);
-        if (!blockedHospitals.includes(hospitalId)) {
-          const patientIndex = await getPatientIndex(icNumber);
-          if (patientIndex && patientIndex.hospitals.length > 0) {
-            federatedPatient = await findPatientInHospitals(icNumber, patientIndex.hospitals);
-          }
+        let federatedPatient: Patient | null = null;
+        const patientIndex = await getPatientIndex(icNumber);
+        if (patientIndex && patientIndex.hospitals.length > 0) {
+          federatedPatient = await findPatientInHospitals(icNumber, patientIndex.hospitals);
         }
 
         const inferred = inferDemographicsFromMyKad(icNumber);
+        const mergedAllergies = Array.from(
+          new Set([
+            ...(federatedPatient?.allergies || []),
+            ...(Array.isArray(recordData.allergies) ? recordData.allergies : []),
+          ].filter(Boolean))
+        );
+        const mergedConditions = Array.from(
+          new Set([
+            ...(federatedPatient?.chronicConditions || []),
+            ...(Array.isArray(recordData.chronicConditions) ? recordData.chronicConditions : []),
+          ].filter(Boolean))
+        );
+
         await hospitalDb.createPatient({
           icNumber,
           fullName:
-            body.patientName?.trim() ||
+            recordData.patientName?.trim() ||
             federatedPatient?.fullName ||
             `Patient ${icNumber}`,
           dateOfBirth:
-            body.dateOfBirth ||
+            recordData.dateOfBirth?.trim() ||
             federatedPatient?.dateOfBirth ||
             inferred.dateOfBirth,
           gender:
-            body.gender === 'male' || body.gender === 'female'
-              ? body.gender
+            recordData.gender === 'female' || recordData.gender === 'male'
+              ? recordData.gender
               : federatedPatient?.gender || inferred.gender,
-          bloodType: body.bloodType ?? federatedPatient?.bloodType ?? '',
-          phone: body.phone ?? federatedPatient?.phone ?? '',
-          email: body.email ?? federatedPatient?.email ?? '',
-          address: body.address ?? federatedPatient?.address ?? '',
-          emergencyContact: body.emergencyContact ?? federatedPatient?.emergencyContact ?? '',
-          emergencyPhone: body.emergencyPhone ?? federatedPatient?.emergencyPhone ?? '',
-          allergies:
-            Array.isArray(body.allergies) && body.allergies.length > 0
-              ? body.allergies
-              : federatedPatient?.allergies || [],
-          chronicConditions:
-            Array.isArray(body.chronicConditions) && body.chronicConditions.length > 0
-              ? body.chronicConditions
-              : federatedPatient?.chronicConditions || [],
+          bloodType: recordData.bloodType?.trim() || federatedPatient?.bloodType || '',
+          phone: recordData.phone?.trim() || federatedPatient?.phone || '',
+          email: recordData.email?.trim() || federatedPatient?.email || '',
+          address: recordData.address?.trim() || federatedPatient?.address || '',
+          emergencyContact:
+            recordData.emergencyContact?.trim() || federatedPatient?.emergencyContact || '',
+          emergencyPhone:
+            recordData.emergencyPhone?.trim() || federatedPatient?.emergencyPhone || '',
+          allergies: mergedAllergies,
+          chronicConditions: mergedConditions,
           createdAt: nowIso,
           updatedAt: nowIso,
         });
+      } else if (
+        recordData.bloodType ||
+        (Array.isArray(recordData.allergies) && recordData.allergies.length > 0) ||
+        (Array.isArray(recordData.chronicConditions) && recordData.chronicConditions.length > 0) ||
+        recordData.emergencyContact ||
+        recordData.emergencyPhone
+      ) {
+        await hospitalDb.updatePatient(icNumber, {
+          bloodType: recordData.bloodType?.trim() || existingPatient.bloodType,
+          emergencyContact: recordData.emergencyContact?.trim() || existingPatient.emergencyContact,
+          emergencyPhone: recordData.emergencyPhone?.trim() || existingPatient.emergencyPhone,
+          allergies: Array.isArray(recordData.allergies) ? recordData.allergies : undefined,
+          chronicConditions: Array.isArray(recordData.chronicConditions)
+            ? recordData.chronicConditions
+            : undefined,
+        });
       }
-
-      const visitType =
-        body.visitType === 'inpatient' || body.visitType === 'emergency'
-          ? body.visitType
-          : 'outpatient';
 
       const createdRecord = await hospitalDb.createRecord({
         id: crypto.randomUUID(),
         icNumber,
         hospitalId,
-        doctorId: doctor.id,
-        visitDate: body.visitDate || nowIso,
-        visitType,
-        chiefComplaint: body.chiefComplaint || '',
+        doctorId: authDoctor.id,
+        visitDate: recordData.visitDate || nowIso,
+        visitType:
+          recordData.visitType === 'inpatient' || recordData.visitType === 'emergency'
+            ? recordData.visitType
+            : 'outpatient',
+        chiefComplaint: recordData.chiefComplaint || '',
         diagnosis: diagnosisList,
-        diagnosisCodes: Array.isArray(body.diagnosisCodes) ? body.diagnosisCodes : [],
-        symptoms: Array.isArray(body.symptoms) ? body.symptoms : [],
-        notes: body.notes || '',
-        vitalSigns: body.vitalSigns,
-        prescriptions: Array.isArray(body.prescriptions) ? body.prescriptions : [],
-        labReports: Array.isArray(body.labReports) ? body.labReports : [],
-        followUpDate: body.followUpDate,
+        diagnosisCodes: Array.isArray(recordData.diagnosisCodes)
+          ? recordData.diagnosisCodes.map(c => String(c).trim()).filter(Boolean)
+          : [],
+        symptoms: Array.isArray(recordData.symptoms)
+          ? recordData.symptoms.map(s => String(s).trim()).filter(Boolean)
+          : [],
+        notes: recordData.notes || '',
+        vitalSigns: recordData.vitalSigns,
+        prescriptions: Array.isArray(recordData.prescriptions) ? recordData.prescriptions : [],
+        labReports: Array.isArray(recordData.labReports) ? recordData.labReports : [],
+        followUpDate: recordData.followUpDate,
         createdAt: nowIso,
         updatedAt: nowIso,
       });
@@ -302,12 +447,12 @@ router.post(
       await createAuditLog({
         timestamp: nowIso,
         action: 'create',
-        actorId: currentUser.userId,
-        actorType: currentUser.role,
+        actorId: req.user!.userId,
+        actorType: 'doctor',
         actorHospitalId: hospitalId,
         targetIcNumber: icNumber,
         targetHospitalId: hospitalId,
-        details: `Created medical record ${createdRecord.id} (${diagnosisList.join(', ')})`,
+        details: `Created medical record ${createdRecord.id} (${createdRecord.prescriptions?.length || 0} Rx, ${createdRecord.labReports?.length || 0} Labs)`,
         ipAddress: req.ip || 'unknown',
         success: true,
       });
@@ -316,11 +461,7 @@ router.post(
         success: true,
         data: {
           recordId: createdRecord.id,
-          record: {
-            ...createdRecord,
-            isReadOnly: false,
-            sourceHospital: createdRecord.hospitalName,
-          },
+          record: createdRecord,
         },
         message: 'Medical record created successfully',
       });
@@ -337,15 +478,23 @@ router.post(
 router.put(
   '/:hospitalId/records/:recordId',
   authenticate,
+  requireHospitalVerification,
   authorize('doctor'),
   authorizeHospital,
   async (req: Request, res: Response) => {
     try {
       const { hospitalId, recordId } = req.params;
-      const currentUser = req.user!;
-      const body: Partial<MedicalRecord> = req.body || {};
+      if (!getHospitalById(hospitalId)) {
+        res.status(404).json({
+          success: false,
+          error: 'Hospital not found',
+        });
+        return;
+      }
 
-      if (body.hospitalId && body.hospitalId !== hospitalId) {
+      const updates: CreateOrUpdateRecordPayload = req.body || {};
+
+      if (updates.hospitalId && updates.hospitalId !== hospitalId) {
         res.status(403).json({
           success: false,
           error: 'Cross-hospital medical records are strictly read-only',
@@ -354,42 +503,71 @@ router.put(
       }
 
       const hospitalDb = getHospitalDb(hospitalId);
-      const existingRecord = await hospitalDb.getRecordById(recordId);
-
-      if (!existingRecord) {
-        res.status(404).json({
+      const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
+      if (!authDoctor || !authDoctor.isActive) {
+        res.status(403).json({
           success: false,
-          error: 'Medical record not found in this hospital (cross-hospital records are read-only)',
+          error: 'Authenticated user does not hold an active clinician license at this hospital',
         });
         return;
       }
 
-      if (body.diagnosis !== undefined) {
-        const cleanedDiagnosis = Array.isArray(body.diagnosis)
-          ? body.diagnosis.map(d => String(d).trim()).filter(Boolean)
+      const existingRecord = await hospitalDb.getRecordById(recordId);
+      if (!existingRecord) {
+        res.status(404).json({
+          success: false,
+          error: 'Medical record not found in your hospital (cross-hospital records are read-only)',
+        });
+        return;
+      }
+
+      if (
+        updates.doctorId &&
+        updates.doctorId !== authDoctor.id &&
+        updates.doctorId !== existingRecord.doctorId
+      ) {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor ID mismatch: cannot attribute record updates to another doctor',
+        });
+        return;
+      }
+
+      const consentAllowed = await enforcePatientPrivacyConsent(
+        req,
+        res,
+        hospitalId,
+        existingRecord.icNumber,
+        'update'
+      );
+      if (!consentAllowed) return;
+
+      if (updates.diagnosis !== undefined) {
+        const cleanDiagnosis = Array.isArray(updates.diagnosis)
+          ? updates.diagnosis.map(d => String(d).trim()).filter(Boolean)
           : [];
-        if (cleanedDiagnosis.length === 0) {
+        if (cleanDiagnosis.length === 0) {
           res.status(400).json({
             success: false,
             error: 'At least one diagnosis is required',
           });
           return;
         }
-        body.diagnosis = cleanedDiagnosis;
+        updates.diagnosis = cleanDiagnosis;
       }
 
       const updatedRecord = await hospitalDb.updateRecord(recordId, {
-        visitDate: body.visitDate,
-        visitType: body.visitType,
-        chiefComplaint: body.chiefComplaint,
-        diagnosis: body.diagnosis,
-        diagnosisCodes: body.diagnosisCodes,
-        symptoms: body.symptoms,
-        notes: body.notes,
-        vitalSigns: body.vitalSigns,
-        followUpDate: body.followUpDate,
-        prescriptions: body.prescriptions,
-        labReports: body.labReports,
+        visitDate: updates.visitDate,
+        visitType: updates.visitType,
+        chiefComplaint: updates.chiefComplaint,
+        diagnosis: updates.diagnosis,
+        diagnosisCodes: updates.diagnosisCodes,
+        symptoms: updates.symptoms,
+        notes: updates.notes,
+        vitalSigns: updates.vitalSigns,
+        prescriptions: updates.prescriptions,
+        labReports: updates.labReports,
+        followUpDate: updates.followUpDate,
       });
 
       if (!updatedRecord) {
@@ -405,12 +583,12 @@ router.put(
       await createAuditLog({
         timestamp: new Date().toISOString(),
         action: 'update',
-        actorId: currentUser.userId,
-        actorType: currentUser.role,
+        actorId: req.user!.userId,
+        actorType: 'doctor',
         actorHospitalId: hospitalId,
         targetIcNumber: existingRecord.icNumber,
         targetHospitalId: hospitalId,
-        details: `Updated medical record ${recordId}`,
+        details: `Updated medical record ${recordId} (${updatedRecord.prescriptions?.length || 0} Rx, ${updatedRecord.labReports?.length || 0} Labs)`,
         ipAddress: req.ip || 'unknown',
         success: true,
       });
@@ -418,11 +596,7 @@ router.put(
       res.json({
         success: true,
         data: {
-          record: {
-            ...updatedRecord,
-            isReadOnly: false,
-            sourceHospital: updatedRecord.hospitalName,
-          },
+          record: updatedRecord,
         },
         message: 'Medical record updated successfully',
       });

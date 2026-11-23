@@ -1,13 +1,6 @@
-import { PatientIndex, AuditLog, Hospital, User, UserRole } from '../types';
+import { PatientIndex, AuditLog, Hospital, User, normalizeIcNumber } from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
-
-const ROLE_PRIORITY: Record<string, number> = {
-  doctor: 1,
-  hospital_admin: 2,
-  central_admin: 3,
-  patient: 4,
-};
 
 function mapUser(user: {
   id: string;
@@ -21,7 +14,7 @@ function mapUser(user: {
   return {
     id: user.id,
     icNumber: user.icNumber,
-    role: user.role as UserRole,
+    role: user.role as User['role'],
     hospitalId: user.hospitalId || undefined,
     passwordHash: user.passwordHash,
     lastLogin: user.lastLogin?.toISOString(),
@@ -29,16 +22,22 @@ function mapUser(user: {
   };
 }
 
-function parseDateBoundary(dateStr: string, boundary: 'start' | 'end'): Date {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(
-      boundary === 'start' ? `${dateStr}T00:00:00.000Z` : `${dateStr}T23:59:59.999Z`
-    );
+export function parseAuditDateBound(raw: string, bound: 'start' | 'end'): Date | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const iso = bound === 'start' ? `${trimmed}T00:00:00.000Z` : `${trimmed}T23:59:59.999Z`;
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-  return new Date(dateStr);
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export async function getPatientIndex(icNumber: string): Promise<PatientIndex | null> {
+export async function getPatientIndex(rawIcNumber: string): Promise<PatientIndex | null> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   const index = await getCentralDb().patientIndex.findUnique({
     where: { icNumber },
     include: { hospitals: { select: { hospitalId: true } } },
@@ -53,7 +52,8 @@ export async function getPatientIndex(icNumber: string): Promise<PatientIndex | 
   };
 }
 
-export async function updatePatientIndex(icNumber: string, hospitalId: string): Promise<void> {
+export async function updatePatientIndex(rawIcNumber: string, hospitalId: string): Promise<void> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   const prisma = getCentralDb();
   const existing = await prisma.patientIndex.findUnique({
     where: { icNumber },
@@ -75,6 +75,7 @@ export async function updatePatientIndex(icNumber: string, hospitalId: string): 
     await prisma.patientIndex.create({
       data: {
         icNumber,
+        lastUpdated: new Date(),
         hospitals: { create: { hospitalId } },
       },
     });
@@ -147,25 +148,28 @@ export async function initializeHospitals(): Promise<void> {
   }
 }
 
-export async function getUsersByIc(icNumber: string): Promise<User[]> {
+export async function getUsersByIc(rawIcNumber: string): Promise<User[]> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   const users = await getCentralDb().user.findMany({
     where: {
       icNumber,
       isActive: true,
     },
   });
-
-  return users
-    .map(mapUser)
-    .sort((a, b) => (ROLE_PRIORITY[a.role] || 99) - (ROLE_PRIORITY[b.role] || 99));
+  return users.map(mapUser);
 }
 
-export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
-  const users = await getUsersByIc(icNumber);
-  if (role) {
-    return users.find(u => u.role === role) || null;
-  }
-  return users[0] || null;
+export async function getUserByIc(rawIcNumber: string, role?: string): Promise<User | null> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
+  const user = await getCentralDb().user.findFirst({
+    where: {
+      icNumber,
+      isActive: true,
+      ...(role ? { role } : {}),
+    },
+  });
+
+  return user ? mapUser(user) : null;
 }
 
 export async function getUserById(id: string): Promise<User | null> {
@@ -183,7 +187,8 @@ export async function updateUserLastLogin(id: string): Promise<void> {
   });
 }
 
-export async function getBlockedHospitals(icNumber: string): Promise<string[]> {
+export async function getBlockedHospitals(rawIcNumber: string): Promise<string[]> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   const settings = await getCentralDb().patientPrivacySetting.findMany({
     where: { icNumber, isBlocked: true },
     select: { hospitalId: true },
@@ -191,7 +196,8 @@ export async function getBlockedHospitals(icNumber: string): Promise<string[]> {
   return settings.map((s: { hospitalId: string }) => s.hospitalId);
 }
 
-export async function setHospitalAccess(icNumber: string, hospitalId: string, isBlocked: boolean): Promise<void> {
+export async function setHospitalAccess(rawIcNumber: string, hospitalId: string, isBlocked: boolean): Promise<void> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   await getCentralDb().patientPrivacySetting.upsert({
     where: {
       icNumber_hospitalId: { icNumber, hospitalId },
@@ -201,7 +207,8 @@ export async function setHospitalAccess(icNumber: string, hospitalId: string, is
   });
 }
 
-export async function getPrivacySettings(icNumber: string): Promise<Array<{ hospitalId: string; isBlocked: boolean }>> {
+export async function getPrivacySettings(rawIcNumber: string): Promise<Array<{ hospitalId: string; isBlocked: boolean }>> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
   const settings = await getCentralDb().patientPrivacySetting.findMany({
     where: { icNumber },
     select: { hospitalId: true, isBlocked: true },
@@ -220,7 +227,7 @@ export async function createAuditLog(log: Omit<AuditLog, 'id'>): Promise<void> {
       actorId: log.actorId,
       actorType: log.actorType,
       actorHospitalId: log.actorHospitalId,
-      targetIcNumber: log.targetIcNumber,
+      targetIcNumber: log.targetIcNumber ? normalizeIcNumber(log.targetIcNumber) : undefined,
       targetHospitalId: log.targetHospitalId,
       details: log.details,
       ipAddress: log.ipAddress,
@@ -238,28 +245,32 @@ export async function getAuditLogs(filters?: {
   endDate?: string;
   limit?: number;
 }): Promise<AuditLog[]> {
-  const where: {
-    actorId?: string;
-    targetIcNumber?: string;
-    action?: string;
-    timestamp?: { gte?: Date; lte?: Date };
-    OR?: Array<{ actorHospitalId?: string; targetHospitalId?: string }>;
-  } = {};
+  const where: Record<string, unknown> = {};
 
   if (filters?.actorId) where.actorId = filters.actorId;
-  if (filters?.targetIcNumber) where.targetIcNumber = filters.targetIcNumber;
+  if (filters?.targetIcNumber) where.targetIcNumber = normalizeIcNumber(filters.targetIcNumber);
   if (filters?.action) where.action = filters.action;
+
   if (filters?.hospitalScopeId) {
     where.OR = [
       { actorHospitalId: filters.hospitalScopeId },
       { targetHospitalId: filters.hospitalScopeId },
     ];
   }
+
   if (filters?.startDate || filters?.endDate) {
-    where.timestamp = {
-      ...(filters.startDate ? { gte: parseDateBoundary(filters.startDate, 'start') } : {}),
-      ...(filters.endDate ? { lte: parseDateBoundary(filters.endDate, 'end') } : {}),
-    };
+    const timestampFilter: Record<string, Date> = {};
+    if (filters.startDate) {
+      const start = parseAuditDateBound(filters.startDate, 'start');
+      if (!start) throw new Error('Invalid startDate format');
+      timestampFilter.gte = start;
+    }
+    if (filters.endDate) {
+      const end = parseAuditDateBound(filters.endDate, 'end');
+      if (!end) throw new Error('Invalid endDate format');
+      timestampFilter.lte = end;
+    }
+    where.timestamp = timestampFilter;
   }
 
   const safeLimit = Math.min(Math.max(filters?.limit || 100, 1), 500);
@@ -329,6 +340,6 @@ export async function getCentralStats() {
     yesterdayQueries,
     queryChangePercent,
     newHospitalsThisMonth: 0,
-    avgResponseTime: 0.24,
+    avgResponseTime: 0.4,
   };
 }

@@ -3,7 +3,7 @@ import { HOSPITALS } from '../src/config';
 import { getCentralDb, getHospitalDbClient } from '../src/database/multi-db-manager';
 import { hashPassword } from '../src/middleware/auth';
 
-export const ALL_PATIENTS = [
+const ALL_PATIENTS = [
   { icNumber: '880101-14-5678', fullName: 'Ahmad bin Abdullah', dob: '1988-01-01', gender: 'male', bloodType: 'O+', phone: '+60 12-345 6789', email: 'ahmad@email.com', address: '123 Jalan Bukit Bintang, KL', emergencyContact: 'Fatimah binti Hassan', emergencyPhone: '+60 12-111 2222', allergies: ['Penicillin', 'Shellfish'], conditions: ['Hypertension', 'Type 2 Diabetes'], hospitals: ['hospital-kl', 'hospital-penang', 'hospital-jb', 'hospital-kuching', 'hospital-kk'] },
   { icNumber: '950320-10-1234', fullName: 'Siti Nurhaliza binti Mohd', dob: '1995-03-20', gender: 'female', bloodType: 'A+', phone: '+60 17-987 6543', email: 'siti.n@email.com', address: '45 Lorong Masjid, George Town', emergencyContact: 'Mohd Yusof', emergencyPhone: '+60 17-333 4444', allergies: ['Aspirin'], conditions: ['Asthma'], hospitals: ['hospital-penang', 'hospital-kl', 'hospital-jb'] },
   { icNumber: '550715-07-9999', fullName: 'Tan Ah Kow', dob: '1955-07-15', gender: 'male', bloodType: 'B+', phone: '+60 16-555 6666', email: 'tan.ak@email.com', address: '88 Jalan Danga, JB', emergencyContact: 'Tan Mei Ling', emergencyPhone: '+60 16-777 8888', allergies: ['Sulfa drugs'], conditions: ['Coronary Heart Disease', 'CKD'], hospitals: ['hospital-jb', 'hospital-kl', 'hospital-kuching', 'hospital-kk'] },
@@ -22,49 +22,43 @@ export const ALL_PATIENTS = [
   { icNumber: '860420-12-5002', fullName: 'Dr. Johnny Lai', dob: '1986-04-20', gender: 'male', bloodType: 'O-', phone: '+60 88-555 6666', email: 'dr.johnny@qehkk.gov.my', address: '15 Jalan Lintas, KK', emergencyContact: 'Mrs. Lai', emergencyPhone: '+60 88-777 8888', allergies: [], conditions: [], hospitals: ['hospital-jb', 'hospital-kuching'] },
 ];
 
-export const DOCTORS: Record<string, { id: string; icNumber: string; fullName: string; specialization: string; department: string }[]> = {
+const DOCTORS: Record<string, { id: string; icNumber: string; fullName: string; specialization: string; department: string }[]> = {
   'hospital-kl': [
-    { id: 'doc-kl-lim', icNumber: '750101-14-5001', fullName: 'Dr. Lim Wei Ming', specialization: 'Internal Medicine', department: 'General Medicine' },
-    { id: 'doc-kl-sarah', icNumber: '800515-14-5002', fullName: 'Dr. Sarah Tan', specialization: 'Cardiology', department: 'Cardiology' },
+    { id: crypto.randomUUID(), icNumber: '750101-14-5001', fullName: 'Dr. Lim Wei Ming', specialization: 'Internal Medicine', department: 'General Medicine' },
+    { id: crypto.randomUUID(), icNumber: '800515-14-5002', fullName: 'Dr. Sarah Tan', specialization: 'Cardiology', department: 'Cardiology' },
   ],
   'hospital-penang': [
-    { id: 'doc-pg-tan', icNumber: '760612-07-5001', fullName: 'Dr. Tan Mei Ling', specialization: 'Neurology', department: 'Neurology' },
-    { id: 'doc-pg-raj', icNumber: '820310-07-5002', fullName: 'Dr. Raj Kumar', specialization: 'Pediatrics', department: 'Pediatrics' },
+    { id: crypto.randomUUID(), icNumber: '760612-07-5001', fullName: 'Dr. Tan Mei Ling', specialization: 'Neurology', department: 'Neurology' },
+    { id: crypto.randomUUID(), icNumber: '820310-07-5002', fullName: 'Dr. Raj Kumar', specialization: 'Pediatrics', department: 'Pediatrics' },
   ],
   'hospital-jb': [
-    { id: 'doc-jb-siti', icNumber: '770808-01-5001', fullName: 'Dr. Siti Aishah', specialization: 'Oncology', department: 'Oncology' },
-    { id: 'doc-jb-faiz', icNumber: '830920-01-5002', fullName: 'Dr. Ahmad Faiz', specialization: 'Surgery', department: 'Surgery' },
+    { id: crypto.randomUUID(), icNumber: '770808-01-5001', fullName: 'Dr. Siti Aishah', specialization: 'Oncology', department: 'Oncology' },
+    { id: crypto.randomUUID(), icNumber: '830920-01-5002', fullName: 'Dr. Ahmad Faiz', specialization: 'Surgery', department: 'Surgery' },
   ],
   'hospital-kuching': [
-    { id: 'doc-kc-james', icNumber: '790303-13-5001', fullName: 'Dr. James Wong', specialization: 'Nephrology', department: 'Nephrology' },
-    { id: 'doc-kc-dayang', icNumber: '850115-13-5002', fullName: 'Dr. Dayang Nur', specialization: 'Dermatology', department: 'Dermatology' },
+    { id: crypto.randomUUID(), icNumber: '790303-13-5001', fullName: 'Dr. James Wong', specialization: 'Nephrology', department: 'Nephrology' },
+    { id: crypto.randomUUID(), icNumber: '850115-13-5002', fullName: 'Dr. Dayang Nur', specialization: 'Dermatology', department: 'Dermatology' },
   ],
   'hospital-kk': [
-    { id: 'doc-kk-maria', icNumber: '810707-12-5001', fullName: 'Dr. Maria Gonzales', specialization: 'Pulmonology', department: 'Pulmonology' },
-    { id: 'doc-kk-johnny', icNumber: '860420-12-5002', fullName: 'Dr. Johnny Lai', specialization: 'Orthopedics', department: 'Orthopedics' },
+    { id: crypto.randomUUID(), icNumber: '810707-12-5001', fullName: 'Dr. Maria Gonzales', specialization: 'Pulmonology', department: 'Pulmonology' },
+    { id: crypto.randomUUID(), icNumber: '860420-12-5002', fullName: 'Dr. Johnny Lai', specialization: 'Orthopedics', department: 'Orthopedics' },
   ],
 };
 
-function getConditionMedication(conditions: string[]) {
-  if (conditions.includes('Hypertension')) {
-    return { medicationName: 'Amlodipine', dosage: '5mg', frequency: 'Once daily (OD)', duration: '30 days', quantity: 30, instructions: 'Take in the morning' };
-  }
+function selectSeededMedication(conditions: string[]) {
   if (conditions.includes('Type 2 Diabetes')) {
-    return { medicationName: 'Metformin', dosage: '500mg', frequency: 'Twice daily (BD)', duration: '30 days', quantity: 60, instructions: 'Take with meals' };
+    return { medicationName: 'Metformin', dosage: '500mg', frequency: 'Twice daily', duration: '30 days', quantity: 60, instructions: 'Take with meals', isActive: true };
+  }
+  if (conditions.some(c => c.includes('Hypertension'))) {
+    return { medicationName: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days', quantity: 30, instructions: 'Take in the morning', isActive: true };
   }
   if (conditions.includes('Asthma')) {
-    return { medicationName: 'Salbutamol Inhaler', dosage: '100mcg', frequency: 'When needed (PRN)', duration: 'Ongoing', quantity: 1, instructions: '2 puffs when breathless' };
+    return { medicationName: 'Salbutamol Inhaler', dosage: '100mcg', frequency: 'When needed (PRN)', duration: '30 days', quantity: 1, instructions: '2 puffs when breathless', isActive: true };
   }
-  if (conditions.includes('Coronary Heart Disease')) {
-    return { medicationName: 'Atorvastatin', dosage: '20mg', frequency: 'At night (Nocte)', duration: '30 days', quantity: 30, instructions: 'Take before bedtime' };
-  }
-  if (conditions.includes('Hyperlipidemia')) {
-    return { medicationName: 'Atorvastatin', dosage: '10mg', frequency: 'At night (Nocte)', duration: '30 days', quantity: 30, instructions: 'Take after dinner' };
-  }
-  return { medicationName: 'Paracetamol', dosage: '500mg', frequency: 'Three times daily (TDS)', duration: '5 days', quantity: 15, instructions: 'Take after meals when needed' };
+  return { medicationName: 'Paracetamol', dosage: '500mg', frequency: 'Three times daily', duration: '7 days', quantity: 21, instructions: 'Take after meals', isActive: true };
 }
 
-export async function seedAllDatabases() {
+async function main() {
   console.log('🌱 Starting complete multi-database seeding...\n');
 
   console.log('📦 Seeding Central Database...');
@@ -131,13 +125,14 @@ export async function seedAllDatabases() {
     });
   }
   console.log(`  ✓ Created patient indexes for ${ALL_PATIENTS.length} patients`);
+
+  await centralDb.$disconnect();
   console.log('✅ Central Database seeded!\n');
 
   const visitTypes = ['outpatient', 'inpatient', 'emergency'];
   const complaints = ['Routine checkup', 'Follow-up visit', 'Chronic condition management', 'Annual physical', 'Specialist consultation'];
 
-  for (let hIdx = 0; hIdx < HOSPITALS.length; hIdx++) {
-    const hospital = HOSPITALS[hIdx];
+  for (const hospital of HOSPITALS) {
     console.log(`📦 Seeding ${hospital.shortName} Database...`);
     const hospitalDb = getHospitalDbClient(hospital.id);
 
@@ -162,8 +157,7 @@ export async function seedAllDatabases() {
     console.log(`  ✓ Created ${doctors.length} doctors`);
 
     const hospitalPatients = ALL_PATIENTS.filter(p => p.hospitals.includes(hospital.id));
-    for (let pIdx = 0; pIdx < hospitalPatients.length; pIdx++) {
-      const patient = hospitalPatients[pIdx];
+    for (const patient of hospitalPatients) {
       await hospitalDb.patient.create({
         data: {
           icNumber: patient.icNumber,
@@ -181,13 +175,11 @@ export async function seedAllDatabases() {
         },
       });
 
-      const doctor = doctors[(hIdx + pIdx) % doctors.length];
+      const doctor = doctors[Math.floor(Math.random() * doctors.length)];
       if (!doctor) continue;
 
       const visitDate = new Date();
-      visitDate.setDate(visitDate.getDate() - ((hIdx * 11 + pIdx * 7 + 3) % 120));
-
-      const primaryMed = getConditionMedication(patient.conditions);
+      visitDate.setDate(visitDate.getDate() - Math.floor(Math.random() * 180));
 
       await hospitalDb.medicalRecord.create({
         data: {
@@ -195,60 +187,59 @@ export async function seedAllDatabases() {
           icNumber: patient.icNumber,
           doctorId: doctor.id,
           visitDate,
-          visitType: visitTypes[(hIdx + pIdx) % visitTypes.length],
-          chiefComplaint: complaints[(hIdx + pIdx) % complaints.length],
+          visitType: visitTypes[Math.floor(Math.random() * visitTypes.length)],
+          chiefComplaint: complaints[Math.floor(Math.random() * complaints.length)],
           diagnosis: JSON.stringify(patient.conditions.length > 0 ? patient.conditions : ['General examination']),
           diagnosisCodes: JSON.stringify(['Z00.0', 'Z09']),
-          symptoms: JSON.stringify(['Clinical evaluation completed']),
+          symptoms: JSON.stringify(['Noted in examination']),
           notes: `Patient visited ${hospital.shortName} for medical care. Condition stable.`,
           vitalSigns: JSON.stringify({
-            bloodPressureSystolic: 118 + ((pIdx * 5) % 22),
-            bloodPressureDiastolic: 74 + ((pIdx * 3) % 14),
-            heartRate: 68 + ((pIdx * 4) % 18),
-            temperature: Number((36.6 + ((pIdx % 4) * 0.1)).toFixed(1)),
-            weight: 58 + ((pIdx * 6) % 28),
-            height: 160 + ((pIdx * 4) % 22),
-            oxygenSaturation: 97 + (pIdx % 3),
+            bloodPressureSystolic: 110 + Math.floor(Math.random() * 30),
+            bloodPressureDiastolic: 70 + Math.floor(Math.random() * 20),
+            heartRate: 60 + Math.floor(Math.random() * 30),
+            temperature: Math.round((36.5 + Math.random() * 0.8) * 10) / 10,
+            respiratoryRate: 14 + Math.floor(Math.random() * 6),
+            weight: 50 + Math.floor(Math.random() * 40),
+            height: 155 + Math.floor(Math.random() * 30),
+            oxygenSaturation: 95 + Math.floor(Math.random() * 5),
           }),
           prescriptions: {
-            create: [{
-              ...primaryMed,
-              isActive: true,
-            }],
+            create: [selectSeededMedication(patient.conditions)],
           },
           labReports: {
             create: [{
               testType: 'Blood Test',
-              testName: patient.conditions.includes('Type 2 Diabetes') ? 'HbA1c' : 'Complete Blood Count',
-              result: patient.conditions.includes('Type 2 Diabetes') ? '6.8' : 'Normal',
-              unit: patient.conditions.includes('Type 2 Diabetes') ? '%' : '',
-              referenceRange: patient.conditions.includes('Type 2 Diabetes') ? '4.0 - 5.6%' : 'Within normal limits',
-              isAbnormal: patient.conditions.includes('Type 2 Diabetes'),
+              testName: 'Complete Blood Count',
+              result: 'Normal',
+              unit: 'g/dL',
+              referenceRange: '12.0 - 16.0',
+              isAbnormal: false,
               reportDate: visitDate,
-              notes: 'Reviewed during clinical consultation',
+              notes: 'All values within normal range',
             }],
           },
         },
       });
     }
     console.log(`  ✓ Created ${hospitalPatients.length} patients & medical records`);
+
+    await hospitalDb.$disconnect();
     console.log(`✅ ${hospital.shortName} Database seeded!\n`);
   }
 
   console.log('🎉 All databases seeded successfully!');
+  console.log('\n📊 Database Summary:');
+  console.log(`   - ${HOSPITALS.length} Hospitals`);
+  console.log(`   - ${ALL_PATIENTS.length} Patients (all searchable)`);
+  console.log(`   - ${doctorUsers.length} Doctors`);
+  console.log('\n🔑 Login Credentials:');
+  console.log('   - Central Admin: central-admin / central123');
+  console.log('   - Hospital Admin: admin-kl / admin123');
+  console.log('   - Doctor: 750101-14-5001 / doctor123');
+  console.log('   - Patient: 880101-14-5678 / patient123');
 }
 
-async function main() {
-  await seedAllDatabases();
-  await getCentralDb().$disconnect();
-  for (const hospital of HOSPITALS) {
-    await getHospitalDbClient(hospital.id).$disconnect();
-  }
-}
-
-if (require.main === module) {
-  main().catch(e => {
-    console.error('❌ Seeding failed:', e);
-    process.exit(1);
-  });
-}
+main().catch(e => {
+  console.error('❌ Seeding failed:', e);
+  process.exit(1);
+});

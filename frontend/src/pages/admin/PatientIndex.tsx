@@ -1,465 +1,356 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
 import { centralApi } from '@/lib/api'
-import { exportToCsv } from '@/lib/workstation-storage'
-import { getHospitalColor, formatDate } from '@/lib/utils'
-import { getHospitalTheme } from '@/lib/hospital-themes'
+import { downloadCsvFile, getHospitalColor } from '@/lib/utils'
 import {
   Database,
   Search,
-  Building2,
+  Loader2,
   Users,
-  Calendar,
+  Building2,
+  TrendingUp,
   RefreshCw,
-  CheckCircle2,
-  Network,
-  ArrowUpDown,
+  FileText,
   Download,
   X,
-  AlertCircle,
-  FileText,
+  MapPin,
+  AlertTriangle,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-interface PatientIndexItem {
+interface PatientIndex {
   icNumber: string
   hospitals: string[]
   lastUpdated: string
 }
 
-interface PatientIndexDetail {
-  icNumber: string
-  patient: {
-    fullName: string
-    icNumber: string
-    dateOfBirth: string
-    gender: string
-    bloodType: string
-    allergies: string[]
-    chronicConditions: string[]
-  } | null
-  hospitals: Array<{
-    hospitalId: string
-    hospitalName: string
-    shortName: string
-    city: string
-    recordCount: number
-    isActive: boolean
-  }>
-  totalHospitals: number
-  totalRecords: number
-  lastUpdated: string
+interface Hospital {
+  id: string
+  name: string
+  shortName: string
+  city: string
 }
 
-export default function PatientIndex() {
-  const [indexes, setIndexes] = useState<PatientIndexItem[]>([])
+export default function PatientIndexPage() {
+  const [patientIndexes, setPatientIndexes] = useState<PatientIndex[]>([])
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState<'ic' | 'hospitals' | 'updated'>('updated')
-  const [sortAsc, setSortAsc] = useState(false)
-  const [selectedDetail, setSelectedDetail] = useState<PatientIndexDetail | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [inspectingIc, setInspectingIc] = useState<string | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState<string | null>(null)
+  const [indexDetail, setIndexDetail] = useState<Awaited<ReturnType<typeof centralApi.searchPatientIndex>>['data'] | null>(null)
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    setLoadError(null)
+  const loadData = async () => {
     try {
-      const indexRes = await centralApi.getAllPatientIndexes()
-      if (indexRes.success && indexRes.data) {
-        setIndexes(indexRes.data)
-      } else {
-        setLoadError(indexRes.error || 'Failed to load national patient index.')
+      const [indexesRes, hospitalsRes] = await Promise.all([
+        centralApi.getAllPatientIndexes(),
+        centralApi.getHospitals(),
+      ])
+
+      if (indexesRes.success && indexesRes.data) {
+        setPatientIndexes(indexesRes.data)
       }
-    } catch {
-      setLoadError('Network error while loading national patient index.')
+      if (hospitalsRes.success && hospitalsRes.data) {
+        setHospitals(hospitalsRes.data as unknown as Hospital[])
+      }
+    } catch (error) {
+      console.error('Failed to load patient indexes:', error)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
-    void loadData()
-  }, [loadData])
+    loadData()
+  }, [])
 
-  const openIndexDetail = async (icNumber: string) => {
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadData()
+  }
+
+  const handleInspectPatient = async (icNumber: string) => {
+    setInspectingIc(icNumber)
     setDetailLoading(true)
-    setDetailError(null)
-    setSelectedDetail(null)
+    setIndexDetail(null)
     try {
       const res = await centralApi.searchPatientIndex(icNumber)
       if (res.success && res.data) {
-        setSelectedDetail(res.data)
-      } else {
-        setDetailError(res.error || `Failed to inspect index pointer for ${icNumber}`)
+        setIndexDetail(res.data)
       }
-    } catch {
-      setDetailError('Network error while querying index distribution.')
     } finally {
       setDetailLoading(false)
     }
   }
 
-  const getHospitalName = (id: string) => getHospitalTheme(id).shortName || id
-
-  const filteredIndexes = indexes
-    .filter((idx) => {
-      const q = searchQuery.trim().toLowerCase()
-      return (
-        !q ||
-        idx.icNumber.toLowerCase().includes(q) ||
-        idx.hospitals.some(
-          (h) =>
-            getHospitalName(h).toLowerCase().includes(q) ||
-            getHospitalTheme(h).name.toLowerCase().includes(q)
-        )
-      )
-    })
-    .sort((a, b) => {
-      let cmp = 0
-      if (sortBy === 'ic') cmp = a.icNumber.localeCompare(b.icNumber)
-      else if (sortBy === 'hospitals') cmp = a.hospitals.length - b.hospitals.length
-      else cmp = new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime()
-      return sortAsc ? cmp : -cmp
-    })
-
-  const toggleSort = (field: 'ic' | 'hospitals' | 'updated') => {
-    if (sortBy === field) {
-      setSortAsc(!sortAsc)
-    } else {
-      setSortBy(field)
-      setSortAsc(false)
-    }
-  }
+  const filteredIndexes = patientIndexes.filter((idx) =>
+    idx.icNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleExportCsv = () => {
-    exportToCsv(
-      `medlink-patient-index-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['MyKad IC Number', 'Indexed Hospital Count', 'Hospital Short Codes', 'Last Updated'],
+    downloadCsvFile(
+      `central-patient-index-${new Date().toISOString().split('T')[0]}.csv`,
+      ['MyKad IC Number', 'Hospital Count', 'Connected Hospital IDs', 'Last Updated'],
       filteredIndexes.map((idx) => [
         idx.icNumber,
         idx.hospitals.length,
-        idx.hospitals.map(getHospitalName).join('; '),
-        new Date(idx.lastUpdated).toISOString(),
+        idx.hospitals.join('; '),
+        idx.lastUpdated,
       ])
     )
   }
 
-  const totalPatients = indexes.length
-  const multiHospitalPatients = indexes.filter((i) => i.hospitals.length > 1).length
-  const avgHospitals =
-    totalPatients > 0
-      ? (indexes.reduce((acc, i) => acc + i.hospitals.length, 0) / totalPatients).toFixed(1)
-      : '0'
+  const multiHospitalPatients = patientIndexes.filter((idx) => idx.hospitals.length > 1).length
+  const avgHospitalsPerPatient =
+    patientIndexes.length > 0
+      ? Math.round(
+          (patientIndexes.reduce((sum, idx) => sum + idx.hospitals.length, 0) /
+            patientIndexes.length) *
+            10
+        ) / 10
+      : 0
+
+  const hospitalCounts = hospitals
+    .map((h) => ({
+      ...h,
+      count: patientIndexes.filter((idx) => idx.hospitals.includes(h.id)).length,
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-10 w-10 animate-spin text-violet-600" />
+      </div>
+    )
+  }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
-              <Database className="h-6 w-6" />
-            </div>
-            Patient Index Directory
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Central pointer registry mapping MyKad identities to participating hospital databases (zero clinical text stored centrally)
-          </p>
+    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg">
+            <Database className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Patient Master Index</h1>
+            <p className="text-gray-500 text-sm">National pointer directory mapping MyKad ICs to federated hospital nodes</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void loadData()} className="gap-2" disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" className="gap-2 h-11 px-4 rounded-xl" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button
-            variant="outline"
             onClick={handleExportCsv}
-            disabled={filteredIndexes.length === 0}
-            className="gap-2"
+            className="gap-2 h-11 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white"
           >
-            <Download className="h-4 w-4" />
-            Export CSV
+            <Download className="w-4 h-4" />
+            Export Index CSV
           </Button>
         </div>
       </div>
 
-      {loadError && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between gap-3 text-red-700 text-sm">
-          <span className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {loadError}
-          </span>
-          <Button size="sm" variant="outline" onClick={() => void loadData()}>
-            Retry
-          </Button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Indexed Patients', value: patientIndexes.length, icon: Users, bgClass: 'bg-violet-100', iconClass: 'text-violet-600' },
+          { label: 'Connected Hospitals', value: hospitals.length, icon: Building2, bgClass: 'bg-blue-100', iconClass: 'text-blue-600' },
+          { label: 'Multi-Hospital Patients', value: multiHospitalPatients, icon: TrendingUp, bgClass: 'bg-emerald-100', iconClass: 'text-emerald-600' },
+          { label: 'Avg Hospitals / Patient', value: avgHospitalsPerPatient, icon: FileText, bgClass: 'bg-amber-100', iconClass: 'text-amber-600' },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-0 shadow-md">
+            <CardContent className="pt-5 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-600">Total Indexed Patients</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{loading ? '-' : totalPatients}</p>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
               </div>
-              <div className="p-3 bg-blue-500/10 rounded-xl">
-                <Users className="h-8 w-8 text-blue-600" />
+              <div className={`p-3 ${stat.bgClass} rounded-xl`}>
+                <stat.icon className={`w-6 h-6 ${stat.iconClass}`} />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-600">Multi-Hospital Patients</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{loading ? '-' : multiHospitalPatients}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {totalPatients > 0 ? `${Math.round((multiHospitalPatients / totalPatients) * 100)}% of total` : ''}
-                </p>
-              </div>
-              <div className="p-3 bg-emerald-500/10 rounded-xl">
-                <Network className="h-8 w-8 text-emerald-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-pink-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-600">Avg Hospitals / Patient</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{loading ? '-' : avgHospitals}</p>
-              </div>
-              <div className="p-3 bg-purple-500/10 rounded-xl">
-                <Building2 className="h-8 w-8 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      <Card className="border-0 shadow-xl">
-        <CardHeader className="border-b bg-gray-50/50">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Index Records</CardTitle>
-              <CardDescription>
-                Click any patient row to inspect real-time record distribution across hospital nodes
-              </CardDescription>
-            </div>
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search by IC or hospital..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-100/80 text-xs font-semibold text-gray-600 uppercase tracking-wider border-b">
-            <div className="col-span-4 flex items-center gap-1 cursor-pointer hover:text-gray-900" onClick={() => toggleSort('ic')}>
-              IC Number <ArrowUpDown className="h-3 w-3" />
-            </div>
-            <div className="col-span-5 flex items-center gap-1 cursor-pointer hover:text-gray-900" onClick={() => toggleSort('hospitals')}>
-              Hospital Locations <ArrowUpDown className="h-3 w-3" />
-            </div>
-            <div className="col-span-3 flex items-center gap-1 cursor-pointer hover:text-gray-900" onClick={() => toggleSort('updated')}>
-              Last Updated <ArrowUpDown className="h-3 w-3" />
-            </div>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            {loading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-12 gap-4 px-6 py-4 items-center">
-                  <div className="col-span-4"><Skeleton className="h-5 w-36" /></div>
-                  <div className="col-span-5 flex gap-2">
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                    <Skeleton className="h-6 w-16 rounded-full" />
+      <Card className="border-0 shadow-md">
+        <div className="p-5 border-b bg-gradient-to-r from-blue-50 to-cyan-50">
+          <h2 className="text-base font-bold text-gray-900">Patient Distribution by Hospital Node</h2>
+        </div>
+        <CardContent className="p-5 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {hospitalCounts.map((hospital) => {
+            const color = getHospitalColor(hospital.id)
+            const percentage =
+              patientIndexes.length > 0 ? Math.round((hospital.count / patientIndexes.length) * 100) : 0
+            return (
+              <div key={hospital.id} className="p-4 rounded-xl border-2" style={{ borderColor: `${color}40` }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}20` }}>
+                    <Building2 className="w-5 h-5" style={{ color }} />
                   </div>
-                  <div className="col-span-3"><Skeleton className="h-4 w-24" /></div>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">{hospital.name}</h3>
+                    <p className="text-xs text-gray-500">{hospital.city}</p>
+                  </div>
                 </div>
-              ))
-            ) : filteredIndexes.length === 0 ? (
-              <div className="py-12 text-center">
-                <Database className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 font-medium">No patient indexes found</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold" style={{ color }}>
+                    {hospital.count}
+                  </span>
+                  <Badge variant="outline" style={{ borderColor: color, color }}>
+                    {percentage}%
+                  </Badge>
+                </div>
               </div>
-            ) : (
-              <AnimatePresence>
-                {filteredIndexes.map((idx, index) => (
-                  <motion.div
-                    key={idx.icNumber}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(index * 0.02, 0.25) }}
-                    onClick={() => void openIndexDetail(idx.icNumber)}
-                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-blue-50/50 transition-colors cursor-pointer"
-                  >
-                    <div className="col-span-4 flex items-center gap-3">
-                      <div className="p-2 bg-gray-100 rounded-lg">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      <span className="font-mono font-medium text-gray-900">{idx.icNumber}</span>
-                    </div>
+            )
+          })}
+        </CardContent>
+      </Card>
 
+      <Card className="border-0 shadow-md">
+        <div className="p-5 border-b bg-violet-50/70 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Master Patient Pointer Table</h2>
+            <p className="text-xs text-gray-500">Click any row to inspect federated hospital distribution & record counts</p>
+          </div>
+          <Badge variant="secondary">{filteredIndexes.length} patients</Badge>
+        </div>
+        <CardContent className="p-5 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Filter by MyKad IC number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-11 rounded-xl font-mono"
+            />
+          </div>
+
+          <div className="border rounded-xl overflow-hidden">
+            <div className="bg-gray-50 px-4 py-3 border-b grid grid-cols-12 gap-4 text-xs font-semibold uppercase text-gray-500">
+              <div className="col-span-4">MyKad IC Number</div>
+              <div className="col-span-5">Indexed Hospitals</div>
+              <div className="col-span-3 text-right">Last Synced</div>
+            </div>
+            <div className="max-h-[480px] overflow-y-auto divide-y">
+              {filteredIndexes.length === 0 ? (
+                <div className="p-10 text-center text-gray-500 text-sm">No matching IC numbers found.</div>
+              ) : (
+                filteredIndexes.slice(0, 100).map((idx) => (
+                  <button
+                    key={idx.icNumber}
+                    type="button"
+                    onClick={() => handleInspectPatient(idx.icNumber)}
+                    className="w-full text-left px-4 py-3 grid grid-cols-12 gap-4 items-center text-sm hover:bg-violet-50/80 transition-colors"
+                  >
+                    <div className="col-span-4 font-mono font-semibold text-gray-900">{idx.icNumber}</div>
                     <div className="col-span-5 flex flex-wrap gap-1.5">
-                      {idx.hospitals.map((hospitalId) => {
-                        const color = getHospitalColor(hospitalId)
+                      {idx.hospitals.map((hId) => {
+                        const h = hospitals.find((hosp) => hosp.id === hId)
+                        const color = getHospitalColor(hId)
                         return (
-                          <Badge
-                            key={hospitalId}
-                            variant="outline"
-                            className="font-medium text-xs"
-                            style={{
-                              borderColor: color,
-                              backgroundColor: `${color}15`,
-                              color,
-                            }}
-                          >
-                            <Building2 className="h-3 w-3 mr-1" />
-                            {getHospitalName(hospitalId)}
+                          <Badge key={hId} variant="outline" className="text-xs" style={{ borderColor: color, color }}>
+                            {h?.shortName || hId}
                           </Badge>
                         )
                       })}
                     </div>
-
-                    <div className="col-span-3 flex items-center gap-2 text-sm text-gray-500">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      {formatDate(idx.lastUpdated)}
+                    <div className="col-span-3 text-right text-xs text-gray-500">
+                      {new Date(idx.lastUpdated).toLocaleDateString('en-MY')}
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            )}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {(detailLoading || detailError || selectedDetail) && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => {
-            setSelectedDetail(null)
-            setDetailError(null)
-          }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+      {/* Patient Index Distribution Modal */}
+      <AnimatePresence>
+        {inspectingIc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setInspectingIc(null)}
           >
-            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Hospital Pointer Distribution</h2>
-                <p className="text-sm text-blue-100 font-mono">
-                  {selectedDetail?.icNumber || 'Loading index node...'}
-                </p>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-lg">Federated Index Inspection</h3>
+                  <p className="text-xs font-mono text-violet-100">{inspectingIc}</p>
+                </div>
+                <button type="button" onClick={() => setInspectingIc(null)} className="p-1 hover:bg-white/20 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setSelectedDetail(null)
-                  setDetailError(null)
-                }}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                aria-label="Close modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            <div className="p-6 space-y-4">
-              {detailLoading && (
-                <div className="space-y-3">
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                  <Skeleton className="h-12 w-full rounded-xl" />
-                </div>
-              )}
-
-              {detailError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {detailError}
-                </div>
-              )}
-
-              {selectedDetail && (
-                <>
-                  {selectedDetail.patient && (
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-xs text-slate-500 block">Patient Name</span>
-                        <span className="font-semibold text-slate-900">{selectedDetail.patient.fullName}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-500 block">Blood Type & Gender</span>
-                        <span className="font-semibold text-slate-900 capitalize">
-                          {selectedDetail.patient.bloodType} • {selectedDetail.patient.gender}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-500 block">Total Participating Sites</span>
-                        <span className="font-semibold text-blue-700">{selectedDetail.totalHospitals} hospitals</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-500 block">Total Federated Encounters</span>
-                        <span className="font-semibold text-emerald-700">{selectedDetail.totalRecords} records</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Hospital Nodes Holding Clinical History
-                    </p>
-                    {selectedDetail.hospitals.map((h) => {
-                      const color = getHospitalColor(h.hospitalId)
-                      return (
-                        <div
-                          key={h.hospitalId}
-                          className="p-3.5 rounded-xl border border-gray-200 flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: color }}
-                            />
-                            <div>
-                              <p className="font-semibold text-gray-900">{h.hospitalName}</p>
-                              <p className="text-xs text-gray-500">{h.city} • {h.shortName}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="gap-1">
-                              <FileText className="h-3 w-3" />
-                              {h.recordCount} {h.recordCount === 1 ? 'record' : 'records'}
-                            </Badge>
-                            <Badge className={h.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
-                              {h.isActive ? 'Online' : 'Offline'}
-                            </Badge>
-                          </div>
-                        </div>
-                      )
-                    })}
+              <div className="p-6 space-y-4">
+                {detailLoading ? (
+                  <div className="py-8 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-violet-600" />
                   </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                ) : indexDetail ? (
+                  <>
+                    {indexDetail.patient && (
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                        <p className="font-bold text-gray-900 text-base">{indexDetail.patient.fullName}</p>
+                        <p className="text-xs text-gray-600 capitalize">
+                          {indexDetail.patient.gender} • Blood Type: <strong>{indexDetail.patient.bloodType || 'Unknown'}</strong> • DOB: {indexDetail.patient.dateOfBirth}
+                        </p>
+                        {indexDetail.patient.allergies?.length > 0 && (
+                          <p className="text-xs text-red-700 flex items-center gap-1 font-medium pt-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            Allergies: {indexDetail.patient.allergies.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase text-gray-500">
+                        Indexed Hospital Nodes ({indexDetail.totalHospitals}) • Total Records: {indexDetail.totalRecords}
+                      </p>
+                      {indexDetail.hospitals.map((h) => (
+                        <div key={h.hospitalId} className="p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">{h.hospitalName}</p>
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> {h.city}
+                            </p>
+                          </div>
+                          <Badge variant="secondary">{h.recordCount} record(s)</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">Unable to load index details.</p>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <Button variant="outline" onClick={() => setInspectingIc(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

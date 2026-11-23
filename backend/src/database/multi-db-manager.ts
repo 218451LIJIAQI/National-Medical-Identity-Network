@@ -4,17 +4,16 @@ import { getHospitalById } from '../config';
 
 let centralClient: CentralPrismaClient | null = null;
 const hospitalClients = new Map<string, HospitalPrismaClient>();
-let hospitalClientFactory: ((hospitalId: string) => HospitalPrismaClient) | null = null;
 
 export function getCentralDb(): CentralPrismaClient {
   if (!centralClient) {
-    const dbUrl = process.env.DATABASE_URL_CENTRAL;
-    if (!dbUrl) {
+    const url = process.env.DATABASE_URL_CENTRAL?.trim();
+    if (!url) {
       throw new Error('DATABASE_URL_CENTRAL is not configured');
     }
     centralClient = new CentralPrismaClient({
       datasources: {
-        db: { url: dbUrl },
+        db: { url },
       },
     });
   }
@@ -25,14 +24,8 @@ export function getHospitalDbClient(hospitalId: string): HospitalPrismaClient {
   const existing = hospitalClients.get(hospitalId);
   if (existing) return existing;
 
-  if (hospitalClientFactory) {
-    const injected = hospitalClientFactory(hospitalId);
-    hospitalClients.set(hospitalId, injected);
-    return injected;
-  }
-
   const hospital = getHospitalById(hospitalId);
-  const dbUrl = hospital ? process.env[hospital.envVar] : '';
+  const dbUrl = hospital ? process.env[hospital.envVar]?.trim() : '';
 
   if (!dbUrl) {
     throw new Error(`No database configured for hospital: ${hospitalId}`);
@@ -48,11 +41,15 @@ export function getHospitalDbClient(hospitalId: string): HospitalPrismaClient {
   return client;
 }
 
-export function configureDbClients(
+export function setDbClientsForTesting(
   central: CentralPrismaClient | null,
-  hospitalFactory: ((hospitalId: string) => HospitalPrismaClient) | null
+  hospitals?: Record<string, HospitalPrismaClient>
 ): void {
   centralClient = central;
   hospitalClients.clear();
-  hospitalClientFactory = hospitalFactory;
+  if (hospitals) {
+    for (const [id, client] of Object.entries(hospitals)) {
+      hospitalClients.set(id, client);
+    }
+  }
 }

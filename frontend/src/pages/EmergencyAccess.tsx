@@ -1,26 +1,42 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { centralApi } from '@/lib/api'
-import { formatIC, maskIC } from '@/lib/utils'
-import { useSessionState } from '@/lib/workstation-storage'
+import { formatDate, formatIC } from '@/lib/utils'
 import {
-  AlertTriangle, Heart, Pill, Phone, User,
-  Shield, Wifi, WifiOff, ArrowLeft, Search, Loader2, CheckCircle,
-  Camera, Video, Circle, Building2
+  AlertTriangle,
+  Heart,
+  Pill,
+  Phone,
+  User,
+  Shield,
+  Wifi,
+  WifiOff,
+  ArrowLeft,
+  Search,
+  Loader2,
+  CheckCircle,
+  Camera,
+  Video,
+  Circle,
+  Stethoscope,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface EmergencyInfo {
   icNumber: string
-  rawIc: string
   name: string
   bloodType: string
   allergies: string[]
   chronicConditions: string[]
+  recentDiagnoses: Array<{
+    diagnosis: string
+    hospitalName: string
+    visitDate: string
+  }>
   emergencyContact: {
     name: string
     relationship: string
@@ -32,10 +48,43 @@ interface EmergencyInfo {
     frequency?: string
     hospitalName?: string
   }>
-  hospitalsWithRecords: number
+  hospitalsWithRecords?: number
+  respondingHospitals?: number
+  partialFailure?: boolean
+  fromOfflineCache?: boolean
   lastUpdated: string
-  accessedAt: string
-  fromCache?: boolean
+}
+
+const EMERGENCY_CACHE_KEY = 'medlink-emergency-cache-v1'
+
+const maskEmergencyIc = (ic: string): string => {
+  const clean = ic.replace(/[-\s]/g, '')
+  if (clean.length === 12) {
+    return `${clean.slice(0, 6)}-**-${clean.slice(8)}`
+  }
+  return ic
+}
+
+function readOfflineCache(normalizedIc: string): EmergencyInfo | null {
+  try {
+    const raw = localStorage.getItem(EMERGENCY_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Record<string, EmergencyInfo>
+    return parsed[normalizedIc] || null
+  } catch {
+    return null
+  }
+}
+
+function saveOfflineCache(normalizedIc: string, info: EmergencyInfo): void {
+  try {
+    const raw = localStorage.getItem(EMERGENCY_CACHE_KEY)
+    const parsed: Record<string, EmergencyInfo> = raw ? JSON.parse(raw) : {}
+    parsed[normalizedIc] = info
+    localStorage.setItem(EMERGENCY_CACHE_KEY, JSON.stringify(parsed))
+  } catch {
+    // Ignore storage quota errors
+  }
 }
 
 export default function EmergencyAccess() {
@@ -47,45 +96,24 @@ export default function EmergencyAccess() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [emergencyConfirmed, setEmergencyConfirmed] = useState(false)
   const [statusError, setStatusError] = useState('')
-  const [cooldownUntil, setCooldownUntil] = useState(0)
+  const [cooldownByIc, setCooldownByIc] = useState<Record<string, number>>({})
   const [showCameraDialog, setShowCameraDialog] = useState(false)
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingCountdown, setRecordingCountdown] = useState(3)
   const [faceDetected, setFaceDetected] = useState(false)
-  const [cachedEmergencyRecords, setCachedEmergencyRecords] = useSessionState<Record<string, EmergencyInfo>>(
-    'emergency-cache',
-    {}
-  )
-
-  const faceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const clearCameraTimers = useCallback(() => {
-    if (faceTimerRef.current) {
-      clearTimeout(faceTimerRef.current)
-      faceTimerRef.current = null
-    }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
-      countdownIntervalRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => clearCameraTimers()
-  }, [clearCameraTimers])
 
   const handleSearchClick = () => {
-    const clean = formatIC(icNumber)
-    if (!clean) {
-      setStatusError('Please enter a valid patient IC number')
-      return
-    }
-    const remainingMs = cooldownUntil - Date.now()
-    if (remainingMs > 0) {
-      const remainingSeconds = Math.ceil(remainingMs / 1000)
-      setStatusError(`Rate limit active: please wait ${remainingSeconds} seconds before the next emergency query`)
+    const normalizedIc = formatIC(icNumber.trim())
+    if (!normalizedIc) return
+
+    const lastSuccessForIc = cooldownByIc[normalizedIc] || 0
+    const elapsed = Date.now() - lastSuccessForIc
+    if (lastSuccessForIc > 0 && elapsed < 60000 && !isOffline) {
+      const remainingSeconds = Math.ceil((60000 - elapsed) / 1000)
+      setStatusError(
+        `Emergency break-glass for ${maskEmergencyIc(normalizedIc)} was just retrieved. Wait ${remainingSeconds}s before re-querying the same IC, or enter a different patient IC.`
+      )
       return
     }
 
@@ -94,16 +122,19 @@ export default function EmergencyAccess() {
   }
 
   const closeCameraDialog = () => {
-    clearCameraTimers()
     setShowCameraDialog(false)
-    setIsRecording(false)
     setEmergencyConfirmed(false)
   }
 
   const handleConfirmSearch = () => {
     if (!emergencyConfirmed) return
-    clearCameraTimers()
     setShowConfirmDialog(false)
+
+    if (isOffline) {
+      performSearch()
+      return
+    }
+
     setShowCameraDialog(true)
     setCameraPermissionGranted(false)
     setIsRecording(false)
@@ -112,26 +143,41 @@ export default function EmergencyAccess() {
   }
 
   const handleGrantCameraPermission = () => {
-    clearCameraTimers()
     setCameraPermissionGranted(true)
-    faceTimerRef.current = setTimeout(() => {
+    setTimeout(() => {
       setFaceDetected(true)
-    }, 900)
+    }, 800)
+  }
+
+  const handleStartRecording = () => {
+    setIsRecording(true)
+    let count = 2
+    setRecordingCountdown(count)
+    const countdownInterval = setInterval(() => {
+      count--
+      setRecordingCountdown(count)
+      if (count <= 0) {
+        clearInterval(countdownInterval)
+        setShowCameraDialog(false)
+        setEmergencyConfirmed(false)
+        performSearch()
+      }
+    }, 600)
   }
 
   const performSearch = async () => {
-    const normalizedIc = formatIC(icNumber)
+    const normalizedIc = formatIC(icNumber.trim())
     setLoading(true)
     setStatusError('')
 
     if (isOffline) {
-      const cached = cachedEmergencyRecords[normalizedIc]
+      const cached = readOfflineCache(normalizedIc)
       setLoading(false)
       if (cached) {
-        setPatientInfo({ ...cached, fromCache: true })
+        setPatientInfo({ ...cached, fromOfflineCache: true })
       } else {
         setPatientInfo(null)
-        setStatusError(`Offline mode active: no session-cached emergency data found for ${normalizedIc}`)
+        setStatusError('Offline Mode: No cached emergency profile found on this terminal for this IC.')
       }
       return
     }
@@ -139,171 +185,136 @@ export default function EmergencyAccess() {
     try {
       const response = await centralApi.emergencyQuery(normalizedIc)
 
-      if (response.rateLimited || response.status === 429) {
-        const waitSec = response.retryAfter || 60
-        setCooldownUntil(Date.now() + waitSec * 1000)
-        setPatientInfo(null)
-        setStatusError(response.error || `Emergency query rate-limited. Please wait ${waitSec} seconds.`)
-        return
-      }
-
       if (response.success && response.data?.found) {
-        setCooldownUntil(Date.now() + 60_000)
         const data = response.data
-        const activeMeds =
-          data.activeMedications && data.activeMedications.length > 0
-            ? data.activeMedications.map((m) => ({
-                name: m.medicationName,
-                dosage: m.dosage,
-                frequency: m.frequency,
-                hospitalName: m.hospitalName,
-              }))
-            : []
-
         const resolvedInfo: EmergencyInfo = {
-          icNumber: maskIC(normalizedIc),
-          rawIc: normalizedIc,
+          icNumber: maskEmergencyIc(normalizedIc),
           name: data.fullName || 'Unknown Patient',
           bloodType: data.bloodType || 'Unknown',
           allergies: data.allergies?.length ? data.allergies : ['None recorded'],
           chronicConditions: data.chronicConditions?.length ? data.chronicConditions : ['None recorded'],
+          recentDiagnoses: data.recentDiagnoses || [],
           emergencyContact: {
             name: data.emergencyContact || 'Not Available',
-            relationship: 'Registered Emergency Contact',
+            relationship: 'Emergency Contact',
             phone: data.emergencyPhone || '-',
           },
-          currentMedications: activeMeds,
-          hospitalsWithRecords: data.hospitalsWithRecords ?? 0,
-          lastUpdated: data.lastUpdated || new Date().toISOString(),
-          accessedAt: new Date().toISOString(),
-          fromCache: false,
+          currentMedications: data.currentMedications?.length
+            ? data.currentMedications.map((m) => ({
+                name: m.name,
+                dosage: `${m.dosage}${m.frequency ? ` • ${m.frequency}` : ''}`,
+                frequency: m.frequency,
+                hospitalName: m.hospitalName,
+              }))
+            : [],
+          hospitalsWithRecords: data.hospitalsWithRecords,
+          respondingHospitals: data.respondingHospitals,
+          partialFailure: data.partialFailure,
+          fromOfflineCache: false,
+          lastUpdated: new Date().toISOString(),
         }
 
+        setCooldownByIc((prev) => ({ ...prev, [normalizedIc]: Date.now() }))
+        saveOfflineCache(normalizedIc, resolvedInfo)
         setPatientInfo(resolvedInfo)
-        setCachedEmergencyRecords((prev) => ({
-          ...prev,
-          [normalizedIc]: resolvedInfo,
-        }))
       } else {
-        if (response.status !== 400) {
-          setCooldownUntil(Date.now() + 60_000)
+        if (response.status === 0) {
+          const cached = readOfflineCache(normalizedIc)
+          if (cached) {
+            setPatientInfo({ ...cached, fromOfflineCache: true })
+            setStatusError('Network unreachable — displaying locally cached emergency summary.')
+            return
+          }
         }
-        const cached = cachedEmergencyRecords[normalizedIc]
-        if (!response.status && cached) {
-          setPatientInfo({ ...cached, fromCache: true })
-          setStatusError('Network unreachable — displaying cached emergency profile from earlier in this session.')
-          return
+        if (response.rateLimited && response.retryAfter) {
+          setCooldownByIc((prev) => ({
+            ...prev,
+            [normalizedIc]: Date.now() - (60 - response.retryAfter!) * 1000,
+          }))
         }
         setPatientInfo(null)
-        setStatusError(response.error || response.data?.message || 'Patient not found in any connected hospital')
+        setStatusError(
+          response.error || response.data?.message || 'Patient not found in National Medical Identity Network'
+        )
       }
-    } catch (error) {
-      console.error('Emergency search failed:', error)
+    } catch {
       setPatientInfo(null)
       setStatusError('Failed to retrieve emergency patient information')
     } finally {
       setLoading(false)
-      setEmergencyConfirmed(false)
     }
-  }
-
-  const handleStartRecording = () => {
-    clearCameraTimers()
-    setIsRecording(true)
-    let count = 3
-    setRecordingCountdown(count)
-    countdownIntervalRef.current = setInterval(() => {
-      count -= 1
-      setRecordingCountdown(count)
-      if (count <= 0) {
-        clearCameraTimers()
-        setShowCameraDialog(false)
-        setIsRecording(false)
-        performSearch()
-      }
-    }, 800)
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50">
-      <motion.header
-        className="relative bg-gradient-to-r from-red-600 via-red-700 to-orange-600 text-white py-5 shadow-xl shadow-red-500/20 overflow-hidden"
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ type: 'spring', stiffness: 100 }}
-      >
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 rounded-xl"
-                onClick={() => navigate(-1)}
-                aria-label="Go back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="w-7 h-7 drop-shadow-lg" />
-                <div>
-                  <span className="font-bold text-2xl drop-shadow-lg">Emergency Access Mode</span>
-                  <p className="text-red-100 text-xs">Critical break-glass medical summary • All lookups audited</p>
-                </div>
-              </div>
-            </div>
+      <header className="relative bg-gradient-to-r from-red-600 via-red-700 to-orange-600 text-white py-5 shadow-xl">
+        <div className="container mx-auto px-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              size="sm"
-              className={`text-white rounded-xl px-4 py-2 ${isOffline ? 'bg-yellow-500/80 hover:bg-yellow-500' : 'bg-emerald-500/80 hover:bg-emerald-500'} backdrop-blur-sm`}
-              onClick={() => setIsOffline(!isOffline)}
+              size="icon"
+              className="text-white hover:bg-white/20 rounded-xl"
+              onClick={() => navigate(-1)}
             >
-              {isOffline ? <WifiOff className="w-4 h-4 mr-2" /> : <Wifi className="w-4 h-4 mr-2" />}
-              {isOffline ? `Offline Cache (${Object.keys(cachedEmergencyRecords).length})` : 'Online'}
+              <ArrowLeft className="w-5 h-5" />
             </Button>
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-7 h-7" />
+              <div>
+                <span className="font-bold text-2xl">Emergency Break-Glass Mode</span>
+                <p className="text-red-100 text-xs">Critical federated allergy, blood type & active medication lookup</p>
+              </div>
+            </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`text-white rounded-xl px-4 py-2 ${isOffline ? 'bg-yellow-500/80' : 'bg-emerald-500/80'}`}
+            onClick={() => setIsOffline(!isOffline)}
+          >
+            {isOffline ? <WifiOff className="w-4 h-4 mr-2" /> : <Wifi className="w-4 h-4 mr-2" />}
+            {isOffline ? 'Offline Cache Mode' : 'Online Network'}
+          </Button>
         </div>
-      </motion.header>
+      </header>
 
-      <div className="container mx-auto px-4 py-8">
-        <Card className="relative border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 mb-8 shadow-lg shadow-amber-500/10 overflow-hidden">
-          <CardContent className="py-5 flex items-start gap-4">
-            <div className="p-3 bg-amber-100 rounded-xl">
-              <AlertTriangle className="w-7 h-7 text-amber-600" />
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <Card className="border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 mb-6 shadow-md">
+          <CardContent className="py-4 flex items-start gap-4">
+            <div className="p-2.5 bg-amber-100 rounded-xl">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <h3 className="font-bold text-amber-900 text-lg">Emergency Break-Glass Access Only</h3>
-              <p className="text-amber-700 text-sm mt-1">
-                Provides life-critical allergies, blood type, chronic conditions, active prescriptions, and emergency contact details when a patient cannot consent. Every query is permanently recorded in the National Audit Ledger and rate-limited (1 query / minute).
+              <h3 className="font-bold text-amber-900">Break-Glass Governance Notice</h3>
+              <p className="text-amber-700 text-sm mt-0.5">
+                Designed strictly for incapacitated emergency patients. Every query is audited with IP, timestamp, and responder identity verification.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="mb-8 border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+        <Card className="mb-8 border-0 shadow-xl overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500" />
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b">
-            <CardTitle className="flex items-center gap-3 text-xl">
+          <CardHeader className="bg-gray-50/70 border-b">
+            <CardTitle className="flex items-center gap-3 text-lg">
               <div className="p-2 bg-red-100 rounded-lg">
                 <Search className="w-5 h-5 text-red-600" />
               </div>
-              Quick Patient Lookup
+              Emergency Patient IC Lookup
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Input
-                  placeholder="Enter Patient IC Number (e.g., 880101-14-5678)"
-                  value={icNumber}
-                  onChange={(e) => setIcNumber(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-                  className="text-lg py-7 px-5 rounded-xl border-gray-200 focus:border-red-500 focus:ring-red-500/20"
-                />
-              </div>
+              <Input
+                placeholder="Enter Patient MyKad IC Number (e.g., 880101-14-5678)"
+                value={icNumber}
+                onChange={(e) => setIcNumber(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                className="text-lg h-14 px-5 rounded-xl font-mono"
+              />
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 px-8 h-14 rounded-xl shadow-lg shadow-red-500/25 font-semibold"
+                className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 px-8 h-14 rounded-xl text-white font-semibold"
                 onClick={handleSearchClick}
                 disabled={loading}
               >
@@ -312,37 +323,23 @@ export default function EmergencyAccess() {
                 ) : (
                   <>
                     <Search className="w-5 h-5 mr-2" />
-                    Search
+                    Emergency Lookup
                   </>
                 )}
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-gray-500">
-              <span>Demo emergency ICs:</span>
-              {['880101-14-5678', '550715-07-9999', '950320-10-1234'].map((demoIc) => (
-                <button
-                  key={demoIc}
-                  type="button"
-                  onClick={() => setIcNumber(demoIc)}
-                  className="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-red-50 hover:text-red-700 font-mono transition-colors"
-                >
-                  {demoIc}
-                </button>
-              ))}
-            </div>
-
             {statusError && (
               <p className="text-sm text-red-700 mt-3 flex items-center gap-2 bg-red-50 p-3 rounded-lg border border-red-200">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                {statusError}
+                <span>{statusError}</span>
               </p>
             )}
 
             {isOffline && (
-              <p className="text-sm text-amber-700 mt-2 flex items-center gap-1.5 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                <WifiOff className="w-4 h-4 shrink-0" />
-                Offline mode enabled: lookups read from emergency profiles cached during this browser session ({Object.keys(cachedEmergencyRecords).length} cached).
+              <p className="text-sm text-amber-700 mt-2 flex items-center gap-1.5">
+                <WifiOff className="w-4 h-4" />
+                <span>Offline Cache Mode active: Serving previously synced emergency profiles from local storage.</span>
               </p>
             )}
           </CardContent>
@@ -351,113 +348,98 @@ export default function EmergencyAccess() {
         <AnimatePresence>
           {patientInfo && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              {patientInfo.fromCache && (
-                <div className="p-3.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-sm font-medium flex items-center gap-2">
-                  <WifiOff className="w-4 h-4" />
-                  Showing Offline Session Cache snapshot captured at {new Date(patientInfo.accessedAt).toLocaleString()}
+              {(patientInfo.partialFailure || patientInfo.fromOfflineCache) && (
+                <div className="p-4 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-sm font-medium flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-amber-700" />
+                  <span>
+                    {patientInfo.fromOfflineCache
+                      ? `Displaying locally cached emergency record (synced ${new Date(patientInfo.lastUpdated).toLocaleString()}).`
+                      : `Partial federated response (${patientInfo.respondingHospitals}/${patientInfo.hospitalsWithRecords} hospital nodes responded).`}
+                  </span>
                 </div>
               )}
 
               <div className="grid md:grid-cols-2 gap-6">
-                <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden">
+                <Card className="border-0 shadow-lg overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
-                  <CardHeader className="pb-2 bg-gradient-to-r from-blue-50/50 to-white">
+                  <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-3 text-lg">
-                      <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200">
-                        <User className="w-5 h-5 text-white" />
+                      <div className="p-2 bg-blue-100 rounded-xl">
+                        <User className="w-5 h-5 text-blue-600" />
                       </div>
-                      Patient Identity
+                      Patient Identity & Blood Group
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="space-y-4">
+                  <CardContent className="pt-3 space-y-4">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase font-semibold">Full Name</p>
+                      <p className="text-2xl font-bold text-gray-900">{patientInfo.name}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Full Name</p>
-                        <p className="text-2xl font-bold text-gray-900">{patientInfo.name}</p>
+                        <p className="text-xs text-gray-500 uppercase font-semibold">Masked MyKad IC</p>
+                        <p className="font-mono text-base bg-gray-100 px-3 py-1 rounded-lg mt-1 inline-block">
+                          {patientInfo.icNumber}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Masked IC</p>
-                          <p className="font-mono text-lg bg-gray-100 px-3 py-1.5 rounded-lg inline-block">{patientInfo.icNumber}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Blood Type</p>
-                          <Badge className="text-xl px-5 py-1.5 bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold shadow-lg shadow-red-200 rounded-xl">
-                            {patientInfo.bloodType}
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Connected Nodes</p>
-                          <Badge variant="outline" className="text-sm px-3 py-1.5 gap-1">
-                            <Building2 className="w-3.5 h-3.5" />
-                            {patientInfo.hospitalsWithRecords} hospital(s)
-                          </Badge>
-                        </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Blood Type</p>
+                        <Badge className="text-lg px-4 py-1.5 bg-red-600 text-white font-bold rounded-xl">
+                          {patientInfo.bloodType}
+                        </Badge>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 shadow-xl shadow-emerald-100/50 overflow-hidden">
+                <Card className="border-0 shadow-lg overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-emerald-500 to-green-500" />
-                  <CardHeader className="pb-2 bg-gradient-to-r from-emerald-50/50 to-white">
+                  <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-3 text-lg">
-                      <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl shadow-lg shadow-emerald-200">
-                        <Phone className="w-5 h-5 text-white" />
+                      <div className="p-2 bg-emerald-100 rounded-xl">
+                        <Phone className="w-5 h-5 text-emerald-600" />
                       </div>
-                      Emergency Contact
+                      Emergency Next-of-Kin
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Name</p>
-                        <p className="text-2xl font-bold text-gray-900">{patientInfo.emergencyContact.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Relationship</p>
-                        <p className="text-gray-700 font-medium">{patientInfo.emergencyContact.relationship}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Phone</p>
-                        {patientInfo.emergencyContact.phone !== '-' ? (
-                          <a
-                            href={`tel:${patientInfo.emergencyContact.phone}`}
-                            className="inline-flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-emerald-500 to-green-500 text-white px-5 py-2 rounded-xl shadow-lg shadow-emerald-200 hover:shadow-xl transition-shadow"
-                          >
-                            <Phone className="w-5 h-5" />
-                            {patientInfo.emergencyContact.phone}
-                          </a>
-                        ) : (
-                          <span className="text-gray-500 font-medium">No phone number on file</span>
-                        )}
-                      </div>
+                  <CardContent className="pt-3 space-y-4">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase font-semibold">Contact Name</p>
+                      <p className="text-xl font-bold text-gray-900">{patientInfo.emergencyContact.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1.5">Direct Phone</p>
+                      <a
+                        href={`tel:${patientInfo.emergencyContact.phone}`}
+                        className="inline-flex items-center gap-2 text-lg font-bold bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {patientInfo.emergencyContact.phone}
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <Card className="border-0 shadow-xl shadow-red-200/50 overflow-hidden">
-                <div className="h-2 bg-gradient-to-r from-red-500 via-rose-500 to-red-500" />
-                <CardHeader className="pb-3 bg-gradient-to-r from-red-50 to-rose-50">
-                  <CardTitle className="flex items-center gap-3 text-xl text-red-700">
-                    <div className="p-2.5 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl shadow-lg shadow-red-300">
-                      <AlertTriangle className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="font-bold">ALLERGIES - CRITICAL</span>
+              {/* Critical Allergies */}
+              <Card className="border-2 border-red-200 shadow-lg overflow-hidden">
+                <CardHeader className="pb-3 bg-red-50">
+                  <CardTitle className="flex items-center gap-3 text-lg text-red-700">
+                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                    <span>CRITICAL ALLERGIES (CROSS-HOSPITAL AGGREGATED)</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
-                  <div className="flex flex-wrap gap-3">
+                <CardContent className="p-5">
+                  <div className="flex flex-wrap gap-2.5">
                     {patientInfo.allergies.map((allergy) => (
                       <Badge
                         key={allergy}
-                        className="text-lg px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-300 rounded-xl"
+                        className="text-base px-4 py-2 bg-red-600 text-white font-bold rounded-xl"
                       >
                         {allergy}
                       </Badge>
@@ -466,130 +448,105 @@ export default function EmergencyAccess() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-xl shadow-orange-100/50 overflow-hidden">
-                <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
-                <CardHeader className="pb-3 bg-gradient-to-r from-orange-50/50 to-amber-50/50">
-                  <CardTitle className="flex items-center gap-3 text-xl text-orange-700">
-                    <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl shadow-lg shadow-orange-200">
-                      <Heart className="w-5 h-5 text-white" />
-                    </div>
-                    Chronic Conditions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="flex flex-wrap gap-3">
+              {/* Chronic Conditions & Recent Diagnoses */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <Card className="border-0 shadow-lg overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2.5 text-lg text-orange-800">
+                      <Heart className="w-5 h-5 text-orange-600" />
+                      <span>Chronic Conditions</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5 pt-2 flex flex-wrap gap-2">
                     {patientInfo.chronicConditions.map((condition) => (
                       <Badge
                         key={condition}
-                        className="text-base px-5 py-2 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 font-semibold rounded-xl border border-orange-200"
+                        className="text-sm px-3.5 py-1.5 bg-orange-100 text-orange-800 border border-orange-200 rounded-xl"
                       >
                         {condition}
                       </Badge>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card className="border-0 shadow-xl shadow-violet-100/50 overflow-hidden">
+                <Card className="border-0 shadow-lg overflow-hidden">
+                  <div className="h-1 bg-gradient-to-r from-indigo-500 to-blue-500" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2.5 text-lg text-indigo-900">
+                      <Stethoscope className="w-5 h-5 text-indigo-600" />
+                      <span>Recent Clinical Diagnoses</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5 pt-2">
+                    {patientInfo.recentDiagnoses.length > 0 ? (
+                      <div className="space-y-2">
+                        {patientInfo.recentDiagnoses.slice(0, 4).map((diag, idx) => (
+                          <div
+                            key={`${diag.diagnosis}-${idx}`}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-sm"
+                          >
+                            <span className="font-semibold text-indigo-950">{diag.diagnosis}</span>
+                            <span className="text-xs text-indigo-700">
+                              {diag.hospitalName} • {formatDate(diag.visitDate)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No recent hospital diagnoses recorded.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Active Medications */}
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
-                <CardHeader className="pb-3 bg-gradient-to-r from-violet-50/50 to-white">
-                  <CardTitle className="flex items-center gap-3 text-xl">
-                    <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200">
-                      <Pill className="w-5 h-5 text-white" />
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-3 text-lg">
+                    <div className="p-2 bg-violet-100 rounded-xl">
+                      <Pill className="w-5 h-5 text-violet-600" />
                     </div>
                     Active Prescriptions Across Connected Hospitals
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className="p-5 pt-2">
                   {patientInfo.currentMedications.length > 0 ? (
                     <div className="grid md:grid-cols-3 gap-4">
                       {patientInfo.currentMedications.map((med, idx) => (
                         <div
                           key={`${med.name}-${idx}`}
-                          className="p-5 bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100"
+                          className="p-4 bg-violet-50/80 rounded-2xl border border-violet-100"
                         >
-                          <p className="font-bold text-violet-900 text-lg">{med.name}</p>
-                          <p className="text-sm text-violet-700 font-medium mt-1">
-                            {med.dosage} {med.frequency ? `• ${med.frequency}` : ''}
-                          </p>
+                          <p className="font-bold text-violet-950 text-base">{med.name}</p>
+                          <p className="text-sm text-violet-700 font-medium mt-1">{med.dosage}</p>
                           {med.hospitalName && (
-                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                              <Building2 className="w-3.5 h-3.5" />
-                              {med.hospitalName}
-                            </p>
+                            <p className="text-xs text-violet-500 mt-1.5">Issued at {med.hospitalName}</p>
                           )}
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No active prescriptions recorded in connected hospitals.</p>
+                    <p className="text-sm text-gray-500">No active prescriptions found across federated hospital records.</p>
                   )}
                 </CardContent>
               </Card>
 
-              <Card className="border-0 bg-gradient-to-r from-gray-50 to-slate-50 shadow-lg">
-                <CardContent className="py-5 px-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-gray-400 to-slate-500 rounded-xl">
-                      <Shield className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-700 font-medium flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        Emergency access logged at {new Date(patientInfo.accessedAt).toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Central index last updated: {new Date(patientInfo.lastUpdated).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
+              <Card className="border-0 bg-slate-50 shadow">
+                <CardContent className="py-4 px-6 flex items-center gap-3 text-sm text-gray-700">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>
+                    Break-glass access logged in Central Audit Trail at {new Date(patientInfo.lastUpdated).toLocaleString()}
+                  </span>
                 </CardContent>
               </Card>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {!patientInfo && !loading && (
-          <div className="grid md:grid-cols-3 gap-6 mt-8">
-            {[
-              {
-                icon: Heart,
-                title: 'Critical Allergies',
-                desc: 'Aggregated drug & food allergies across all connected hospitals',
-                topBar: 'from-red-500 to-rose-500',
-                cardShadow: 'shadow-red-100/50',
-                iconShadow: 'shadow-red-200',
-              },
-              {
-                icon: Pill,
-                title: 'Current Medications',
-                desc: 'Live active prescriptions and dosages to avoid interactions',
-                topBar: 'from-violet-500 to-purple-500',
-                cardShadow: 'shadow-violet-100/50',
-                iconShadow: 'shadow-violet-200',
-              },
-              {
-                icon: Phone,
-                title: 'Emergency Contacts',
-                desc: 'Direct tap-to-call family & next-of-kin contact numbers',
-                topBar: 'from-emerald-500 to-green-500',
-                cardShadow: 'shadow-emerald-100/50',
-                iconShadow: 'shadow-emerald-200',
-              },
-            ].map((card) => (
-              <Card key={card.title} className={`relative text-center p-8 border-0 shadow-xl ${card.cardShadow} overflow-hidden`}>
-                <div className={`h-1 bg-gradient-to-r ${card.topBar} absolute top-0 left-0 right-0`} />
-                <div className={`w-16 h-16 mx-auto mb-5 bg-gradient-to-br ${card.topBar} rounded-2xl flex items-center justify-center shadow-lg ${card.iconShadow}`}>
-                  <card.icon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="font-bold text-xl mb-2 text-gray-900">{card.title}</h3>
-                <p className="text-gray-500 text-sm">{card.desc}</p>
-              </Card>
-            ))}
-          </div>
-        )}
       </div>
 
+      {/* Confirmation Dialog */}
       <AnimatePresence>
         {showConfirmDialog && (
           <motion.div
@@ -600,54 +557,32 @@ export default function EmergencyAccess() {
             onClick={() => setShowConfirmDialog(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
             >
               <div className="bg-gradient-to-r from-red-600 to-orange-600 p-6 text-white">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <AlertTriangle className="w-8 h-8" />
-                  </div>
+                  <AlertTriangle className="w-8 h-8" />
                   <div>
-                    <h2 className="text-xl font-bold">Emergency Access Confirmation</h2>
-                    <p className="text-red-100 text-sm">Please read carefully before proceeding</p>
+                    <h2 className="text-xl font-bold">Emergency Break-Glass Attestation</h2>
+                    <p className="text-red-100 text-xs">Mandatory legal attestation before retrieval</p>
                   </div>
                 </div>
               </div>
 
               <div className="p-6 space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <h3 className="font-semibold text-amber-800 flex items-center gap-2 mb-2">
-                    <Shield className="w-5 h-5" />
-                    Legal Warning
-                  </h3>
-                  <p className="text-amber-700 text-sm leading-relaxed">
-                    This emergency access system is intended <strong>only for genuine medical emergencies</strong>.
-                    All access is logged and monitored. Misuse of this system may result in:
-                  </p>
-                  <ul className="text-amber-700 text-sm mt-2 space-y-1 ml-4">
-                    <li>• Criminal prosecution under data protection laws</li>
-                    <li>• Civil liability for privacy violations</li>
-                    <li>• Professional disciplinary action</li>
-                  </ul>
-                </div>
-
-                <label
-                  className="flex items-start gap-3 cursor-pointer p-4 border-2 rounded-xl transition-all duration-200 hover:border-red-300 hover:bg-red-50"
-                  style={{ borderColor: emergencyConfirmed ? '#dc2626' : '#e5e7eb' }}
-                >
+                <label className="flex items-start gap-3 cursor-pointer p-4 border-2 rounded-xl hover:bg-red-50">
                   <input
                     type="checkbox"
                     checked={emergencyConfirmed}
                     onChange={(e) => setEmergencyConfirmed(e.target.checked)}
-                    className="w-5 h-5 mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    className="w-5 h-5 mt-0.5 rounded text-red-600"
                   />
-                  <span className="text-gray-700 text-sm leading-relaxed">
-                    I confirm this is a <strong>genuine medical emergency</strong> and I understand that
-                    my access will be logged and may be audited. I accept legal responsibility for this access.
+                  <span className="text-gray-700 text-sm">
+                    I attest this is a <strong>genuine life-or-limb medical emergency</strong> where the patient cannot provide consent, and I accept full legal audit accountability.
                   </span>
                 </label>
               </div>
@@ -655,7 +590,7 @@ export default function EmergencyAccess() {
               <div className="p-6 pt-0 flex gap-3">
                 <Button
                   variant="outline"
-                  className="flex-1 h-12 rounded-xl"
+                  className="flex-1 h-11 rounded-xl"
                   onClick={() => {
                     setShowConfirmDialog(false)
                     setEmergencyConfirmed(false)
@@ -664,16 +599,11 @@ export default function EmergencyAccess() {
                   Cancel
                 </Button>
                 <Button
-                  className={`flex-1 h-12 rounded-xl transition-all duration-200 ${
-                    emergencyConfirmed
-                      ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 shadow-lg shadow-red-500/25'
-                      : 'bg-gray-300 cursor-not-allowed'
-                  }`}
+                  className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white"
                   disabled={!emergencyConfirmed}
                   onClick={handleConfirmSearch}
                 >
-                  <Search className="w-5 h-5 mr-2" />
-                  Proceed with Emergency Access
+                  Proceed
                 </Button>
               </div>
             </motion.div>
@@ -681,6 +611,7 @@ export default function EmergencyAccess() {
         )}
       </AnimatePresence>
 
+      {/* Camera Audit Verification Dialog */}
       <AnimatePresence>
         {showCameraDialog && (
           <motion.div
@@ -690,132 +621,67 @@ export default function EmergencyAccess() {
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden text-white"
             >
-              <div className="bg-gradient-to-r from-red-600 to-orange-600 p-4 text-white">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-xl">
-                    <Video className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold">Identity Verification Recording</h2>
-                    <p className="text-red-100 text-xs">Simulated responder verification capture for audit trail</p>
-                  </div>
-                  {isRecording && (
-                    <div className="ml-auto flex items-center gap-2">
-                      <motion.div
-                        className="w-3 h-3 bg-red-500 rounded-full"
-                        animate={{ opacity: [1, 0.3, 1] }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      />
-                      <span className="text-sm font-mono">REC</span>
-                    </div>
-                  )}
+              <div className="bg-gradient-to-r from-red-600 to-orange-600 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Video className="w-5 h-5" />
+                  <h2 className="font-bold">Responder Identity Audit Capture</h2>
                 </div>
+                {isRecording && <span className="text-xs font-mono bg-red-800 px-2 py-1 rounded">REC {recordingCountdown}s</span>}
               </div>
 
               <div className="p-6">
-                <div className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video mb-4">
+                <div className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video mb-4 flex items-center justify-center">
                   {!cameraPermissionGranted ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                      <Camera className="w-16 h-16 mb-4 opacity-50" />
-                      <p className="text-sm">Responder verification check required</p>
+                    <div className="text-center text-gray-400">
+                      <Camera className="w-12 h-12 mx-auto mb-2 opacity-60" />
+                      <p className="text-sm">Enable responder camera capture to continue</p>
                     </div>
                   ) : (
-                    <>
-                      <div className="absolute inset-0 bg-gradient-to-br from-gray-700 via-gray-800 to-gray-700" />
-
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative">
-                          <div className="w-20 h-20 bg-gray-600 rounded-full mx-auto" />
-                          <div className="w-32 h-20 bg-gray-600 rounded-t-full mt-2" />
-                        </div>
+                    <div className="text-center">
+                      <div className={`w-28 h-36 mx-auto border-2 rounded-3xl flex items-center justify-center ${faceDetected ? 'border-emerald-400' : 'border-yellow-400 border-dashed'}`}>
+                        {faceDetected ? <CheckCircle className="w-8 h-8 text-emerald-400" /> : <Circle className="w-8 h-8 text-yellow-400 animate-spin" />}
                       </div>
-
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <motion.div
-                          className={`w-36 h-44 border-2 rounded-3xl ${faceDetected ? 'border-green-500' : 'border-yellow-500 border-dashed'}`}
-                          animate={!faceDetected ? { scale: [1, 1.02, 1] } : {}}
-                          transition={{ duration: 1, repeat: Infinity }}
-                        />
-                      </div>
-
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <div
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                            faceDetected ? 'bg-green-500/90 text-white' : 'bg-yellow-500/90 text-black'
-                          }`}
-                        >
-                          {faceDetected ? (
-                            <>
-                              <CheckCircle className="w-4 h-4" />
-                              Responder verified - Ready to log break-glass access
-                            </>
-                          ) : (
-                            <>
-                              <Circle className="w-4 h-4 animate-spin" />
-                              Verifying responder frame...
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {isRecording && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <div className="text-7xl font-bold text-white drop-shadow-lg">
-                            {recordingCountdown}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-red-200">
-                      <p className="font-semibold mb-1">Audit Trail Notice</p>
-                      <p className="text-red-300 text-xs leading-relaxed">
-                        Break-glass emergency access metadata (timestamp, client IP, user-agent, and queried IC) is recorded in the Central Audit Ledger for compliance review.
+                      <p className="text-xs mt-3 text-gray-300">
+                        {faceDetected ? 'Responder frame verified' : 'Verifying responder presence...'}
                       </p>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
-                  <Button
-                    variant="ghost"
-                    className="flex-1 h-12 rounded-xl bg-gray-700 text-white border border-gray-600 hover:bg-gray-600"
-                    onClick={closeCameraDialog}
-                  >
-                    Cancel
-                  </Button>
-                  {!isRecording && !cameraPermissionGranted && (
-                    <Button
-                      className="flex-1 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
-                      onClick={handleGrantCameraPermission}
-                    >
-                      <Camera className="w-5 h-5 mr-2" />
-                      Verify Responder
-                    </Button>
-                  )}
-                  {!isRecording && cameraPermissionGranted && (
-                    <Button
-                      className={`flex-1 h-12 rounded-xl transition-all duration-300 text-white ${
-                        faceDetected
-                          ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
-                          : 'bg-gray-600 cursor-not-allowed'
-                      }`}
-                      disabled={!faceDetected}
-                      onClick={handleStartRecording}
-                    >
-                      <Video className="w-5 h-5 mr-2" />
-                      {faceDetected ? 'Confirm & Retrieve Critical Data' : 'Waiting...'}
-                    </Button>
+                  {!isRecording && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        className="flex-1 h-11 rounded-xl bg-gray-800 text-white hover:bg-gray-700"
+                        onClick={closeCameraDialog}
+                      >
+                        Cancel
+                      </Button>
+                      {!cameraPermissionGranted ? (
+                        <Button
+                          className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleGrantCameraPermission}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Allow Camera
+                        </Button>
+                      ) : (
+                        <Button
+                          className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                          disabled={!faceDetected}
+                          onClick={handleStartRecording}
+                        >
+                          <Video className="w-4 h-4 mr-2" />
+                          Record & Retrieve
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
