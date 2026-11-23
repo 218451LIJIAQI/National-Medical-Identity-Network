@@ -1,323 +1,37 @@
-# MedLink MY - National Medical Identity Network
+# MedLink MY
 
-A comprehensive healthcare information exchange platform designed for Malaysia. MedLink MY enables secure cross-hospital medical record sharing, allowing healthcare providers to access patient information from any participating hospital across the nation.
+A doctor in Kuala Lumpur needs a lab result from a visit to Penang. The patient’s MyKad number tells the central hub where to look. To get the result, the application asks Penang.
 
-## 🎯 Project Overview
+Built for the Malaysia Healthcare Hackathon, **MedLink MY** models five demo hospitals. A central index records which facilities have seen each patient. Each hospital keeps its own clinical history in PostgreSQL.
 
-MedLink MY addresses a critical challenge in Malaysian healthcare: **fragmented medical records**. When patients visit multiple hospitals, their medical history remains siloed within each institution. This leads to:
+## Follow one lookup
 
-- Repeated diagnostic tests
-- Incomplete patient history for doctors
-- Delayed treatment in emergencies
-- Medication conflicts due to unknown prescriptions
+For a demo patient with records in two cities, the lookup takes this shape.
 
-**MedLink MY solves this** by creating a federated network where:
-- Each hospital maintains its own database (data sovereignty)
-- A central hub indexes which patients have records at which hospitals
-- Authorized healthcare providers can query records across all participating hospitals
-- Patients control who can access their data
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      CENTRAL HUB                                │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │  • Patient Index (IC → Hospital mappings)               │    │
-│  │  • User Authentication                                  │    │
-│  │  • Audit Logging                                        │    │
-│  │  • Cross-hospital Query Routing                         │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  Hospital A   │   │  Hospital B   │   │  Hospital C   │
-│  Database     │   │  Database     │   │  Database     │
-│  • Patients   │   │  • Patients   │   │  • Patients   │
-│  • Records    │   │  • Records    │   │  • Records    │
-│  • Doctors    │   │  • Doctors    │   │  • Doctors    │
-└───────────────┘   └───────────────┘   └───────────────┘
+```mermaid
+flowchart LR
+    Doctor["Doctor's workstation"] --> Hub["Central index and access check"]
+    Hub --> KL[("Kuala Lumpur")]
+    Hub --> PG[("Penang")]
+    KL --> Timeline["Patient timeline"]
+    PG --> Timeline
 ```
 
-### How It Works
+The Express query route checks whether the patient has blocked the requesting hospital. For an allowed lookup, it reads the indexed hospitals in parallel and returns records grouped by site, together with the query steps and elapsed time. That gives the interface a way to show where each part of the timeline came from. [Cross-hospital query](backend/src/routes/central.ts)
 
-1. **Patient visits Hospital A** → Hospital A stores records locally and registers the patient IC in the central index
-2. **Patient visits Hospital B** → Doctor queries central hub using patient's IC number
-3. **Central hub** → Identifies that patient has records at Hospital A
-4. **Central hub** → Fetches records from Hospital A (with proper authorization)
-5. **Doctor at Hospital B** → Views complete medical history from all hospitals
+## What each person sees
 
-## 🏥 Participating Hospitals (Demo)
+- **Doctor.** Find a demo patient, read their timeline and create an encounter in the hospital workspace. The hospital schema connects that encounter to prescriptions and lab reports. [Clinical schema](backend/prisma/schema.hospital.prisma)
+- **Patient.** Review your records, set hospital-specific privacy preferences and see who accessed your information. [Patient privacy screen](frontend/src/pages/patient/Privacy.tsx)
+- **Administrator.** Open the hospital or central dashboard to inspect activity. Emergency access has a dedicated report showing the actor, target and time of a recorded event. [Emergency report](frontend/src/components/EmergencyReportModal.tsx)
 
-| Hospital | Location | State |
-|----------|----------|-------|
-| Kuala Lumpur General Hospital | Kuala Lumpur | Federal Territory |
-| Penang General Hospital | George Town | Penang |
-| Sultanah Aminah Hospital | Johor Bahru | Johor |
-| Sarawak General Hospital | Kuching | Sarawak |
-| Queen Elizabeth Hospital | Kota Kinabalu | Sabah |
+## One hub, five clinical databases
 
-## 👥 User Roles
+The **React, TypeScript and Vite** client uses Zustand for session state. The **Express and Prisma** backend has two distinct schemas. The central schema holds users, patient-to-hospital links, privacy settings and audit entries. The hospital schema holds patients, clinicians and clinical history. The connection manager creates a Prisma client for each hospital on first use and reuses it for later requests. [Central schema](backend/prisma/schema.central.prisma) · [Connection manager](backend/src/database/multi-db-manager.ts)
 
-### 1. Doctor
-- Search patients across all hospitals
-- View patient medical timeline
-- Create new medical records
-- Access prescriptions, lab reports, and vital signs
-- Queue management and e-prescriptions
+## Run the six-database demo
 
-### 2. Patient
-- View own medical records from all hospitals
-- Control privacy settings (block specific hospitals)
-- View who accessed their records (access logs)
-- Emergency contact management
+Use Node.js and six fresh PostgreSQL databases. In `backend/.env`, set `JWT_SECRET` and `DATABASE_URL_CENTRAL`. Set the five hospital URLs using `DATABASE_URL_HOSPITAL_` followed by `KL`, `PENANG`, `JB`, `KUCHING` and `KK`. For Prisma CLI use, `DATABASE_URL_HOSPITAL` can point to one of the same demo hospital databases. [Hospital registry](backend/src/config/index.ts) · [Schema setup script](backend/scripts/push-hospital-schemas.ts)
 
-### 3. Hospital Administrator
-- Manage hospital staff
-- View hospital statistics
-- Bed and inventory management
-- Financial reports
-- Department management
-
-### 4. Central Administrator
-- Monitor entire network
-- View all participating hospitals
-- Audit logs across the system
-- Emergency access management
-- Patient index management
-
-## 🔐 Security Features
-
-- **JWT Authentication** - Secure token-based authentication
-- **Role-based Access Control** - Different permissions per user type
-- **Audit Logging** - Every data access is logged
-- **Patient Privacy Controls** - Patients can block specific hospitals
-- **Hospital Verification** - Two-step login (IC card + hospital verification)
-- **Emergency Access** - Special access for emergency situations with full logging
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for build tooling
-- **TailwindCSS** for styling
-- **Framer Motion** for animations
-- **React Router** for navigation
-- **Zustand** for state management
-- **Lucide React** for icons
-
-### Backend
-- **Node.js** with Express
-- **TypeScript**
-- **Prisma ORM** with multi-schema support
-- **PostgreSQL** databases (Central + Hospital databases)
-- **JWT** for authentication
-
-## 📁 Project Structure
-
-```
-National Medical Identity Network/
-├── frontend/                    # React frontend application
-│   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── layouts/             # Page & hospital portal layouts
-│   │   ├── lib/                 # API client, themes, i18n, and utilities
-│   │   ├── pages/               # Application pages
-│   │   │   ├── admin/           # Admin dashboards & modules
-│   │   │   ├── doctor/          # Doctor dashboards & clinical modules
-│   │   │   └── patient/         # Patient pages
-│   │   └── store/               # Zustand state stores
-│   └── netlify.toml             # Netlify deployment config
-│
-└── backend/                     # Express backend API
-    ├── scripts/                 # Hospital schema push script
-    ├── src/
-    │   ├── config/              # App & hospital configuration
-    │   ├── database/            # Multi-database clients & repositories
-    │   ├── middleware/          # Auth & authorization middleware
-    │   ├── routes/              # API routes
-    │   │   ├── auth.ts          # Authentication endpoints
-    │   │   ├── central.ts       # Central hub endpoints
-    │   │   └── hospital.ts      # Hospital endpoints
-    │   └── types/               # TypeScript types
-    └── prisma/
-        ├── schema.central.prisma    # Central database schema
-        ├── schema.hospital.prisma   # Hospital database schema
-        └── seed-multi.ts            # Database seeding
-```
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+
-- PostgreSQL database(s)
-- npm or yarn
-
-### Backend Setup
-
-```bash
-cd backend
-
-# Install dependencies
-npm install
-
-# Configure environment variables
-# Create .env file with:
-# DATABASE_URL_CENTRAL=postgresql://...
-# DATABASE_URL_KL=postgresql://...
-# DATABASE_URL_PENANG=postgresql://...
-# DATABASE_URL_JB=postgresql://...
-# DATABASE_URL_KUCHING=postgresql://...
-# DATABASE_URL_KK=postgresql://...
-# JWT_SECRET=your-secret-key
-
-# Generate Prisma clients
-npm run multi:generate
-
-# Push database schemas
-npm run multi:push
-
-# Seed demo data
-npm run multi:seed
-
-# Start development server
-npm run dev
-```
-
-### Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure API URL (optional)
-# Create .env file with:
-# VITE_API_URL=http://localhost:3000/api
-
-# Start development server
-npm run dev
-```
-
-## 📡 API Endpoints
-
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/login` | User login |
-| POST | `/api/auth/logout` | User logout |
-
-### Central Hub
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/central/hospitals` | List all hospitals |
-| GET | `/api/central/stats` | Network statistics |
-| GET | `/api/central/query/:ic` | Query patient across hospitals |
-| GET | `/api/central/emergency/:ic` | Emergency access query |
-| GET | `/api/central/patient/:ic` | Get patient demographics and hospital index |
-| GET | `/api/central/indexes` | All patient indexes |
-| GET | `/api/central/index/:ic` | Search patient index with hospital record counts |
-| GET | `/api/central/audit-logs` | System audit logs |
-| GET | `/api/central/my-access-logs` | Patient's own record access logs |
-| GET | `/api/central/my-activity-logs` | Doctor's own clinical activity logs |
-| GET | `/api/central/privacy-settings` | Patient privacy settings |
-| POST | `/api/central/privacy-settings/hospital-access` | Set hospital access |
-
-### Hospital
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/hospitals/:id` | Hospital information & stats |
-| GET | `/api/hospitals/:id/stats` | Hospital statistics |
-| POST | `/api/hospitals/:id/records` | Create medical record |
-
-## 🎮 Demo Accounts
-
-### Doctors
-| Name | IC Number | Password |
-|------|-----------|----------|
-| Dr. Lim Wei Ming | 750101-14-5001 | doctor123 |
-| Dr. Tan Mei Ling | 760612-07-5001 | doctor123 |
-| Dr. Siti Aishah | 770808-01-5001 | doctor123 |
-
-### Patients
-| Name | IC Number | Password |
-|------|-----------|----------|
-| Ahmad bin Abdullah | 880101-14-5678 | patient123 |
-| Siti Nurhaliza | 950320-10-1234 | patient123 |
-| Tan Ah Kow | 550715-07-9999 | patient123 |
-
-### Administrators
-| Role | Username | Password |
-|------|----------|----------|
-| Hospital Admin (KL) | admin-kl | admin123 |
-| Hospital Admin (Penang) | admin-penang | admin123 |
-| Central Admin | central-admin | central123 |
-
-## 🌐 Deployment
-
-### Frontend (Netlify)
-The frontend is configured for Netlify deployment with SPA routing support.
-
-### Backend (Render)
-The backend includes Render-specific build scripts:
-```bash
-npm run render:build  # Build for production
-npm run render:start  # Start production server
-```
-
-## 📊 Database Schema
-
-### Central Database
-- **Hospital** - Registered hospitals in the network
-- **PatientIndex** - Maps patient IC numbers to hospitals
-- **User** - System users (doctors, admins, patients)
-- **AuditLog** - Access and action logging
-- **PatientPrivacySetting** - Patient privacy preferences
-
-### Hospital Database
-- **Patient** - Patient demographics and contact info
-- **Doctor** - Hospital doctors
-- **MedicalRecord** - Visit records with diagnosis
-- **Prescription** - Medications prescribed
-- **LabReport** - Laboratory test results
-
-## 🔑 Key Features Explained
-
-### Cross-Hospital Query
-When a doctor queries a patient's IC number:
-1. Central hub checks the patient index
-2. Identifies all hospitals where patient has records
-3. Fetches records from each hospital in parallel
-4. Aggregates and returns a unified timeline
-
-### Emergency Access
-For emergency situations:
-- No login required
-- Returns critical info: blood type, allergies, emergency contacts
-- All access is logged for accountability
-
-### Privacy Controls
-Patients can:
-- View which hospitals have their records
-- Block specific hospitals from accessing their data
-- See a log of who accessed their records and when
-
-## 📝 License
-
-This project was created for the Malaysia Healthcare Hackathon.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
----
-
-**MedLink MY** - Connecting Healthcare, Saving Lives 🇲🇾
+1. From `backend/` run `npm ci`, `npm run multi:setup`, then `npm run dev`. The setup command pushes the schemas and replaces existing data in the configured databases with demo records.
+2. From `frontend/` in a second terminal run `npm ci` and `npm run dev`. Open `http://localhost:5173`. Vite forwards `/api` requests to the backend on port `3000`. [Demo seed](backend/prisma/seed-multi.ts) · [Vite configuration](frontend/vite.config.ts)
