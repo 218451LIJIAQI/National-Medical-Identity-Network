@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuthStore } from '@/store/auth'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 import {
   Users, Clock, CheckCircle2,
   PhoneCall, Mic, Search, User,
@@ -17,6 +19,7 @@ interface QueuePatient {
   status: 'waiting' | 'in-progress' | 'called' | 'completed'
   complaint: string
 }
+
 const mockQueue: QueuePatient[] = [
   { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', age: 36, gender: 'M', category: 'Green', waitTime: '45 min', status: 'waiting', complaint: 'Fever & cough' },
   { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', age: 32, gender: 'F', category: 'Yellow', waitTime: '30 min', status: 'waiting', complaint: 'Chronic headache' },
@@ -26,16 +29,26 @@ const mockQueue: QueuePatient[] = [
   { queueNo: 'A006', name: 'Tan Mei Ling', icNumber: '950505-14-6666', age: 29, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Stomach ache' },
 ]
 
+const CATEGORY_CLASS: Record<QueuePatient['category'], string> = {
+  Red: 'bg-red-100 text-red-700 border-red-200',
+  Yellow: 'bg-amber-100 text-amber-700 border-amber-200',
+  Green: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+}
+
+const STATUS_BADGE: Record<QueuePatient['status'], { bg: string; text: string; label: string }> = {
+  waiting: { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Waiting' },
+  called: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Called' },
+  'in-progress': { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'In Progress' },
+  completed: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Completed' },
+}
+
 interface QueueManagementProps {
-  hospitalTheme?: {
-    primary: string
-    secondary: string
-    accent: string
-  }
   onSelectPatient?: (patient: QueuePatient) => void
 }
 
 export default function QueueManagement({ onSelectPatient }: QueueManagementProps) {
+  const { user } = useAuthStore()
+  const theme = getHospitalTheme(user?.hospitalId)
   const [queue, setQueue] = useState<QueuePatient[]>(mockQueue)
   const [filter, setFilter] = useState<'all' | 'waiting' | 'called' | 'in-progress'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -53,25 +66,6 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
     inProgress: queue.filter(p => p.status === 'in-progress').length,
     called: queue.filter(p => p.status === 'called').length,
     completed: queue.filter(p => p.status === 'completed').length,
-  }
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'Red': return 'bg-red-100 text-red-700 border-red-200'
-      case 'Yellow': return 'bg-amber-100 text-amber-700 border-amber-200'
-      case 'Green': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-      default: return 'bg-gray-100 text-gray-700 border-gray-200'
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'waiting': return { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Waiting' }
-      case 'called': return { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Called' }
-      case 'in-progress': return { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'In Progress' }
-      case 'completed': return { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Completed' }
-      default: return { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
-    }
   }
 
   const callNextPatient = () => {
@@ -95,7 +89,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Patient Queue</h2>
           <p className="text-gray-500">Queue Management • Today's Patients</p>
@@ -103,7 +97,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
         <div className="flex items-center gap-3">
           <motion.button
             onClick={callNextPatient}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
+            className={`flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r ${theme.buttonGradient} text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all`}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -113,28 +107,28 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
         </div>
       </div>
 
-            <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Waiting', value: stats.waiting, icon: Clock, card: 'bg-slate-50 border-slate-200', ic: 'text-slate-500', val: 'text-slate-800', sub: 'text-slate-600' },
-          { label: 'Called', value: stats.called, icon: PhoneCall, card: 'bg-blue-50 border-blue-100', ic: 'text-blue-500', val: 'text-blue-700', sub: 'text-blue-600' },
-          { label: 'In Progress', value: stats.inProgress, icon: Stethoscope, card: 'bg-emerald-50 border-emerald-100', ic: 'text-emerald-500', val: 'text-emerald-700', sub: 'text-emerald-600' },
-          { label: 'Completed', value: stats.completed, icon: CheckCircle2, card: 'bg-gray-50 border-gray-200', ic: 'text-gray-500', val: 'text-gray-700', sub: 'text-gray-600' },
+          { label: 'Waiting', value: stats.waiting, icon: Clock, cardClass: 'bg-slate-50 border-slate-100', iconClass: 'text-slate-500', valueClass: 'text-slate-700', labelClass: 'text-slate-600' },
+          { label: 'Called', value: stats.called, icon: PhoneCall, cardClass: 'bg-blue-50 border-blue-100', iconClass: 'text-blue-500', valueClass: 'text-blue-700', labelClass: 'text-blue-600' },
+          { label: 'In Progress', value: stats.inProgress, icon: Stethoscope, cardClass: 'bg-emerald-50 border-emerald-100', iconClass: 'text-emerald-500', valueClass: 'text-emerald-700', labelClass: 'text-emerald-600' },
+          { label: 'Completed', value: stats.completed, icon: CheckCircle2, cardClass: 'bg-gray-50 border-gray-100', iconClass: 'text-gray-500', valueClass: 'text-gray-700', labelClass: 'text-gray-600' },
         ].map((stat) => (
           <motion.div
             key={stat.label}
-            className={`p-4 rounded-xl border ${stat.card}`}
+            className={`p-4 ${stat.cardClass} rounded-xl border`}
             whileHover={{ y: -2 }}
           >
             <div className="flex items-center justify-between mb-2">
-              <stat.icon className={`w-5 h-5 ${stat.ic}`} />
-              <span className={`text-2xl font-bold ${stat.val}`}>{stat.value}</span>
+              <stat.icon className={`w-5 h-5 ${stat.iconClass}`} />
+              <span className={`text-2xl font-bold ${stat.valueClass}`}>{stat.value}</span>
             </div>
-            <p className={`text-sm ${stat.sub}`}>{stat.label}</p>
+            <p className={`text-sm ${stat.labelClass}`}>{stat.label}</p>
           </motion.div>
         ))}
       </div>
 
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -162,7 +156,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
         </div>
       </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
           <div className="col-span-1">No.</div>
           <div className="col-span-3">Patient Name</div>
@@ -175,7 +169,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
 
         <AnimatePresence>
           {filteredQueue.map((patient, index) => {
-            const statusBadge = getStatusBadge(patient.status)
+            const statusBadge = STATUS_BADGE[patient.status]
             return (
               <motion.div
                 key={patient.queueNo}
@@ -219,7 +213,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
                 </div>
 
                 <div className="col-span-1 flex items-center">
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getCategoryColor(patient.category)}`}>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${CATEGORY_CLASS[patient.category]}`}>
                     {patient.category}
                   </span>
                 </div>
@@ -239,6 +233,7 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
                       className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
+                      title="Call patient"
                     >
                       <PhoneCall className="w-4 h-4" />
                     </motion.button>

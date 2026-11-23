@@ -2,234 +2,255 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth'
-import { centralApi, type MedicalRecordDto } from '@/lib/api'
-import { resolveHospitalTheme } from '@/lib/hospital-themes'
-import { formatDate, formatDoctorName } from '@/lib/utils'
-import {
-  Building2, Calendar, FileText, Loader2, Stethoscope, Pill, FlaskConical, ChevronDown, ChevronUp,
-} from 'lucide-react'
+import { centralApi } from '@/lib/api'
+import { Building2, Calendar, FileText, Loader2, Stethoscope, Clock } from 'lucide-react'
+import { formatDate, getHospitalColor } from '@/lib/utils'
+import { motion } from 'framer-motion'
 
-interface EnrichedPatientRecord extends MedicalRecordDto {
-  resolvedHospitalId: string
-  resolvedHospitalName: string
+interface MedicalRecord {
+  id: string
+  hospitalId: string
+  hospitalName: string
+  visitDate: string
+  visitType: string
+  diagnosis: string[]
+  doctorId: string
 }
 
 export default function PatientRecords() {
   const { user } = useAuthStore()
-  const [records, setRecords] = useState<EnrichedPatientRecord[]>([])
-  const [selectedHospital, setSelectedHospital] = useState<string>('all')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [records, setRecords] = useState<MedicalRecord[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadRecords() {
       if (!user?.icNumber) return
-      setLoading(true)
       try {
         const response = await centralApi.queryPatient(user.icNumber)
         if (response.success && response.data) {
-          const list: EnrichedPatientRecord[] = []
-          for (const hospital of response.data.hospitals) {
-            for (const record of hospital.records || []) {
-              list.push({
-                ...record,
-                resolvedHospitalId: hospital.hospitalId,
-                resolvedHospitalName: hospital.hospitalName,
+          const allRecords: MedicalRecord[] = []
+          response.data.hospitals.forEach((hospital) => {
+            hospital.records?.forEach((record: Record<string, unknown>) => {
+              allRecords.push({
+                id: String(record.id || ''),
+                hospitalId: hospital.hospitalId,
+                hospitalName: hospital.hospitalName,
+                visitDate: String(record.visitDate || ''),
+                visitType: String(record.visitType || 'outpatient'),
+                diagnosis: (record.diagnosis as string[]) || [],
+                doctorId: String(record.doctorId || ''),
               })
-            }
-          }
-          list.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
-          setRecords(list)
+            })
+          })
+          allRecords.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
+          setRecords(allRecords)
         }
+      } catch (error) {
+        console.error('Failed to load records:', error)
       } finally {
         setLoading(false)
       }
     }
-    void loadRecords()
+    loadRecords()
   }, [user?.icNumber])
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+  }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading your longitudinal medical history...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500">Loading your medical records...</p>
         </div>
       </div>
     )
   }
 
-  const hospitalOptions = Array.from(
-    new Map(records.map((r) => [r.resolvedHospitalId, r.resolvedHospitalName])).entries()
-  )
-
-  const filteredRecords =
-    selectedHospital === 'all'
-      ? records
-      : records.filter((r) => r.resolvedHospitalId === selectedHospital)
+  const uniqueHospitalsCount = new Set(records.map(r => r.hospitalId)).size
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-7 text-white shadow-xl">
-        <Badge className="bg-white/20 text-white border-white/30 mb-3">
-          <FileText className="w-3.5 h-3.5 mr-1.5" />
-          Unified Longitudinal Timeline
-        </Badge>
-        <h1 className="text-3xl font-bold">My Medical History</h1>
-        <p className="text-blue-100 mt-1">
-          {records.length} clinical visit(s) across {hospitalOptions.length} connected hospital(s)
-        </p>
-      </div>
+    <motion.div
+      className="space-y-8"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.div
+        variants={itemVariants}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-2xl shadow-blue-500/25"
+      >
+        <motion.div
+          className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div
+          className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
 
-      {hospitalOptions.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedHospital('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
-              selectedHospital === 'all'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            All Hospitals ({records.length})
-          </button>
-          {hospitalOptions.map(([hospId, hospName]) => {
-            const count = records.filter((r) => r.resolvedHospitalId === hospId).length
-            return (
-              <button
-                key={hospId}
-                type="button"
-                onClick={() => setSelectedHospital(hospId)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
-                  selectedHospital === hospId
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                {hospName} ({count})
-              </button>
-            )
-          })}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4">
+            <motion.div
+              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+            >
+              <FileText className="w-7 h-7 drop-shadow" />
+            </motion.div>
+            <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm px-3 py-1">Medical Records</Badge>
+          </div>
+          <h1 className="text-4xl font-bold mb-3 drop-shadow-lg">My Medical History</h1>
+          <p className="text-blue-100 text-lg">
+            Complete records from <span className="font-semibold text-white">{uniqueHospitalsCount} hospitals</span> • <span className="font-semibold text-white">{records.length} total visits</span>
+          </p>
         </div>
-      )}
+      </motion.div>
 
-      {filteredRecords.length === 0 ? (
-        <Card className="border-slate-200/80">
-          <CardContent className="p-12 text-center text-gray-500">
-            No medical records found for the selected filter.
+      <motion.div variants={itemVariants} className="grid grid-cols-3 gap-4">
+        <Card className="border-0 shadow-xl shadow-blue-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-4">
+              <motion.div
+                className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <Building2 className="w-6 h-6 text-white" />
+              </motion.div>
+              <div>
+                <p className="text-3xl font-bold text-gray-900">{uniqueHospitalsCount}</p>
+                <p className="text-sm text-gray-500 font-medium">Hospitals</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredRecords.map((record) => {
-            const theme = resolveHospitalTheme(record.resolvedHospitalId || record.resolvedHospitalName)
-            const isExpanded = expandedId === record.id
-            return (
-              <Card key={record.id} className="border-slate-200/80 overflow-hidden">
-                <div className="h-1" style={{ backgroundColor: theme.primaryColor }} />
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className={theme.badgeClass}>
-                          <Building2 className="w-3 h-3 mr-1" />
-                          {record.resolvedHospitalName}
-                        </Badge>
-                        <Badge variant="outline" className="capitalize">
-                          {record.visitType}
-                        </Badge>
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 pt-1">
-                        {record.chiefComplaint || record.diagnosis[0] || 'Clinical Consultation'}
-                      </h3>
-                      <p className="text-xs text-gray-500 flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {formatDate(record.visitDate)}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Stethoscope className="w-3.5 h-3.5" />
-                          {formatDoctorName(record.doctorName)}
-                        </span>
-                      </p>
-                    </div>
+        <Card className="border-0 shadow-xl shadow-emerald-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-4">
+              <motion.div
+                className="p-3 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <FileText className="w-6 h-6 text-white" />
+              </motion.div>
+              <div>
+                <p className="text-3xl font-bold text-gray-900">{records.length}</p>
+                <p className="text-sm text-gray-500 font-medium">Total Records</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-xl shadow-violet-100/50 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-4">
+              <motion.div
+                className="p-3 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl shadow-lg shadow-violet-200"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <Clock className="w-6 h-6 text-white" />
+              </motion.div>
+              <div>
+                <p className="text-xl font-bold text-gray-900">{records.length > 0 ? formatDate(records[0].visitDate) : '-'}</p>
+                <p className="text-sm text-gray-500 font-medium">Last Visit</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(isExpanded ? null : record.id)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg bg-blue-50"
+      <motion.div variants={itemVariants}>
+        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+          <div className="p-6 border-b bg-gradient-to-r from-blue-50/50 to-white">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-lg shadow-blue-500/25">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Medical History Timeline</h2>
+                <p className="text-sm text-gray-500">Records sorted by most recent visit</p>
+              </div>
+            </div>
+          </div>
+          <CardContent className="p-0">
+            {records.length === 0 ? (
+              <div className="text-center py-16">
+                <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 font-medium">No medical records found</p>
+                <p className="text-sm text-gray-400">Your records will appear here once available</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {records.map((record, i) => {
+                  const color = getHospitalColor(record.hospitalId)
+                  return (
+                    <motion.div
+                      key={record.id}
+                      className="p-5 hover:bg-gray-50 transition-colors cursor-pointer"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      whileHover={{ x: 4 }}
                     >
-                      {isExpanded ? 'Hide Details' : 'View Details'}
-                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  {record.diagnosis.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {record.diagnosis.map((diag) => (
-                        <Badge key={diag} variant="secondary" className="text-xs">
-                          {diag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  {isExpanded && (
-                    <div className="pt-3 border-t border-slate-100 space-y-3 text-sm">
-                      {record.notes && (
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-gray-400 mb-1">Clinical Notes</p>
-                          <p className="text-gray-700">{record.notes}</p>
+                      <div className="flex items-start gap-4">
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: color + '20' }}
+                        >
+                          <Building2 className="w-6 h-6" style={{ color }} />
                         </div>
-                      )}
-
-                      {record.prescriptions && record.prescriptions.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5 flex items-center gap-1">
-                            <Pill className="w-3.5 h-3.5" />
-                            Prescriptions
-                          </p>
-                          <div className="grid sm:grid-cols-2 gap-2">
-                            {record.prescriptions.map((rx, idx) => (
-                              <div key={`${rx.medicationName}-${idx}`} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/70">
-                                <p className="font-semibold text-gray-900">{rx.medicationName} ({rx.dosage})</p>
-                                <p className="text-xs text-gray-600">{rx.frequency} &middot; {rx.duration}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {record.labReports && record.labReports.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5 flex items-center gap-1">
-                            <FlaskConical className="w-3.5 h-3.5" />
-                            Laboratory Results
-                          </p>
-                          <div className="grid sm:grid-cols-2 gap-2">
-                            {record.labReports.map((lab, idx) => (
-                              <div key={`${lab.testName}-${idx}`} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between">
-                                <div>
-                                  <p className="font-semibold text-gray-900">{lab.testName}</p>
-                                  <p className="text-xs text-gray-500">Ref: {lab.referenceRange}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-semibold text-gray-900">{record.hospitalName}</p>
+                              <p className="text-gray-600 mt-1">
+                                {record.diagnosis.length > 0 ? record.diagnosis.join(', ') : 'General checkup / consultation'}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  <span>{formatDate(record.visitDate)}</span>
                                 </div>
-                                <Badge variant={lab.isAbnormal ? 'destructive' : 'secondary'}>
-                                  {lab.result} {lab.unit}
-                                </Badge>
+                                <div className="flex items-center gap-1">
+                                  <Stethoscope className="w-4 h-4" />
+                                  <span>Dr. ID: {record.doctorId?.slice(0, 8) || 'N/A'}</span>
+                                </div>
                               </div>
-                            ))}
+                            </div>
+                            <Badge
+                              className={`flex-shrink-0 ${
+                                record.visitType === 'emergency'
+                                  ? 'bg-red-100 text-red-700'
+                                  : record.visitType === 'outpatient'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {record.visitType}
+                            </Badge>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-    </div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
   )
 }

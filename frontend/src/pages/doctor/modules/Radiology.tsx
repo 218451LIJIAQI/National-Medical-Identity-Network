@@ -1,4 +1,3 @@
-import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -18,6 +17,7 @@ interface RadiologyOrder {
   preparation: string
   turnaround: string
 }
+
 const radiologyCatalog = [
   { code: 'CXR', name: 'Chest X-Ray (PA)', modality: 'X-Ray', bodyPart: 'Chest', turnaround: '30 min', preparation: 'None', contrast: false },
   { code: 'AXR', name: 'Abdominal X-Ray', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'None', contrast: false },
@@ -45,6 +45,17 @@ const radiologyCatalog = [
 
 const modalities = ['All', 'X-Ray', 'Ultrasound', 'CT Scan', 'MRI', 'Special']
 
+const MODALITY_CONFIG: Record<string, { icon: typeof ScanLine; iconBgClass: string; iconTextClass: string; codeBadgeClass: string }> = {
+  'X-Ray': { icon: Bone, iconBgClass: 'bg-blue-100', iconTextClass: 'text-blue-600', codeBadgeClass: 'text-blue-700 bg-blue-100' },
+  Ultrasound: { icon: ScanLine, iconBgClass: 'bg-teal-100', iconTextClass: 'text-teal-600', codeBadgeClass: 'text-teal-700 bg-teal-100' },
+  'CT Scan': { icon: Scan, iconBgClass: 'bg-purple-100', iconTextClass: 'text-purple-600', codeBadgeClass: 'text-purple-700 bg-purple-100' },
+  MRI: { icon: Brain, iconBgClass: 'bg-indigo-100', iconTextClass: 'text-indigo-600', codeBadgeClass: 'text-indigo-700 bg-indigo-100' },
+  Mammography: { icon: CircleDot, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' },
+  Fluoroscopy: { icon: Monitor, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' },
+}
+
+const DEFAULT_MODALITY_STYLE = { icon: ScanLine, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' }
+
 interface RadiologyProps {
   patientName?: string
   patientIC?: string
@@ -70,13 +81,12 @@ export default function Radiology({
   })
 
   const addOrder = (exam: typeof radiologyCatalog[0]) => {
-    if (!selectedOrders.find(o => o.code === exam.code)) {
-      const newOrder: RadiologyOrder = {
+    if (!selectedOrders.some(o => o.code === exam.code)) {
+      setSelectedOrders([...selectedOrders, {
         id: `rad-${Date.now()}-${exam.code}`,
         ...exam,
         urgent: false,
-      }
-      setSelectedOrders([...selectedOrders, newOrder])
+      }])
     }
   }
 
@@ -90,43 +100,19 @@ export default function Radiology({
     ))
   }
 
-  const getModalityIcon = (modality: string) => {
-    switch (modality) {
-      case 'X-Ray': return Bone
-      case 'Ultrasound': return ScanLine
-      case 'CT Scan': return Scan
-      case 'MRI': return Brain
-      case 'Mammography': return CircleDot
-      case 'Fluoroscopy': return Monitor
-      default: return ScanLine
-    }
-  }
-
-  const getModalityStyles = (modality: string) => {
-    switch (modality) {
-      case 'X-Ray': return { wrap: 'bg-blue-100', icon: 'text-blue-600', code: 'text-blue-700 bg-blue-100' }
-      case 'Ultrasound': return { wrap: 'bg-teal-100', icon: 'text-teal-600', code: 'text-teal-700 bg-teal-100' }
-      case 'CT Scan': return { wrap: 'bg-purple-100', icon: 'text-purple-600', code: 'text-purple-700 bg-purple-100' }
-      case 'MRI': return { wrap: 'bg-indigo-100', icon: 'text-indigo-600', code: 'text-indigo-700 bg-indigo-100' }
-      default: return { wrap: 'bg-gray-100', icon: 'text-gray-600', code: 'text-gray-700 bg-gray-100' }
-    }
-  }
-
-  const handleSubmit = () => {
-    onSubmit?.(selectedOrders)
-    toast({ title: 'Radiology Request Submitted', description: `Sent ${selectedOrders.length} imaging order(s) to Radiology.` })
-  }
+  const urgentCount = selectedOrders.filter(o => o.urgent).length
+  const contrastCount = selectedOrders.filter(o => o.contrast).length
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Radiology Request</h2>
           <p className="text-gray-500">Radiology Orders • Imaging Request</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
-            onClick={handleSubmit}
+            onClick={() => onSubmit?.(selectedOrders)}
             disabled={selectedOrders.length === 0}
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             whileHover={{ scale: 1.02 }}
@@ -136,7 +122,6 @@ export default function Radiology({
             Submit Request
           </motion.button>
           <motion.button
-            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -146,7 +131,7 @@ export default function Radiology({
         </div>
       </div>
 
-            <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+      <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
             <ScanLine className="w-7 h-7 text-indigo-600" />
@@ -161,7 +146,7 @@ export default function Radiology({
         </div>
       </div>
 
-            <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Clinical Information / Indication
         </label>
@@ -173,7 +158,7 @@ export default function Radiology({
         />
       </div>
 
-            {selectedOrders.some(o => o.contrast) && (
+      {contrastCount > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -191,7 +176,7 @@ export default function Radiology({
       )}
 
       <div className="grid grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 mb-3">Examination Catalog</h3>
             <div className="relative mb-3">
@@ -224,8 +209,8 @@ export default function Radiology({
           <div className="max-h-96 overflow-y-auto">
             {filteredExams.map((exam) => {
               const isSelected = selectedOrders.some(o => o.code === exam.code)
-              const Icon = getModalityIcon(exam.modality)
-              const styles = getModalityStyles(exam.modality)
+              const modalityStyle = MODALITY_CONFIG[exam.modality] || DEFAULT_MODALITY_STYLE
+              const Icon = modalityStyle.icon
 
               return (
                 <motion.button
@@ -237,12 +222,12 @@ export default function Radiology({
                   }`}
                   whileHover={!isSelected ? { x: 4 } : {}}
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${styles.wrap}`}>
-                    <Icon className={`w-5 h-5 ${styles.icon}`} />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${modalityStyle.iconBgClass}`}>
+                    <Icon className={`w-5 h-5 ${modalityStyle.iconTextClass}`} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <code className={`text-xs font-bold ${styles.code} px-2 py-0.5 rounded`}>
+                      <code className={`text-xs font-bold ${modalityStyle.codeBadgeClass} px-2 py-0.5 rounded`}>
                         {exam.code}
                       </code>
                       {exam.contrast && (
@@ -265,7 +250,7 @@ export default function Radiology({
           </div>
         </div>
 
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Selected Examinations</h3>
@@ -286,7 +271,7 @@ export default function Radiology({
               ) : (
                 <div className="space-y-3">
                   {selectedOrders.map((order, index) => {
-                    const Icon = getModalityIcon(order.modality)
+                    const Icon = (MODALITY_CONFIG[order.modality] || DEFAULT_MODALITY_STYLE).icon
                     return (
                       <motion.div
                         key={order.id}
@@ -365,20 +350,20 @@ export default function Radiology({
             </AnimatePresence>
           </div>
 
-                    {selectedOrders.length > 0 && (
+          {selectedOrders.length > 0 && (
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-gray-800">Summary</p>
                   <p className="text-sm text-gray-600">
-                    {selectedOrders.filter(o => o.urgent).length > 0 && (
+                    {urgentCount > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedOrders.filter(o => o.urgent).length} urgent •
+                        {urgentCount} urgent •
                       </span>
                     )}
-                    {' '}{selectedOrders.filter(o => o.contrast).length > 0 && (
+                    {' '}{contrastCount > 0 && (
                       <span className="text-amber-600">
-                        {selectedOrders.filter(o => o.contrast).length} with contrast
+                        {contrastCount} with contrast
                       </span>
                     )}
                   </p>

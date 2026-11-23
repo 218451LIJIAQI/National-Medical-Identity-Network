@@ -1,32 +1,37 @@
 import { execSync } from 'child_process';
 import { HOSPITALS } from '../src/config';
 
-function main(): void {
-  console.log('Pushing hospital Prisma schema to configured hospital databases...');
+async function main() {
+  console.log('🏥 Pushing hospital schema to all hospital databases...\n');
 
   for (const hospital of HOSPITALS) {
     const dbUrl = process.env[hospital.envVar];
+
     if (!dbUrl) {
-      console.log(`Skipping ${hospital.id}: ${hospital.envVar} is not set`);
+      console.log(`⚠️  Skipping ${hospital.id}: ${hospital.envVar} not set`);
       continue;
     }
 
-    console.log(`Pushing schema to ${hospital.id}...`);
-    execSync(
-      'npx prisma db push --schema=prisma/schema.hospital.prisma --skip-generate --accept-data-loss',
-      {
-        env: { ...process.env, DATABASE_URL_HOSPITAL: dbUrl },
-        stdio: 'inherit',
-      }
-    );
+    console.log(`📦 Pushing schema to ${hospital.id}...`);
+
+    try {
+      execSync(
+        'npx prisma db push --schema=prisma/schema.hospital.prisma --skip-generate --accept-data-loss',
+        {
+          env: {
+            ...process.env,
+            DATABASE_URL_HOSPITAL: dbUrl,
+          },
+          stdio: 'inherit',
+        }
+      );
+      console.log(`✅ ${hospital.id} schema pushed successfully!\n`);
+    } catch (error) {
+      console.error(`❌ Failed to push schema to ${hospital.id}:`, error);
+    }
   }
 
-  console.log('Hospital schema push complete.');
+  console.log('🎉 All hospital schemas pushed!');
 }
 
-try {
-  main();
-} catch (error) {
-  console.error('Failed to push hospital schemas:', error);
-  process.exit(1);
-}
+main().catch(console.error);

@@ -1,8 +1,7 @@
-import { useToast } from '@/components/ui/use-toast'
-import { useAuthStore } from '@/store/auth'
-import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuthStore } from '@/store/auth'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 import {
   ArrowRightLeft, Building2, User, FileText,
   Send, Search, CheckCircle2, AlertCircle,
@@ -20,6 +19,7 @@ interface ReferralData {
   investigations: string[]
   appointmentPreferred?: string
 }
+
 const hospitals = [
   { id: 'hkl', name: 'Hospital Kuala Lumpur', city: 'Kuala Lumpur', state: 'W.P. Kuala Lumpur' },
   { id: 'hpj', name: 'Hospital Putrajaya', city: 'Putrajaya', state: 'W.P. Putrajaya' },
@@ -51,22 +51,34 @@ const departments = [
   'Radiology',
 ]
 
+const URGENCY_OPTIONS: Array<{
+  value: ReferralData['urgency']
+  label: string
+  desc: string
+  activeClass: string
+  dotClass: string
+}> = [
+  { value: 'routine', label: 'Routine', desc: 'Within 2-4 weeks', activeClass: 'border-emerald-400 bg-emerald-50', dotClass: 'bg-emerald-500' },
+  { value: 'urgent', label: 'Urgent', desc: 'Within 48-72 hours', activeClass: 'border-amber-400 bg-amber-50', dotClass: 'bg-amber-500' },
+  { value: 'emergency', label: 'Emergency', desc: 'Immediately', activeClass: 'border-red-400 bg-red-50', dotClass: 'bg-red-500' },
+]
+
 interface ReferralProps {
   patientName?: string
   patientIC?: string
-  resolvedFromHospital?: string
+  fromHospital?: string
   onSubmit?: (data: ReferralData) => void
 }
 
 export default function Referral({
   patientName = 'Ahmad bin Abdullah',
-  patientIC = '880101-14-5678',
+  patientIC = '880515-14-5678',
   fromHospital,
   onSubmit
 }: ReferralProps) {
-  const { toast } = useToast()
   const { user } = useAuthStore()
-  const resolvedFromHospital = resolvedFromHospital || getHospitalTheme(user?.hospitalId).name
+  const resolvedFromHospital = fromHospital || getHospitalTheme(user?.hospitalId).name
+
   const [formData, setFormData] = useState<ReferralData>({
     patientName,
     icNumber: patientIC,
@@ -86,8 +98,8 @@ export default function Referral({
     h.city.toLowerCase().includes(searchHospital.toLowerCase())
   )
 
-  const updateField = (field: keyof ReferralData, value: string | string[]) => {
-    setFormData({ ...formData, [field]: value })
+  const updateField = <K extends keyof ReferralData>(field: K, value: ReferralData[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   const selectHospital = (hospital: typeof hospitals[0]) => {
@@ -98,33 +110,25 @@ export default function Referral({
 
   const toggleInvestigation = (inv: string) => {
     const current = formData.investigations
-    if (current.includes(inv)) {
-      updateField('investigations', current.filter(i => i !== inv))
-    } else {
-      updateField('investigations', [...current, inv])
-    }
+    updateField(
+      'investigations',
+      current.includes(inv) ? current.filter(i => i !== inv) : [...current, inv]
+    )
   }
 
   const handleSubmit = () => {
     onSubmit?.(formData)
-    toast({
-      title: 'Inter-Hospital Referral Sent',
-      description: `Referred ${formData.patientName} to ${formData.referToHospital} (${formData.referToDepartment}).`,
-    })
   }
 
   const isStepValid = (stepNum: number) => {
-    switch (stepNum) {
-      case 1: return formData.referToHospital && formData.referToDepartment
-      case 2: return formData.reason && formData.clinicalSummary
-      case 3: return true
-      default: return false
-    }
+    if (stepNum === 1) return Boolean(formData.referToHospital && formData.referToDepartment)
+    if (stepNum === 2) return Boolean(formData.reason && formData.clinicalSummary)
+    return stepNum === 3
   }
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Patient Referral</h2>
           <p className="text-gray-500">Patient Referral • Referral Form</p>
@@ -136,7 +140,7 @@ export default function Referral({
         </div>
       </div>
 
-            <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+      <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center">
             <User className="w-7 h-7 text-indigo-600" />
@@ -148,7 +152,7 @@ export default function Referral({
         </div>
       </div>
 
-            <div className="flex items-center justify-center gap-4">
+      <div className="flex items-center justify-center gap-4">
         {[
           { num: 1, label: 'Destination' },
           { num: 2, label: 'Clinical Info' },
@@ -175,14 +179,12 @@ export default function Referral({
               )}
               <span className="font-medium">{s.label}</span>
             </motion.button>
-            {idx < 2 && (
-              <ChevronRight className="w-5 h-5 text-gray-300 mx-2" />
-            )}
+            {idx < 2 && <ChevronRight className="w-5 h-5 text-gray-300 mx-2" />}
           </div>
         ))}
       </div>
 
-            <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div
             key="step1"
@@ -191,7 +193,7 @@ export default function Referral({
             exit={{ opacity: 0, x: -20 }}
             className="grid grid-cols-2 gap-6"
           >
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-indigo-600" />
                 Referral Hospital
@@ -247,7 +249,7 @@ export default function Referral({
               )}
             </div>
 
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 Department
@@ -270,25 +272,20 @@ export default function Referral({
               </div>
             </div>
 
-                        <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-semibold text-gray-800 mb-4">Urgency Level</h3>
               <div className="grid grid-cols-3 gap-4">
-                {[
-                  { value: 'routine', label: 'Routine', desc: 'Within 2-4 weeks', active: 'border-emerald-400 bg-emerald-50', dot: 'bg-emerald-500' },
-                  { value: 'urgent', label: 'Urgent', desc: 'Within 48-72 hours', active: 'border-amber-400 bg-amber-50', dot: 'bg-amber-500' },
-                  { value: 'emergency', label: 'Emergency', desc: 'Immediately', active: 'border-red-400 bg-red-50', dot: 'bg-red-500' },
-                ].map(opt => (
+                {URGENCY_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
-                    type="button"
                     onClick={() => updateField('urgency', opt.value)}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
                       formData.urgency === opt.value
-                        ? opt.active
+                        ? opt.activeClass
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className={`w-3 h-3 rounded-full ${opt.dot} mb-2`} />
+                    <div className={`w-3 h-3 rounded-full ${opt.dotClass} mb-2`} />
                     <p className="font-semibold text-gray-800">{opt.label}</p>
                     <p className="text-sm text-gray-500">{opt.desc}</p>
                   </button>
@@ -358,7 +355,7 @@ export default function Referral({
             <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">Referral Confirmation</h3>
 
             <div className="max-w-2xl mx-auto space-y-6">
-                            <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
+              <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Patient</p>
@@ -417,7 +414,7 @@ export default function Referral({
         )}
       </AnimatePresence>
 
-            <div className="flex justify-between">
+      <div className="flex justify-between">
         <button
           onClick={() => setStep(Math.max(1, step - 1))}
           disabled={step === 1}

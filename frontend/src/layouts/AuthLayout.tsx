@@ -1,10 +1,12 @@
 import { Outlet, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
+import { getRoleHomePath } from '@/lib/utils'
 import { Building2, Shield, Zap, Globe, Lock } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function AuthLayout() {
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore()
+  const { isAuthenticated, user, isHospitalVerified, _hasHydrated } = useAuthStore()
+
   if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -16,7 +18,7 @@ export default function AuthLayout() {
           <motion.div
             className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30"
             animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
           >
             <Building2 className="w-8 h-8 text-white" />
           </motion.div>
@@ -25,32 +27,26 @@ export default function AuthLayout() {
       </div>
     )
   }
-  if (isAuthenticated && user) {
-    const redirectPath = {
-      doctor: '/doctor',
-      patient: '/patient',
-      hospital_admin: '/admin/hospital',
-      central_admin: '/admin/central',
-    }[user.role] || '/'
 
-    return <Navigate to={redirectPath} replace />
+  if (isAuthenticated && user) {
+    return <Navigate to={getRoleHomePath(user.role, isHospitalVerified)} replace />
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex">
-            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
-                <motion.div
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 px-12 py-10 flex-col justify-start gap-8 relative overflow-hidden">
+        <motion.div
           className="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
         />
         <motion.div
           className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"
           animate={{ scale: [1.2, 1, 1.2] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
         />
 
-                {[...Array(6)].map((_, i) => (
+        {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute w-2 h-2 bg-white/30 rounded-full"
@@ -113,7 +109,7 @@ export default function AuthLayout() {
               { value: '🔒', label: 'Read-Only Access', icon: Lock },
             ].map((stat, i) => (
               <motion.div
-                key={i}
+                key={stat.label}
                 className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -140,7 +136,7 @@ export default function AuthLayout() {
         </motion.div>
       </div>
 
-            <div className="flex-1 flex items-center justify-center p-8 relative">
+      <div className="flex-1 flex items-center justify-center p-8 relative">
         <motion.div
           className="absolute top-10 right-10 w-32 h-32 bg-blue-100/50 rounded-full blur-3xl"
           animate={{ scale: [1, 1.2, 1] }}

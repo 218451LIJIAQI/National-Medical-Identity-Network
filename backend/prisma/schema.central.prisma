@@ -36,8 +36,8 @@ model PatientIndexHospital {
   icNumber   String
   hospitalId String
 
-  patientIndex PatientIndex @relation(fields: [icNumber], references: [icNumber], onDelete: Cascade)
-  hospital     Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientIndex PatientIndex @relation(fields: [icNumber], references: [icNumber])
+  hospital     Hospital     @relation(fields: [hospitalId], references: [id])
 
   @@unique([icNumber, hospitalId])
 }
@@ -55,7 +55,7 @@ model User {
 
   auditLogsAsActor AuditLog[]
 
-  @@unique([icNumber, role])
+  @@index([icNumber, role])
 }
 
 model PatientPrivacySetting {
@@ -80,10 +80,8 @@ model AuditLog {
   success          Boolean  @default(true)
 
   actorId String?
-  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actor   User?   @relation(fields: [actorId], references: [id])
 
   @@index([timestamp])
   @@index([targetIcNumber])
-  @@index([actorId])
-  @@index([actorHospitalId])
 }

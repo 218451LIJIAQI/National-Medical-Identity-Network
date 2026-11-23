@@ -40,23 +40,23 @@ const mockInventory: InventoryItem[] = [
 ]
 
 const categoryConfig = {
-  medicine: { label: 'Medicine', labelMY: 'Ubat', icon: Pill, color: 'bg-blue-100 text-blue-700' },
-  equipment: { label: 'Equipment', labelMY: 'Peralatan', icon: Stethoscope, color: 'bg-purple-100 text-purple-700' },
-  consumable: { label: 'Consumable', labelMY: 'Bekalan', icon: Syringe, color: 'bg-green-100 text-green-700' },
-  ppe: { label: 'PPE', labelMY: 'PPE', icon: Thermometer, color: 'bg-orange-100 text-orange-700' },
+  medicine: { icon: Pill, color: 'bg-blue-100 text-blue-700' },
+  equipment: { icon: Stethoscope, color: 'bg-purple-100 text-purple-700' },
+  consumable: { icon: Syringe, color: 'bg-green-100 text-green-700' },
+  ppe: { icon: Thermometer, color: 'bg-orange-100 text-orange-700' },
+}
+
+function getStockStatus(item: InventoryItem) {
+  if (item.currentStock <= item.minStock * 0.5) return 'critical'
+  if (item.currentStock <= item.minStock) return 'low'
+  if (item.currentStock >= item.maxStock * 0.9) return 'overstocked'
+  return 'normal'
 }
 
 export default function InventoryManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
-
-  const getStockStatus = (item: InventoryItem) => {
-    if (item.currentStock <= item.minStock * 0.5) return 'critical'
-    if (item.currentStock <= item.minStock) return 'low'
-    if (item.currentStock >= item.maxStock * 0.9) return 'overstocked'
-    return 'normal'
-  }
 
   const filteredInventory = mockInventory.filter(item => {
     const matchSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -66,16 +66,23 @@ export default function InventoryManagement() {
     return matchSearch && matchCategory && matchStatus
   })
 
-  const stats = {
-    total: mockInventory.length,
-    lowStock: mockInventory.filter(i => getStockStatus(i) === 'low' || getStockStatus(i) === 'critical').length,
-    critical: mockInventory.filter(i => getStockStatus(i) === 'critical').length,
-    totalValue: mockInventory.reduce((acc, i) => acc + (i.currentStock * i.pricePerUnit), 0),
+  let lowStock = 0
+  let critical = 0
+  let totalValue = 0
+  for (const item of mockInventory) {
+    const status = getStockStatus(item)
+    if (status === 'critical') {
+      critical++
+      lowStock++
+    } else if (status === 'low') {
+      lowStock++
+    }
+    totalValue += item.currentStock * item.pricePerUnit
   }
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
           <p className="text-gray-500">Pengurusan Inventori Hospital</p>
@@ -92,7 +99,7 @@ export default function InventoryManagement() {
         </div>
       </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -100,7 +107,7 @@ export default function InventoryManagement() {
                 <Package className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
+                <p className="text-2xl font-bold text-blue-700">{mockInventory.length}</p>
                 <p className="text-xs text-blue-600">Jumlah Item</p>
               </div>
             </div>
@@ -113,7 +120,7 @@ export default function InventoryManagement() {
                 <TrendingDown className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-yellow-700">{stats.lowStock}</p>
+                <p className="text-2xl font-bold text-yellow-700">{lowStock}</p>
                 <p className="text-xs text-yellow-600">Stok Rendah</p>
               </div>
             </div>
@@ -126,7 +133,7 @@ export default function InventoryManagement() {
                 <AlertTriangle className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-red-700">{stats.critical}</p>
+                <p className="text-2xl font-bold text-red-700">{critical}</p>
                 <p className="text-xs text-red-600">Kritikal</p>
               </div>
             </div>
@@ -139,7 +146,7 @@ export default function InventoryManagement() {
                 <TrendingUp className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-green-700">RM {stats.totalValue.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-700">RM {totalValue.toLocaleString()}</p>
                 <p className="text-xs text-green-600">Nilai Inventori</p>
               </div>
             </div>
@@ -147,14 +154,14 @@ export default function InventoryManagement() {
         </Card>
       </div>
 
-            {stats.lowStock > 0 && (
+      {lowStock > 0 && (
         <Card className="border-yellow-300 bg-yellow-50">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-6 h-6 text-yellow-600" />
               <div>
                 <h3 className="font-semibold text-yellow-800">Amaran Stok Rendah / Low Stock Warning</h3>
-                <p className="text-sm text-yellow-700">{stats.lowStock} item(s) below minimum stock level. Please reorder soon.</p>
+                <p className="text-sm text-yellow-700">{lowStock} item(s) below minimum stock level. Please reorder soon.</p>
               </div>
               <Button variant="outline" className="ml-auto border-yellow-400 text-yellow-700 hover:bg-yellow-100">
                 View All
@@ -164,7 +171,7 @@ export default function InventoryManagement() {
         </Card>
       )}
 
-            <Card>
+      <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -206,7 +213,7 @@ export default function InventoryManagement() {
         </CardContent>
       </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredInventory.map((item, index) => {
           const status = getStockStatus(item)
           const categoryInfo = categoryConfig[item.category]
@@ -254,7 +261,7 @@ export default function InventoryManagement() {
                       <span className="font-medium">RM {item.pricePerUnit.toFixed(2)}/{item.unit}</span>
                     </div>
 
-                                        <div>
+                    <div>
                       <div className="flex justify-between text-xs mb-1">
                         <span>Current: {item.currentStock.toLocaleString()} {item.unit}</span>
                         <span className="text-gray-400">Max: {item.maxStock.toLocaleString()}</span>

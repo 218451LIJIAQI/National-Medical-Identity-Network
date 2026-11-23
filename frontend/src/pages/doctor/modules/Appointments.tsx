@@ -16,17 +16,15 @@ interface Appointment {
   type: 'follow-up' | 'new' | 'procedure' | 'review'
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed'
 }
-const TODAY_ISO = new Date().toISOString().split('T')[0]
-const TOMORROW_ISO = new Date(Date.now() + 86_400_000).toISOString().split('T')[0]
 
 const mockAppointments: Appointment[] = [
-  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880101-14-5678', phone: '012-3456789', date: TODAY_ISO, time: '09:00', type: 'follow-up', status: 'confirmed' },
-  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '950320-10-1234', phone: '013-9876543', date: TODAY_ISO, time: '09:30', type: 'new', status: 'pending' },
-  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '900808-01-5555', phone: '016-5551234', date: TODAY_ISO, time: '10:00', type: 'review', status: 'confirmed' },
-  { id: '4', patientName: 'Lee Mei Fong', icNumber: '780312-14-2345', phone: '011-2223333', date: TODAY_ISO, time: '10:30', type: 'procedure', status: 'confirmed' },
-  { id: '5', patientName: 'Tan Ah Kow', icNumber: '550715-07-9999', phone: '019-8887777', date: TODAY_ISO, time: '11:00', type: 'follow-up', status: 'cancelled' },
-  { id: '6', patientName: 'Aishah binti Mohd Yusof', icNumber: '820425-12-7777', phone: '017-6665555', date: TOMORROW_ISO, time: '09:00', type: 'new', status: 'pending' },
-  { id: '7', patientName: 'Dr. Lim Wei Ming', icNumber: '750101-14-5001', phone: '012-1112222', date: TOMORROW_ISO, time: '09:30', type: 'follow-up', status: 'confirmed' },
+  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', phone: '012-3456789', date: '2024-01-15', time: '09:00', type: 'follow-up', status: 'confirmed' },
+  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', phone: '013-9876543', date: '2024-01-15', time: '09:30', type: 'new', status: 'pending' },
+  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', phone: '016-5551234', date: '2024-01-15', time: '10:00', type: 'review', status: 'confirmed' },
+  { id: '4', patientName: 'Lee Mei Ling', icNumber: '850303-07-8888', phone: '011-2223333', date: '2024-01-15', time: '10:30', type: 'procedure', status: 'confirmed' },
+  { id: '5', patientName: 'Fatimah binti Hassan', icNumber: '680712-02-3333', phone: '019-8887777', date: '2024-01-15', time: '11:00', type: 'follow-up', status: 'cancelled' },
+  { id: '6', patientName: 'Tan Wei Jie', icNumber: '950505-14-6666', phone: '017-6665555', date: '2024-01-16', time: '09:00', type: 'new', status: 'pending' },
+  { id: '7', patientName: 'Muthu a/l Krishnan', icNumber: '780808-10-1111', phone: '012-1112222', date: '2024-01-16', time: '09:30', type: 'follow-up', status: 'confirmed' },
 ]
 
 const timeSlots = [
@@ -34,30 +32,35 @@ const timeSlots = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
 ]
 
+const STATUS_BADGE_CLASS: Record<Appointment['status'], string> = {
+  confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  pending: 'bg-amber-100 text-amber-700 border-amber-200',
+  cancelled: 'bg-red-100 text-red-700 border-red-200',
+  completed: 'bg-gray-100 text-gray-600 border-gray-200',
+}
+
+const TYPE_BADGE_CLASS: Record<Appointment['type'], string> = {
+  new: 'bg-blue-100 text-blue-700',
+  'follow-up': 'bg-purple-100 text-purple-700',
+  procedure: 'bg-orange-100 text-orange-700',
+  review: 'bg-cyan-100 text-cyan-700',
+}
+
 export default function Appointments() {
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
-  const formatDate = (date: Date) => {
-    return date.toISOString().split('T')[0]
-  }
+  const selectedDateKey = selectedDate.toISOString().split('T')[0]
+  const displayDate = selectedDate.toLocaleDateString('ms-MY', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
 
-  const formatDisplayDate = (date: Date) => {
-    return date.toLocaleDateString('ms-MY', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
-  }
-
-  const getAppointmentsForDate = (date: string) => {
-    return appointments.filter(apt => apt.date === date)
-  }
-
-  const todayAppointments = getAppointmentsForDate(formatDate(selectedDate))
+  const todayAppointments = appointments.filter(apt => apt.date === selectedDateKey)
 
   const filteredAppointments = todayAppointments.filter(apt => {
     const matchesSearch = apt.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -65,26 +68,6 @@ export default function Appointments() {
     const matchesFilter = filterStatus === 'all' || apt.status === filterStatus
     return matchesSearch && matchesFilter
   })
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-      case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200'
-      case 'cancelled': return 'bg-red-100 text-red-700 border-red-200'
-      case 'completed': return 'bg-gray-100 text-gray-600 border-gray-200'
-      default: return 'bg-gray-100 text-gray-600'
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'new': return 'bg-blue-100 text-blue-700'
-      case 'follow-up': return 'bg-purple-100 text-purple-700'
-      case 'procedure': return 'bg-orange-100 text-orange-700'
-      case 'review': return 'bg-cyan-100 text-cyan-700'
-      default: return 'bg-gray-100 text-gray-600'
-    }
-  }
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate)
@@ -107,12 +90,12 @@ export default function Appointments() {
 
   return (
     <div className="space-y-6">
-            <div>
-          <h2 className="text-2xl font-bold text-gray-800">Appointments</h2>
-          <p className="text-gray-500">Appointment Management • Schedule</p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800">Appointments</h2>
+        <p className="text-gray-500">Appointment Management • Schedule</p>
+      </div>
 
-            <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <button
           onClick={() => navigateDate('prev')}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -124,7 +107,7 @@ export default function Appointments() {
         <div className="flex items-center gap-4">
           <Calendar className="w-5 h-5 text-teal-600" />
           <div className="text-center">
-            <p className="text-lg font-bold text-gray-800">{formatDisplayDate(selectedDate)}</p>
+            <p className="text-lg font-bold text-gray-800">{displayDate}</p>
             <p className="text-sm text-gray-500">{stats.total} appointments</p>
           </div>
         </div>
@@ -138,25 +121,25 @@ export default function Appointments() {
         </button>
       </div>
 
-            <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: stats.total, card: 'bg-blue-50 border-blue-100', val: 'text-blue-700', sub: 'text-blue-600' },
-          { label: 'Confirmed', value: stats.confirmed, card: 'bg-emerald-50 border-emerald-100', val: 'text-emerald-700', sub: 'text-emerald-600' },
-          { label: 'Pending', value: stats.pending, card: 'bg-amber-50 border-amber-100', val: 'text-amber-700', sub: 'text-amber-600' },
-          { label: 'Completed', value: stats.completed, card: 'bg-gray-50 border-gray-200', val: 'text-gray-700', sub: 'text-gray-600' },
+          { label: 'Total', value: stats.total, cardClass: 'bg-blue-50 border-blue-100', valueClass: 'text-blue-700', labelClass: 'text-blue-600' },
+          { label: 'Confirmed', value: stats.confirmed, cardClass: 'bg-emerald-50 border-emerald-100', valueClass: 'text-emerald-700', labelClass: 'text-emerald-600' },
+          { label: 'Pending', value: stats.pending, cardClass: 'bg-amber-50 border-amber-100', valueClass: 'text-amber-700', labelClass: 'text-amber-600' },
+          { label: 'Completed', value: stats.completed, cardClass: 'bg-gray-50 border-gray-100', valueClass: 'text-gray-700', labelClass: 'text-gray-600' },
         ].map(stat => (
           <motion.div
             key={stat.label}
-            className={`p-4 rounded-xl border ${stat.card}`}
+            className={`p-4 ${stat.cardClass} rounded-xl border`}
             whileHover={{ y: -2 }}
           >
-            <p className={`text-2xl font-bold ${stat.val}`}>{stat.value}</p>
-            <p className={`text-sm ${stat.sub}`}>{stat.label}</p>
+            <p className={`text-2xl font-bold ${stat.valueClass}`}>{stat.value}</p>
+            <p className={`text-sm ${stat.labelClass}`}>{stat.label}</p>
           </motion.div>
         ))}
       </div>
 
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -186,7 +169,7 @@ export default function Appointments() {
         </div>
       </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600">
           <div className="col-span-1">Time</div>
           <div className="col-span-3">Patient</div>
@@ -241,7 +224,7 @@ export default function Appointments() {
                 </div>
 
                 <div className="col-span-2 flex items-center">
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${getTypeColor(apt.type)}`}>
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${TYPE_BADGE_CLASS[apt.type]}`}>
                     {apt.type === 'new' ? 'New' :
                      apt.type === 'follow-up' ? 'Follow-up' :
                      apt.type === 'procedure' ? 'Procedure' : 'Review'}
@@ -249,7 +232,7 @@ export default function Appointments() {
                 </div>
 
                 <div className="col-span-2 flex items-center">
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(apt.status)}`}>
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full border ${STATUS_BADGE_CLASS[apt.status]}`}>
                     {apt.status === 'confirmed' ? 'Confirmed' :
                      apt.status === 'pending' ? 'Pending' :
                      apt.status === 'cancelled' ? 'Cancelled' : 'Completed'}
@@ -300,7 +283,7 @@ export default function Appointments() {
         </AnimatePresence>
       </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h3 className="font-semibold text-gray-800 mb-4">Available Time Slots</h3>
         <div className="grid grid-cols-7 gap-3">
           {timeSlots.map(slot => {

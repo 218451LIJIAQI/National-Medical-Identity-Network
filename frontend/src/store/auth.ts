@@ -1,12 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
-
 export interface User {
   id: string
   icNumber: string
-  role: UserRole
+  role: 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
   hospitalId?: string
   doctorId?: string
   fullName?: string
@@ -18,16 +16,12 @@ interface AuthState {
   token: string | null
   user: User | null
   isAuthenticated: boolean
+  isHospitalVerified: boolean
   _hasHydrated: boolean
   login: (token: string, user: User) => void
+  completeHospitalVerification: () => void
   logout: () => void
   setHasHydrated: (state: boolean) => void
-}
-
-function clearLegacyAuthKeys() {
-  if (typeof localStorage === 'undefined') return
-  localStorage.removeItem('medlink-token')
-  localStorage.removeItem('medlink-user')
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -36,43 +30,40 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       isAuthenticated: false,
+      isHospitalVerified: false,
       _hasHydrated: false,
 
       login: (token: string, user: User) => {
-        clearLegacyAuthKeys()
+        const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin'
         set({
           token,
           user,
-          isAuthenticated: Boolean(token && user),
+          isAuthenticated: true,
+          isHospitalVerified: !requiresHospitalStep,
         })
       },
 
+      completeHospitalVerification: () => {
+        set({ isHospitalVerified: true })
+      },
+
       logout: () => {
-        clearLegacyAuthKeys()
         set({
           token: null,
           user: null,
           isAuthenticated: false,
+          isHospitalVerified: false,
         })
       },
 
-      setHasHydrated: (hydrated: boolean) => {
-        set((state) => ({
-          _hasHydrated: hydrated,
-          isAuthenticated: Boolean(state.token && state.user),
-        }))
+      setHasHydrated: (state: boolean) => {
+        set({ _hasHydrated: state })
       },
     }),
     {
       name: 'medlink-auth',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        token: state.token,
-        user: state.user,
-        isAuthenticated: Boolean(state.token && state.user),
-      }),
       onRehydrateStorage: () => (state) => {
-        clearLegacyAuthKeys()
         state?.setHasHydrated(true)
       },
     }

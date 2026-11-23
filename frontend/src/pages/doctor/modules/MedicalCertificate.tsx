@@ -1,9 +1,7 @@
-import { useToast } from '@/components/ui/use-toast'
-import { useAuthStore } from '@/store/auth'
-import { getHospitalTheme } from '@/lib/hospital-themes'
-import { formatDoctorName } from '@/lib/utils'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useAuthStore } from '@/store/auth'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 import {
   FileText, Calendar, Clock, Printer, Send,
   User, Building2, CheckCircle2, AlertTriangle,
@@ -34,16 +32,17 @@ interface MedicalCertificateProps {
 
 export default function MedicalCertificate({
   patientName = 'Ahmad bin Abdullah',
-  patientIC = '880101-14-5678',
+  patientIC = '880515-14-5678',
   diagnosis = 'Upper Respiratory Tract Infection (URTI)',
   doctorName,
   hospitalName,
   onSubmit
 }: MedicalCertificateProps) {
-  const { toast } = useToast()
   const { user } = useAuthStore()
-  const resolvedDoctorName = doctorName || formatDoctorName(user?.fullName)
-  const resolvedHospitalName = hospitalName || getHospitalTheme(user?.hospitalId).name
+  const theme = getHospitalTheme(user?.hospitalId)
+  const resolvedDoctorName = doctorName || user?.fullName || 'Dr. Lee Wei Ming'
+  const resolvedHospitalName = hospitalName || theme.name
+
   const [formData, setFormData] = useState<MCData>({
     patientName,
     icNumber: patientIC,
@@ -59,48 +58,33 @@ export default function MedicalCertificate({
   const [mcNumber] = useState(`MC/${new Date().getFullYear()}/${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`)
 
   const updateField = (field: keyof MCData, value: string | number | boolean) => {
-    setFormData({ ...formData, [field]: value })
-    if (field === 'daysOff' && typeof value === 'number') {
-      const start = new Date(formData.startDate)
-      const end = new Date(start.getTime() + (value - 1) * 86400000)
-      setFormData(prev => ({
-        ...prev,
-        [field]: value,
-        endDate: end.toISOString().split('T')[0]
-      }))
-    }
-    if (field === 'startDate' && typeof value === 'string') {
-      const start = new Date(value)
-      const end = new Date(start.getTime() + (formData.daysOff - 1) * 86400000)
-      setFormData(prev => ({
-        ...prev,
-        [field]: value,
-        endDate: end.toISOString().split('T')[0]
-      }))
-    }
+    setFormData(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === 'daysOff' && typeof value === 'number') {
+        const start = new Date(prev.startDate)
+        next.endDate = new Date(start.getTime() + (value - 1) * 86400000).toISOString().split('T')[0]
+      } else if (field === 'startDate' && typeof value === 'string') {
+        const start = new Date(value)
+        next.endDate = new Date(start.getTime() + (prev.daysOff - 1) * 86400000).toISOString().split('T')[0]
+      }
+      return next
+    })
   }
 
   const handleSubmit = () => {
     onSubmit?.(formData)
-    setShowPreview(true)
-    toast({
-      title: 'Medical Certificate Issued',
-      description: `${mcNumber} generated for ${formData.patientName} (${formData.daysOff} day(s)).`,
-    })
   }
 
-  const formatMalaysianDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('ms-MY', {
+  const formatMalaysianDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('ms-MY', {
       day: 'numeric',
       month: 'long',
-      year: 'numeric'
+      year: 'numeric',
     })
-  }
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Medical Certificate (MC)</h2>
           <p className="text-gray-500">Medical Certificate • Sick Leave</p>
@@ -115,7 +99,6 @@ export default function MedicalCertificate({
             {showPreview ? 'Edit' : 'Preview'}
           </motion.button>
           <motion.button
-            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -135,13 +118,12 @@ export default function MedicalCertificate({
       </div>
 
       {showPreview ? (
-        /* MC Preview */
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl border-2 border-gray-200 shadow-xl overflow-hidden max-w-2xl mx-auto"
         >
-                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
@@ -159,25 +141,20 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-                    <div className="p-8">
+          <div className="p-8">
             <h2 className="text-2xl font-bold text-center text-gray-800 mb-6 border-b-2 border-gray-200 pb-4">
-              MEDICAL CERTIFICATE<br />
-              <span className="text-base font-normal text-gray-500">MEDICAL CERTIFICATE</span>
+              MEDICAL CERTIFICATE
             </h2>
 
             <div className="space-y-4 text-gray-700">
-              <p>
-                This is to certify that
-              </p>
+              <p>This is to certify that</p>
 
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-xl font-bold text-gray-800">{formData.patientName}</p>
                 <p className="text-gray-600">IC No: {formData.icNumber}</p>
               </div>
 
-              <p>
-                has been examined and found unfit for work for
-              </p>
+              <p>has been examined and found unfit for work for</p>
 
               <div className="flex items-center justify-center gap-4 py-4">
                 <span className="text-4xl font-bold text-blue-600">{formData.daysOff}</span>
@@ -215,14 +192,14 @@ export default function MedicalCertificate({
               )}
             </div>
 
-                        <div className="mt-8 pt-6 border-t-2 border-gray-200">
+            <div className="mt-8 pt-6 border-t-2 border-gray-200">
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-sm text-gray-500">Date:</p>
                   <p className="font-medium text-gray-800">{formatMalaysianDate(new Date().toISOString())}</p>
                 </div>
                 <div className="text-right">
-                  <div className="w-40 border-b-2 border-gray-400 mb-2"></div>
+                  <div className="w-40 border-b-2 border-gray-400 mb-2" />
                   <p className="font-semibold text-gray-800">{resolvedDoctorName}</p>
                   <p className="text-sm text-gray-500">Medical Officer</p>
                   <p className="text-xs text-gray-400">MMC No: 12345</p>
@@ -231,16 +208,15 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-                    <div className="bg-gray-50 p-4 text-center border-t border-gray-200">
+          <div className="bg-gray-50 p-4 text-center border-t border-gray-200">
             <p className="text-xs text-gray-400">
               This certificate is electronically generated and valid without signature
             </p>
           </div>
         </motion.div>
       ) : (
-        /* Edit Form */
         <div className="grid grid-cols-2 gap-6">
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-blue-600" />
               Patient Information
@@ -280,7 +256,7 @@ export default function MedicalCertificate({
             </div>
           </div>
 
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-600" />
               Sick Leave Details
@@ -306,7 +282,7 @@ export default function MedicalCertificate({
                   <input
                     type="number"
                     value={formData.daysOff}
-                    onChange={(e) => updateField('daysOff', parseInt(e.target.value) || 1)}
+                    onChange={(e) => updateField('daysOff', parseInt(e.target.value, 10) || 1)}
                     className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-blue-500"
                     min="1"
                     max="14"
@@ -371,11 +347,8 @@ export default function MedicalCertificate({
         </div>
       )}
 
-            <div className="grid grid-cols-3 gap-4">
-        <motion.div
-          className="p-4 bg-blue-50 rounded-xl border border-blue-100"
-          whileHover={{ y: -2 }}
-        >
+      <div className="grid grid-cols-3 gap-4">
+        <motion.div className="p-4 bg-blue-50 rounded-xl border border-blue-100" whileHover={{ y: -2 }}>
           <div className="flex items-center gap-3">
             <FileText className="w-8 h-8 text-blue-600" />
             <div>
@@ -385,10 +358,7 @@ export default function MedicalCertificate({
           </div>
         </motion.div>
 
-        <motion.div
-          className="p-4 bg-emerald-50 rounded-xl border border-emerald-100"
-          whileHover={{ y: -2 }}
-        >
+        <motion.div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100" whileHover={{ y: -2 }}>
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             <div>
@@ -398,10 +368,7 @@ export default function MedicalCertificate({
           </div>
         </motion.div>
 
-        <motion.div
-          className="p-4 bg-amber-50 rounded-xl border border-amber-100"
-          whileHover={{ y: -2 }}
-        >
+        <motion.div className="p-4 bg-amber-50 rounded-xl border border-amber-100" whileHover={{ y: -2 }}>
           <div className="flex items-center gap-3">
             <Clock className="w-8 h-8 text-amber-600" />
             <div>

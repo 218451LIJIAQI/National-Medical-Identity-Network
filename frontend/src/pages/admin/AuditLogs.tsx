@@ -1,92 +1,78 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useToast } from '@/components/ui/use-toast'
 import { centralApi } from '@/lib/api'
-import { downloadTextFile, formatDateTime } from '@/lib/utils'
+import { EmergencyReportModal } from '@/components/EmergencyReportModal'
 import {
-  Search, Shield, Download, AlertTriangle, CheckCircle, Loader2,
-  RefreshCw, ChevronLeft, ChevronRight,
+  Search, Shield, Eye, Download, Building2, Clock, AlertTriangle, CheckCircle, Loader2,
+  Activity, FileText, Zap, Filter, RefreshCw, ChevronLeft, ChevronRight, Calendar, Siren
 } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
+import { motion, AnimatePresence } from 'framer-motion'
 
-interface NormalizedAuditRow {
+interface AuditLog {
   id: string
   timestamp: string
-  actionCode: string
-  actorName: string
-  actorRole: string
-  targetIcNumber: string
-  hospitalName: string
-  success: boolean
-  details: string
+  action: string
+  userId: string
+  userName: string
+  userRole: string
+  targetIcNumber?: string
+  sourceHospital: string
+  targetHospitals?: string[]
+  status: 'success' | 'denied' | 'error'
+  details?: string
 }
 
-const ITEMS_PER_PAGE = 12
+const ITEMS_PER_PAGE = 10
 
-const ACTION_BADGES: Record<string, { className: string; label: string }> = {
-  CROSS_HOSPITAL_QUERY: { className: 'bg-blue-100 text-blue-700', label: 'Cross-Hospital Query' },
-  RECORD_VIEW: { className: 'bg-emerald-100 text-emerald-700', label: 'Record View' },
-  RECORD_CREATE: { className: 'bg-purple-100 text-purple-700', label: 'Record Create' },
-  PATIENT_CONSENT_UPDATE: { className: 'bg-amber-100 text-amber-800', label: 'Consent Update' },
-  ACCESS_DENIED: { className: 'bg-red-100 text-red-700', label: 'Access Denied' },
-  EMERGENCY_ACCESS: { className: 'bg-orange-100 text-orange-800', label: 'Emergency Break-Glass' },
-  LOGIN: { className: 'bg-slate-100 text-slate-700', label: 'Sign In' },
-  LOGOUT: { className: 'bg-slate-100 text-slate-600', label: 'Sign Out' },
+const ACTION_MAP: Record<string, string> = {
+  query: 'CROSS_HOSPITAL_QUERY',
+  create: 'RECORD_CREATE',
+  login: 'LOGIN',
+  logout: 'LOGOUT',
+  emergency: 'EMERGENCY_ACCESS',
+  emergency_access: 'EMERGENCY_ACCESS',
 }
 
 export default function AuditLogs() {
-  const { toast } = useToast()
-  const [logs, setLogs] = useState<NormalizedAuditRow[]>([])
+  const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterAction, setFilterAction] = useState('all')
+  const [filterAction, setFilterAction] = useState<string>('all')
+  const [refreshing, setRefreshing] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [selectedEmergency, setSelectedEmergency] = useState<AuditLog | null>(null)
 
   const loadLogs = async () => {
     try {
       const response = await centralApi.getAuditLogs({
-        limit: 150,
+        limit: 100,
         startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        endDate: endDate || undefined
       })
       if (response.success && response.data) {
-        const mapped: NormalizedAuditRow[] = response.data.map((log) => {
-          let actionCode = 'RECORD_VIEW'
-          if (!log.success && (log.action === 'query' || log.action === 'view')) {
-            actionCode = 'ACCESS_DENIED'
-          } else if (log.action === 'query') {
-            actionCode = 'CROSS_HOSPITAL_QUERY'
-          } else if (log.action === 'create') {
-            actionCode = 'RECORD_CREATE'
-          } else if (log.action === 'update') {
-            actionCode = 'PATIENT_CONSENT_UPDATE'
-          } else if (log.action === 'emergency_access' || log.action === 'emergency') {
-            actionCode = 'EMERGENCY_ACCESS'
-          } else if (log.action === 'login') {
-            actionCode = 'LOGIN'
-          } else if (log.action === 'logout') {
-            actionCode = 'LOGOUT'
-          }
-
-          return {
-            id: log.id,
-            timestamp: log.timestamp,
-            actionCode,
-            actorName: log.actorName || log.actorId || 'System',
-            actorRole: log.actorType,
-            targetIcNumber: log.targetIcNumber || '-',
-            hospitalName: log.hospitalName || log.actorHospitalId || 'Central Hub',
-            success: log.success,
-            details: log.details,
-          }
-        })
-        setLogs(mapped)
+        const apiLogs = (response.data as Array<Record<string, unknown>>).map((log) => ({
+          id: String(log.id || ''),
+          timestamp: String(log.timestamp || ''),
+          action: ACTION_MAP[String(log.action)] || 'RECORD_VIEW',
+          userId: String(log.actorId || '').slice(0, 12) || 'System',
+          userName: String(log.actorName || 'Unknown'),
+          userRole: String(log.actorType || 'unknown'),
+          targetIcNumber: log.targetIcNumber ? String(log.targetIcNumber) : undefined,
+          sourceHospital: String(log.hospitalName || log.actorHospitalId || 'Central Hub'),
+          targetHospitals: log.targetHospitalId ? [String(log.targetHospitalId)] : undefined,
+          status: log.success ? 'success' as const : 'denied' as const,
+          details: log.details ? String(log.details) : undefined,
+        }))
+        setLogs(apiLogs)
       }
+    } catch (error) {
+      console.error('Failed to load audit logs:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -94,217 +80,438 @@ export default function AuditLogs() {
   }
 
   useEffect(() => {
-    void loadLogs()
-  }, [startDate, endDate])
+    loadLogs()
+  }, [])
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadLogs()
+  }
+
+  const filteredLogs = logs.filter(log => {
+    const matchesSearch =
+      log.targetIcNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.sourceHospital.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesFilter = filterAction === 'all' || log.action === filterAction
+
+    return matchesSearch && matchesFilter
+  })
+  const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   useEffect(() => {
     setCurrentPage(1)
   }, [searchTerm, filterAction])
 
-  const filteredLogs = logs.filter((row) => {
-    const q = searchTerm.toLowerCase()
-    const matchesSearch =
-      !q ||
-      row.targetIcNumber.toLowerCase().includes(q) ||
-      row.actorName.toLowerCase().includes(q) ||
-      row.hospitalName.toLowerCase().includes(q) ||
-      row.details.toLowerCase().includes(q)
-    const matchesAction = filterAction === 'all' || row.actionCode === filterAction
-    return matchesSearch && matchesAction
-  })
+  const getActionBadge = (action: string) => {
+    const actionStyles: Record<string, { color: string; label: string }> = {
+      'CROSS_HOSPITAL_QUERY': { color: 'bg-blue-100 text-blue-700', label: 'Cross-Hospital Query' },
+      'RECORD_VIEW': { color: 'bg-green-100 text-green-700', label: 'Record View' },
+      'RECORD_CREATE': { color: 'bg-purple-100 text-purple-700', label: 'Record Create' },
+      'ACCESS_DENIED': { color: 'bg-red-100 text-red-700', label: 'Access Denied' },
+      'PATIENT_CONSENT_UPDATE': { color: 'bg-yellow-100 text-yellow-700', label: 'Consent Update' },
+      'EMERGENCY_ACCESS': { color: 'bg-orange-100 text-orange-700', label: 'Emergency Access' },
+    }
+    const style = actionStyles[action] || { color: 'bg-gray-100 text-gray-700', label: action }
+    return <Badge className={style.color}>{style.label}</Badge>
+  }
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE))
-  const paginatedLogs = filteredLogs.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
-
-  const handleExportCsv = () => {
-    const header = ['Timestamp', 'Action', 'Actor', 'Role', 'Hospital', 'Target IC', 'Status', 'Details']
-    const escapeCsv = (val: string) => `"${val.replace(/"/g, '""')}"`
-    const rows = filteredLogs.map((r) =>
-      [
-        r.timestamp,
-        r.actionCode,
-        r.actorName,
-        r.actorRole,
-        r.hospitalName,
-        r.targetIcNumber,
-        r.success ? 'SUCCESS' : 'DENIED',
-        r.details,
-      ]
-        .map(escapeCsv)
-        .join(',')
-    )
-    downloadTextFile(
-      `medlink-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`,
-      [header.join(','), ...rows].join('\n'),
-      'text/csv;charset=utf-8'
-    )
-    toast({
-      title: 'Audit CSV Exported',
-      description: `Downloaded ${filteredLogs.length} audit log record(s).`,
-    })
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'denied':
+        return <AlertTriangle className="w-4 h-4 text-red-500" />
+      default:
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />
+    }
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg">
-            <Shield className="w-7 h-7" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Security &amp; Access Audit Trail</h1>
-            <p className="text-sm text-gray-500">Immutable record of cross-hospital queries, consent updates, and break-glass events</p>
-          </div>
-        </div>
+  const stats = [
+    {
+      label: 'Cross-Hospital Queries',
+      value: logs.filter(l => l.action === 'CROSS_HOSPITAL_QUERY').length,
+      icon: Eye,
+      color: 'from-blue-500 to-cyan-500',
+      bgColor: 'bg-blue-50',
+      iconColor: 'text-blue-600'
+    },
+    {
+      label: 'Successful Actions',
+      value: logs.filter(l => l.status === 'success').length,
+      icon: CheckCircle,
+      color: 'from-emerald-500 to-green-500',
+      bgColor: 'bg-emerald-50',
+      iconColor: 'text-emerald-600'
+    },
+    {
+      label: 'Blocked Attempts',
+      value: logs.filter(l => l.status === 'denied').length,
+      icon: AlertTriangle,
+      color: 'from-red-500 to-rose-500',
+      bgColor: 'bg-red-50',
+      iconColor: 'text-red-600'
+    },
+    {
+      label: 'Emergency Access',
+      value: logs.filter(l => l.action === 'EMERGENCY_ACCESS').length,
+      icon: Zap,
+      color: 'from-amber-500 to-orange-500',
+      bgColor: 'bg-amber-50',
+      iconColor: 'text-amber-600'
+    },
+  ]
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setRefreshing(true)
-              void loadLogs()
-            }}
-            disabled={refreshing}
-            className="gap-2 rounded-xl"
+  return (
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
+        <div className="flex items-center gap-4">
+          <motion.div
+            className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-500/30"
+            whileHover={{ scale: 1.05, rotate: 5 }}
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button onClick={handleExportCsv} className="gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
-            <Download className="w-4 h-4" />
-            Export CSV
-          </Button>
+            <Shield className="w-8 h-8 text-white" />
+          </motion.div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
+            <p className="text-gray-500">Monitor all system activities and access patterns</p>
+          </div>
         </div>
+        <div className="flex items-center gap-3">
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              variant="outline"
+              className="gap-2 h-11 px-5 rounded-xl"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button className="gap-2 h-11 px-5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+          >
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
+              <div className={`h-1 bg-gradient-to-r ${stat.color}`} />
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+                  </div>
+                  <div className={`p-3 ${stat.bgColor} rounded-xl`}>
+                    <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-      <Card className="border-slate-200/80">
-        <CardContent className="p-5 space-y-4">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search IC, actor, hospital..."
-                className="pl-9"
-              />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="border-0 shadow-lg">
+          <CardContent className="py-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Input
+                    placeholder="Search by IC number, user ID, or hospital..."
+                    className="pl-12 h-12 rounded-xl border-gray-200 focus:border-violet-500 focus:ring-violet-500/20"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-gray-400" />
+                  <select
+                    title="Filter by action type"
+                    className="h-12 border border-gray-200 rounded-xl px-4 pr-10 text-sm bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                    value={filterAction}
+                    onChange={(e) => setFilterAction(e.target.value)}
+                  >
+                    <option value="all">All Actions</option>
+                    <option value="CROSS_HOSPITAL_QUERY">Cross-Hospital Queries</option>
+                    <option value="RECORD_VIEW">Record Views</option>
+                    <option value="RECORD_CREATE">Record Creates</option>
+                    <option value="LOGIN">Logins</option>
+                    <option value="EMERGENCY_ACCESS">Emergency Access</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-violet-50 rounded-xl">
+                <div className="flex items-center gap-2 text-violet-700">
+                  <Calendar className="w-5 h-5" />
+                  <span className="font-medium text-sm">Date Range:</span>
+                </div>
+                <div className="flex flex-1 items-center gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">From</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-10 rounded-lg"
+                    />
+                  </div>
+                  <span className="text-gray-400 mt-5">→</span>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">To</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-10 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-5 sm:mt-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStartDate('')
+                      setEndDate('')
+                    }}
+                    className="h-10"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setRefreshing(true)
+                      loadLogs()
+                    }}
+                    className="h-10 bg-violet-600 hover:bg-violet-700"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-            <select
-              value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">All Event Types</option>
-              {Object.entries(ACTION_BADGES).map(([code, meta]) => (
-                <option key={code} value={code}>{meta.label}</option>
-              ))}
-            </select>
-
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              aria-label="Start date"
-            />
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              aria-label="End date"
-            />
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-gray-500">
-                  <th className="py-3 px-3">Timestamp</th>
-                  <th className="py-3 px-3">Action</th>
-                  <th className="py-3 px-3">Actor</th>
-                  <th className="py-3 px-3">Hospital</th>
-                  <th className="py-3 px-3">Target IC</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedLogs.map((row) => {
-                  const badge = ACTION_BADGES[row.actionCode] || {
-                    className: 'bg-gray-100 text-gray-700',
-                    label: row.actionCode,
-                  }
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50/80">
-                      <td className="py-3 px-3 whitespace-nowrap text-xs text-gray-500">
-                        {formatDateTime(row.timestamp)}
-                      </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <Badge className={badge.className}>{badge.label}</Badge>
-                      </td>
-                      <td className="py-3 px-3 font-medium text-gray-900">{row.actorName}</td>
-                      <td className="py-3 px-3 text-gray-600">{row.hospitalName}</td>
-                      <td className="py-3 px-3 font-mono text-xs">{row.targetIcNumber}</td>
-                      <td className="py-3 px-3">
-                        {row.success ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
-                            <CheckCircle className="w-3.5 h-3.5" /> Allowed
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-red-600 font-medium">
-                            <AlertTriangle className="w-3.5 h-3.5" /> Denied
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-gray-600 max-w-xs truncate" title={row.details}>
-                        {row.details}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
-            <span>
-              Showing {paginatedLogs.length} of {filteredLogs.length} event(s)
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-0 shadow-lg overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500" />
+          <CardHeader className="border-b bg-gray-50/50">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="w-5 h-5 text-violet-600" />
+                Activity Timeline
+              </CardTitle>
+              <Badge variant="secondary" className="rounded-full">
+                {filteredLogs.length} entries
+              </Badge>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <AnimatePresence>
+              {paginatedLogs.length === 0 ? (
+                <div className="p-12 text-center text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No logs found matching your criteria</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {paginatedLogs.map((log, index) => (
+                    <motion.div
+                      key={log.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        log.action === 'EMERGENCY_ACCESS'
+                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-l-4 border-orange-500 hover:from-orange-100 hover:to-red-100'
+                          : log.status === 'denied'
+                            ? 'bg-red-50/50'
+                            : ''
+                      }`}
+                      onClick={() => log.action === 'EMERGENCY_ACCESS' && setSelectedEmergency(log)}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-1 p-2 rounded-full ${
+                          log.action === 'EMERGENCY_ACCESS'
+                            ? 'bg-gradient-to-br from-orange-400 to-red-500 animate-pulse'
+                            : log.status === 'success'
+                              ? 'bg-emerald-100'
+                              : 'bg-red-100'
+                        }`}>
+                          {log.action === 'EMERGENCY_ACCESS'
+                            ? <Siren className="w-4 h-4 text-white" />
+                            : getStatusIcon(log.status)}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {getActionBadge(log.action)}
+                            <span className="text-gray-400">•</span>
+                            <span className="text-sm font-semibold text-gray-800">{log.userName}</span>
+                            <Badge variant="outline" className="font-normal text-xs">
+                              {log.userRole}
+                            </Badge>
+                            {log.targetIcNumber && (
+                              <>
+                                <span className="text-gray-400">•</span>
+                                <span className="text-sm text-gray-600">
+                                  Patient: <span className="font-mono font-medium">{log.targetIcNumber}</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
+                            <span className="flex items-center gap-1.5">
+                              <Building2 className="w-4 h-4" />
+                              {log.sourceHospital}
+                            </span>
+                            {log.targetHospitals && log.targetHospitals.length > 0 && (
+                              <span className="text-violet-600">
+                                → {log.targetHospitals.join(', ')}
+                              </span>
+                            )}
+                          </div>
+
+                          {log.details && (
+                            <p className="text-sm text-gray-600 mt-2 line-clamp-1">{log.details}</p>
+                          )}
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                            <Clock className="w-4 h-4" />
+                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {formatDate(log.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50/50">
+                <p className="text-sm text-gray-500">
+                  Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="h-9 px-3 rounded-lg"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Prev
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                      .map((page, idx, arr) => (
+                        <div key={page} className="flex items-center">
+                          {idx > 0 && arr[idx - 1] !== page - 1 && (
+                            <span className="px-2 text-gray-400">...</span>
+                          )}
+                          <Button
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className={`h-9 w-9 p-0 rounded-lg ${
+                              currentPage === page
+                                ? 'bg-violet-600 hover:bg-violet-700'
+                                : ''
+                            }`}
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-9 px-3 rounded-lg"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <EmergencyReportModal
+        report={selectedEmergency ? {
+          id: selectedEmergency.id,
+          timestamp: selectedEmergency.timestamp,
+          targetIcNumber: selectedEmergency.targetIcNumber,
+          actorRole: selectedEmergency.userRole,
+          actorId: selectedEmergency.userId,
+          sourceLocation: selectedEmergency.sourceHospital,
+          details: selectedEmergency.details,
+          granted: selectedEmergency.status === 'success',
+        } : null}
+        onClose={() => setSelectedEmergency(null)}
+      />
+    </motion.div>
   )
 }

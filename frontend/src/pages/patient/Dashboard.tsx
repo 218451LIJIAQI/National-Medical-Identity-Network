@@ -4,287 +4,415 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth'
-import { centralApi, type AuditLogDto } from '@/lib/api'
-import { formatDate, formatIC, formatRelativeTime } from '@/lib/utils'
+import { centralApi } from '@/lib/api'
+import { formatTimeAgo, formatActorDisplayName } from '@/lib/utils'
 import {
-  Heart, FileText, Building2, Activity, AlertTriangle, Shield,
-  ArrowRight, CreditCard, Pill, Calendar, Loader2,
+  User, Heart, FileText, Building2,
+  Activity, AlertTriangle, Shield, ArrowRight,
+  CreditCard, Pill, Calendar
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 
-interface PatientSummary {
-  fullName: string
-  bloodType: string
-  allergies: string[]
-  chronicConditions: string[]
+interface PatientData {
   hospitalsCount: number
   recordsCount: number
-  activeMedicationsCount: number
-  lastVisitDate: string
+  lastVisit: string
+  allergies: string[]
+  bloodType: string
+  fullName: string
+}
+
+interface AccessLog {
+  id: string
+  timestamp: string
+  action: string
+  actorId: string
+  actorName: string
+  actorType: string
+  actorHospitalId?: string
+  hospitalName: string
+  details: string
+  success: boolean
 }
 
 export default function PatientDashboard() {
   const { user } = useAuthStore()
-  const [summary, setSummary] = useState<PatientSummary>({
-    fullName: '',
-    bloodType: 'Unknown',
-    allergies: [],
-    chronicConditions: [],
+  const [patientData, setPatientData] = useState<PatientData>({
     hospitalsCount: 0,
     recordsCount: 0,
-    activeMedicationsCount: 0,
-    lastVisitDate: 'No visits yet',
+    lastVisit: '-',
+    allergies: [],
+    bloodType: '',
+    fullName: '',
   })
-  const [accessLogs, setAccessLogs] = useState<AuditLogDto[]>([])
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [accessLogsLoading, setAccessLogsLoading] = useState(true)
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function loadPatientData() {
       if (!user?.icNumber) return
-      setLoading(true)
       try {
-        const [queryRes, patientRes, logsRes] = await Promise.all([
+        const [queryRes, patientRes] = await Promise.all([
           centralApi.queryPatient(user.icNumber),
           centralApi.getPatient(user.icNumber),
-          centralApi.getMyAccessLogs(8),
         ])
 
         let hospitalsCount = 0
         let recordsCount = 0
-        let activeMedicationsCount = 0
-        let latestVisit = ''
+        let lastVisit = '-'
 
         if (queryRes.success && queryRes.data) {
-          const withRecords = queryRes.data.hospitals.filter((h) => h.recordCount > 0)
-          hospitalsCount = withRecords.length
+          const hospitalsWithRecords = queryRes.data.hospitals.filter((h) => h.recordCount > 0)
+          hospitalsCount = hospitalsWithRecords.length
           recordsCount = queryRes.data.totalRecords
-
-          const activeMedNames = new Set<string>()
-          for (const hosp of queryRes.data.hospitals) {
-            for (const rec of hosp.records || []) {
-              if (rec.visitDate && (!latestVisit || rec.visitDate > latestVisit)) {
-                latestVisit = rec.visitDate
-              }
-              for (const rx of rec.prescriptions || []) {
-                if (rx.isActive) {
-                  activeMedNames.add(rx.medicationName.toLowerCase())
-                }
-              }
-            }
-          }
-          activeMedicationsCount = activeMedNames.size
+          lastVisit = hospitalsWithRecords.length > 0 ? 'Recent' : '-'
         }
 
-        const p = patientRes.success ? patientRes.data?.patient : null
-
-        setSummary({
-          fullName: p?.fullName || user.fullName || 'Patient',
-          bloodType: p?.bloodType || 'Not recorded',
-          allergies: p?.allergies || [],
-          chronicConditions: p?.chronicConditions || [],
+        const p = patientRes.success ? (patientRes.data?.patient as Record<string, unknown> | undefined) : undefined
+        setPatientData({
           hospitalsCount,
           recordsCount,
-          activeMedicationsCount,
-          lastVisitDate: latestVisit ? formatDate(latestVisit) : 'No visits yet',
+          lastVisit,
+          allergies: (p?.allergies as string[]) || [],
+          bloodType: (p?.bloodType as string) || '',
+          fullName: (p?.fullName as string) || '',
         })
-
-        if (logsRes.success && logsRes.data) {
-          setAccessLogs(logsRes.data)
-        }
+      } catch (error) {
+        console.error('Failed to load patient data:', error)
       } finally {
         setLoading(false)
       }
     }
+    loadPatientData()
+  }, [user?.icNumber])
 
-    void loadDashboard()
-  }, [user?.icNumber, user?.fullName])
+  useEffect(() => {
+    async function loadAccessLogs() {
+      try {
+        const response = await centralApi.getMyAccessLogs(10)
+        if (response.success && response.data) {
+          setAccessLogs(response.data)
+        }
+      } catch (error) {
+        console.error('Failed to load access logs:', error)
+      } finally {
+        setAccessLogsLoading(false)
+      }
+    }
+    loadAccessLogs()
+  }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading your health summary...</p>
-        </div>
-      </div>
-    )
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
   }
 
-  const statCards = [
-    {
-      label: 'Connected Hospitals',
-      value: summary.hospitalsCount,
-      sub: 'With indexed records',
-      icon: Building2,
-      iconWrap: 'bg-blue-100 text-blue-600',
-    },
-    {
-      label: 'Total Medical Visits',
-      value: summary.recordsCount,
-      sub: 'Across MedLink network',
-      icon: FileText,
-      iconWrap: 'bg-emerald-100 text-emerald-600',
-    },
-    {
-      label: 'Active Medications',
-      value: summary.activeMedicationsCount,
-      sub: 'Current prescriptions',
-      icon: Pill,
-      iconWrap: 'bg-violet-100 text-violet-600',
-    },
-    {
-      label: 'Latest Clinical Visit',
-      value: summary.lastVisitDate,
-      sub: 'Most recent encounter',
-      icon: Calendar,
-      iconWrap: 'bg-amber-100 text-amber-600',
-    },
-  ]
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 p-7 text-white shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <Badge className="bg-white/20 text-white border-white/30">
-              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
-              Universal MyKad Health Identity
-            </Badge>
-            <h1 className="text-3xl font-bold">{summary.fullName}</h1>
-            <p className="text-blue-100 font-mono text-sm">IC: {formatIC(user?.icNumber)}</p>
+    <motion.div
+      className="space-y-8"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <motion.div
+        variants={itemVariants}
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-8 text-white shadow-2xl shadow-emerald-500/25"
+      >
+        <motion.div
+          className="absolute -top-32 -right-32 w-80 h-80 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div
+          className="absolute -bottom-32 -left-32 w-96 h-96 bg-teal-300/20 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2], rotate: [0, -90, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] opacity-30"
+          style={{
+            background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+          }}
+          animate={{ scale: [0.8, 1.2, 0.8] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
+          <motion.div
+            className="relative"
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-white/30 rounded-2xl blur-xl"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.3, 0.5] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+            <div className="relative w-24 h-24 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shadow-xl">
+              <User className="w-12 h-12 drop-shadow-lg" />
+            </div>
+          </motion.div>
+
+          <div className="flex-1">
+            <motion.h1
+              className="text-4xl font-bold mb-2 drop-shadow-lg"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              {patientData.fullName || user?.fullName || 'Patient'}
+            </motion.h1>
+            <motion.div
+              className="flex flex-wrap items-center gap-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
+                <CreditCard className="w-4 h-4" />
+                <span className="font-mono text-sm">{user?.icNumber || 'XXXXXX-XX-XXXX'}</span>
+              </div>
+              {patientData.bloodType && (
+                <motion.div whileHover={{ scale: 1.05 }}>
+                  <Badge className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30 px-4 py-2 text-sm">
+                    <Heart className="w-4 h-4 mr-2 text-red-300" />
+                    Blood Type: {patientData.bloodType}
+                  </Badge>
+                </motion.div>
+              )}
+            </motion.div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="px-4 py-3 rounded-2xl bg-white/15 border border-white/20 text-center">
-              <p className="text-xs text-blue-100">Blood Type</p>
-              <p className="text-2xl font-black">{summary.bloodType}</p>
-            </div>
+          <motion.div
+            className="flex gap-3"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+          >
             <Link to="/patient/records">
-              <Button className="bg-white text-blue-700 hover:bg-blue-50 rounded-xl gap-2 h-11">
-                View All Records
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+              <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+                <Button variant="outline" className="bg-white text-emerald-600 hover:bg-emerald-50 border-emerald-200 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
+                  <FileText className="w-5 h-5" />
+                  My Records
+                </Button>
+              </motion.div>
             </Link>
-          </div>
+            <Link to="/patient/privacy">
+              <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+                <Button variant="ghost" className="border border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 gap-2 h-12 px-6 rounded-xl font-semibold">
+                  <Shield className="w-5 h-5" />
+                  Privacy
+                </Button>
+              </motion.div>
+            </Link>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => {
-          const Icon = card.icon
-          return (
-            <Card key={card.label} className="border-slate-200/80">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${card.iconWrap}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-                <p className="text-sm font-medium text-gray-700 mt-0.5">{card.label}</p>
-                <p className="text-xs text-gray-400">{card.sub}</p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="border-slate-200/80">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Heart className="w-5 h-5 text-rose-500" />
-                Clinical Alert Summary
-              </h2>
-              <Link to="/patient/privacy" className="text-xs font-semibold text-blue-600 hover:underline">
-                Manage Consent
-              </Link>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                Recorded Allergies
-              </p>
-              {summary.allergies.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {summary.allergies.map((item) => (
-                    <Badge key={item} variant="destructive" className="gap-1">
-                      <AlertTriangle className="w-3 h-3" />
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-emerald-600 font-medium">No known drug or food allergies</p>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                Chronic Conditions
-              </p>
-              {summary.chronicConditions.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {summary.chronicConditions.map((cond) => (
-                    <Badge key={cond} variant="secondary" className="px-3 py-1">
-                      {cond}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No chronic conditions recorded</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200/80">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-600" />
-                Recent Record Access Log
-              </h2>
-              <Link to="/patient/privacy" className="text-xs font-semibold text-blue-600 hover:underline">
-                Privacy Controls
-              </Link>
-            </div>
-
-            {accessLogs.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center">
-                No external hospital queries recorded yet.
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {accessLogs.slice(0, 5).map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
-                  >
-                    <div className="min-w-0 pr-3">
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {log.actorName || 'Healthcare Provider'}
+      {patientData.allergies.length > 0 && (
+        <motion.div variants={itemVariants}>
+          <Card className="border-0 shadow-lg bg-gradient-to-r from-red-50 to-orange-50 overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-stretch">
+                <div className="w-2 bg-gradient-to-b from-red-500 to-orange-500" />
+                <div className="flex-1 p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-red-100 rounded-xl">
+                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-red-900">⚠️ Allergies on File</p>
+                        <p className="text-red-700 text-sm mt-1">
+                          Please inform healthcare providers about these allergies
                         </p>
                       </div>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {log.hospitalName || 'MedLink Network'} &middot; {log.details}
-                      </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <Badge variant={log.success ? 'success' : 'destructive'} className="text-[11px]">
-                        {log.success ? 'Authorized' : 'Blocked'}
-                      </Badge>
-                      <p className="text-[11px] text-gray-400 mt-1">{formatRelativeTime(log.timestamp)}</p>
+                    <div className="flex gap-2">
+                      {patientData.allergies.map((allergy) => (
+                        <Badge key={allergy} variant="destructive" className="px-3 py-1">
+                          {allergy}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
-            )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          {
+            label: 'Hospitals Visited',
+            value: loading ? '-' : patientData.hospitalsCount,
+            icon: Building2,
+            gradient: 'from-blue-500 to-blue-600',
+            bgLight: 'bg-blue-50'
+          },
+          {
+            label: 'Medical Records',
+            value: loading ? '-' : patientData.recordsCount,
+            icon: FileText,
+            gradient: 'from-emerald-500 to-emerald-600',
+            bgLight: 'bg-emerald-50'
+          },
+          {
+            label: 'Active Medications',
+            value: '3',
+            icon: Pill,
+            gradient: 'from-violet-500 to-violet-600',
+            bgLight: 'bg-violet-50'
+          },
+          {
+            label: 'Last Visit',
+            value: loading ? '-' : patientData.lastVisit,
+            icon: Calendar,
+            gradient: 'from-amber-500 to-amber-600',
+            bgLight: 'bg-amber-50'
+          },
+        ].map((stat) => (
+          <motion.div
+            key={stat.label}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          >
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <div className={`h-1 bg-gradient-to-r ${stat.gradient}`} />
+              <CardContent className="pt-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                  </div>
+                  <div className={`p-3 ${stat.bgLight} rounded-xl`}>
+                    <stat.icon className="w-6 h-6 text-gray-700" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Link to="/patient/records">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden group">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-lg group-hover:shadow-xl transition-shadow">
+                      <FileText className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                        View My Medical Records
+                      </h3>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Access your complete medical history from all hospitals nationwide
+                      </p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </Link>
+
+          <Link to="/patient/privacy">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden group">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-4 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl shadow-lg group-hover:shadow-xl transition-shadow">
+                      <Shield className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg text-gray-900 group-hover:text-emerald-600 transition-colors">
+                        Privacy & Security Settings
+                      </h3>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Control who can access your medical records and sensitive data
+                      </p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </Link>
+        </div>
+      </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <Card className="border-0 shadow-lg">
+          <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Access to Your Records</h2>
+            <p className="text-sm text-gray-500">Track who has viewed your medical information</p>
+          </div>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {accessLogsLoading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 mt-2">Loading access logs...</p>
+                </div>
+              ) : accessLogs.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No recent access to your records</p>
+                  <p className="text-sm text-gray-400 mt-1">When healthcare providers view your records, it will appear here</p>
+                </div>
+              ) : (
+                accessLogs.map((log, i) => {
+                  const avatar = log.actorType === 'doctor' ? '👨‍⚕️' :
+                                 log.actorType === 'patient' ? '👤' : '🏥'
+                  const displayName = formatActorDisplayName(log.actorName, log.actorId, log.actorType)
+
+                  return (
+                    <motion.div
+                      key={log.id}
+                      className="p-4 hover:bg-gray-50 transition-colors"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center text-2xl">
+                          {avatar}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">{displayName}</p>
+                            <Badge variant="outline" className="text-xs">{log.hospitalName}</Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">{log.details || 'Viewed medical records'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-400">{formatTimeAgo(log.timestamp)}</p>
+                          <div className="flex items-center gap-1 justify-end mt-1">
+                            <Activity className="w-3 h-3 text-emerald-500" />
+                            <span className="text-xs text-emerald-600">{log.success ? 'Authorized' : 'Denied'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })
+              )}
+            </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

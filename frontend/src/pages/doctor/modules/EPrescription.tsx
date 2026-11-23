@@ -1,4 +1,3 @@
-import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -71,7 +70,6 @@ export default function EPrescription({
   existingMedications = ['Metformin 500mg', 'Amlodipine 5mg'],
   onSubmit
 }: EPrescriptionProps) {
-  const { toast } = useToast()
   const [medications, setMedications] = useState<Medication[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -136,8 +134,9 @@ export default function EPrescription({
   }
 
   const handleSubmit = () => {
-    onSubmit?.(medications)
-    toast({ title: 'e-Prescription Dispatched', description: `Sent ${medications.length} medication order(s) to Outpatient Pharmacy.` })
+    if (onSubmit) {
+      onSubmit(medications)
+    }
   }
 
   return (
@@ -159,7 +158,6 @@ export default function EPrescription({
             Send to Pharmacy
           </motion.button>
           <motion.button
-            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >

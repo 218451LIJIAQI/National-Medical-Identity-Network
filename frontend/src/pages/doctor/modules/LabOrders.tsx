@@ -1,4 +1,3 @@
-import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -17,6 +16,7 @@ interface LabTest {
   sampleType: string
   turnaround: string
 }
+
 const labTestCatalog = [
   { code: 'FBC', name: 'Full Blood Count', category: 'Hematology', sampleType: 'EDTA Blood', turnaround: '2 hours', fasting: false },
   { code: 'PT/INR', name: 'Prothrombin Time / INR', category: 'Hematology', sampleType: 'Citrate Blood', turnaround: '2 hours', fasting: false },
@@ -45,6 +45,13 @@ const labTestCatalog = [
 
 const categories = ['All', 'Hematology', 'Biochemistry', 'Microbiology', 'Serology']
 
+const CATEGORY_ICONS: Record<string, typeof Activity> = {
+  Hematology: Droplets,
+  Biochemistry: FlaskConical,
+  Microbiology: Microscope,
+  Serology: TestTube,
+}
+
 interface LabOrdersProps {
   patientName?: string
   patientIC?: string
@@ -56,7 +63,6 @@ export default function LabOrders({
   patientIC = '880515-14-5678',
   onSubmit
 }: LabOrdersProps) {
-  const { toast } = useToast()
   const [selectedTests, setSelectedTests] = useState<LabTest[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -70,13 +76,12 @@ export default function LabOrders({
   })
 
   const addTest = (test: typeof labTestCatalog[0]) => {
-    if (!selectedTests.find(t => t.code === test.code)) {
-      const newTest: LabTest = {
+    if (!selectedTests.some(t => t.code === test.code)) {
+      setSelectedTests([...selectedTests, {
         id: `lab-${Date.now()}-${test.code}`,
         ...test,
         urgent: false,
-      }
-      setSelectedTests([...selectedTests, newTest])
+      }])
     }
   }
 
@@ -90,31 +95,19 @@ export default function LabOrders({
     ))
   }
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'Hematology': return Droplets
-      case 'Biochemistry': return FlaskConical
-      case 'Microbiology': return Microscope
-      case 'Serology': return TestTube
-      default: return Activity
-    }
-  }
-
-  const handleSubmit = () => {
-    onSubmit?.(selectedTests)
-    toast({ title: 'Laboratory Order Submitted', description: `Queued ${selectedTests.length} pathology test(s).` })
-  }
+  const urgentCount = selectedTests.filter(t => t.urgent).length
+  const fastingCount = selectedTests.filter(t => t.fasting).length
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Laboratory Request</h2>
           <p className="text-gray-500">Laboratory Orders • Lab Investigation Request</p>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
-            onClick={handleSubmit}
+            onClick={() => onSubmit?.(selectedTests)}
             disabled={selectedTests.length === 0}
             className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl font-semibold shadow-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             whileHover={{ scale: 1.02 }}
@@ -124,7 +117,6 @@ export default function LabOrders({
             Submit Request
           </motion.button>
           <motion.button
-            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -134,7 +126,7 @@ export default function LabOrders({
         </div>
       </div>
 
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+      <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center">
             <FileText className="w-7 h-7 text-purple-600" />
@@ -149,7 +141,7 @@ export default function LabOrders({
         </div>
       </div>
 
-            <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Clinical Information
         </label>
@@ -162,7 +154,7 @@ export default function LabOrders({
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h3 className="font-semibold text-gray-800 mb-3">Test Catalog</h3>
             <div className="relative mb-3">
@@ -195,7 +187,7 @@ export default function LabOrders({
           <div className="max-h-96 overflow-y-auto">
             {filteredTests.map((test) => {
               const isSelected = selectedTests.some(t => t.code === test.code)
-              const Icon = getCategoryIcon(test.category)
+              const Icon = CATEGORY_ICONS[test.category] || Activity
 
               return (
                 <motion.button
@@ -237,7 +229,7 @@ export default function LabOrders({
           </div>
         </div>
 
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Selected Tests</h3>
@@ -321,20 +313,20 @@ export default function LabOrders({
             </AnimatePresence>
           </div>
 
-                    {selectedTests.length > 0 && (
+          {selectedTests.length > 0 && (
             <div className="p-4 border-t border-gray-100 bg-gradient-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-gray-800">Summary</p>
                   <p className="text-sm text-gray-600">
-                    {selectedTests.filter(t => t.urgent).length > 0 && (
+                    {urgentCount > 0 && (
                       <span className="text-red-600 font-medium">
-                        {selectedTests.filter(t => t.urgent).length} urgent •
+                        {urgentCount} urgent •
                       </span>
                     )}
-                    {' '}{selectedTests.filter(t => t.fasting).length > 0 && (
+                    {' '}{fastingCount > 0 && (
                       <span className="text-amber-600">
-                        {selectedTests.filter(t => t.fasting).length} require fasting
+                        {fastingCount} require fasting
                       </span>
                     )}
                   </p>

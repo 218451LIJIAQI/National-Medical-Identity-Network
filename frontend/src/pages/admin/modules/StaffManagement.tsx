@@ -35,17 +35,17 @@ const mockStaff: Staff[] = [
 ]
 
 const roleConfig = {
-  doctor: { label: 'Doktor', labelMY: 'Doktor', icon: Stethoscope, color: 'bg-blue-100 text-blue-700' },
-  nurse: { label: 'Nurse', labelMY: 'Jururawat', icon: Syringe, color: 'bg-pink-100 text-pink-700' },
-  admin: { label: 'Admin', labelMY: 'Pentadbir', icon: ClipboardList, color: 'bg-gray-100 text-gray-700' },
-  pharmacist: { label: 'Pharmacist', labelMY: 'Ahli Farmasi', icon: Building2, color: 'bg-green-100 text-green-700' },
-  technician: { label: 'Technician', labelMY: 'Juruteknik', icon: Building2, color: 'bg-purple-100 text-purple-700' },
+  doctor: { labelMY: 'Doktor', icon: Stethoscope, color: 'bg-blue-100 text-blue-700' },
+  nurse: { labelMY: 'Jururawat', icon: Syringe, color: 'bg-pink-100 text-pink-700' },
+  admin: { labelMY: 'Pentadbir', icon: ClipboardList, color: 'bg-gray-100 text-gray-700' },
+  pharmacist: { labelMY: 'Ahli Farmasi', icon: Building2, color: 'bg-green-100 text-green-700' },
+  technician: { labelMY: 'Juruteknik', icon: Building2, color: 'bg-purple-100 text-purple-700' },
 }
 
 const statusConfig = {
-  active: { label: 'Active', labelMY: 'Aktif', color: 'bg-green-100 text-green-700' },
-  on_leave: { label: 'On Leave', labelMY: 'Cuti', color: 'bg-yellow-100 text-yellow-700' },
-  inactive: { label: 'Inactive', labelMY: 'Tidak Aktif', color: 'bg-red-100 text-red-700' },
+  active: { labelMY: 'Aktif', color: 'bg-green-100 text-green-700' },
+  on_leave: { labelMY: 'Cuti', color: 'bg-yellow-100 text-yellow-700' },
+  inactive: { labelMY: 'Tidak Aktif', color: 'bg-red-100 text-red-700' },
 }
 
 export default function StaffManagement() {
@@ -72,7 +72,7 @@ export default function StaffManagement() {
 
   return (
     <div className="space-y-6">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
           <p className="text-gray-500">Pengurusan Kakitangan Hospital</p>
@@ -83,7 +83,7 @@ export default function StaffManagement() {
         </Button>
       </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -151,7 +151,7 @@ export default function StaffManagement() {
         </Card>
       </div>
 
-            <Card>
+      <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -168,6 +168,7 @@ export default function StaffManagement() {
                 value={filterRole}
                 onChange={(e) => setFilterRole(e.target.value)}
                 className="px-3 py-2 border rounded-lg text-sm"
+                title="Filter by Role"
               >
                 <option value="all">All Roles / Semua Jawatan</option>
                 <option value="doctor">Doktor</option>
@@ -180,6 +181,7 @@ export default function StaffManagement() {
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="px-3 py-2 border rounded-lg text-sm"
+                title="Filter by Status"
               >
                 <option value="all">All Status / Semua Status</option>
                 <option value="active">Aktif</option>
@@ -191,7 +193,7 @@ export default function StaffManagement() {
         </CardContent>
       </Card>
 
-            <Card>
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5" />
@@ -260,10 +262,10 @@ export default function StaffManagement() {
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit staff">
                             <Edit className="w-4 h-4 text-blue-600" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Remove staff">
                             <Trash2 className="w-4 h-4 text-red-600" />
                           </Button>
                         </div>

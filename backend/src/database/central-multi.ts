@@ -1,8 +1,8 @@
-import { AuditLog, CentralStats, Hospital, PatientIndex, User } from '../types';
+import { PatientIndex, AuditLog, Hospital, User } from '../types';
+import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
-import { getCentralDb } from './db-manager';
 
-function mapUser(row: {
+function mapUser(user: {
   id: string;
   icNumber: string;
   role: string;
@@ -12,27 +12,27 @@ function mapUser(row: {
   isActive: boolean;
 }): User {
   return {
-    id: row.id,
-    icNumber: row.icNumber,
-    role: row.role as User['role'],
-    hospitalId: row.hospitalId || undefined,
-    passwordHash: row.passwordHash,
-    lastLogin: row.lastLogin?.toISOString(),
-    isActive: row.isActive,
+    id: user.id,
+    icNumber: user.icNumber,
+    role: user.role as User['role'],
+    hospitalId: user.hospitalId || undefined,
+    passwordHash: user.passwordHash,
+    lastLogin: user.lastLogin?.toISOString(),
+    isActive: user.isActive,
   };
 }
 
 export async function getPatientIndex(icNumber: string): Promise<PatientIndex | null> {
   const index = await getCentralDb().patientIndex.findUnique({
     where: { icNumber },
-    include: { hospitals: true },
+    include: { hospitals: { select: { hospitalId: true } } },
   });
 
   if (!index) return null;
 
   return {
     icNumber: index.icNumber,
-    hospitals: index.hospitals.map((entry: { hospitalId: string }) => entry.hospitalId),
+    hospitals: index.hospitals.map((h: { hospitalId: string }) => h.hospitalId),
     lastUpdated: index.lastUpdated.toISOString(),
   };
 }
@@ -41,43 +41,38 @@ export async function updatePatientIndex(icNumber: string, hospitalId: string): 
   const prisma = getCentralDb();
   const existing = await prisma.patientIndex.findUnique({
     where: { icNumber },
-    include: { hospitals: true },
+    include: { hospitals: { select: { hospitalId: true } } },
   });
 
-  if (!existing) {
+  if (existing) {
+    const hasHospital = existing.hospitals.some((h: { hospitalId: string }) => h.hospitalId === hospitalId);
+    if (!hasHospital) {
+      await prisma.patientIndexHospital.create({
+        data: { icNumber, hospitalId },
+      });
+      await prisma.patientIndex.update({
+        where: { icNumber },
+        data: { lastUpdated: new Date() },
+      });
+    }
+  } else {
     await prisma.patientIndex.create({
       data: {
         icNumber,
         hospitals: { create: { hospitalId } },
       },
     });
-    return;
   }
-
-  const alreadyIndexed = existing.hospitals.some(
-    (entry: { hospitalId: string }) => entry.hospitalId === hospitalId
-  );
-  if (!alreadyIndexed) {
-    await prisma.patientIndexHospital.create({
-      data: { icNumber, hospitalId },
-    });
-  }
-
-  await prisma.patientIndex.update({
-    where: { icNumber },
-    data: { lastUpdated: new Date() },
-  });
 }
 
 export async function getAllPatientIndexes(): Promise<PatientIndex[]> {
   const indexes = await getCentralDb().patientIndex.findMany({
-    include: { hospitals: true },
-    orderBy: { lastUpdated: 'desc' },
+    include: { hospitals: { select: { hospitalId: true } } },
   });
 
   return indexes.map((idx: { icNumber: string; hospitals: { hospitalId: string }[]; lastUpdated: Date }) => ({
     icNumber: idx.icNumber,
-    hospitals: idx.hospitals.map((entry) => entry.hospitalId),
+    hospitals: idx.hospitals.map((h: { hospitalId: string }) => h.hospitalId),
     lastUpdated: idx.lastUpdated.toISOString(),
   }));
 }
@@ -87,24 +82,35 @@ export async function getHospitals(): Promise<Hospital[]> {
     where: { isActive: true },
   });
 
-  return hospitals.map((hospital: Hospital) => ({
-    id: hospital.id,
-    name: hospital.name,
-    shortName: hospital.shortName,
-    city: hospital.city,
-    state: hospital.state,
-    address: hospital.address,
-    phone: hospital.phone,
-    email: hospital.email,
-    apiEndpoint: hospital.apiEndpoint,
-    isActive: hospital.isActive,
+  return hospitals.map((h: {
+    id: string;
+    name: string;
+    shortName: string;
+    city: string;
+    state: string;
+    address: string;
+    phone: string;
+    email: string;
+    apiEndpoint: string;
+    isActive: boolean;
+  }) => ({
+    id: h.id,
+    name: h.name,
+    shortName: h.shortName,
+    city: h.city,
+    state: h.state,
+    address: h.address,
+    phone: h.phone,
+    email: h.email,
+    apiEndpoint: h.apiEndpoint,
+    isActive: h.isActive,
   }));
 }
 
 export async function initializeHospitals(): Promise<void> {
   const prisma = getCentralDb();
   for (const hospital of HOSPITALS) {
-    const payload = {
+    const data = {
       name: hospital.name,
       shortName: hospital.shortName,
       city: hospital.city,
@@ -112,53 +118,36 @@ export async function initializeHospitals(): Promise<void> {
       address: hospital.address,
       phone: hospital.phone,
       email: hospital.email,
-      apiEndpoint: hospital.apiEndpoint,
+      apiEndpoint: `http://localhost:${hospital.port}`,
       isActive: true,
     };
 
     await prisma.hospital.upsert({
       where: { id: hospital.id },
-      update: payload,
-      create: { id: hospital.id, ...payload },
+      update: data,
+      create: { id: hospital.id, ...data },
     });
   }
 }
 
 export async function getUserByIc(icNumber: string, role?: string): Promise<User | null> {
-  const where: { icNumber: string; isActive: boolean; role?: string } = {
-    icNumber,
-    isActive: true,
-  };
-  if (role) {
-    where.role = role;
-  }
+  const user = await getCentralDb().user.findFirst({
+    where: {
+      icNumber,
+      isActive: true,
+      ...(role ? { role } : {}),
+    },
+  });
 
-  const user = await getCentralDb().user.findFirst({ where });
   return user ? mapUser(user) : null;
 }
 
-export async function getUsersByIc(icNumber: string): Promise<User[]> {
-  const users = await getCentralDb().user.findMany({
-    where: { icNumber, isActive: true },
-  });
-  return users.map(mapUser);
-}
-
 export async function getUserById(id: string): Promise<User | null> {
-  const user = await getCentralDb().user.findUnique({ where: { id } });
-  if (!user || !user.isActive) return null;
-  return mapUser(user);
-}
-
-export async function getUsersByIds(ids: string[]): Promise<Map<string, User>> {
-  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
-  if (uniqueIds.length === 0) return new Map();
-
-  const users = await getCentralDb().user.findMany({
-    where: { id: { in: uniqueIds } },
+  const user = await getCentralDb().user.findUnique({
+    where: { id },
   });
 
-  return new Map(users.map((row: Parameters<typeof mapUser>[0]) => [row.id, mapUser(row)]));
+  return user && user.isActive ? mapUser(user) : null;
 }
 
 export async function updateUserLastLogin(id: string): Promise<void> {
@@ -171,31 +160,29 @@ export async function updateUserLastLogin(id: string): Promise<void> {
 export async function getBlockedHospitals(icNumber: string): Promise<string[]> {
   const settings = await getCentralDb().patientPrivacySetting.findMany({
     where: { icNumber, isBlocked: true },
+    select: { hospitalId: true },
   });
-  return settings.map((setting: { hospitalId: string }) => setting.hospitalId);
+  return settings.map((s: { hospitalId: string }) => s.hospitalId);
 }
 
-export async function setHospitalAccess(
-  icNumber: string,
-  hospitalId: string,
-  isBlocked: boolean
-): Promise<void> {
+export async function setHospitalAccess(icNumber: string, hospitalId: string, isBlocked: boolean): Promise<void> {
   await getCentralDb().patientPrivacySetting.upsert({
-    where: { icNumber_hospitalId: { icNumber, hospitalId } },
+    where: {
+      icNumber_hospitalId: { icNumber, hospitalId },
+    },
     update: { isBlocked },
     create: { icNumber, hospitalId, isBlocked },
   });
 }
 
-export async function getPrivacySettings(
-  icNumber: string
-): Promise<Array<{ hospitalId: string; isBlocked: boolean }>> {
+export async function getPrivacySettings(icNumber: string): Promise<Array<{ hospitalId: string; isBlocked: boolean }>> {
   const settings = await getCentralDb().patientPrivacySetting.findMany({
     where: { icNumber },
+    select: { hospitalId: true, isBlocked: true },
   });
-  return settings.map((setting: { hospitalId: string; isBlocked: boolean }) => ({
-    hospitalId: setting.hospitalId,
-    isBlocked: setting.isBlocked,
+  return settings.map((s: { hospitalId: string; isBlocked: boolean }) => ({
+    hospitalId: s.hospitalId,
+    isBlocked: s.isBlocked,
   }));
 }
 
@@ -204,11 +191,11 @@ export async function createAuditLog(log: Omit<AuditLog, 'id'>): Promise<void> {
     data: {
       timestamp: new Date(log.timestamp),
       action: log.action,
-      actorId: log.actorId || null,
+      actorId: log.actorId,
       actorType: log.actorType,
-      actorHospitalId: log.actorHospitalId || null,
-      targetIcNumber: log.targetIcNumber || null,
-      targetHospitalId: log.targetHospitalId || null,
+      actorHospitalId: log.actorHospitalId,
+      targetIcNumber: log.targetIcNumber,
+      targetHospitalId: log.targetHospitalId,
       details: log.details,
       ipAddress: log.ipAddress,
       success: log.success,
@@ -216,45 +203,28 @@ export async function createAuditLog(log: Omit<AuditLog, 'id'>): Promise<void> {
   });
 }
 
-export interface AuditLogFilters {
+export async function getAuditLogs(filters?: {
   actorId?: string;
   targetIcNumber?: string;
-  hospitalId?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
-}
-
-export async function getAuditLogs(filters?: AuditLogFilters): Promise<AuditLog[]> {
+}): Promise<AuditLog[]> {
   const where: Record<string, unknown> = {};
 
   if (filters?.actorId) where.actorId = filters.actorId;
   if (filters?.targetIcNumber) where.targetIcNumber = filters.targetIcNumber;
-
-  if (filters?.hospitalId) {
-    where.OR = [
-      { actorHospitalId: filters.hospitalId },
-      { targetHospitalId: filters.hospitalId },
-    ];
-  }
-
   if (filters?.startDate || filters?.endDate) {
-    const timestampFilter: { gte?: Date; lte?: Date } = {};
-    if (filters.startDate) timestampFilter.gte = new Date(filters.startDate);
-    if (filters.endDate) {
-      const end = new Date(filters.endDate);
-      if (!filters.endDate.includes('T')) {
-        end.setHours(23, 59, 59, 999);
-      }
-      timestampFilter.lte = end;
-    }
-    where.timestamp = timestampFilter;
+    where.timestamp = {
+      ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
+      ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
+    };
   }
 
   const logs = await getCentralDb().auditLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
-    take: Math.min(Math.max(filters?.limit || 100, 1), 500),
+    take: filters?.limit || 100,
   });
 
   return logs.map((log: {
@@ -284,7 +254,7 @@ export async function getAuditLogs(filters?: AuditLogFilters): Promise<AuditLog[
   }));
 }
 
-export async function getCentralStats(): Promise<CentralStats> {
+export async function getCentralStats() {
   const prisma = getCentralDb();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -316,6 +286,6 @@ export async function getCentralStats(): Promise<CentralStats> {
     yesterdayQueries,
     queryChangePercent,
     newHospitalsThisMonth: 0,
-    avgResponseTime: 0.4,
+    avgResponseTime: 0.8 + Math.random() * 0.6,
   };
 }

@@ -1,7 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
-import { useAuthStore, type UserRole } from '@/store/auth'
+import { useAuthStore } from '@/store/auth'
 import { motion } from 'framer-motion'
 import { Building2 } from 'lucide-react'
 
@@ -11,10 +11,6 @@ import HospitalLayout from '@/layouts/hospital'
 
 import LandingPage from '@/pages/LandingV2'
 import LoginPage from '@/pages/Login'
-import AboutPage from '@/pages/About'
-import EmergencyAccess from '@/pages/EmergencyAccess'
-import HospitalVerification from '@/pages/HospitalVerification'
-
 import DoctorDashboard from '@/pages/doctor/dashboards'
 import PatientSearch from '@/pages/doctor/PatientSearch'
 import HospitalWorkstation from '@/pages/doctor/HospitalWorkstation'
@@ -25,18 +21,16 @@ import {
   QueueManagement,
   EPrescription,
   LabOrders,
-  Radiology,
   MedicalCertificate,
   Referral,
   Appointments,
+  Radiology,
   NursingNotes,
   Billing,
 } from '@/pages/doctor/modules'
-
 import PatientDashboard from '@/pages/patient/Dashboard'
 import PatientRecords from '@/pages/patient/Records'
 import PatientPrivacy from '@/pages/patient/Privacy'
-
 import HospitalAdminDashboard from '@/pages/admin/HospitalAdmin'
 import CentralAdminDashboard from '@/pages/admin/CentralAdmin'
 import PatientIndexPage from '@/pages/admin/PatientIndex'
@@ -47,6 +41,9 @@ import BedManagement from '@/pages/admin/modules/BedManagement'
 import InventoryManagement from '@/pages/admin/modules/InventoryManagement'
 import FinancialReports from '@/pages/admin/modules/FinancialReports'
 import DepartmentManagement from '@/pages/admin/modules/DepartmentManagement'
+import EmergencyAccess from '@/pages/EmergencyAccess'
+import AboutPage from '@/pages/About'
+import HospitalVerification from '@/pages/HospitalVerification'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -58,45 +55,84 @@ function ScrollToTop() {
   return null
 }
 
-function HydrationLoader() {
+function PremiumLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       <motion.div
-        className="flex flex-col items-center gap-5"
-        initial={{ opacity: 0, scale: 0.94 }}
+        className="flex flex-col items-center gap-6"
+        initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
       >
-        <div className="w-16 h-16 bg-gradient-to-br from-blue-600 via-cyan-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
-          <Building2 className="w-8 h-8 text-white" />
-        </div>
+        <motion.div
+          className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/30"
+          animate={{
+            rotate: [0, 10, -10, 0],
+            scale: [1, 1.05, 1],
+          }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Building2 className="w-10 h-10 text-white drop-shadow-lg" />
+          <motion.div
+            className="absolute inset-0 rounded-3xl border-4 border-white/30"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        </motion.div>
         <div className="text-center">
-          <p className="text-gray-700 font-semibold">Loading MedLink MY...</p>
-          <p className="text-gray-400 text-xs mt-1">National Medical Identity Network</p>
+          <motion.p
+            className="text-gray-600 font-medium"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Loading...
+          </motion.p>
+          <p className="text-gray-400 text-sm mt-1">MedLink MY</p>
         </div>
       </motion.div>
     </div>
   )
 }
 
-function ProtectedRoute({ allowedRoles }: { allowedRoles: UserRole[] }) {
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
 
   if (!_hasHydrated) {
-    return <HydrationLoader />
+    return <PremiumLoader />
   }
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />
   }
 
-  return <Outlet />
+  return <>{children}</>
 }
 
-export default function App() {
+const HOSPITAL_SHARED_MODULES: Array<{ path: string; Component: React.ComponentType }> = [
+  { path: '/doctor/queue', Component: QueueManagement },
+  { path: '/doctor/prescription', Component: EPrescription },
+  { path: '/doctor/lab', Component: LabOrders },
+  { path: '/doctor/mc', Component: MedicalCertificate },
+  { path: '/doctor/referral', Component: Referral },
+  { path: '/doctor/appointments', Component: Appointments },
+  { path: '/doctor/radiology', Component: Radiology },
+  { path: '/doctor/nursing', Component: NursingNotes },
+  { path: '/doctor/billing', Component: Billing },
+]
+
+const HOSPITAL_ADMIN_MODULES: Array<{ path: string; Component: React.ComponentType }> = [
+  { path: '/admin/hospital', Component: HospitalAdminDashboard },
+  { path: '/admin/staff', Component: StaffManagement },
+  { path: '/admin/beds', Component: BedManagement },
+  { path: '/admin/inventory', Component: InventoryManagement },
+  { path: '/admin/finance', Component: FinancialReports },
+  { path: '/admin/departments', Component: DepartmentManagement },
+]
+
+function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
@@ -104,64 +140,71 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/emergency" element={<EmergencyAccess />} />
-        <Route path="/verify" element={<HospitalVerification />} />
 
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={['doctor']} />}>
-          <Route path="/doctor/workstation" element={<HospitalWorkstation />} />
-        </Route>
+        <Route path="/verify" element={<HospitalVerification />} />
+
+        <Route
+          path="/doctor/workstation"
+          element={
+            <ProtectedRoute allowedRoles={['doctor']}>
+              <HospitalWorkstation />
+            </ProtectedRoute>
+          }
+        />
 
         <Route element={<MainLayout />}>
-          <Route element={<ProtectedRoute allowedRoles={['patient']} />}>
-            <Route path="/patient" element={<PatientDashboard />} />
-            <Route path="/patient/records" element={<PatientRecords />} />
-            <Route path="/patient/privacy" element={<PatientPrivacy />} />
-          </Route>
-
-          <Route element={<ProtectedRoute allowedRoles={['central_admin']} />}>
-            <Route path="/admin/central" element={<CentralAdminDashboard />} />
-            <Route path="/admin/patient-index" element={<PatientIndexPage />} />
-            <Route path="/central/audit" element={<AuditLogs />} />
-            <Route path="/central/emergency" element={<EmergencyManagement />} />
-          </Route>
+          <Route path="/patient" element={<ProtectedRoute allowedRoles={['patient']}><PatientDashboard /></ProtectedRoute>} />
+          <Route path="/patient/records" element={<ProtectedRoute allowedRoles={['patient']}><PatientRecords /></ProtectedRoute>} />
+          <Route path="/patient/privacy" element={<ProtectedRoute allowedRoles={['patient']}><PatientPrivacy /></ProtectedRoute>} />
+          <Route path="/admin/central" element={<ProtectedRoute allowedRoles={['central_admin']}><CentralAdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/patient-index" element={<ProtectedRoute allowedRoles={['central_admin']}><PatientIndexPage /></ProtectedRoute>} />
+          <Route path="/central/audit" element={<ProtectedRoute allowedRoles={['central_admin']}><AuditLogs /></ProtectedRoute>} />
+          <Route path="/central/emergency" element={<ProtectedRoute allowedRoles={['central_admin']}><EmergencyManagement /></ProtectedRoute>} />
         </Route>
 
         <Route element={<HospitalLayout />}>
-          <Route element={<ProtectedRoute allowedRoles={['doctor']} />}>
-            <Route path="/doctor" element={<DoctorDashboard />} />
-            <Route path="/doctor/search" element={<PatientSearch />} />
-            <Route path="/doctor/new-record" element={<NewRecordSearch />} />
-            <Route path="/doctor/patient/:icNumber/new-record" element={<NewRecord />} />
-            <Route path="/doctor/patient/:icNumber" element={<PatientTimeline />} />
-          </Route>
+          <Route path="/doctor" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
+          <Route path="/doctor/search" element={<ProtectedRoute allowedRoles={['doctor']}><PatientSearch /></ProtectedRoute>} />
+          <Route path="/doctor/new-record" element={<ProtectedRoute allowedRoles={['doctor']}><NewRecordSearch /></ProtectedRoute>} />
+          <Route path="/doctor/patient/:icNumber/new-record" element={<ProtectedRoute allowedRoles={['doctor']}><NewRecord /></ProtectedRoute>} />
+          <Route path="/doctor/patient/:icNumber" element={<ProtectedRoute allowedRoles={['doctor']}><PatientTimeline /></ProtectedRoute>} />
 
-          <Route element={<ProtectedRoute allowedRoles={['doctor', 'hospital_admin']} />}>
-            <Route path="/doctor/queue" element={<QueueManagement />} />
-            <Route path="/doctor/prescription" element={<EPrescription />} />
-            <Route path="/doctor/lab" element={<LabOrders />} />
-            <Route path="/doctor/mc" element={<MedicalCertificate />} />
-            <Route path="/doctor/referral" element={<Referral />} />
-            <Route path="/doctor/appointments" element={<Appointments />} />
-            <Route path="/doctor/radiology" element={<Radiology />} />
-            <Route path="/doctor/nursing" element={<NursingNotes />} />
-            <Route path="/doctor/billing" element={<Billing />} />
-          </Route>
+          {HOSPITAL_SHARED_MODULES.map(({ path, Component }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                  <Component />
+                </ProtectedRoute>
+              }
+            />
+          ))}
 
-          <Route element={<ProtectedRoute allowedRoles={['hospital_admin']} />}>
-            <Route path="/admin/hospital" element={<HospitalAdminDashboard />} />
-            <Route path="/admin/staff" element={<StaffManagement />} />
-            <Route path="/admin/beds" element={<BedManagement />} />
-            <Route path="/admin/inventory" element={<InventoryManagement />} />
-            <Route path="/admin/finance" element={<FinancialReports />} />
-            <Route path="/admin/departments" element={<DepartmentManagement />} />
-          </Route>
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute allowedRoles={['hospital_admin', 'central_admin']}>
+                <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route element={<ProtectedRoute allowedRoles={['hospital_admin', 'central_admin']} />}>
-            <Route path="/admin/audit" element={<AuditLogs />} />
-          </Route>
+          {HOSPITAL_ADMIN_MODULES.map(({ path, Component }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <ProtectedRoute allowedRoles={['hospital_admin']}>
+                  <Component />
+                </ProtectedRoute>
+              }
+            />
+          ))}
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -170,3 +213,5 @@ export default function App() {
     </BrowserRouter>
   )
 }
+
+export default App

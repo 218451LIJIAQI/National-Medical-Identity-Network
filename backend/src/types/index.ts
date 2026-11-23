@@ -1,40 +1,3 @@
-export type HospitalId =
-  | 'hospital-kl'
-  | 'hospital-penang'
-  | 'hospital-jb'
-  | 'hospital-kuching'
-  | 'hospital-kk';
-
-export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin';
-
-export type AuditAction =
-  | 'query'
-  | 'view'
-  | 'create'
-  | 'update'
-  | 'login'
-  | 'logout'
-  | 'emergency_access';
-
-export type ActorType = UserRole | 'system' | 'emergency';
-
-export type VisitType = 'outpatient' | 'inpatient' | 'emergency';
-
-export interface HospitalConfig {
-  id: HospitalId;
-  name: string;
-  shortName: string;
-  adminDisplayName: string;
-  city: string;
-  state: string;
-  address: string;
-  phone: string;
-  email: string;
-  port: number;
-  envVar: string;
-  apiEndpoint: string;
-}
-
 export interface Hospital {
   id: string;
   name: string;
@@ -65,15 +28,39 @@ export interface Patient {
   updatedAt: string;
 }
 
+export interface MedicalRecord {
+  id: string;
+  icNumber: string;
+  hospitalId: string;
+  hospitalName?: string;
+  doctorId: string;
+  doctorName?: string;
+  visitDate: string;
+  visitType: 'outpatient' | 'inpatient' | 'emergency';
+  chiefComplaint: string;
+  diagnosis: string[];
+  diagnosisCodes: string[];
+  symptoms: string[];
+  notes: string;
+  vitalSigns?: VitalSigns;
+  prescriptions?: Prescription[];
+  labReports?: LabReport[];
+  followUpDate?: string;
+  isReadOnly?: boolean;
+  sourceHospital?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface VitalSigns {
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  heartRate?: number;
-  temperature?: number;
-  respiratoryRate?: number;
-  oxygenSaturation?: number;
-  weight?: number;
-  height?: number;
+  bloodPressureSystolic: number;
+  bloodPressureDiastolic: number;
+  heartRate: number;
+  temperature: number;
+  respiratoryRate: number;
+  oxygenSaturation: number;
+  weight: number;
+  height: number;
 }
 
 export interface Prescription {
@@ -101,48 +88,6 @@ export interface LabReport {
   notes: string;
 }
 
-export interface MedicalRecord {
-  id: string;
-  icNumber: string;
-  hospitalId: string;
-  hospitalName?: string;
-  doctorId: string;
-  doctorName?: string;
-  visitDate: string;
-  visitType: VisitType;
-  chiefComplaint: string;
-  diagnosis: string[];
-  diagnosisCodes: string[];
-  symptoms: string[];
-  notes: string;
-  vitalSigns?: VitalSigns;
-  prescriptions?: Prescription[];
-  labReports?: LabReport[];
-  followUpDate?: string;
-  isReadOnly?: boolean;
-  sourceHospital?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateMedicalRecordInput {
-  id?: string;
-  icNumber: string;
-  doctorId: string;
-  visitDate?: string;
-  visitType: VisitType;
-  chiefComplaint?: string;
-  diagnosis: string[];
-  diagnosisCodes?: string[];
-  symptoms?: string[];
-  notes?: string;
-  vitalSigns?: VitalSigns;
-  prescriptions?: Prescription[];
-  labReports?: LabReport[];
-  followUpDate?: string;
-  patientName?: string;
-}
-
 export interface Doctor {
   id: string;
   icNumber: string;
@@ -159,22 +104,11 @@ export interface Doctor {
 export interface User {
   id: string;
   icNumber: string;
-  role: UserRole;
+  role: 'patient' | 'doctor' | 'hospital_admin' | 'central_admin';
   hospitalId?: string;
   passwordHash: string;
   lastLogin?: string;
   isActive: boolean;
-}
-
-export interface AuthenticatedUserProfile {
-  id: string;
-  icNumber: string;
-  role: UserRole;
-  hospitalId?: string;
-  doctorId?: string;
-  fullName?: string;
-  specialization?: string;
-  department?: string;
 }
 
 export interface PatientIndex {
@@ -186,20 +120,15 @@ export interface PatientIndex {
 export interface AuditLog {
   id: string;
   timestamp: string;
-  action: AuditAction;
+  action: 'query' | 'view' | 'create' | 'update' | 'login' | 'logout' | 'emergency_access';
   actorId?: string;
-  actorType: ActorType;
+  actorType: 'doctor' | 'patient' | 'hospital_admin' | 'central_admin' | 'system' | 'emergency';
   actorHospitalId?: string;
   targetIcNumber?: string;
   targetHospitalId?: string;
   details: string;
   ipAddress: string;
   success: boolean;
-}
-
-export interface EnrichedAuditLog extends AuditLog {
-  actorName: string;
-  hospitalName: string;
 }
 
 export interface QueryFlowStep {
@@ -212,16 +141,6 @@ export interface QueryFlowStep {
   data?: unknown;
 }
 
-export interface HospitalQueryResult {
-  hospitalId: string;
-  hospitalName: string;
-  records: MedicalRecord[];
-  recordCount: number;
-  status: 'success' | 'error' | 'timeout';
-  responseTime: number;
-  error?: string;
-}
-
 export interface CrossHospitalQueryResult {
   icNumber: string;
   querySteps: QueryFlowStep[];
@@ -232,29 +151,20 @@ export interface CrossHospitalQueryResult {
   message?: string;
 }
 
-export interface CentralStats {
-  totalPatients: number;
-  activeHospitals: number;
-  todayQueries: number;
-  yesterdayQueries: number;
-  queryChangePercent: number;
-  newHospitalsThisMonth: number;
-  avgResponseTime: number;
-}
-
-export interface HospitalStats {
-  totalPatients: number;
-  totalRecords: number;
-  totalDoctors: number;
-  activeDoctors: number;
-  todayVisits: number;
-  recentRecords: MedicalRecord[];
+export interface HospitalQueryResult {
+  hospitalId: string;
+  hospitalName: string;
+  records: MedicalRecord[];
+  recordCount: number;
+  status: 'success' | 'error' | 'timeout';
+  responseTime: number;
+  error?: string;
 }
 
 export interface JwtPayload {
   userId: string;
   icNumber: string;
-  role: UserRole;
+  role: string;
   hospitalId?: string;
   iat?: number;
   exp?: number;
