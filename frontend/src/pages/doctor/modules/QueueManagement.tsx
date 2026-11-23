@@ -35,16 +35,10 @@ interface QueueManagementProps {
   onSelectPatient?: (patient: QueuePatient) => void
 }
 
-export default function QueueManagement({ hospitalTheme, onSelectPatient }: QueueManagementProps) {
+export default function QueueManagement({ onSelectPatient }: QueueManagementProps) {
   const [queue, setQueue] = useState<QueuePatient[]>(mockQueue)
   const [filter, setFilter] = useState<'all' | 'waiting' | 'called' | 'in-progress'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-
-  const colors = hospitalTheme || {
-    primary: 'blue',
-    secondary: 'sky',
-    accent: 'cyan'
-  }
 
   const filteredQueue = queue.filter(p => {
     const matchesFilter = filter === 'all' || p.status === filter
@@ -109,7 +103,7 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
         <div className="flex items-center gap-3">
           <motion.button
             onClick={callNextPatient}
-            className={`flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-${colors.primary}-500 to-${colors.secondary}-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all`}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -121,21 +115,21 @@ export default function QueueManagement({ hospitalTheme, onSelectPatient }: Queu
 
             <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Waiting', value: stats.waiting, icon: Clock, color: 'slate' },
-          { label: 'Called', value: stats.called, icon: PhoneCall, color: 'blue' },
-          { label: 'In Progress', value: stats.inProgress, icon: Stethoscope, color: 'emerald' },
-          { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: 'gray' },
+          { label: 'Waiting', value: stats.waiting, icon: Clock, card: 'bg-slate-50 border-slate-200', ic: 'text-slate-500', val: 'text-slate-800', sub: 'text-slate-600' },
+          { label: 'Called', value: stats.called, icon: PhoneCall, card: 'bg-blue-50 border-blue-100', ic: 'text-blue-500', val: 'text-blue-700', sub: 'text-blue-600' },
+          { label: 'In Progress', value: stats.inProgress, icon: Stethoscope, card: 'bg-emerald-50 border-emerald-100', ic: 'text-emerald-500', val: 'text-emerald-700', sub: 'text-emerald-600' },
+          { label: 'Completed', value: stats.completed, icon: CheckCircle2, card: 'bg-gray-50 border-gray-200', ic: 'text-gray-500', val: 'text-gray-700', sub: 'text-gray-600' },
         ].map((stat) => (
           <motion.div
             key={stat.label}
-            className={`p-4 bg-${stat.color}-50 rounded-xl border border-${stat.color}-100`}
+            className={`p-4 rounded-xl border ${stat.card}`}
             whileHover={{ y: -2 }}
           >
             <div className="flex items-center justify-between mb-2">
-              <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
-              <span className={`text-2xl font-bold text-${stat.color}-700`}>{stat.value}</span>
+              <stat.icon className={`w-5 h-5 ${stat.ic}`} />
+              <span className={`text-2xl font-bold ${stat.val}`}>{stat.value}</span>
             </div>
-            <p className={`text-sm text-${stat.color}-600`}>{stat.label}</p>
+            <p className={`text-sm ${stat.sub}`}>{stat.label}</p>
           </motion.div>
         ))}
       </div>

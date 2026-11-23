@@ -1,3 +1,4 @@
+import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -55,6 +56,7 @@ export default function LabOrders({
   patientIC = '880515-14-5678',
   onSubmit
 }: LabOrdersProps) {
+  const { toast } = useToast()
   const [selectedTests, setSelectedTests] = useState<LabTest[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -99,9 +101,8 @@ export default function LabOrders({
   }
 
   const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit(selectedTests)
-    }
+    onSubmit?.(selectedTests)
+    toast({ title: 'Laboratory Order Submitted', description: `Queued ${selectedTests.length} pathology test(s).` })
   }
 
   return (
@@ -123,6 +124,7 @@ export default function LabOrders({
             Submit Request
           </motion.button>
           <motion.button
+            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >

@@ -1,314 +1,119 @@
-# MedLink MY - National Medical Identity Network
+# MedLink MY — National Medical Identity Network
 
-A comprehensive healthcare information exchange platform designed for Malaysia. MedLink MY enables secure cross-hospital medical record sharing, allowing healthcare providers to access patient information from any participating hospital across the nation.
+MedLink MY is a federated healthcare identity and longitudinal medical record platform built around Malaysia's MyKad IC number. Each participating hospital retains sovereign ownership of its local clinical database, while the Ministry of Health (MOH) Central Hub maintains only a lightweight pointer index, patient consent matrix, and immutable audit trail.
 
-## 🎯 Project Overview
+## Architecture Overview
 
-MedLink MY addresses a critical challenge in Malaysian healthcare: **fragmented medical records**. When patients visit multiple hospitals, their medical history remains siloed within each institution. This leads to:
+- **MOH Central Hub (`backend/prisma/schema.central.prisma`)**:
+  - Stores participating `Hospital` nodes, authenticated `User` accounts (`@@unique([icNumber, role])`), `PatientIndex` -> `PatientIndexHospital` mappings, `PatientPrivacySetting` consent rules, and `AuditLog` entries.
+  - Stores **zero** clinical diagnoses, prescriptions, or laboratory results.
+- **5 Autonomous Hospital Databases (`backend/prisma/schema.hospital.prisma`)**:
+  - `hospital-kl`: Kuala Lumpur General Hospital (`KLGH`) — Kuala Lumpur
+  - `hospital-penang`: Penang Medical Centre (`PMC`) — George Town, Penang
+  - `hospital-jb`: Johor Specialist Hospital (`JSH`) — Johor Bahru, Johor
+  - `hospital-kuching`: Sarawak General Hospital (`SGH`) — Kuching, Sarawak
+  - `hospital-kk`: Queen Elizabeth Hospital (`QEH`) — Kota Kinabalu, Sabah
+- **Security, Consent & Break-Glass Governance**:
+  - Patients can grant or block cross-hospital read access per hospital in real time.
+  - Cross-hospital queries are strictly read-only; only a clinician's own hospital node accepts new encounter writes (`POST /api/hospitals/:hospitalId/records`).
+  - Public emergency break-glass lookup (`GET /api/central/emergency/:icNumber`) is rate-limited (60-second cooldown per IP), audited, and discloses only life-critical triage fields (blood group, allergies, chronic conditions, active medications, and next-of-kin contact).
 
-- Repeated diagnostic tests
-- Incomplete patient history for doctors
-- Delayed treatment in emergencies
-- Medication conflicts due to unknown prescriptions
+## Repository Structure
 
-**MedLink MY solves this** by creating a federated network where:
-- Each hospital maintains its own database (data sovereignty)
-- A central hub indexes which patients have records at which hospitals
-- Authorized healthcare providers can query records across all participating hospitals
-- Patients control who can access their data
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      CENTRAL HUB                                │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │  • Patient Index (IC → Hospital mappings)               │    │
-│  │  • User Authentication                                  │    │
-│  │  • Audit Logging                                        │    │
-│  │  • Cross-hospital Query Routing                         │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  Hospital A   │   │  Hospital B   │   │  Hospital C   │
-│  Database     │   │  Database     │   │  Database     │
-│  • Patients   │   │  • Patients   │   │  • Patients   │
-│  • Records    │   │  • Records    │   │  • Records    │
-│  • Doctors    │   │  • Doctors    │   │  • Doctors    │
-└───────────────┘   └───────────────┘   └───────────────┘
-```
-
-### How It Works
-
-1. **Patient visits Hospital A** → Hospital A stores records locally and registers the patient IC in the central index
-2. **Patient visits Hospital B** → Doctor queries central hub using patient's IC number
-3. **Central hub** → Identifies that patient has records at Hospital A
-4. **Central hub** → Fetches records from Hospital A (with proper authorization)
-5. **Doctor at Hospital B** → Views complete medical history from all hospitals
-
-## 🏥 Participating Hospitals (Demo)
-
-| Hospital | Location | State |
-|----------|----------|-------|
-| Kuala Lumpur General Hospital | Kuala Lumpur | Federal Territory |
-| Penang General Hospital | George Town | Penang |
-| Sultanah Aminah Hospital | Johor Bahru | Johor |
-| Sarawak General Hospital | Kuching | Sarawak |
-| Queen Elizabeth Hospital | Kota Kinabalu | Sabah |
-
-## 👥 User Roles
-
-### 1. Doctor
-- Search patients across all hospitals
-- View patient medical timeline
-- Create new medical records
-- Access prescriptions, lab reports, and vital signs
-- Queue management and e-prescriptions
-
-### 2. Patient
-- View own medical records from all hospitals
-- Control privacy settings (block specific hospitals)
-- View who accessed their records (access logs)
-- Emergency contact management
-
-### 3. Hospital Administrator
-- Manage hospital staff
-- View hospital statistics
-- Bed and inventory management
-- Financial reports
-- Department management
-
-### 4. Central Administrator
-- Monitor entire network
-- View all participating hospitals
-- Audit logs across the system
-- Emergency access management
-- Patient index management
-
-## 🔐 Security Features
-
-- **JWT Authentication** - Secure token-based authentication
-- **Role-based Access Control** - Different permissions per user type
-- **Audit Logging** - Every data access is logged
-- **Patient Privacy Controls** - Patients can block specific hospitals
-- **Hospital Verification** - Two-step login (IC card + hospital verification)
-- **Emergency Access** - Special access for emergency situations with full logging
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for build tooling
-- **TailwindCSS** for styling
-- **Framer Motion** for animations
-- **React Router** for navigation
-- **Zustand** for state management
-- **Lucide React** for icons
-
-### Backend
-- **Node.js** with Express
-- **TypeScript**
-- **Prisma ORM** with multi-schema support
-- **PostgreSQL** databases (Central + Hospital databases)
-- **JWT** for authentication
-
-## 📁 Project Structure
-
-```
-National Medical Identity Network/
-├── frontend/                    # React frontend application
+```text
+national-medical-identity-network/
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.central.prisma      # MOH Central Hub Prisma schema
+│   │   ├── schema.hospital.prisma     # Per-hospital clinical Prisma schema
+│   │   └── seed.ts                    # Deterministic multi-database seed script
+│   ├── scripts/
+│   │   └── push-hospital-schemas.ts   # Pushes hospital schema to all 5 hospital DBs
 │   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── layouts/             # Page layouts
-│   │   ├── lib/                 # API client and utilities
-│   │   ├── pages/               # Application pages
-│   │   │   ├── admin/           # Admin dashboards
-│   │   │   ├── doctor/          # Doctor modules
-│   │   │   └── patient/         # Patient pages
-│   │   └── store/               # Zustand state stores
-│   └── netlify.toml             # Netlify deployment config
-│
-└── backend/                     # Express backend API
+│   │   ├── config/index.ts            # Unified environment, PBKDF2 auth & 5-hospital registry
+│   │   ├── database/
+│   │   │   ├── db-manager.ts          # Connection lifecycle manager (1 central + 5 hospitals)
+│   │   │   ├── central-db.ts          # Central index, consent & audit repository
+│   │   │   └── hospital-db.ts         # Clinical records, prescriptions & lab repository
+│   │   ├── middleware/auth.ts         # JWT verification & role/hospital guards
+│   │   ├── routes/
+│   │   │   ├── auth.ts                # POST /login (multi-role aware), GET /me, POST /logout
+│   │   │   ├── central.ts             # Federated query, consent, index, audit & break-glass APIs
+│   │   │   └── hospital.ts            # Scoped hospital stats, doctors & encounter creation APIs
+│   │   ├── types/index.ts             # Canonical domain & DTO contracts
+│   │   ├── app.ts                     # Express app factory (testable without port binding)
+│   │   └── index.ts                   # HTTP server entrypoint & graceful shutdown
+│   └── tests/
+│       └── backend.test.ts            # Auth, RBAC, consent, federated query & break-glass tests
+└── frontend/
     ├── src/
-    │   ├── config/              # App configuration
-    │   ├── database/            # Database clients
-    │   ├── middleware/          # Auth middleware
-    │   ├── routes/              # API routes
-    │   │   ├── auth.ts          # Authentication endpoints
-    │   │   ├── central.ts       # Central hub endpoints
-    │   │   └── hospital.ts      # Hospital endpoints
-    │   └── types/               # TypeScript types
-    └── prisma/
-        ├── schema.central.prisma    # Central database schema
-        ├── schema.hospital.prisma   # Hospital database schema
-        └── seed-multi.ts            # Database seeding
+    │   ├── components/                # Reusable UI primitives, LiveClock & ChipScanOverlay
+    │   ├── layouts/                   # MainLayout, AuthLayout & 5 distinct hospital shells
+    │   ├── lib/                       # Typed API client, 5-hospital theme registry, i18n & utils
+    │   ├── pages/                     # Public, Patient, Doctor & Hospital/Central Admin portals
+    │   └── store/                     # Persisted Zustand auth & accessibility settings stores
+    └── tests/
+        └── frontend.test.mjs          # Store, utility, theme & API contract verification tests
 ```
 
-## 🚀 Getting Started
+## Quick Start
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL database(s)
-- npm or yarn
+### 1. Environment Variables (`backend/.env`)
 
-### Backend Setup
+Provide PostgreSQL connection URLs for the central hub and each hospital database:
+
+```env
+PORT=3000
+JWT_SECRET=replace-with-strong-production-secret
+CORS_ORIGIN=http://localhost:5173
+
+DATABASE_URL_CENTRAL=postgresql://user:pass@localhost:5432/medlink_central
+DATABASE_URL_HOSPITAL_KL=postgresql://user:pass@localhost:5432/medlink_kl
+DATABASE_URL_HOSPITAL_PENANG=postgresql://user:pass@localhost:5432/medlink_penang
+DATABASE_URL_HOSPITAL_JB=postgresql://user:pass@localhost:5432/medlink_jb
+DATABASE_URL_HOSPITAL_KUCHING=postgresql://user:pass@localhost:5432/medlink_kuching
+DATABASE_URL_HOSPITAL_KK=postgresql://user:pass@localhost:5432/medlink_kk
+```
+
+### 2. Backend Setup
 
 ```bash
 cd backend
-
-# Install dependencies
 npm install
-
-# Configure environment variables
-# Create .env file with:
-# DATABASE_URL_CENTRAL=postgresql://...
-# DATABASE_URL_HOSPITAL=postgresql://...
-# JWT_SECRET=your-secret-key
-
-# Generate Prisma clients
-npm run multi:generate
-
-# Push database schemas
-npm run multi:push
-
-# Seed demo data
-npm run multi:seed
-
-# Start development server
-npm run dev
+npm run db:setup   # Generates Prisma clients, pushes central + 5 hospital schemas, and seeds data
+npm run dev        # Starts Express API server on http://localhost:3000
 ```
 
-### Frontend Setup
+### 3. Frontend Setup
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Configure API URL (optional)
-# Create .env file with:
-# VITE_API_URL=http://localhost:3000/api
-
-# Start development server
-npm run dev
+npm run dev        # Starts Vite dev server on http://localhost:5173
 ```
 
-## 📡 API Endpoints
+## Demo Accounts (Seeded by `npm run db:seed`)
 
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/login` | User login |
-| GET | `/api/auth/me` | Get current user |
+| Role | Identifier (`icNumber`) | Password | Hospital / Scope |
+| :--- | :--- | :--- | :--- |
+| Patient | `880101-14-5678` | `patient123` | Ahmad bin Abdullah (5 hospitals) |
+| Doctor (Dual Role) | `750101-14-5001` | `doctor123` | Kuala Lumpur General Hospital (`hospital-kl`) |
+| Doctor | `760612-07-5001` | `doctor123` | Penang Medical Centre (`hospital-penang`) |
+| Doctor | `770808-01-5001` | `doctor123` | Johor Specialist Hospital (`hospital-jb`) |
+| Doctor | `790303-13-5001` | `doctor123` | Sarawak General Hospital (`hospital-kuching`) |
+| Doctor | `810707-12-5001` | `doctor123` | Queen Elizabeth Hospital (`hospital-kk`) |
+| Hospital Admin | `admin-kl` (`penang`/`jb`/`kuching`/`kk`) | `admin123` | Respective Hospital Node |
+| MOH Central Admin | `central-admin` | `central123` | National Hub |
 
-### Central Hub
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/central/hospitals` | List all hospitals |
-| GET | `/api/central/stats` | Network statistics |
-| GET | `/api/central/query/:ic` | Query patient across hospitals |
-| GET | `/api/central/emergency/:ic` | Emergency access query |
-| GET | `/api/central/indexes` | All patient indexes |
-| GET | `/api/central/audit-logs` | System audit logs |
-| GET | `/api/central/privacy-settings` | Patient privacy settings |
-| POST | `/api/central/privacy-settings/hospital-access` | Set hospital access |
+## Key API Endpoints
 
-### Hospital
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/hospitals/:id` | Hospital information |
-| GET | `/api/hospitals/:id/stats` | Hospital statistics |
-| POST | `/api/hospitals/:id/records` | Create medical record |
-
-## 🎮 Demo Accounts
-
-### Doctors
-| Name | IC Number | Password |
-|------|-----------|----------|
-| Dr. Lim Wei Ming | 750101-14-5001 | doctor123 |
-| Dr. Tan Mei Ling | 760612-07-5001 | doctor123 |
-| Dr. Siti Aishah | 770808-01-5001 | doctor123 |
-
-### Patients
-| Name | IC Number | Password |
-|------|-----------|----------|
-| Ahmad bin Abdullah | 880101-14-5678 | patient123 |
-| Siti Nurhaliza | 950320-10-1234 | patient123 |
-| Tan Ah Kow | 550715-07-9999 | patient123 |
-
-### Administrators
-| Role | Username | Password |
-|------|----------|----------|
-| Hospital Admin (KL) | admin-kl | admin123 |
-| Hospital Admin (Penang) | admin-penang | admin123 |
-| Central Admin | central-admin | central123 |
-
-## 🌐 Deployment
-
-### Frontend (Netlify)
-The frontend is configured for Netlify deployment with SPA routing support.
-
-### Backend (Render)
-The backend includes Render-specific build scripts:
-```bash
-npm run render:build  # Build for production
-npm run render:start  # Start production server
-```
-
-## 📊 Database Schema
-
-### Central Database
-- **Hospital** - Registered hospitals in the network
-- **PatientIndex** - Maps patient IC numbers to hospitals
-- **User** - System users (doctors, admins, patients)
-- **AuditLog** - Access and action logging
-- **PatientPrivacySetting** - Patient privacy preferences
-
-### Hospital Database
-- **Patient** - Patient demographics and contact info
-- **Doctor** - Hospital doctors
-- **MedicalRecord** - Visit records with diagnosis
-- **Prescription** - Medications prescribed
-- **LabReport** - Laboratory test results
-
-## 🔑 Key Features Explained
-
-### Cross-Hospital Query
-When a doctor queries a patient's IC number:
-1. Central hub checks the patient index
-2. Identifies all hospitals where patient has records
-3. Fetches records from each hospital in parallel
-4. Aggregates and returns a unified timeline
-
-### Emergency Access
-For emergency situations:
-- No login required
-- Returns critical info: blood type, allergies, emergency contacts
-- All access is logged for accountability
-
-### Privacy Controls
-Patients can:
-- View which hospitals have their records
-- Block specific hospitals from accessing their data
-- See a log of who accessed their records and when
-
-## 📝 License
-
-This project was created for the Malaysia Healthcare Hackathon.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
----
-
-**MedLink MY** - Connecting Healthcare, Saving Lives 🇲🇾
+- `POST /api/auth/login` — Authenticates by IC/Staff ID + password (returns `requiresRoleSelection` when multiple roles exist and `role` is omitted)
+- `GET /api/auth/me` — Returns current authenticated user profile
+- `POST /api/auth/logout` — Logs audit sign-out event
+- `GET /api/central/query/:icNumber` — Executes consent-filtered parallel federated record retrieval
+- `GET /api/central/patient/:icNumber` — Returns patient demographics and indexed hospital list (enforces patient self-access and hospital block rules)
+- `GET /api/central/privacy-settings` & `POST /api/central/privacy-settings/hospital-access` — Reads and updates per-hospital patient consent
+- `GET /api/central/emergency/:icNumber` — Rate-limited, audited emergency break-glass summary
+- `GET /api/central/audit-logs` — National or hospital-scoped audit log query
+- `GET /api/hospitals/:hospitalId/stats` — Hospital patient, record, active doctor, and today's visit metrics
+- `POST /api/hospitals/:hospitalId/records` — Creates a local encounter with vital signs, prescriptions, and lab reports

@@ -16,14 +16,17 @@ interface Appointment {
   type: 'follow-up' | 'new' | 'procedure' | 'review'
   status: 'confirmed' | 'pending' | 'cancelled' | 'completed'
 }
+const TODAY_ISO = new Date().toISOString().split('T')[0]
+const TOMORROW_ISO = new Date(Date.now() + 86_400_000).toISOString().split('T')[0]
+
 const mockAppointments: Appointment[] = [
-  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880515-14-5678', phone: '012-3456789', date: '2024-01-15', time: '09:00', type: 'follow-up', status: 'confirmed' },
-  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '920820-08-1234', phone: '013-9876543', date: '2024-01-15', time: '09:30', type: 'new', status: 'pending' },
-  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '750101-10-5555', phone: '016-5551234', date: '2024-01-15', time: '10:00', type: 'review', status: 'confirmed' },
-  { id: '4', patientName: 'Lee Mei Ling', icNumber: '850303-07-8888', phone: '011-2223333', date: '2024-01-15', time: '10:30', type: 'procedure', status: 'confirmed' },
-  { id: '5', patientName: 'Fatimah binti Hassan', icNumber: '680712-02-3333', phone: '019-8887777', date: '2024-01-15', time: '11:00', type: 'follow-up', status: 'cancelled' },
-  { id: '6', patientName: 'Tan Wei Jie', icNumber: '950505-14-6666', phone: '017-6665555', date: '2024-01-16', time: '09:00', type: 'new', status: 'pending' },
-  { id: '7', patientName: 'Muthu a/l Krishnan', icNumber: '780808-10-1111', phone: '012-1112222', date: '2024-01-16', time: '09:30', type: 'follow-up', status: 'confirmed' },
+  { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880101-14-5678', phone: '012-3456789', date: TODAY_ISO, time: '09:00', type: 'follow-up', status: 'confirmed' },
+  { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '950320-10-1234', phone: '013-9876543', date: TODAY_ISO, time: '09:30', type: 'new', status: 'pending' },
+  { id: '3', patientName: 'Raj Kumar a/l Muthu', icNumber: '900808-01-5555', phone: '016-5551234', date: TODAY_ISO, time: '10:00', type: 'review', status: 'confirmed' },
+  { id: '4', patientName: 'Lee Mei Fong', icNumber: '780312-14-2345', phone: '011-2223333', date: TODAY_ISO, time: '10:30', type: 'procedure', status: 'confirmed' },
+  { id: '5', patientName: 'Tan Ah Kow', icNumber: '550715-07-9999', phone: '019-8887777', date: TODAY_ISO, time: '11:00', type: 'follow-up', status: 'cancelled' },
+  { id: '6', patientName: 'Aishah binti Mohd Yusof', icNumber: '820425-12-7777', phone: '017-6665555', date: TOMORROW_ISO, time: '09:00', type: 'new', status: 'pending' },
+  { id: '7', patientName: 'Dr. Lim Wei Ming', icNumber: '750101-14-5001', phone: '012-1112222', date: TOMORROW_ISO, time: '09:30', type: 'follow-up', status: 'confirmed' },
 ]
 
 const timeSlots = [
@@ -137,18 +140,18 @@ export default function Appointments() {
 
             <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: stats.total, color: 'blue' },
-          { label: 'Confirmed', value: stats.confirmed, color: 'emerald' },
-          { label: 'Pending', value: stats.pending, color: 'amber' },
-          { label: 'Completed', value: stats.completed, color: 'gray' },
+          { label: 'Total', value: stats.total, card: 'bg-blue-50 border-blue-100', val: 'text-blue-700', sub: 'text-blue-600' },
+          { label: 'Confirmed', value: stats.confirmed, card: 'bg-emerald-50 border-emerald-100', val: 'text-emerald-700', sub: 'text-emerald-600' },
+          { label: 'Pending', value: stats.pending, card: 'bg-amber-50 border-amber-100', val: 'text-amber-700', sub: 'text-amber-600' },
+          { label: 'Completed', value: stats.completed, card: 'bg-gray-50 border-gray-200', val: 'text-gray-700', sub: 'text-gray-600' },
         ].map(stat => (
           <motion.div
             key={stat.label}
-            className={`p-4 bg-${stat.color}-50 rounded-xl border border-${stat.color}-100`}
+            className={`p-4 rounded-xl border ${stat.card}`}
             whileHover={{ y: -2 }}
           >
-            <p className={`text-2xl font-bold text-${stat.color}-700`}>{stat.value}</p>
-            <p className={`text-sm text-${stat.color}-600`}>{stat.label}</p>
+            <p className={`text-2xl font-bold ${stat.val}`}>{stat.value}</p>
+            <p className={`text-sm ${stat.sub}`}>{stat.label}</p>
           </motion.div>
         ))}
       </div>

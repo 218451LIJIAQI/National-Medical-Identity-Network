@@ -106,13 +106,13 @@ export default function NursingNotes({
     setNewNote({ type: 'assessment', content: '', priority: 'routine' })
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeStyles = (type: string) => {
     switch (type) {
-      case 'assessment': return 'blue'
-      case 'intervention': return 'emerald'
-      case 'evaluation': return 'purple'
-      case 'handover': return 'amber'
-      default: return 'gray'
+      case 'assessment': return { border: 'border-l-blue-500', badge: 'bg-blue-100 text-blue-700' }
+      case 'intervention': return { border: 'border-l-emerald-500', badge: 'bg-emerald-100 text-emerald-700' }
+      case 'evaluation': return { border: 'border-l-purple-500', badge: 'bg-purple-100 text-purple-700' }
+      case 'handover': return { border: 'border-l-amber-500', badge: 'bg-amber-100 text-amber-700' }
+      default: return { border: 'border-l-gray-400', badge: 'bg-gray-100 text-gray-700' }
     }
   }
 
@@ -464,18 +464,18 @@ export default function NursingNotes({
 
                         <div className="space-y-4">
               {notes.map((note, idx) => {
-                const color = getTypeColor(note.type)
+                const typeStyles = getTypeStyles(note.type)
                 return (
                   <motion.div
                     key={note.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className={`p-5 bg-white rounded-xl border-l-4 border-${color}-500 shadow-sm`}
+                    className={`p-5 bg-white rounded-xl border-l-4 ${typeStyles.border} shadow-sm`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 bg-${color}-100 text-${color}-700 text-xs font-semibold rounded-full`}>
+                        <span className={`px-3 py-1 ${typeStyles.badge} text-xs font-semibold rounded-full`}>
                           {getTypeLabel(note.type)}
                         </span>
                         {note.priority === 'urgent' && (

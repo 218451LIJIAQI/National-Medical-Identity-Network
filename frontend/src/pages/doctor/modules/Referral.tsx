@@ -1,3 +1,6 @@
+import { useToast } from '@/components/ui/use-toast'
+import { useAuthStore } from '@/store/auth'
+import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -51,16 +54,19 @@ const departments = [
 interface ReferralProps {
   patientName?: string
   patientIC?: string
-  fromHospital?: string
+  resolvedFromHospital?: string
   onSubmit?: (data: ReferralData) => void
 }
 
 export default function Referral({
   patientName = 'Ahmad bin Abdullah',
-  patientIC = '880515-14-5678',
-  fromHospital = 'Hospital Kuala Lumpur',
+  patientIC = '880101-14-5678',
+  fromHospital,
   onSubmit
 }: ReferralProps) {
+  const { toast } = useToast()
+  const { user } = useAuthStore()
+  const resolvedFromHospital = resolvedFromHospital || getHospitalTheme(user?.hospitalId).name
   const [formData, setFormData] = useState<ReferralData>({
     patientName,
     icNumber: patientIC,
@@ -100,9 +106,11 @@ export default function Referral({
   }
 
   const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit(formData)
-    }
+    onSubmit?.(formData)
+    toast({
+      title: 'Inter-Hospital Referral Sent',
+      description: `Referred ${formData.patientName} to ${formData.referToHospital} (${formData.referToDepartment}).`,
+    })
   }
 
   const isStepValid = (stepNum: number) => {
@@ -123,7 +131,7 @@ export default function Referral({
         </div>
         <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-xl">
           <Building2 className="w-5 h-5 text-blue-600" />
-          <span className="text-blue-700 font-medium">{fromHospital}</span>
+          <span className="text-blue-700 font-medium">{resolvedFromHospital}</span>
           <ArrowRightLeft className="w-4 h-4 text-blue-400" />
         </div>
       </div>
@@ -266,20 +274,21 @@ export default function Referral({
               <h3 className="font-semibold text-gray-800 mb-4">Urgency Level</h3>
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { value: 'routine', label: 'Routine', desc: 'Within 2-4 weeks', color: 'emerald' },
-                  { value: 'urgent', label: 'Urgent', desc: 'Within 48-72 hours', color: 'amber' },
-                  { value: 'emergency', label: 'Emergency', desc: 'Immediately', color: 'red' },
+                  { value: 'routine', label: 'Routine', desc: 'Within 2-4 weeks', active: 'border-emerald-400 bg-emerald-50', dot: 'bg-emerald-500' },
+                  { value: 'urgent', label: 'Urgent', desc: 'Within 48-72 hours', active: 'border-amber-400 bg-amber-50', dot: 'bg-amber-500' },
+                  { value: 'emergency', label: 'Emergency', desc: 'Immediately', active: 'border-red-400 bg-red-50', dot: 'bg-red-500' },
                 ].map(opt => (
                   <button
                     key={opt.value}
+                    type="button"
                     onClick={() => updateField('urgency', opt.value)}
                     className={`p-4 rounded-xl border-2 transition-all text-left ${
                       formData.urgency === opt.value
-                        ? `border-${opt.color}-400 bg-${opt.color}-50`
+                        ? opt.active
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className={`w-3 h-3 rounded-full bg-${opt.color}-500 mb-2`} />
+                    <div className={`w-3 h-3 rounded-full ${opt.dot} mb-2`} />
                     <p className="font-semibold text-gray-800">{opt.label}</p>
                     <p className="text-sm text-gray-500">{opt.desc}</p>
                   </button>

@@ -1,30 +1,21 @@
 {
   "name": "medlink-backend",
   "version": "1.0.0",
-  "description": "Backend services for National Medical Identity Network",
+  "description": "Backend API and federated query hub for MedLink MY National Medical Identity Network",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "build": "tsc",
     "start": "node dist/index.js",
-    "postinstall": "npm run multi:generate",
-    "db:generate": "npm run multi:generate",
-    "db:push": "npm run multi:push",
-    "db:seed": "npm run multi:seed",
-    "db:setup": "npm run multi:setup",
-    "db:reset": "npm run multi:reset",
-    "multi:generate:central": "prisma generate --schema=prisma/schema.central.prisma",
-    "multi:generate:hospital": "prisma generate --schema=prisma/schema.hospital.prisma",
-    "multi:generate": "npm run multi:generate:central && npm run multi:generate:hospital",
-    "multi:push:central": "prisma db push --schema=prisma/schema.central.prisma --accept-data-loss",
-    "multi:push:hospitals": "tsx scripts/push-hospital-schemas.ts",
-    "multi:push": "npm run multi:push:central && npm run multi:push:hospitals",
-    "multi:seed": "tsx prisma/seed-multi.ts",
-    "multi:setup": "npm run multi:generate && npm run multi:push && npm run multi:seed",
-    "multi:reset": "npm run multi:push && npm run multi:seed",
-    "render:build": "npm run multi:generate && npm run multi:push && tsc",
-    "render:start": "npm run multi:seed && node dist/index.js",
-    "render:multi:build": "npm run render:build",
-    "render:multi:start": "npm run render:start"
+    "test": "tsx --test tests/*.test.ts",
+    "postinstall": "npm run db:generate",
+    "db:generate": "prisma generate --schema=prisma/schema.central.prisma && prisma generate --schema=prisma/schema.hospital.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.central.prisma --accept-data-loss && tsx scripts/push-hospital-schemas.ts",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "npm run db:generate && npm run db:push && npm run db:seed",
+    "db:reset": "npm run db:push && npm run db:seed",
+    "render:build": "npm run db:generate && npm run db:push && npm run build",
+    "render:start": "npm run db:seed && npm start"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -32,14 +23,12 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.11.16",
-    "@types/uuid": "^9.0.8",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^6.19.0",
-    "typescript": "^5.3.3",
-    "uuid": "^10.0.0",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

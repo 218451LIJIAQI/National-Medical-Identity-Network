@@ -3,388 +3,311 @@ import { useParams, Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { centralApi } from '@/lib/api'
+import { centralApi, type MedicalRecordDto, type PatientDto } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { ArrowLeft, Plus, Building2, Calendar, User, AlertTriangle, FileText, Pill, Loader2, Shield } from 'lucide-react'
-import { formatDate, formatIC, getHospitalColor, getHospitalBadgeClass } from '@/lib/utils'
+import {
+  ArrowLeft, Plus, Building2, Calendar, AlertTriangle, Pill, Loader2, ShieldOff, Lock, Stethoscope, FlaskConical,
+} from 'lucide-react'
+import { formatDate, formatDoctorName, formatIC } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { motion } from 'framer-motion'
 
-interface PatientInfo {
-  fullName: string
-  icNumber: string
-  dateOfBirth: string
-  gender: string
-  bloodType: string
-  allergies: string[]
-  chronicConditions: string[]
-}
-
-interface MedicalRecord {
-  id: string
-  hospitalId: string
-  hospitalName: string
-  visitDate: string
-  visitType: string
-  diagnosis: string[]
-  doctorId: string
-  isReadOnly: boolean
-}
-
-interface Medication {
-  name: string
-  frequency: string
-  hospital: string
+interface TimelineRecord extends MedicalRecordDto {
+  resolvedHospitalId: string
+  resolvedHospitalName: string
 }
 
 export default function PatientTimeline() {
   const { icNumber } = useParams<{ icNumber: string }>()
   const { user } = useAuthStore()
+  const myTheme = getHospitalTheme(user?.hospitalId)
+
   const [loading, setLoading] = useState(true)
-  const [patient, setPatient] = useState<PatientInfo>({
-    fullName: '',
-    icNumber: icNumber || '',
-    dateOfBirth: '',
-    gender: '',
-    bloodType: '',
-    allergies: [],
-    chronicConditions: [],
-  })
-  const [records, setRecords] = useState<MedicalRecord[]>([])
-  const [medications, setMedications] = useState<Medication[]>([])
+  const [accessDenied, setAccessDenied] = useState(false)
+  const [deniedMessage, setDeniedMessage] = useState('')
+  const [patient, setPatient] = useState<PatientDto | null>(null)
+  const [records, setRecords] = useState<TimelineRecord[]>([])
 
   useEffect(() => {
-    async function loadPatientData() {
+    async function loadTimeline() {
       if (!icNumber) return
+      setLoading(true)
       try {
         const [queryRes, patientRes] = await Promise.all([
           centralApi.queryPatient(icNumber),
           centralApi.getPatient(icNumber),
         ])
 
+        if (queryRes.success && queryRes.data?.accessDenied) {
+          setAccessDenied(true)
+          setDeniedMessage(queryRes.data.message || 'Patient has restricted access from this hospital.')
+          return
+        }
+
         if (queryRes.success && queryRes.data) {
-          const allRecords: MedicalRecord[] = []
-          const allMeds: Medication[] = []
-
-          queryRes.data.hospitals.forEach((hospital: any) => {
-            hospital.records?.forEach((record: any) => {
-              allRecords.push({
-                id: record.id,
-                hospitalId: record.hospitalId || hospital.hospitalId,
-                hospitalName: hospital.hospitalName,
-                visitDate: record.visitDate,
-                visitType: record.visitType,
-                diagnosis: record.diagnosis || [],
-                doctorId: record.doctorId,
-                isReadOnly: record.isReadOnly !== false,
+          const collected: TimelineRecord[] = []
+          for (const hosp of queryRes.data.hospitals) {
+            for (const rec of hosp.records || []) {
+              collected.push({
+                ...rec,
+                resolvedHospitalId: rec.hospitalId || hosp.hospitalId,
+                resolvedHospitalName: hosp.hospitalName,
               })
-              record.prescriptions?.forEach((rx: any) => {
-                if (rx.isActive) {
-                  allMeds.push({
-                    name: `${rx.medicationName} ${rx.dosage}`,
-                    frequency: rx.frequency,
-                    hospital: hospital.hospitalName,
-                  })
-                }
-              })
-            })
-          })
-
-          allRecords.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
-          setRecords(allRecords)
-          setMedications(allMeds)
-        }
-        if (patientRes.success && patientRes.data) {
-          const p = patientRes.data.patient as any
-          if (p) {
-            setPatient({
-              fullName: p.fullName || 'Unknown Patient',
-              icNumber: icNumber,
-              dateOfBirth: p.dateOfBirth || '',
-              gender: p.gender || '',
-              bloodType: p.bloodType || '',
-              allergies: p.allergies || [],
-              chronicConditions: p.chronicConditions || [],
-            })
+            }
           }
+          collected.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
+          setRecords(collected)
         }
-      } catch (error) {
-        console.error('Failed to load patient data:', error)
+
+        if (patientRes.success && patientRes.data?.patient) {
+          setPatient(patientRes.data.patient)
+        }
       } finally {
         setLoading(false)
       }
     }
-    loadPatientData()
-  }, [icNumber, user?.hospitalId])
+
+    void loadTimeline()
+  }, [icNumber])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className={`h-8 w-8 animate-spin ${getHospitalTheme(user?.hospitalId || 'hospital-kl').iconColor}`} />
+        <Loader2 className={`h-9 w-9 animate-spin ${myTheme.iconColor}`} />
       </div>
     )
   }
 
-  return (
-    <motion.div
-      className="space-y-8"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-            <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${getHospitalTheme(user?.hospitalId || 'hospital-kl').headerGradient} p-8 text-white shadow-2xl ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor}`}
-      >
-        <motion.div
-          className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 10, repeat: Infinity }}
-        />
-        <motion.div
-          className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/20 rounded-full blur-3xl"
-          animate={{ scale: [1.2, 1, 1.2] }}
-          transition={{ duration: 15, repeat: Infinity }}
-        />
-
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/doctor/search">
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/30 rounded-xl">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </motion.div>
-            </Link>
-            <motion.div
-              className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30"
-              whileHover={{ scale: 1.1, rotate: 5 }}
-            >
-              <User className="w-7 h-7" />
-            </motion.div>
-            <div>
-              <Badge className="bg-white/20 text-white border-0 mb-1">
-                <Shield className="w-3 h-3 mr-1" /> Patient Timeline
-              </Badge>
-              <h1 className="text-3xl font-bold drop-shadow-lg">{patient.fullName}</h1>
-              <p className="text-white/80 font-mono">{formatIC(patient.icNumber)}</p>
+  if (accessDenied) {
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto">
+        <Link to="/doctor/search">
+          <Button variant="ghost" className="gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Search
+          </Button>
+        </Link>
+        <Card className="border-red-200 bg-red-50/70">
+          <CardContent className="p-8 text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <ShieldOff className="w-7 h-7" />
             </div>
-          </div>
-          <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
-            <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-              <Button className={`bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').buttonGradient} text-white hover:opacity-90 gap-2 shadow-xl ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor} h-12 px-6 rounded-xl font-semibold`}>
-                <Plus className="h-5 w-5" />
-                New Record
-              </Button>
-            </motion.div>
-          </Link>
-        </div>
-      </motion.div>
-
-            <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <div className={`h-1 bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient}`} />
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Patient Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">Full Name</p>
-              <p className="font-medium">{patient.fullName}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Date of Birth</p>
-              <p className="font-medium">{formatDate(patient.dateOfBirth)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Gender</p>
-              <p className="font-medium">{patient.gender}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Blood Type</p>
-              <p className="font-medium">{patient.bloodType}</p>
-            </div>
-          </div>
-
-                    {patient.allergies.length > 0 && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="font-medium">Allergies:</span>
-                {patient.allergies.map((allergy, i) => (
-                  <Badge key={i} variant="destructive" className="ml-1">
-                    {allergy}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-                    {patient.chronicConditions.length > 0 && (
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-gray-500">Chronic Conditions:</span>
-              {patient.chronicConditions.map((condition, i) => (
-                <Badge key={i} variant="secondary">
-                  {condition}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-        </Card>
-      </motion.div>
-
-            <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <div className={`h-1 bg-gradient-to-r ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient}`} />
-          <CardHeader className="bg-gradient-to-r from-gray-50/50 to-white border-b border-gray-100">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className={`p-2.5 bg-gradient-to-br ${getHospitalTheme(user?.hospitalId || 'hospital-kl').cardAccentGradient} rounded-xl shadow-lg ${getHospitalTheme(user?.hospitalId || 'hospital-kl').shadowColor}`}>
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-              Medical Records Timeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {records.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No medical records found</p>
-                </div>
-              ) : records.map((record, index) => (
-                <motion.div
-                  key={record.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + index * 0.05 }}
-                  whileHover={{ scale: 1.01, x: 4 }}
-                  className={`p-5 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
-                    record.isReadOnly
-                      ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
-                      : `bg-gradient-to-r from-white ${getHospitalTheme(user?.hospitalId || 'hospital-kl').bgLight}/30 ${getHospitalTheme(user?.hospitalId || 'hospital-kl').borderColor}`
-                  }`}
-                  style={{ borderLeftWidth: 4, borderLeftColor: getHospitalColor(record.hospitalId) }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <motion.div
-                        className="p-3 rounded-xl shadow-md"
-                        style={{ backgroundColor: `${getHospitalColor(record.hospitalId)}15` }}
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                      >
-                        <Building2
-                          className="h-6 w-6"
-                          style={{ color: getHospitalColor(record.hospitalId) }}
-                        />
-                      </motion.div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold ${getHospitalBadgeClass(record.hospitalId)}`}
-                          >
-                            {record.hospitalName}
-                          </span>
-                          {record.isReadOnly && (
-                            <Badge variant="outline" className="text-xs rounded-full px-3 bg-gray-100">
-                              🔒 Read Only
-                            </Badge>
-                          )}
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-lg">{record.diagnosis.join(', ')}</h4>
-                        <p className="text-sm text-gray-500 mt-1">Doctor ID: {record.doctorId}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
-                        <Calendar className="h-4 w-4" />
-                        {formatDate(record.visitDate)}
-                      </div>
-                      <Badge
-                        className={`mt-2 rounded-full px-4 ${
-                          record.visitType === 'emergency'
-                            ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-200'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        {record.visitType}
-                      </Badge>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            <h1 className="text-xl font-bold text-red-900">Cross-Hospital Access Restricted</h1>
+            <p className="text-sm text-red-700 max-w-lg mx-auto">{deniedMessage}</p>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
+    )
+  }
 
-            <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Card className="border-0 shadow-xl shadow-gray-200/50 overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-          <CardHeader className="bg-gradient-to-r from-emerald-50/50 to-white border-b border-gray-100">
-            <CardTitle className="flex items-center gap-3 text-xl">
-              <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-lg shadow-emerald-500/25">
-                <Pill className="h-5 w-5 text-white" />
+  const activeMedications = Array.from(
+    new Map(
+      records
+        .flatMap((r) =>
+          (r.prescriptions || [])
+            .filter((rx) => rx.isActive)
+            .map((rx) => [
+              `${rx.medicationName}-${rx.dosage}`,
+              {
+                label: `${rx.medicationName} ${rx.dosage}`,
+                frequency: rx.frequency,
+                hospital: r.resolvedHospitalName,
+              },
+            ] as const)
+        )
+    ).values()
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link to="/doctor/search">
+          <Button variant="ghost" className="gap-2 rounded-xl">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Patient Search
+          </Button>
+        </Link>
+
+        <Link to={`/doctor/patient/${encodeURIComponent(icNumber || '')}/new-record`}>
+          <Button className={`gap-2 rounded-xl text-white bg-gradient-to-r ${myTheme.buttonGradient}`}>
+            <Plus className="w-4 h-4" />
+            New Record at {myTheme.displayShortName}
+          </Button>
+        </Link>
+      </div>
+
+      <Card className="border-slate-200/80 shadow-md">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {patient?.fullName || 'Registered Citizen'}
+              </h1>
+              <p className="text-sm font-mono text-gray-500 mt-0.5">
+                IC: {formatIC(icNumber)}
+                {patient?.gender ? ` · ${patient.gender.toUpperCase()}` : ''}
+                {patient?.dateOfBirth ? ` · DOB ${formatDate(patient.dateOfBirth)}` : ''}
+              </p>
+            </div>
+            {patient?.bloodType && (
+              <div className="px-4 py-2 rounded-xl bg-red-50 border border-red-200 text-center">
+                <p className="text-[11px] font-semibold uppercase text-red-600">Blood Group</p>
+                <p className="text-xl font-black text-red-700">{patient.bloodType}</p>
               </div>
-              Active Medications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid md:grid-cols-2 gap-4">
-              {medications.length === 0 ? (
-                <div className="col-span-2 text-center py-12 text-gray-500">
-                  <Pill className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No active medications found</p>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Allergies</p>
+              {patient?.allergies && patient.allergies.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.allergies.map((a) => (
+                    <Badge key={a} variant="destructive" className="gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {a}
+                    </Badge>
+                  ))}
                 </div>
               ) : (
-                medications.map((med, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + i * 0.05 }}
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    className="flex items-center justify-between p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-100 hover:shadow-lg hover:border-emerald-200 transition-all duration-300"
-                  >
-                    <div className="flex items-center gap-4">
-                      <motion.div
-                        className="p-3 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl shadow-md shadow-emerald-200"
-                        whileHover={{ rotate: 10 }}
-                      >
-                        <Pill className="w-5 h-5 text-white" />
-                      </motion.div>
-                      <div>
-                        <p className="font-bold text-gray-900">{med.name}</p>
-                        <p className="text-sm text-emerald-600 font-medium">{med.frequency}</p>
-                      </div>
-                    </div>
-                    <Badge className="rounded-full px-4 py-1.5 bg-white/80 text-emerald-700 border border-emerald-200 font-medium shadow-sm">
-                      {med.hospital}
-                    </Badge>
-                  </motion.div>
-                ))
+                <p className="text-xs text-emerald-600 font-medium">No known allergies</p>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Chronic Conditions</p>
+              {patient?.chronicConditions && patient.chronicConditions.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {patient.chronicConditions.map((c) => (
+                    <Badge key={c} variant="secondary">{c}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">None recorded</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Active Medications</p>
+              {activeMedications.length > 0 ? (
+                <div className="space-y-1">
+                  {activeMedications.slice(0, 3).map((m) => (
+                    <p key={m.label} className="text-xs text-gray-700 flex items-center gap-1.5">
+                      <Pill className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="font-medium">{m.label}</span>
+                      <span className="text-gray-400">({m.frequency})</span>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No active prescriptions</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-gray-900">
+          Longitudinal Clinical Encounters ({records.length})
+        </h2>
+
+        {records.length === 0 ? (
+          <Card className="border-slate-200/80">
+            <CardContent className="p-8 text-center text-gray-500">
+              No clinical encounters found yet.
+            </CardContent>
+          </Card>
+        ) : (
+          records.map((rec) => {
+            const hospTheme = getHospitalTheme(rec.resolvedHospitalId)
+            const isExternal = rec.resolvedHospitalId !== user?.hospitalId
+            return (
+              <Card key={rec.id} className="border-slate-200/80 overflow-hidden">
+                <div className="h-1" style={{ backgroundColor: hospTheme.primaryColor }} />
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className={hospTheme.badgeClass}>
+                        <Building2 className="w-3 h-3 mr-1" />
+                        {rec.resolvedHospitalName}
+                      </Badge>
+                      <Badge variant="outline" className="capitalize">{rec.visitType}</Badge>
+                      {isExternal && (
+                        <Badge variant="secondary" className="gap-1 text-xs">
+                          <Lock className="w-3 h-3" />
+                          Read-Only Federated Copy
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {formatDate(rec.visitDate)}
+                    </span>
+                  </div>
+                  <CardTitle className="text-lg pt-1">
+                    {rec.chiefComplaint || rec.diagnosis[0] || 'Clinical Consultation'}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                    <Stethoscope className="w-3.5 h-3.5" />
+                    Attending: {formatDoctorName(rec.doctorName)}
+                  </p>
+
+                  {rec.diagnosis.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {rec.diagnosis.map((d) => (
+                        <Badge key={d} variant="secondary">{d}</Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {rec.notes && <p className="text-gray-700 leading-relaxed">{rec.notes}</p>}
+
+                  {rec.vitalSigns && (
+                    <div className="flex flex-wrap gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100 text-gray-700">
+                      {rec.vitalSigns.bloodPressureSystolic && rec.vitalSigns.bloodPressureDiastolic && (
+                        <span>BP: <strong>{rec.vitalSigns.bloodPressureSystolic}/{rec.vitalSigns.bloodPressureDiastolic}</strong> mmHg</span>
+                      )}
+                      {rec.vitalSigns.heartRate && <span>HR: <strong>{rec.vitalSigns.heartRate}</strong> bpm</span>}
+                      {rec.vitalSigns.temperature && <span>Temp: <strong>{rec.vitalSigns.temperature}</strong> °C</span>}
+                      {rec.vitalSigns.oxygenSaturation && <span>SpO2: <strong>{rec.vitalSigns.oxygenSaturation}</strong>%</span>}
+                    </div>
+                  )}
+
+                  {rec.prescriptions && rec.prescriptions.length > 0 && (
+                    <div className="grid sm:grid-cols-2 gap-2 pt-1">
+                      {rec.prescriptions.map((rx, idx) => (
+                        <div key={`${rx.medicationName}-${idx}`} className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-xs">
+                          <p className="font-semibold text-gray-900">{rx.medicationName} {rx.dosage}</p>
+                          <p className="text-gray-600">{rx.frequency} &middot; {rx.duration}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {rec.labReports && rec.labReports.length > 0 && (
+                    <div className="grid sm:grid-cols-2 gap-2 pt-1">
+                      {rec.labReports.map((lab, idx) => (
+                        <div key={`${lab.testName}-${idx}`} className="p-2.5 rounded-lg bg-purple-50/50 border border-purple-100 text-xs flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1 font-medium text-gray-900">
+                            <FlaskConical className="w-3.5 h-3.5 text-purple-600" />
+                            {lab.testName}
+                          </span>
+                          <Badge variant={lab.isAbnormal ? 'destructive' : 'secondary'}>
+                            {lab.result} {lab.unit}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })
+        )}
+      </div>
+    </div>
   )
 }

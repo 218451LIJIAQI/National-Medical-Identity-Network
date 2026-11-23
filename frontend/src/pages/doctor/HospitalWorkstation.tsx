@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { getHospitalTheme } from '@/lib/hospital-themes'
+import { formatUserDisplayName } from '@/lib/utils'
 import {
-  LayoutDashboard, Users, Search, FileText, Pill,
-  FlaskConical, Calendar, ArrowRightLeft,
-  Building2, ChevronRight, Bell, Settings, LogOut,
-  Globe, Activity, Clock, TrendingUp
+  LayoutDashboard, Users, Search, FileText, Pill, FlaskConical, Calendar,
+  ArrowRightLeft, Building2, ChevronRight, LogOut, Globe, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import {
   QueueManagement,
@@ -15,53 +13,57 @@ import {
   LabOrders,
   MedicalCertificate,
   Referral,
-  Appointments
+  Appointments,
 } from './modules'
 
-type ModuleType = 'dashboard' | 'queue' | 'search' | 'prescription' | 'lab' | 'mc' | 'referral' | 'appointments'
+type ModuleId = 'dashboard' | 'queue' | 'search' | 'prescription' | 'lab' | 'mc' | 'referral' | 'appointments'
 
-interface NavItem {
-  id: ModuleType
+const WORKSTATION_MODULES: Array<{
+  id: ModuleId
   label: string
-  labelMY: string
+  sublabel: string
   icon: typeof LayoutDashboard
-  color: string
-}
-
-const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', labelMY: 'Overview', icon: LayoutDashboard, color: 'blue' },
-  { id: 'queue', label: 'Queue', labelMY: 'Patient Queue', icon: Users, color: 'emerald' },
-  { id: 'search', label: 'Patient Search', labelMY: 'Find Patient', icon: Search, color: 'purple' },
-  { id: 'prescription', label: 'e-Prescription', labelMY: 'Medications', icon: Pill, color: 'teal' },
-  { id: 'lab', label: 'Lab Orders', labelMY: 'Lab Tests', icon: FlaskConical, color: 'violet' },
-  { id: 'mc', label: 'Medical Cert', labelMY: 'MC', icon: FileText, color: 'sky' },
-  { id: 'referral', label: 'Referral', labelMY: 'Transfer', icon: ArrowRightLeft, color: 'indigo' },
-  { id: 'appointments', label: 'Appointments', labelMY: 'Schedule', icon: Calendar, color: 'amber' },
+  activeClass: string
+  iconActiveClass: string
+}> = [
+  { id: 'dashboard', label: 'Workstation Home', sublabel: 'Quick Launcher', icon: LayoutDashboard, activeClass: 'bg-blue-50 text-blue-700 border-blue-200', iconActiveClass: 'bg-blue-600 text-white' },
+  { id: 'queue', label: 'Queue', sublabel: 'Patient Triage', icon: Users, activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconActiveClass: 'bg-emerald-600 text-white' },
+  { id: 'search', label: 'National Search', sublabel: 'Federated Lookup', icon: Search, activeClass: 'bg-purple-50 text-purple-700 border-purple-200', iconActiveClass: 'bg-purple-600 text-white' },
+  { id: 'prescription', label: 'e-Prescription', sublabel: 'Dispensing', icon: Pill, activeClass: 'bg-teal-50 text-teal-700 border-teal-200', iconActiveClass: 'bg-teal-600 text-white' },
+  { id: 'lab', label: 'Lab Orders', sublabel: 'Pathology', icon: FlaskConical, activeClass: 'bg-violet-50 text-violet-700 border-violet-200', iconActiveClass: 'bg-violet-600 text-white' },
+  { id: 'mc', label: 'Medical Cert', sublabel: 'Sijil Cuti Sakit', icon: FileText, activeClass: 'bg-sky-50 text-sky-700 border-sky-200', iconActiveClass: 'bg-sky-600 text-white' },
+  { id: 'referral', label: 'Referral', sublabel: 'Inter-Hospital', icon: ArrowRightLeft, activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200', iconActiveClass: 'bg-indigo-600 text-white' },
+  { id: 'appointments', label: 'Appointments', sublabel: 'Clinic Schedule', icon: Calendar, activeClass: 'bg-amber-50 text-amber-800 border-amber-200', iconActiveClass: 'bg-amber-500 text-white' },
 ]
 
 export default function HospitalWorkstation() {
+  const navigate = useNavigate()
   const { user, logout } = useAuthStore()
-  const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [activeModule, setActiveModule] = useState<ModuleId>('dashboard')
+  const [collapsed, setCollapsed] = useState(false)
 
   const theme = getHospitalTheme(user?.hospitalId)
+  const displayName = formatUserDisplayName(user)
 
-  const renderModule = () => {
+  const renderContent = () => {
     switch (activeModule) {
       case 'queue':
         return <QueueManagement />
       case 'search':
         return (
-          <div className="text-center py-12">
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-4">
+            <Globe className="w-12 h-12 text-purple-600 mx-auto" />
+            <h2 className="text-xl font-bold text-gray-900">National Federated Record Query</h2>
+            <p className="text-sm text-gray-500 max-w-md mx-auto">
+              Search longitudinal records across all 5 MedLink MY hospitals using the patient&apos;s MyKad IC.
+            </p>
             <Link
               to="/doctor/search"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold shadow-lg hover:bg-purple-700"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold shadow"
             >
-              <Globe className="w-5 h-5" />
               Open National Patient Search
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </Link>
-            <p className="mt-4 text-gray-500">Search patient records from the entire Malaysian hospital network</p>
           </div>
         )
       case 'prescription':
@@ -69,274 +71,122 @@ export default function HospitalWorkstation() {
       case 'lab':
         return <LabOrders />
       case 'mc':
-        return <MedicalCertificate doctorName={user?.fullName} hospitalName={theme.name} />
+        return <MedicalCertificate doctorName={displayName} hospitalName={theme.name} />
       case 'referral':
         return <Referral fromHospital={theme.name} />
       case 'appointments':
         return <Appointments />
       default:
-        return <DashboardContent theme={theme} setActiveModule={setActiveModule} />
+        return (
+          <div className="space-y-6">
+            <div className={`rounded-2xl bg-gradient-to-r ${theme.headerGradient} p-7 text-white shadow-lg`}>
+              <p className="text-xs uppercase tracking-wider text-white/80 font-semibold">Integrated Clinical Workstation</p>
+              <h1 className="text-2xl font-bold mt-1">Welcome, {displayName}</h1>
+              <p className="text-sm text-white/85 mt-1">{theme.name} &middot; {theme.city}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {WORKSTATION_MODULES.filter((m) => m.id !== 'dashboard').map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveModule(item.id)}
+                    className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md text-left transition-all flex items-start gap-4"
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.iconActiveClass}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">{item.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.sublabel}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-            <motion.aside
-        initial={false}
-        animate={{ width: sidebarCollapsed ? 80 : 280 }}
-        className="bg-white border-r border-gray-200 flex flex-col shadow-lg"
-      >
-                <div className="p-4 border-b border-gray-100">
-          <motion.div
-            className="flex items-center gap-3"
-            animate={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
-          >
+    <div className="min-h-screen bg-slate-50 flex">
+      <aside className={`bg-white border-r border-slate-200 flex flex-col transition-all duration-200 ${collapsed ? 'w-20' : 'w-68'}`}>
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ backgroundColor: theme.primaryColor }}
             >
-              <Building2 className="w-6 h-6 text-white" />
+              <Building2 className="w-5 h-5" />
             </div>
-            <AnimatePresence>
-              {!sidebarCollapsed && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                >
-                  <p className="font-bold text-gray-800 text-sm">{theme.shortName}</p>
-                  <p className="text-xs text-gray-500">{theme.city}</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="font-bold text-gray-900 text-sm truncate">{theme.shortName}</p>
+                <p className="text-xs text-gray-500 truncate">{theme.city}</p>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-slate-100 hover:text-gray-700"
+            aria-label="Toggle sidebar width"
+          >
+            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
         </div>
 
-                <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
+          {WORKSTATION_MODULES.map((item) => {
+            const Icon = item.icon
             const isActive = activeModule === item.id
             return (
-              <motion.button
+              <button
                 key={item.id}
+                type="button"
                 onClick={() => setActiveModule(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive
-                    ? `bg-${item.color}-50 text-${item.color}-700 border border-${item.color}-200 shadow-sm`
-                    : 'text-gray-600 hover:bg-gray-50'
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
+                  isActive ? item.activeClass : 'border-transparent text-gray-600 hover:bg-slate-50'
                 }`}
-                whileHover={{ x: isActive ? 0 : 4 }}
-                whileTap={{ scale: 0.98 }}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isActive ? `bg-${item.color}-100` : 'bg-gray-100'
-                }`}>
-                  <item.icon className={`w-5 h-5 ${isActive ? `text-${item.color}-600` : 'text-gray-500'}`} />
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isActive ? item.iconActiveClass : 'bg-slate-100 text-gray-500'}`}>
+                  <Icon className="w-4 h-4" />
                 </div>
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-left"
-                    >
-                      <p className="font-medium text-sm">{item.label}</p>
-                      <p className="text-xs opacity-70">{item.labelMY}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
+                {!collapsed && (
+                  <div className="text-left min-w-0">
+                    <p className="text-sm font-semibold truncate">{item.label}</p>
+                    <p className="text-[11px] opacity-75 truncate">{item.sublabel}</p>
+                  </div>
+                )}
+              </button>
             )
           })}
         </nav>
 
-                <div className="p-3 border-t border-gray-100">
-          <div className={`flex items-center gap-3 p-3 bg-gray-50 rounded-xl ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-full flex items-center justify-center text-white font-bold">
-              {user?.fullName?.charAt(0) || 'D'}
-            </div>
-            {!sidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-800 text-sm truncate">{user?.fullName}</p>
-                <p className="text-xs text-gray-500">{user?.role === 'doctor' ? 'Doctor' : 'Staff'}</p>
-              </div>
-            )}
-          </div>
-
-          {!sidebarCollapsed && (
-            <div className="flex gap-2 mt-2">
-              <button className="flex-1 p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                <Settings className="w-5 h-5 mx-auto" />
-              </button>
-              <button className="flex-1 p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                <Bell className="w-5 h-5 mx-auto" />
-              </button>
-              <button
-                onClick={logout}
-                className="flex-1 p-2 text-red-500 hover:bg-red-50 rounded-lg"
-              >
-                <LogOut className="w-5 h-5 mx-auto" />
-              </button>
-            </div>
-          )}
-        </div>
-
-                <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="p-3 border-t border-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-        >
-          <ChevronRight className={`w-5 h-5 mx-auto transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} />
-        </button>
-      </motion.aside>
-
-            <main className="flex-1 overflow-auto">
-                <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">
-                {navItems.find(n => n.id === activeModule)?.label}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {navItems.find(n => n.id === activeModule)?.labelMY}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-xl">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-sm font-medium text-emerald-700">Online</span>
-              </div>
-
-              <Link
-                to="/doctor/search"
-                className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors"
-              >
-                <Globe className="w-4 h-4" />
-                <span className="text-sm font-medium">National Search</span>
-              </Link>
-            </div>
-          </div>
-        </header>
-
-                <div className="p-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeModule}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderModule()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </main>
-    </div>
-  )
-}
-function DashboardContent({ theme, setActiveModule }: { theme: ReturnType<typeof getHospitalTheme>, setActiveModule: (m: ModuleType) => void }) {
-  return (
-    <div className="space-y-6">
-            <div
-        className="relative overflow-hidden rounded-2xl p-8 text-white"
-        style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
-      >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative z-10">
-          <p className="text-white/80 mb-2">Welcome to</p>
-          <h2 className="text-3xl font-bold mb-2">{theme.name}</h2>
-          <p className="text-white/70">{theme.tagline}</p>
-
-          <div className="grid grid-cols-4 gap-4 mt-6">
-            {[
-              { label: 'Patients Today', value: '47', icon: Users },
-              { label: 'Active Queue', value: '12', icon: Activity },
-              { label: 'Avg Wait', value: '23 min', icon: Clock },
-              { label: 'Attendance Rate', value: '94%', icon: TrendingUp },
-            ].map(stat => (
-              <div key={stat.label} className="p-4 bg-white/10 backdrop-blur-sm rounded-xl">
-                <stat.icon className="w-6 h-6 mb-2 text-white/80" />
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="text-sm text-white/70">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-            <div className="grid grid-cols-4 gap-4">
-        {[
-          { module: 'queue' as ModuleType, label: 'Queue', labelEN: 'Queue', icon: Users, color: 'emerald' },
-          { module: 'prescription' as ModuleType, label: 'Prescription', labelEN: 'Prescription', icon: Pill, color: 'teal' },
-          { module: 'lab' as ModuleType, label: 'Lab Orders', labelEN: 'Lab Orders', icon: FlaskConical, color: 'violet' },
-          { module: 'mc' as ModuleType, label: 'Med Cert', labelEN: 'Med Cert', icon: FileText, color: 'sky' },
-        ].map(action => (
-          <motion.button
-            key={action.module}
-            onClick={() => setActiveModule(action.module)}
-            className={`p-6 bg-${action.color}-50 rounded-xl border border-${action.color}-100 hover:shadow-lg transition-all text-left`}
-            whileHover={{ y: -4, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        <div className="p-3 border-t border-slate-100 space-y-1.5">
+          <Link
+            to="/doctor"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50"
           >
-            <div className={`w-12 h-12 bg-${action.color}-100 rounded-xl flex items-center justify-center mb-4`}>
-              <action.icon className={`w-6 h-6 text-${action.color}-600`} />
-            </div>
-            <p className="font-bold text-gray-800">{action.label}</p>
-            <p className="text-sm text-gray-500">{action.labelEN}</p>
-          </motion.button>
-        ))}
-      </div>
+            {!collapsed ? 'Back to Hospital Portal' : 'Portal'}
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              logout()
+              navigate('/login')
+            }}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="w-4 h-4" />
+            {!collapsed && 'Logout'}
+          </button>
+        </div>
+      </aside>
 
-            <div className="grid grid-cols-2 gap-4">
-        <motion.button
-          onClick={() => setActiveModule('referral')}
-          className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all flex items-center gap-4"
-          whileHover={{ x: 4 }}
-        >
-          <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center">
-            <ArrowRightLeft className="w-7 h-7 text-indigo-600" />
-          </div>
-          <div className="text-left">
-            <p className="font-bold text-gray-800">Patient Referral</p>
-            <p className="text-sm text-gray-500">Refer to other hospital / department</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
-        </motion.button>
-
-        <motion.button
-          onClick={() => setActiveModule('appointments')}
-          className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all flex items-center gap-4"
-          whileHover={{ x: 4 }}
-        >
-          <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center">
-            <Calendar className="w-7 h-7 text-amber-600" />
-          </div>
-          <div className="text-left">
-            <p className="font-bold text-gray-800">Appointments</p>
-            <p className="text-sm text-gray-500">Manage appointment schedule</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
-        </motion.button>
-      </div>
-
-            <Link to="/doctor/search">
-        <motion.div
-          className="p-6 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-white flex items-center justify-between"
-          whileHover={{ scale: 1.01 }}
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-              <Globe className="w-7 h-7" />
-            </div>
-            <div>
-              <p className="font-bold text-lg">National Records Search</p>
-              <p className="text-purple-200">Access patient records from all hospitals in the MyKad Health network</p>
-            </div>
-          </div>
-          <ChevronRight className="w-8 h-8" />
-        </motion.div>
-      </Link>
+      <main className="flex-1 p-6 lg:p-8 overflow-y-auto">{renderContent()}</main>
     </div>
   )
 }

@@ -1,3 +1,7 @@
+import { useToast } from '@/components/ui/use-toast'
+import { useAuthStore } from '@/store/auth'
+import { getHospitalTheme } from '@/lib/hospital-themes'
+import { formatDoctorName } from '@/lib/utils'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
@@ -30,12 +34,16 @@ interface MedicalCertificateProps {
 
 export default function MedicalCertificate({
   patientName = 'Ahmad bin Abdullah',
-  patientIC = '880515-14-5678',
+  patientIC = '880101-14-5678',
   diagnosis = 'Upper Respiratory Tract Infection (URTI)',
-  doctorName = 'Dr. Lee Wei Ming',
-  hospitalName = 'Hospital Kuala Lumpur',
+  doctorName,
+  hospitalName,
   onSubmit
 }: MedicalCertificateProps) {
+  const { toast } = useToast()
+  const { user } = useAuthStore()
+  const resolvedDoctorName = doctorName || formatDoctorName(user?.fullName)
+  const resolvedHospitalName = hospitalName || getHospitalTheme(user?.hospitalId).name
   const [formData, setFormData] = useState<MCData>({
     patientName,
     icNumber: patientIC,
@@ -73,9 +81,12 @@ export default function MedicalCertificate({
   }
 
   const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit(formData)
-    }
+    onSubmit?.(formData)
+    setShowPreview(true)
+    toast({
+      title: 'Medical Certificate Issued',
+      description: `${mcNumber} generated for ${formData.patientName} (${formData.daysOff} day(s)).`,
+    })
   }
 
   const formatMalaysianDate = (dateStr: string) => {
@@ -104,6 +115,7 @@ export default function MedicalCertificate({
             {showPreview ? 'Edit' : 'Preview'}
           </motion.button>
           <motion.button
+            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -136,7 +148,7 @@ export default function MedicalCertificate({
                   <Building2 className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">{hospitalName}</h3>
+                  <h3 className="text-xl font-bold">{resolvedHospitalName}</h3>
                   <p className="text-blue-100">Ministry of Health Malaysia</p>
                 </div>
               </div>
@@ -211,7 +223,7 @@ export default function MedicalCertificate({
                 </div>
                 <div className="text-right">
                   <div className="w-40 border-b-2 border-gray-400 mb-2"></div>
-                  <p className="font-semibold text-gray-800">{doctorName}</p>
+                  <p className="font-semibold text-gray-800">{resolvedDoctorName}</p>
                   <p className="text-sm text-gray-500">Medical Officer</p>
                   <p className="text-xs text-gray-400">MMC No: 12345</p>
                 </div>

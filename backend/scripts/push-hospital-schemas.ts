@@ -1,47 +1,32 @@
 import { execSync } from 'child_process';
-import * as dotenv from 'dotenv';
+import { HOSPITALS } from '../src/config';
 
-dotenv.config();
+function main(): void {
+  console.log('Pushing hospital Prisma schema to configured hospital databases...');
 
-const hospitals = [
-  { id: 'hospital-kl', envVar: 'DATABASE_URL_HOSPITAL_KL' },
-  { id: 'hospital-penang', envVar: 'DATABASE_URL_HOSPITAL_PENANG' },
-  { id: 'hospital-jb', envVar: 'DATABASE_URL_HOSPITAL_JB' },
-  { id: 'hospital-kuching', envVar: 'DATABASE_URL_HOSPITAL_KUCHING' },
-  { id: 'hospital-kk', envVar: 'DATABASE_URL_HOSPITAL_KK' },
-];
-
-async function main() {
-  console.log('🏥 Pushing hospital schema to all hospital databases...\n');
-
-  for (const hospital of hospitals) {
+  for (const hospital of HOSPITALS) {
     const dbUrl = process.env[hospital.envVar];
-    
     if (!dbUrl) {
-      console.log(`⚠️  Skipping ${hospital.id}: ${hospital.envVar} not set`);
+      console.log(`Skipping ${hospital.id}: ${hospital.envVar} is not set`);
       continue;
     }
 
-    console.log(`📦 Pushing schema to ${hospital.id}...`);
-    
-    try {
-      execSync(
-        `npx prisma db push --schema=prisma/schema.hospital.prisma --skip-generate --accept-data-loss`,
-        {
-          env: {
-            ...process.env,
-            DATABASE_URL_HOSPITAL: dbUrl,
-          },
-          stdio: 'inherit',
-        }
-      );
-      console.log(`✅ ${hospital.id} schema pushed successfully!\n`);
-    } catch (error) {
-      console.error(`❌ Failed to push schema to ${hospital.id}:`, error);
-    }
+    console.log(`Pushing schema to ${hospital.id}...`);
+    execSync(
+      'npx prisma db push --schema=prisma/schema.hospital.prisma --skip-generate --accept-data-loss',
+      {
+        env: { ...process.env, DATABASE_URL_HOSPITAL: dbUrl },
+        stdio: 'inherit',
+      }
+    );
   }
 
-  console.log('🎉 All hospital schemas pushed!');
+  console.log('Hospital schema push complete.');
 }
 
-main().catch(console.error);
+try {
+  main();
+} catch (error) {
+  console.error('Failed to push hospital schemas:', error);
+  process.exit(1);
+}

@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
+
 export interface User {
   id: string
   icNumber: string
-  role: 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
+  role: UserRole
   hospitalId?: string
   doctorId?: string
   fullName?: string
@@ -22,6 +24,12 @@ interface AuthState {
   setHasHydrated: (state: boolean) => void
 }
 
+function clearLegacyAuthKeys() {
+  if (typeof localStorage === 'undefined') return
+  localStorage.removeItem('medlink-token')
+  localStorage.removeItem('medlink-user')
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -31,18 +39,16 @@ export const useAuthStore = create<AuthState>()(
       _hasHydrated: false,
 
       login: (token: string, user: User) => {
-        localStorage.setItem('medlink-token', token)
-        localStorage.setItem('medlink-user', JSON.stringify(user))
+        clearLegacyAuthKeys()
         set({
           token,
           user,
-          isAuthenticated: true,
+          isAuthenticated: Boolean(token && user),
         })
       },
 
       logout: () => {
-        localStorage.removeItem('medlink-token')
-        localStorage.removeItem('medlink-user')
+        clearLegacyAuthKeys()
         set({
           token: null,
           user: null,
@@ -50,14 +56,23 @@ export const useAuthStore = create<AuthState>()(
         })
       },
 
-      setHasHydrated: (state: boolean) => {
-        set({ _hasHydrated: state })
+      setHasHydrated: (hydrated: boolean) => {
+        set((state) => ({
+          _hasHydrated: hydrated,
+          isAuthenticated: Boolean(state.token && state.user),
+        }))
       },
     }),
     {
       name: 'medlink-auth',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        token: state.token,
+        user: state.user,
+        isAuthenticated: Boolean(state.token && state.user),
+      }),
       onRehydrateStorage: () => (state) => {
+        clearLegacyAuthKeys()
         state?.setHasHydrated(true)
       },
     }

@@ -1,3 +1,4 @@
+import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -101,20 +102,19 @@ export default function Radiology({
     }
   }
 
-  const getModalityColor = (modality: string) => {
+  const getModalityStyles = (modality: string) => {
     switch (modality) {
-      case 'X-Ray': return 'blue'
-      case 'Ultrasound': return 'teal'
-      case 'CT Scan': return 'purple'
-      case 'MRI': return 'indigo'
-      default: return 'gray'
+      case 'X-Ray': return { wrap: 'bg-blue-100', icon: 'text-blue-600', code: 'text-blue-700 bg-blue-100' }
+      case 'Ultrasound': return { wrap: 'bg-teal-100', icon: 'text-teal-600', code: 'text-teal-700 bg-teal-100' }
+      case 'CT Scan': return { wrap: 'bg-purple-100', icon: 'text-purple-600', code: 'text-purple-700 bg-purple-100' }
+      case 'MRI': return { wrap: 'bg-indigo-100', icon: 'text-indigo-600', code: 'text-indigo-700 bg-indigo-100' }
+      default: return { wrap: 'bg-gray-100', icon: 'text-gray-600', code: 'text-gray-700 bg-gray-100' }
     }
   }
 
   const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit(selectedOrders)
-    }
+    onSubmit?.(selectedOrders)
+    toast({ title: 'Radiology Request Submitted', description: `Sent ${selectedOrders.length} imaging order(s) to Radiology.` })
   }
 
   return (
@@ -136,6 +136,7 @@ export default function Radiology({
             Submit Request
           </motion.button>
           <motion.button
+            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -224,7 +225,7 @@ export default function Radiology({
             {filteredExams.map((exam) => {
               const isSelected = selectedOrders.some(o => o.code === exam.code)
               const Icon = getModalityIcon(exam.modality)
-              const color = getModalityColor(exam.modality)
+              const styles = getModalityStyles(exam.modality)
 
               return (
                 <motion.button
@@ -236,12 +237,12 @@ export default function Radiology({
                   }`}
                   whileHover={!isSelected ? { x: 4 } : {}}
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-${color}-100`}>
-                    <Icon className={`w-5 h-5 text-${color}-600`} />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${styles.wrap}`}>
+                    <Icon className={`w-5 h-5 ${styles.icon}`} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <code className={`text-xs font-bold text-${color}-700 bg-${color}-100 px-2 py-0.5 rounded`}>
+                      <code className={`text-xs font-bold ${styles.code} px-2 py-0.5 rounded`}>
                         {exam.code}
                       </code>
                       {exam.contrast && (

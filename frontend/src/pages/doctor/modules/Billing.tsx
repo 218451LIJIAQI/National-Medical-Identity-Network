@@ -1,3 +1,4 @@
+import { useToast } from '@/components/ui/use-toast'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
@@ -49,6 +50,7 @@ export default function Billing({
   patientIC = '880515-14-5678',
   subsidyStatus = 'eligible'
 }: BillingProps) {
+  const { toast } = useToast()
   const [billingItems] = useState<BillingItem[]>(mockBillingItems)
   const [selectedPayment, setSelectedPayment] = useState<'counter' | 'online' | 'waived'>('counter')
 
@@ -77,6 +79,7 @@ export default function Billing({
         </div>
         <div className="flex items-center gap-3">
           <motion.button
+            onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
             whileHover={{ scale: 1.02 }}
           >
@@ -84,6 +87,7 @@ export default function Billing({
             Print Receipt
           </motion.button>
           <motion.button
+            onClick={() => toast({ title: 'Payment Settled', description: `Processed RM ${totalFinal.toFixed(2)} via ${selectedPayment.toUpperCase()} (${subsidyPercent}% MOH subsidy applied).` })}
             className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:bg-emerald-700"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
