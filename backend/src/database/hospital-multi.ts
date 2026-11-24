@@ -18,12 +18,14 @@ import {
   HospitalDepartment,
   StaffRosterMember,
   InventorySku,
+  SensitiveCategorySettings,
   getNodeQueryTimeoutMs,
   normalizeIcNumber,
   parseMyKadParts,
   withTimeout,
 } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
+import { filterSensitiveConditions } from './central-multi';
 import { getHospitalById } from '../config';
 import { PrismaClient as HospitalPrismaClient } from '../../node_modules/.prisma/client/hospital';
 
@@ -582,23 +584,23 @@ export class HospitalDatabaseMulti {
     };
 
     if (updates.prescriptions !== undefined) {
-      await this.prisma.prescription.deleteMany({ where: { recordId } });
       const validPrescriptions = updates.prescriptions
         .map(normalizePrescriptionInput)
         .filter(p => p.medicationName && p.dosage && p.frequency);
-      if (validPrescriptions.length > 0) {
-        data.prescriptions = { create: validPrescriptions };
-      }
+      data.prescriptions = {
+        deleteMany: {},
+        ...(validPrescriptions.length > 0 ? { create: validPrescriptions } : {}),
+      };
     }
 
     if (updates.labReports !== undefined) {
-      await this.prisma.labReport.deleteMany({ where: { recordId } });
       const validLabReports = updates.labReports
         .map(l => normalizeLabReportInput(l, safeVisitDate))
         .filter(l => l.testName);
-      if (validLabReports.length > 0) {
-        data.labReports = { create: validLabReports };
-      }
+      data.labReports = {
+        deleteMany: {},
+        ...(validLabReports.length > 0 ? { create: validLabReports } : {}),
+      };
     }
 
     const updated = await this.prisma.medicalRecord.update({
@@ -614,6 +616,28 @@ export class HospitalDatabaseMulti {
     return this.formatRecord(updated);
   }
 
+  private actionLocks = new Map<string, Promise<unknown>>();
+
+  private async withExclusiveLock<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.actionLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const queued = previous.then(() => gate);
+    this.actionLocks.set(key, queued);
+
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+      if (this.actionLocks.get(key) === queued) {
+        this.actionLocks.delete(key);
+      }
+    }
+  }
+
   async dispensePrescription(
     recordId: string,
     prescriptionId: string,
@@ -623,37 +647,39 @@ export class HospitalDatabaseMulti {
     | { status: 'already_dispensed'; record: MedicalRecord }
     | { status: 'dispensed'; record: MedicalRecord; prescription: Prescription }
   > {
-    const existing = await this.prisma.medicalRecord.findUnique({
-      where: { id: recordId },
-      include: { doctor: true, prescriptions: true, labReports: true },
+    return this.withExclusiveLock(`rx:${recordId}:${prescriptionId}`, async () => {
+      const existing = await this.prisma.medicalRecord.findUnique({
+        where: { id: recordId },
+        include: { doctor: true, prescriptions: true, labReports: true },
+      });
+      if (!existing) return { status: 'not_found' };
+
+      const targetRx = existing.prescriptions.find(p => p.id === prescriptionId);
+      if (!targetRx) return { status: 'not_found' };
+
+      if (!targetRx.isActive) {
+        return { status: 'already_dispensed', record: this.formatRecord(existing) };
+      }
+
+      const stamp = `[Dispensed ${new Date().toISOString().split('T')[0]} by ${dispensedBy}]`;
+      const nextInstructions = targetRx.instructions
+        ? `${targetRx.instructions} ${stamp}`.slice(0, 500)
+        : stamp;
+
+      await this.prisma.prescription.update({
+        where: { id: prescriptionId },
+        data: {
+          isActive: false,
+          instructions: nextInstructions,
+        },
+      });
+
+      const refreshed = await this.getRecordById(recordId);
+      const updatedRx = refreshed?.prescriptions?.find(p => p.id === prescriptionId);
+      if (!refreshed || !updatedRx) return { status: 'not_found' };
+
+      return { status: 'dispensed', record: refreshed, prescription: updatedRx };
     });
-    if (!existing) return { status: 'not_found' };
-
-    const targetRx = existing.prescriptions.find(p => p.id === prescriptionId);
-    if (!targetRx) return { status: 'not_found' };
-
-    if (!targetRx.isActive) {
-      return { status: 'already_dispensed', record: this.formatRecord(existing) };
-    }
-
-    const stamp = `[Dispensed ${new Date().toISOString().split('T')[0]} by ${dispensedBy}]`;
-    const nextInstructions = targetRx.instructions
-      ? `${targetRx.instructions} ${stamp}`.slice(0, 500)
-      : stamp;
-
-    await this.prisma.prescription.update({
-      where: { id: prescriptionId },
-      data: {
-        isActive: false,
-        instructions: nextInstructions,
-      },
-    });
-
-    const refreshed = await this.getRecordById(recordId);
-    const updatedRx = refreshed?.prescriptions?.find(p => p.id === prescriptionId);
-    if (!refreshed || !updatedRx) return { status: 'not_found' };
-
-    return { status: 'dispensed', record: refreshed, prescription: updatedRx };
   }
 
   async signOffLabReport(
@@ -672,43 +698,45 @@ export class HospitalDatabaseMulti {
     | { status: 'already_finalized'; record: MedicalRecord }
     | { status: 'signed_off'; record: MedicalRecord; labReport: LabReport }
   > {
-    const existing = await this.prisma.medicalRecord.findUnique({
-      where: { id: recordId },
-      include: { doctor: true, prescriptions: true, labReports: true },
+    return this.withExclusiveLock(`lab:${recordId}:${labReportId}`, async () => {
+      const existing = await this.prisma.medicalRecord.findUnique({
+        where: { id: recordId },
+        include: { doctor: true, prescriptions: true, labReports: true },
+      });
+      if (!existing) return { status: 'not_found' };
+
+      const targetLab = existing.labReports.find(l => l.id === labReportId);
+      if (!targetLab) return { status: 'not_found' };
+
+      if (!isPendingLabResult(targetLab.result)) {
+        return { status: 'already_finalized', record: this.formatRecord(existing) };
+      }
+
+      const stamp = `[Verified by ${input.signedOffBy}]`;
+      const baseNote = input.notes !== undefined ? String(input.notes).trim() : targetLab.notes || '';
+      const nextNotes = baseNote ? `${baseNote} ${stamp}`.slice(0, 1000) : stamp;
+
+      await this.prisma.labReport.update({
+        where: { id: labReportId },
+        data: {
+          result: input.result.trim(),
+          unit: input.unit !== undefined ? (input.unit.trim() || null) : targetLab.unit,
+          referenceRange:
+            input.referenceRange !== undefined
+              ? input.referenceRange.trim() || null
+              : targetLab.referenceRange,
+          isAbnormal: input.isAbnormal !== undefined ? Boolean(input.isAbnormal) : targetLab.isAbnormal,
+          reportDate: new Date(),
+          notes: nextNotes,
+        },
+      });
+
+      const refreshed = await this.getRecordById(recordId);
+      const updatedLab = refreshed?.labReports?.find(l => l.id === labReportId);
+      if (!refreshed || !updatedLab) return { status: 'not_found' };
+
+      return { status: 'signed_off', record: refreshed, labReport: updatedLab };
     });
-    if (!existing) return { status: 'not_found' };
-
-    const targetLab = existing.labReports.find(l => l.id === labReportId);
-    if (!targetLab) return { status: 'not_found' };
-
-    if (!isPendingLabResult(targetLab.result)) {
-      return { status: 'already_finalized', record: this.formatRecord(existing) };
-    }
-
-    const stamp = `[Verified by ${input.signedOffBy}]`;
-    const baseNote = input.notes !== undefined ? String(input.notes).trim() : targetLab.notes || '';
-    const nextNotes = baseNote ? `${baseNote} ${stamp}`.slice(0, 1000) : stamp;
-
-    await this.prisma.labReport.update({
-      where: { id: labReportId },
-      data: {
-        result: input.result.trim(),
-        unit: input.unit !== undefined ? (input.unit.trim() || null) : targetLab.unit,
-        referenceRange:
-          input.referenceRange !== undefined
-            ? input.referenceRange.trim() || null
-            : targetLab.referenceRange,
-        isAbnormal: input.isAbnormal !== undefined ? Boolean(input.isAbnormal) : targetLab.isAbnormal,
-        reportDate: new Date(),
-        notes: nextNotes,
-      },
-    });
-
-    const refreshed = await this.getRecordById(recordId);
-    const updatedLab = refreshed?.labReports?.find(l => l.id === labReportId);
-    if (!refreshed || !updatedLab) return { status: 'not_found' };
-
-    return { status: 'signed_off', record: refreshed, labReport: updatedLab };
   }
 
   private formatRecord(record: {
@@ -1619,25 +1647,39 @@ export function resetHospitalDbInstances(): void {
   hospitalDbInstances.clear();
 }
 
-export async function findPatientInHospitals(rawIcNumber: string, hospitalIds: string[]): Promise<Patient | null> {
+export async function findPatientInHospitals(
+  rawIcNumber: string,
+  hospitalIds: string[],
+  options?: {
+    viewerHospitalId?: string;
+    sensitiveSettings?: SensitiveCategorySettings | null;
+  }
+): Promise<Patient | null> {
   const icNumber = normalizeIcNumber(rawIcNumber);
   let merged: Patient | null = null;
   const timeoutMs = getNodeQueryTimeoutMs();
 
   const results = await Promise.allSettled(
-    hospitalIds.map(hospitalId =>
-      withTimeout(getHospitalDb(hospitalId).getPatient(icNumber), timeoutMs, hospitalId)
-    )
+    hospitalIds.map(async hospitalId => ({
+      hospitalId,
+      patient: await withTimeout(getHospitalDb(hospitalId).getPatient(icNumber), timeoutMs, hospitalId),
+    }))
   );
 
   for (const res of results) {
-    if (res.status !== 'fulfilled' || !res.value) continue;
-    const p = res.value;
+    if (res.status !== 'fulfilled' || !res.value.patient) continue;
+    const { hospitalId, patient: p } = res.value;
+    const isExternalHospital =
+      Boolean(options?.sensitiveSettings) && hospitalId !== options?.viewerHospitalId;
+    const visibleConditions = isExternalHospital
+      ? filterSensitiveConditions(p.chronicConditions, options?.sensitiveSettings)
+      : p.chronicConditions;
+
     if (!merged) {
       merged = {
         ...p,
         allergies: [...p.allergies],
-        chronicConditions: [...p.chronicConditions],
+        chronicConditions: [...visibleConditions],
       };
     } else {
       merged.fullName = merged.fullName || p.fullName;
@@ -1648,7 +1690,7 @@ export async function findPatientInHospitals(rawIcNumber: string, hospitalIds: s
       merged.emergencyContact = merged.emergencyContact || p.emergencyContact;
       merged.emergencyPhone = merged.emergencyPhone || p.emergencyPhone;
       merged.allergies = Array.from(new Set([...merged.allergies, ...p.allergies]));
-      merged.chronicConditions = Array.from(new Set([...merged.chronicConditions, ...p.chronicConditions]));
+      merged.chronicConditions = Array.from(new Set([...merged.chronicConditions, ...visibleConditions]));
     }
   }
 

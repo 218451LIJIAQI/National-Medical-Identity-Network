@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useEffect, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { clearAllToasts } from '@/components/ui/use-toast'
+import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore, resetClinicalSessionContext } from '@/store/clinical'
 import { useSettingsStore } from '@/store/settings'
@@ -58,7 +59,7 @@ function ScrollToTop() {
 
 function GlobalSessionAndAccessibilitySync() {
   const { language, fontSize, highContrast } = useSettingsStore()
-  const { isAuthenticated, user, isHospitalVerified } = useAuthStore()
+  const { isAuthenticated, token, user, isHospitalVerified, _hasHydrated } = useAuthStore()
   const activePatient = useClinicalStore((s) => s.activePatient)
   const sessionKey = isAuthenticated && user ? `${user.id}:${user.role}:${user.hospitalId || ''}` : 'anon'
   const prevSessionKeyRef = useRef(sessionKey)
@@ -76,6 +77,13 @@ function GlobalSessionAndAccessibilitySync() {
     root.dataset.fontScale = fontSize
     root.classList.toggle('high-contrast', highContrast)
   }, [language, fontSize, highContrast])
+
+  useEffect(() => {
+    if (!_hasHydrated || !isAuthenticated || !token) return
+    const controller = new AbortController()
+    void authApi.me(controller.signal)
+    return () => controller.abort()
+  }, [_hasHydrated, isAuthenticated, token])
 
   useEffect(() => {
     if (!activePatient) return

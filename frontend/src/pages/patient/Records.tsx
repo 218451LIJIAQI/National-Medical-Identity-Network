@@ -35,18 +35,9 @@ import {
   formatActorDisplayName,
   downloadCsvFile,
   downloadJsonFile,
+  isPendingLabValue,
   printHtmlDocument,
 } from '@/lib/utils'
-
-function isPendingLabValue(result: string): boolean {
-  const normalized = (result || '').trim().toLowerCase()
-  return (
-    !normalized ||
-    normalized.startsWith('pending') ||
-    normalized.startsWith('imaging scheduled') ||
-    normalized === 'ordered'
-  )
-}
 
 export default function PatientRecords() {
   const { user } = useAuthStore()
@@ -60,7 +51,7 @@ export default function PatientRecords() {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedRecordIds, setExpandedRecordIds] = useState<Record<string, boolean>>({})
 
-  const loadRecords = useCallback(async () => {
+  const loadRecords = useCallback(async (signal?: AbortSignal) => {
     if (!user?.icNumber) {
       setLoading(false)
       return
@@ -70,7 +61,8 @@ export default function PatientRecords() {
     setAllNodesFailed(false)
     setPartialFailure(false)
     try {
-      const response = await centralApi.queryPatient(user.icNumber)
+      const response = await centralApi.queryPatient(user.icNumber, signal)
+      if (response.aborted || signal?.aborted) return
       if (response.success && response.data) {
         if (response.data.allNodesFailed) {
           setAllNodesFailed(true)
@@ -102,14 +94,16 @@ export default function PatientRecords() {
         setLoadError(response.error || t.networkError)
       }
     } catch {
-      setLoadError(t.networkError)
+      if (!signal?.aborted) setLoadError(t.networkError)
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) setLoading(false)
     }
   }, [user?.icNumber, t.allNodesUnavailableDesc, t.networkError])
 
   useEffect(() => {
-    void loadRecords()
+    const controller = new AbortController()
+    void loadRecords(controller.signal)
+    return () => controller.abort()
   }, [loadRecords])
 
   const hospitalOptions = useMemo(() => {

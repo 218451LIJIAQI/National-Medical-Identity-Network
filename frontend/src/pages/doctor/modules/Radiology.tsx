@@ -61,6 +61,7 @@ export default function Radiology() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [selectedOrders, setSelectedOrders] = useState<RadiologyOrderItem[]>([])
+  const [lastSubmittedOrders, setLastSubmittedOrders] = useState<RadiologyOrderItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedModality, setSelectedModality] = useState('All')
   const [clinicalInfo, setClinicalInfo] = useState('')
@@ -70,6 +71,7 @@ export default function Radiology() {
 
   useEffect(() => {
     setSelectedOrders([])
+    setLastSubmittedOrders([])
     setClinicalInfo('')
     setRadRef(null)
   }, [activePatient?.icNumber])
@@ -90,9 +92,12 @@ export default function Radiology() {
     setSelectedOrders((prev) => [...prev, { id: `rad-${exam.code}`, ...exam, urgent: false }])
   }
 
+  const printableOrders = selectedOrders.length > 0 ? selectedOrders : lastSubmittedOrders
+
   const handlePrint = () => {
-    if (!activePatient) return
-    const rows = selectedOrders
+    if (!activePatient || printableOrders.length === 0) return
+    const slipRef = selectedOrders.length > 0 ? 'DRAFT' : radRef || 'DRAFT'
+    const rows = printableOrders
       .map(
         (o) => `<tr>
           <td>${escapeHtml(o.code)}</td>
@@ -106,7 +111,7 @@ export default function Radiology() {
     printHtmlDocument(
       `Radiology Request - ${activePatient.fullName}`,
       `<div class="header">
-        <div><h1>${escapeHtml(theme.name)}</h1><p>PACS / RIS Diagnostic Imaging Requisition (${escapeHtml(radRef || 'DRAFT')})</p></div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>PACS / RIS Diagnostic Imaging Requisition (${escapeHtml(slipRef)})</p></div>
         <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
@@ -149,6 +154,8 @@ export default function Radiology() {
 
       if (res.success) {
         setRadRef(ref)
+        setLastSubmittedOrders(selectedOrders)
+        setSelectedOrders([])
         toast({
           title: 'Radiology Order Transmitted',
           description: `${ref} (${selectedOrders.length} study) persisted to ${activePatient.fullName}'s timeline.`,
@@ -178,7 +185,7 @@ export default function Radiology() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={selectedOrders.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={printableOrders.length === 0} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>

@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertCircle,
   AlertTriangle,
@@ -288,7 +289,7 @@ export function ModalDialog({
 
   if (!open) return null
 
-  return (
+  const dialogContent = (
     <div
       style={{ margin: 0 }}
       className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-4"
@@ -347,4 +348,6 @@ export function ModalDialog({
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(dialogContent, document.body) : dialogContent
 }

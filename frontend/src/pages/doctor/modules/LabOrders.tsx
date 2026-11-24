@@ -23,7 +23,7 @@ import { useAuthStore } from '@/store/auth'
 import { centralApi, hospitalApi, type LabReportDto } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
-import { cn, escapeHtml, formatDate, printHtmlDocument } from '@/lib/utils'
+import { cn, escapeHtml, formatDate, isPendingLabValue, printHtmlDocument } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
 interface LabTestItem {
@@ -67,16 +67,6 @@ const LAB_CATALOG = [
 
 const CATEGORIES = ['All', 'Hematology', 'Biochemistry', 'Microbiology', 'Serology']
 
-function isPendingLabValue(result: string): boolean {
-  const normalized = (result || '').trim().toLowerCase()
-  return (
-    !normalized ||
-    normalized.startsWith('pending') ||
-    normalized.startsWith('imaging scheduled') ||
-    normalized === 'ordered'
-  )
-}
-
 export default function LabOrders() {
   const user = useAuthStore((s) => s.user)
   const { activePatient } = useClinicalStore()
@@ -85,6 +75,7 @@ export default function LabOrders() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [selectedTests, setSelectedTests] = useState<LabTestItem[]>([])
+  const [lastSubmittedTests, setLastSubmittedTests] = useState<LabTestItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [clinicalInfo, setClinicalInfo] = useState('')
@@ -129,6 +120,7 @@ export default function LabOrders() {
 
   useEffect(() => {
     setSelectedTests([])
+    setLastSubmittedTests([])
     setClinicalInfo('')
     setOrderRef(null)
     setRequisitions([])
@@ -150,9 +142,12 @@ export default function LabOrders() {
     setSelectedTests((prev) => [...prev, { id: `lab-${item.code}`, ...item, urgent: false }])
   }
 
+  const printableTests = selectedTests.length > 0 ? selectedTests : lastSubmittedTests
+
   const handlePrint = () => {
-    if (!activePatient) return
-    const rows = selectedTests
+    if (!activePatient || printableTests.length === 0) return
+    const slipRef = selectedTests.length > 0 ? 'DRAFT' : orderRef || 'DRAFT'
+    const rows = printableTests
       .map(
         (item) => `<tr>
           <td>${escapeHtml(item.code)}</td>
@@ -166,7 +161,7 @@ export default function LabOrders() {
     printHtmlDocument(
       `Laboratory Requisition - ${activePatient.fullName}`,
       `<div class="header">
-        <div><h1>${escapeHtml(theme.name)}</h1><p>Pathology & Laboratory Requisition (${escapeHtml(orderRef || 'DRAFT')})</p></div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>Pathology & Laboratory Requisition (${escapeHtml(slipRef)})</p></div>
         <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
@@ -209,6 +204,7 @@ export default function LabOrders() {
 
       if (res.success) {
         setOrderRef(ref)
+        setLastSubmittedTests(selectedTests)
         setSelectedTests([])
         await loadHospitalLabRequisitions(activePatient.icNumber)
         toast({
@@ -284,7 +280,7 @@ export default function LabOrders() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={selectedTests.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={printableTests.length === 0} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>

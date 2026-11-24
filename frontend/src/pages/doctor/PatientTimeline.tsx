@@ -37,6 +37,7 @@ import {
   formatBloodPressure,
   formatDate,
   formatIC,
+  isPendingLabValue,
   isValidMyKad,
   printHtmlDocument,
 } from '@/lib/utils'
@@ -57,16 +58,6 @@ interface ActiveMedicationItem {
   frequency: string
   instructions?: string
   hospital: string
-}
-
-function isPendingLabValue(result: string): boolean {
-  const normalized = (result || '').trim().toLowerCase()
-  return (
-    !normalized ||
-    normalized.startsWith('pending') ||
-    normalized.startsWith('imaging scheduled') ||
-    normalized === 'ordered'
-  )
 }
 
 export default function PatientTimeline() {

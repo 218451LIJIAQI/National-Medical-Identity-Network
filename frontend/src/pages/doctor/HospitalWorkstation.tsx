@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { authApi, hospitalApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
@@ -68,12 +68,38 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'billing', labelKey: 'billing', icon: Receipt },
 ]
 
+function isValidWorkstationModule(value: string | null): value is ModuleType {
+  return Boolean(value && NAV_ITEMS.some((item) => item.id === value))
+}
+
 export default function HospitalWorkstation() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, logout } = useAuthStore()
   const { t } = useTranslation()
-  const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
+  const requestedModule = searchParams.get('module')
+  const activeModule: ModuleType = isValidWorkstationModule(requestedModule)
+    ? requestedModule
+    : 'dashboard'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  const setActiveModule = useCallback(
+    (nextModule: ModuleType) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (nextModule === 'dashboard') {
+            next.delete('module')
+          } else {
+            next.set('module', nextModule)
+          }
+          return next
+        },
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
   const [hospitalMetrics, setHospitalMetrics] = useState({
     totalPatients: 0,
     totalRecords: 0,
@@ -221,6 +247,7 @@ export default function HospitalWorkstation() {
               <button
                 key={item.id}
                 type="button"
+                aria-current={isActive ? 'page' : undefined}
                 title={sidebarCollapsed ? label : undefined}
                 onClick={() => setActiveModule(item.id)}
                 className={cn(

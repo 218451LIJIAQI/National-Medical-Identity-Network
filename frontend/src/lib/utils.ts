@@ -128,6 +128,16 @@ export function maskIC(ic?: string): string {
   return ic
 }
 
+export function isPendingLabValue(result?: string | null): boolean {
+  const normalized = String(result || '').trim().toLowerCase()
+  return (
+    !normalized ||
+    normalized.startsWith('pending') ||
+    normalized.startsWith('imaging scheduled') ||
+    normalized === 'ordered'
+  )
+}
+
 export function formatBloodPressure(
   sys?: number | null,
   dia?: number | null

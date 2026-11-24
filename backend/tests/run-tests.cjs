@@ -796,10 +796,16 @@ function createMockHospitalPrisma(seed = {}) {
         const { prescriptions, labReports, ...scalarUpdates } = data;
         Object.assign(existing, scalarUpdates, { updatedAt: new Date() });
 
+        if (prescriptions?.deleteMany) {
+          state.prescriptions = state.prescriptions.filter((p) => p.recordId !== existing.id);
+        }
         if (prescriptions?.create) {
           for (const rx of prescriptions.create) {
             state.prescriptions.push({ id: crypto.randomUUID(), recordId: existing.id, ...rx });
           }
+        }
+        if (labReports?.deleteMany) {
+          state.labReports = state.labReports.filter((l) => l.recordId !== existing.id);
         }
         if (labReports?.create) {
           for (const lab of labReports.create) {
@@ -2785,4 +2791,149 @@ test('19. Closed-loop prescription dispensing, lab sign-off, 409 state-transitio
   });
   assert.equal(finAfterInvalidation.body.data.settledReceiptsCount, 0);
   assert.equal(finAfterInvalidation.body.data.liveSettledRevenue, 0);
+});
+
+test('20. Central DB sensitive consent persistence, cross-hospital chronicConditions redaction & concurrent dispense/signoff race safety', async () => {
+  const { hospitals } = buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+  const { verifiedToken: pgDocToken } = await loginAndVerifyDoctor(baseUrl, '790303-07-5002');
+
+  // Record a sensitive psychiatric chronic condition on 850505-10-5111 at hospital-kl
+  const addPsychCondition = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      visitDate: '2026-05-27T10:00:00.000Z',
+      visitType: 'outpatient',
+      chiefComplaint: 'Mood follow-up',
+      diagnosis: ['Major Depressive Disorder'],
+      diagnosisCodes: ['F33.1'],
+      chronicConditions: ['Major Depressive Disorder (F33.1)'],
+      prescriptions: [
+        {
+          medicationName: 'Sertraline',
+          dosage: '50mg',
+          frequency: 'OD',
+          duration: '30 days',
+          quantity: 30,
+          instructions: 'Morning',
+          isActive: true,
+        },
+      ],
+      labReports: [
+        {
+          testType: 'Biochemistry',
+          testName: 'TSH Screening',
+          result: 'Pending Specimen Analysis',
+          unit: 'mIU/L',
+          referenceRange: '0.4 - 4.0',
+          isAbnormal: false,
+          reportDate: '2026-05-27T10:00:00.000Z',
+        },
+      ],
+    },
+  });
+  assert.equal(addPsychCondition.status, 201);
+  const createdRec = addPsychCondition.body.data.record;
+
+  // Authoring hospital doctor (KL) sees local sensitive chronicCondition, whereas external Penang doctor does NOT
+  const klCentralPat = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(klCentralPat.status, 200);
+  assert.ok(klCentralPat.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')));
+
+  const pgCentralPatProtected = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
+    token: pgDocToken,
+  });
+  assert.equal(pgCentralPatProtected.status, 200);
+  assert.ok(
+    !pgCentralPatProtected.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')),
+    'Protected mentalHealth chronicCondition must be redacted from external hospital summary'
+  );
+
+  // Patient updates mentalHealth=false -> persists in Central DB across resetCentralTransientStateForTesting()
+  // without polluting hospital privacy-settings list
+  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '850505-10-5111', password: 'demo123' },
+  });
+  const patToken = patLogin.body.data.token;
+  const saveSens = await requestJson(baseUrl, 'PUT', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+    body: { mentalHealth: false },
+  });
+  assert.equal(saveSens.status, 200);
+
+  centralMultiMod.resetCentralTransientStateForTesting();
+
+  const reloadedSens = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+  });
+  assert.equal(reloadedSens.status, 200);
+  assert.equal(reloadedSens.body.data.mentalHealth, false);
+  assert.equal(reloadedSens.body.data.hivStatus, true);
+
+  const hospitalPrivacyList = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings', {
+    token: patToken,
+  });
+  assert.equal(hospitalPrivacyList.status, 200);
+  assert.ok(
+    hospitalPrivacyList.body.data.every((row) => !String(row.hospitalId).startsWith('sensitive:')),
+    'Sensitive category rows must not leak into hospital blocklist settings'
+  );
+
+  // External Penang doctor now sees unlocked mentalHealth chronicCondition
+  const pgCentralPatUnlocked = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
+    token: pgDocToken,
+  });
+  assert.ok(pgCentralPatUnlocked.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')));
+
+  // Concurrent dispense race: exactly 1 x 200 and 1 x 409
+  const rxId = createdRec.prescriptions[0].id;
+  const [dispA, dispB] = await Promise.all([
+    requestJson(baseUrl, 'POST', `/api/hospitals/hospital-kl/records/${createdRec.id}/prescriptions/${rxId}/dispense`, {
+      token: klDocToken,
+    }),
+    requestJson(baseUrl, 'POST', `/api/hospitals/hospital-kl/records/${createdRec.id}/prescriptions/${rxId}/dispense`, {
+      token: klDocToken,
+    }),
+  ]);
+  assert.deepEqual([dispA.status, dispB.status].sort((a, b) => a - b), [200, 409]);
+
+  // Concurrent lab signoff race: exactly 1 x 200 and 1 x 409
+  const labId = createdRec.labReports[0].id;
+  const [signA, signB] = await Promise.all([
+    requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}/lab-reports/${labId}/signoff`, {
+      token: klDocToken,
+      body: { result: '2.1', unit: 'mIU/L', isAbnormal: false },
+    }),
+    requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}/lab-reports/${labId}/signoff`, {
+      token: klDocToken,
+      body: { result: '2.2', unit: 'mIU/L', isAbnormal: false },
+    }),
+  ]);
+  assert.deepEqual([signA.status, signB.status].sort((a, b) => a - b), [200, 409]);
+
+  // Atomic updateRecord: if medicalRecord.update throws, existing prescriptions are NOT lost
+  const origUpdate = hospitals['hospital-kl'].medicalRecord.update;
+  hospitals['hospital-kl'].medicalRecord.update = async () => {
+    throw new Error('Simulated DB write failure');
+  };
+  try {
+    const failedPut = await requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}`, {
+      token: klDocToken,
+      body: {
+        prescriptions: [{ medicationName: 'Escitalopram', dosage: '10mg', frequency: 'OD' }],
+      },
+    });
+    assert.equal(failedPut.status, 500);
+  } finally {
+    hospitals['hospital-kl'].medicalRecord.update = origUpdate;
+  }
+  const intactRec = await requestJson(baseUrl, 'GET', `/api/hospitals/hospital-kl/records/${createdRec.id}`, {
+    token: klDocToken,
+  });
+  assert.equal(intactRec.status, 200);
+  assert.equal(intactRec.body.data.prescriptions.length, 1);
+  assert.equal(intactRec.body.data.prescriptions[0].medicationName, 'Sertraline');
 });

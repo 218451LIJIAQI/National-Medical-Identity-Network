@@ -14,6 +14,7 @@ import {
   getSensitiveCategorySettings,
   updateSensitiveCategorySettings,
   resetCentralTransientStateForTesting,
+  classifySensitiveCategories,
   parseSafeLimit,
 } from '../database/central-multi';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
@@ -24,9 +25,7 @@ import {
   CrossHospitalQueryResult,
   QueryFlowStep,
   HospitalQueryResult,
-  MedicalRecord,
   NodeTimeoutError,
-  SensitiveCategoryKey,
   User,
   getNodeQueryTimeoutMs,
   isValidMyKadIc,
@@ -36,50 +35,6 @@ import {
 
 const router = Router();
 const LOG_DEDUP_WINDOW_MS = 5 * 60 * 1000;
-
-const SENSITIVE_CATEGORY_MATCHERS: Array<{
-  key: SensitiveCategoryKey;
-  icdRegex: RegExp;
-  textRegex: RegExp;
-}> = [
-  {
-    key: 'mentalHealth',
-    icdRegex: /^F[2-9]\d/i,
-    textRegex: /\b(schizophren|bipolar|major\s+depress|psychiat|suicid|psychosis|anxiety\s+disorder|ptsd)\b/i,
-  },
-  {
-    key: 'substanceAbuse',
-    icdRegex: /^F1\d/i,
-    textRegex: /\b(substance\s+abuse|opioid|alcohol\s+depend|drug\s+overdose|methadone|addiction|withdrawal\s+syndrome)\b/i,
-  },
-  {
-    key: 'hivStatus',
-    icdRegex: /^B2[0-4]/i,
-    textRegex: /\b(hiv|human\s+immunodeficiency|aids|antiretroviral)\b/i,
-  },
-  {
-    key: 'reproductiveHealth',
-    icdRegex: /^O\d{2}/i,
-    textRegex: /\b(obstetric|ectopic\s+pregnan|miscarriage|contracepti|fertility|ivf|reproductive\s+health|termination\s+of\s+pregnancy)\b/i,
-  },
-];
-
-function classifySensitiveCategories(record: MedicalRecord): SensitiveCategoryKey[] {
-  const codes = (record.diagnosisCodes || []).map(c => String(c || '').trim());
-  const combinedText = [
-    record.chiefComplaint || '',
-    ...(record.diagnosis || []),
-    record.notes || '',
-  ].join(' ');
-
-  const matched: SensitiveCategoryKey[] = [];
-  for (const rule of SENSITIVE_CATEGORY_MATCHERS) {
-    if (codes.some(code => rule.icdRegex.test(code)) || rule.textRegex.test(combinedText)) {
-      matched.push(rule.key);
-    }
-  }
-  return matched;
-}
 
 function deduplicateLogs<T extends { timestamp: string }>(
   logs: T[],
@@ -841,7 +796,12 @@ router.get(
         return;
       }
 
-      const patientInfo = await findPatientInHospitals(icNumber, patientIndex.hospitals);
+      const sensitiveSettings =
+        user.role === 'doctor' ? await getSensitiveCategorySettings(icNumber) : null;
+      const patientInfo = await findPatientInHospitals(icNumber, patientIndex.hospitals, {
+        viewerHospitalId: user.role === 'doctor' ? user.hospitalId : undefined,
+        sensitiveSettings,
+      });
       if (!patientInfo) {
         res.status(503).json({
           success: false,

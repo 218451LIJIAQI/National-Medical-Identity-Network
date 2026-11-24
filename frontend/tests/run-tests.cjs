@@ -678,3 +678,29 @@ test('14. Verifies shared LanguageSwitcher in About, AuditLogs optional actorId 
   const patRecSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/patient/Records.tsx'), 'utf8');
   assert.match(patRecSrc, /isPendingLabValue/, 'patient/Records.tsx must distinguish pending lab results from normal results');
 });
+
+test('15. Verifies deduplicated isPendingLabValue, Portal ModalDialog, ?module= Workstation sync & post-submit print continuity', () => {
+  const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
+  assert.equal(utils.isPendingLabValue('Pending Specimen Analysis'), true);
+  assert.equal(utils.isPendingLabValue('Imaging Scheduled (30 min)'), true);
+  assert.equal(utils.isPendingLabValue('ordered'), true);
+  assert.equal(utils.isPendingLabValue('5.6'), false);
+
+  for (const rel of [
+    'pages/patient/Records.tsx',
+    'pages/doctor/PatientTimeline.tsx',
+    'pages/doctor/modules/LabOrders.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.ok(!src.includes('function isPendingLabValue'), `${rel} must import shared isPendingLabValue instead of duplicating it`);
+  }
+
+  const modalSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/modal-dialog.tsx'), 'utf8');
+  assert.match(modalSrc, /createPortal\(dialogContent,\s*document\.body\)/, 'ModalDialog must mount via document.body Portal');
+
+  const workstationSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/HospitalWorkstation.tsx'), 'utf8');
+  assert.match(workstationSrc, /useSearchParams/, 'HospitalWorkstation must synchronize active module with URL search params');
+
+  const radSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/Radiology.tsx'), 'utf8');
+  assert.match(radSrc, /setLastSubmittedOrders\(selectedOrders\)/, 'Radiology must retain submitted orders for slip printing while clearing draft selection');
+});

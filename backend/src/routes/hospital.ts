@@ -7,6 +7,7 @@ import {
   getPatientIndex,
   getBlockedHospitals,
   getBlockedPatientIcsForHospital,
+  getSensitiveCategorySettings,
 } from '../database/central-multi';
 import {
   authenticate,
@@ -426,7 +427,11 @@ router.get(
 
     const index = await getPatientIndex(icNumber);
     if (index && index.hospitals.length > 0) {
-      const federatedPatient = await findPatientInHospitals(icNumber, index.hospitals);
+      const sensitiveSettings = await getSensitiveCategorySettings(icNumber);
+      const federatedPatient = await findPatientInHospitals(icNumber, index.hospitals, {
+        viewerHospitalId: hospitalId,
+        sensitiveSettings,
+      });
       if (federatedPatient) {
         res.json({
           success: true,
@@ -558,7 +563,11 @@ router.post(
         let federatedPatient: Patient | null = null;
         const patientIndex = await getPatientIndex(icNumber);
         if (patientIndex && patientIndex.hospitals.length > 0) {
-          federatedPatient = await findPatientInHospitals(icNumber, patientIndex.hospitals);
+          const sensitiveSettings = await getSensitiveCategorySettings(icNumber);
+          federatedPatient = await findPatientInHospitals(icNumber, patientIndex.hospitals, {
+            viewerHospitalId: hospitalId,
+            sensitiveSettings,
+          });
         }
 
         const inferred = inferDemographicsFromMyKad(icNumber);

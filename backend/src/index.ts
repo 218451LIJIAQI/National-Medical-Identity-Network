@@ -36,13 +36,34 @@ export function createApp() {
   app.use('/api/central', centralRoutes);
   app.use('/api/hospitals', hospitalRoutes);
 
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  });
+  app.use(
+    (
+      err: Error & { status?: number; type?: string },
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      if (err instanceof SyntaxError && ('body' in err || err.status === 400)) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid JSON payload',
+        });
+        return;
+      }
+      if (err.type === 'entity.too.large' || err.status === 413) {
+        res.status(413).json({
+          success: false,
+          error: 'Request payload too large',
+        });
+        return;
+      }
+      console.error('Unhandled error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  );
 
   app.use((_req, res) => {
     res.status(404).json({

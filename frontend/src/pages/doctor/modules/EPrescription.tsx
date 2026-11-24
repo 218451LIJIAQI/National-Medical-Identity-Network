@@ -68,6 +68,7 @@ export default function EPrescription() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [medications, setMedications] = useState<MedicationRow[]>([])
+  const [lastSubmittedMeds, setLastSubmittedMeds] = useState<MedicationRow[]>([])
   const [diagnosisNote, setDiagnosisNote] = useState('Outpatient Medication Prescription')
   const [searchQuery, setSearchQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -110,6 +111,7 @@ export default function EPrescription() {
   // Clear draft prescription & reload pharmacy queue whenever active patient switches or unbinds
   useEffect(() => {
     setMedications([])
+    setLastSubmittedMeds([])
     setDiagnosisNote('Outpatient Medication Prescription')
     setLastOrderRef(null)
     setSearchQuery('')
@@ -203,9 +205,12 @@ export default function EPrescription() {
     }
   }
 
+  const printableMeds = medications.length > 0 ? medications : lastSubmittedMeds
+
   const handlePrint = () => {
-    if (!activePatient) return
-    const rows = medications
+    if (!activePatient || printableMeds.length === 0) return
+    const slipRef = medications.length > 0 ? 'DRAFT' : lastOrderRef || 'DRAFT'
+    const rows = printableMeds
       .map(
         (m) => `<tr>
           <td>${escapeHtml(m.name)} (${escapeHtml(m.genericName)})</td>
@@ -220,7 +225,7 @@ export default function EPrescription() {
     printHtmlDocument(
       `e-Prescription - ${activePatient.fullName}`,
       `<div class="header">
-        <div><h1>${escapeHtml(theme.name)}</h1><p>Electronic Pharmacy Prescription (${escapeHtml(lastOrderRef || 'DRAFT')})</p></div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>Electronic Pharmacy Prescription (${escapeHtml(slipRef)})</p></div>
         <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
@@ -272,6 +277,7 @@ export default function EPrescription() {
 
       if (res.success) {
         setLastOrderRef(refCode)
+        setLastSubmittedMeds(medications)
         setMedications([])
         await loadHospitalPrescriptions(activePatient.icNumber)
         toast({
@@ -303,7 +309,7 @@ export default function EPrescription() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={medications.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={printableMeds.length === 0} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>
