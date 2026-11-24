@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { downloadCsvFile, formatDate, formatIC, getHospitalColor } from '@/lib/utils'
@@ -38,6 +38,7 @@ export default function PatientIndexPage() {
   const [patientIndexes, setPatientIndexes] = useState<PatientIndex[]>([])
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [inspectingIc, setInspectingIc] = useState<string | null>(null)
@@ -48,30 +49,38 @@ export default function PatientIndexPage() {
 
   const inspectReqSeq = useRef(0)
 
-  const loadData = async () => {
+  const loadData = useCallback(async (signal?: AbortSignal) => {
+    setLoadError('')
     try {
       const [indexesRes, hospitalsRes] = await Promise.all([
-        centralApi.getAllPatientIndexes(),
-        centralApi.getHospitals(),
+        centralApi.getAllPatientIndexes(signal),
+        centralApi.getHospitals(signal),
       ])
+      if (indexesRes.aborted || hospitalsRes.aborted) return
 
-      if (indexesRes.success && indexesRes.data) {
+      if (!indexesRes.success) {
+        setLoadError(indexesRes.error || t.networkError)
+      } else if (indexesRes.data) {
         setPatientIndexes(indexesRes.data)
       }
       if (hospitalsRes.success && hospitalsRes.data) {
-        setHospitals(hospitalsRes.data as unknown as Hospital[])
+        setHospitals(hospitalsRes.data)
       }
-    } catch (error) {
-      console.error('Failed to load patient indexes:', error)
+    } catch {
+      if (!signal?.aborted) setLoadError(t.networkError)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (!signal?.aborted) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-  }
+  }, [t.networkError])
 
   useEffect(() => {
-    void loadData()
-  }, [])
+    const controller = new AbortController()
+    void loadData(controller.signal)
+    return () => controller.abort()
+  }, [loadData])
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -172,6 +181,8 @@ export default function PatientIndexPage() {
           </Button>
         </div>
       </div>
+
+      {loadError && <DataErrorBanner message={loadError} onRetry={handleRefresh} />}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -274,7 +285,8 @@ export default function PatientIndexPage() {
             />
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto">
+            <div className="min-w-[540px]">
             <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 grid grid-cols-12 gap-4 text-xs font-bold uppercase text-slate-600">
               <div className="col-span-4">MyKad IC Number</div>
               <div className="col-span-5">Indexed Hospitals</div>
@@ -282,8 +294,11 @@ export default function PatientIndexPage() {
             </div>
             <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
               {filteredIndexes.length === 0 ? (
-                <div className="p-10 text-center text-slate-500 text-xs">
-                  No matching IC numbers found.
+                <div className="p-4">
+                  <EmptyStatePanel
+                    hasActiveFilters={Boolean(searchTerm.trim())}
+                    onClearFilters={() => setSearchTerm('')}
+                  />
                 </div>
               ) : (
                 filteredIndexes.slice(0, 100).map((idx) => (
@@ -318,6 +333,7 @@ export default function PatientIndexPage() {
                   </button>
                 ))
               )}
+            </div>
             </div>
           </div>
         </CardContent>

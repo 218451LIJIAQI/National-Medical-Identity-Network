@@ -15,7 +15,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { ClinicalPatientBanner, WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
@@ -59,6 +59,7 @@ export default function Appointments() {
 
   const [appointments, setAppointments] = useState<ClinicAppointmentDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -72,17 +73,23 @@ export default function Appointments() {
     type: 'follow-up' as ClinicAppointmentDto['type'],
   })
 
-  const loadAppointments = useCallback(async () => {
+  const loadAppointments = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getAppointments(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getAppointments(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setAppointments(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadAppointments()
+    const controller = new AbortController()
+    void loadAppointments(controller.signal)
+    return () => controller.abort()
   }, [loadAppointments])
 
   const dayAppointments = appointments
@@ -308,6 +315,8 @@ export default function Appointments() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadAppointments()} />}
+
       {/* Appointments Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
@@ -316,9 +325,16 @@ export default function Appointments() {
             <Skeleton className="h-14 w-full" />
           </div>
         ) : filteredAppointments.length === 0 ? (
-          <div className="p-10 text-center text-slate-500 text-xs">
-            <Calendar className="w-9 h-9 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-700">No appointments scheduled for this date/filter</p>
+          <div className="p-5">
+            <EmptyStatePanel
+              icon={Calendar}
+              title="No appointments scheduled for this date/filter"
+              hasActiveFilters={Boolean(searchQuery.trim() || filterStatus !== 'all')}
+              onClearFilters={() => {
+                setSearchQuery('')
+                setFilterStatus('all')
+              }}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

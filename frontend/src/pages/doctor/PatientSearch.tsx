@@ -116,7 +116,7 @@ type SearchErrorState =
 
 export default function PatientSearch() {
   const navigate = useNavigate()
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
   const { t } = useTranslation()
   const { user } = useAuthStore()
   const theme = getHospitalTheme(user?.hospitalId)
@@ -150,6 +150,7 @@ export default function PatientSearch() {
       return
     }
 
+    dismiss()
     const seq = ++searchSeqRef.current
     setSearchedIc(formattedIc)
     setIsSearching(true)
@@ -532,13 +533,18 @@ export default function PatientSearch() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {hospitalResults.map((hospital) => {
                   const color = getHospitalColor(hospital.hospitalId)
+                  const isTimeout = hospital.status === 'timeout'
                   const isError = hospital.status !== 'success'
                   return (
                     <div
                       key={hospital.hospitalId}
                       className={cn(
                         'p-4 rounded-xl border',
-                        isError ? 'bg-red-50/60 border-red-200' : 'bg-slate-50/70 border-slate-200'
+                        isTimeout
+                          ? 'bg-amber-50/70 border-amber-300'
+                          : isError
+                            ? 'bg-red-50/60 border-red-200'
+                            : 'bg-slate-50/70 border-slate-200'
                       )}
                       style={{ borderLeftColor: color, borderLeftWidth: 4 }}
                     >
@@ -551,13 +557,17 @@ export default function PatientSearch() {
                             <FileText className="h-3.5 w-3.5 text-slate-500" />
                             <span>{hospital.recordCount} record(s)</span>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
-                            {isError
-                              ? hospital.error || 'Node unreachable'
-                              : `Latency: ${hospital.responseTime}ms`}
+                          <p className="text-[11px] text-slate-600 mt-1 tabular-nums">
+                            {isTimeout
+                              ? hospital.error || t.nodeTimeoutWarning
+                              : isError
+                                ? hospital.error || 'Node unreachable'
+                                : `Latency: ${hospital.responseTime}ms`}
                           </p>
                         </div>
-                        {isError ? (
+                        {isTimeout ? (
+                          <StatusBadge tone="warning" label="Timeout" />
+                        ) : isError ? (
                           <StatusBadge tone="critical" label="Offline" />
                         ) : (
                           <StatusBadge tone="success" label="Synced" />

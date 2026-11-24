@@ -79,8 +79,9 @@ export default function PatientPrivacy() {
     return DEFAULT_SENSITIVE_FLAGS
   })
 
-  const refreshAccessLogs = useCallback(async () => {
-    const logsRes = await centralApi.getMyAccessLogs(25)
+  const refreshAccessLogs = useCallback(async (signal?: AbortSignal) => {
+    const logsRes = await centralApi.getMyAccessLogs(25, signal)
+    if (logsRes.aborted) return
     if (logsRes.success && logsRes.data) {
       setAccessLogs(
         logsRes.data.map((log) => ({
@@ -96,12 +97,14 @@ export default function PatientPrivacy() {
   }, [])
 
   useEffect(() => {
+    const controller = new AbortController()
     async function loadData() {
       try {
         const [privacyRes] = await Promise.all([
-          centralApi.getPrivacySettings(),
-          refreshAccessLogs(),
+          centralApi.getPrivacySettings(controller.signal),
+          refreshAccessLogs(controller.signal),
         ])
+        if (privacyRes.aborted) return
 
         if (privacyRes.success && privacyRes.data) {
           setHospitals(
@@ -113,13 +116,14 @@ export default function PatientPrivacy() {
             }))
           )
         }
-      } catch (error) {
-        console.error('Failed to load privacy data:', error)
+      } catch {
+        // Ignore aborted or transient fetch error
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
     void loadData()
+    return () => controller.abort()
   }, [refreshAccessLogs])
 
   const toggleHospitalAccess = async (hospitalId: string) => {

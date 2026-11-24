@@ -6,7 +6,7 @@ import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
 import { cn, downloadCsvFile } from '@/lib/utils'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +29,7 @@ export default function BedManagement() {
 
   const [wards, setWards] = useState<HospitalWardDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const [editingWard, setEditingWard] = useState<HospitalWardDto | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -44,17 +45,23 @@ export default function BedManagement() {
     maintenance: 0,
   })
 
-  const loadWards = useCallback(async () => {
+  const loadWards = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getWards(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getWards(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setWards(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadWards()
+    const controller = new AbortController()
+    void loadWards(controller.signal)
+    return () => controller.abort()
   }, [loadWards])
 
   const filteredWards =
@@ -163,7 +170,7 @@ export default function BedManagement() {
         subtitle="Real-time inpatient bed census, ICU surge allocation & isolation ward readiness"
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={loadWards}>
+            <Button variant="outline" size="sm" onClick={() => void loadWards()}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               {t.refreshData}
             </Button>
@@ -228,12 +235,20 @@ export default function BedManagement() {
       </div>
 
       {/* Ward Grid */}
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadWards()} />}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Skeleton className="h-44 w-full rounded-2xl" />
           <Skeleton className="h-44 w-full rounded-2xl" />
           <Skeleton className="h-44 w-full rounded-2xl" />
         </div>
+      ) : filteredWards.length === 0 ? (
+        <EmptyStatePanel
+          icon={Bed}
+          hasActiveFilters={filterType !== 'all'}
+          onClearFilters={() => setFilterType('all')}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredWards.map((ward) => {

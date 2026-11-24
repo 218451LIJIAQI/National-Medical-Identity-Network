@@ -6,7 +6,7 @@ import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
 import { cn, downloadCsvFile, formatMYR } from '@/lib/utils'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,6 +21,7 @@ export default function InventoryManagement() {
 
   const [items, setItems] = useState<InventorySkuDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [lowStockOnly, setLowStockOnly] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,17 +44,23 @@ export default function InventoryManagement() {
     expiryDate: '2028-12-31',
   })
 
-  const loadInventory = useCallback(async () => {
+  const loadInventory = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getInventory(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getInventory(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setItems(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadInventory()
+    const controller = new AbortController()
+    void loadInventory(controller.signal)
+    return () => controller.abort()
   }, [loadInventory])
 
   const filtered = items.filter((item) => {
@@ -231,12 +238,26 @@ export default function InventoryManagement() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadInventory()} />}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-5 space-y-3">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-5">
+            <EmptyStatePanel
+              icon={Package}
+              hasActiveFilters={Boolean(searchQuery.trim() || categoryFilter !== 'all' || lowStockOnly)}
+              onClearFilters={() => {
+                setSearchQuery('')
+                setCategoryFilter('all')
+                setLowStockOnly(false)
+              }}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

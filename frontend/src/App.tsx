@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
+import { clearAllToasts } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore, resetClinicalSessionContext } from '@/store/clinical'
 import { useSettingsStore } from '@/store/settings'
@@ -59,6 +60,15 @@ function GlobalSessionAndAccessibilitySync() {
   const { language, fontSize, highContrast } = useSettingsStore()
   const { isAuthenticated, user, isHospitalVerified } = useAuthStore()
   const activePatient = useClinicalStore((s) => s.activePatient)
+  const sessionKey = isAuthenticated && user ? `${user.id}:${user.role}:${user.hospitalId || ''}` : 'anon'
+  const prevSessionKeyRef = useRef(sessionKey)
+
+  useEffect(() => {
+    if (prevSessionKeyRef.current !== sessionKey) {
+      prevSessionKeyRef.current = sessionKey
+      clearAllToasts()
+    }
+  }, [sessionKey])
 
   useEffect(() => {
     const root = document.documentElement

@@ -49,6 +49,21 @@
     color: #1e293b !important;
   }
 
+  /* Preserve luminous WCAG AAA foreground contrast inside dark containers in High Contrast mode */
+  html.high-contrast .bg-slate-900 .text-slate-400,
+  html.high-contrast .bg-slate-900 .text-slate-300,
+  html.high-contrast .bg-slate-900 .text-gray-400,
+  html.high-contrast .bg-slate-950 .text-slate-400,
+  html.high-contrast .bg-slate-950 .text-slate-300,
+  html.high-contrast .from-slate-900 .text-slate-400,
+  html.high-contrast .from-slate-900 .text-slate-300,
+  html.high-contrast .dark-surface .text-slate-400,
+  html.high-contrast .dark-surface .text-slate-300,
+  html.high-contrast footer.bg-slate-900 p,
+  html.high-contrast footer.bg-slate-900 span {
+    color: #f8fafc !important;
+  }
+
   * {
     @apply border-border;
   }
@@ -61,14 +76,14 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     letter-spacing: -0.01em;
     overflow-x: auto;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
   }

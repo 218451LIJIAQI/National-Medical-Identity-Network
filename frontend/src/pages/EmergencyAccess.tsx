@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { formatDate, formatDateTime, formatIC, isValidMyKad } from '@/lib/utils'
@@ -324,7 +325,7 @@ export default function EmergencyAccess() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-gradient-to-r from-red-700 via-red-800 to-rose-800 text-white py-4 shadow-md border-b border-red-900">
-        <div className="container mx-auto px-6 flex items-center justify-between gap-4">
+        <div className="container mx-auto px-6 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -348,7 +349,9 @@ export default function EmergencyAccess() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <LanguageSwitcher inverted showIcon={false} />
+            <DisplayAccessibilityControls compact inverted />
             {cachedCount > 0 && (
               <Button
                 type="button"
@@ -457,8 +460,8 @@ export default function EmergencyAccess() {
             )}
 
             {/* Critical Top Row: Identity, Blood Type & Allergies */}
-            <div className="grid grid-cols-12 gap-5">
-              <Card className="col-span-5 border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              <Card className="lg:col-span-5 border border-slate-200 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <User className="w-4 h-4 text-blue-700" />
@@ -487,7 +490,7 @@ export default function EmergencyAccess() {
                 </CardContent>
               </Card>
 
-              <Card className="col-span-4 border-2 border-red-300 bg-red-50/30 shadow-sm">
+              <Card className="lg:col-span-4 border-2 border-red-300 bg-red-50/30 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base text-red-900">
                     <AlertTriangle className="w-4 h-4 text-red-700" />
@@ -517,7 +520,7 @@ export default function EmergencyAccess() {
                 </CardContent>
               </Card>
 
-              <Card className="col-span-3 border border-slate-200 shadow-sm">
+              <Card className="lg:col-span-3 border border-slate-200 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Phone className="w-4 h-4 text-emerald-700" />
@@ -548,7 +551,7 @@ export default function EmergencyAccess() {
             </div>
 
             {/* Chronic Conditions & Chronological Recent Diagnoses */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <Card className="border border-slate-200 shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -606,7 +609,7 @@ export default function EmergencyAccess() {
               </CardHeader>
               <CardContent className="pt-2">
                 {patientInfo.currentMedications.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-3.5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                     {patientInfo.currentMedications.map((med, idx) => (
                       <div
                         key={`${med.name}-${idx}`}
@@ -728,7 +731,7 @@ export default function EmergencyAccess() {
           ) : undefined
         }
       >
-        <div className="bg-slate-900 rounded-xl p-6 text-center text-white">
+        <div className="dark-surface bg-slate-900 rounded-xl p-6 text-center text-white">
           {!cameraPermissionGranted ? (
             <div className="py-6 text-slate-300">
               <Camera className="w-10 h-10 mx-auto mb-2 text-slate-400" />

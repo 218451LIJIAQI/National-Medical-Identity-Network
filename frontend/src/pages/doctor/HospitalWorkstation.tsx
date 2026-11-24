@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { authApi, hospitalApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { useTranslation, type Language, type TranslationKey } from '@/lib/i18n'
+import { useTranslation, type TranslationKey } from '@/lib/i18n'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -17,7 +18,6 @@ import {
   Building2,
   ChevronRight,
   LogOut,
-  Globe,
   Activity,
   ScanLine,
   Stethoscope,
@@ -71,7 +71,7 @@ const NAV_ITEMS: NavItem[] = [
 export default function HospitalWorkstation() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [hospitalMetrics, setHospitalMetrics] = useState({
@@ -85,17 +85,18 @@ export default function HospitalWorkstation() {
   const activeNav = NAV_ITEMS.find((n) => n.id === activeModule)
 
   useEffect(() => {
+    const controller = new AbortController()
     const hospitalId = user?.hospitalId || 'hospital-kl'
-    hospitalApi.getStats(hospitalId).then((res) => {
-      if (res.success && res.data) {
-        setHospitalMetrics({
-          totalPatients: res.data.totalPatients,
-          totalRecords: res.data.totalRecords,
-          totalDoctors: res.data.totalDoctors,
-          todayVisits: res.data.todayVisits || 0,
-        })
-      }
+    hospitalApi.getStats(hospitalId, controller.signal).then((res) => {
+      if (res.aborted || !res.success || !res.data) return
+      setHospitalMetrics({
+        totalPatients: res.data.totalPatients,
+        totalRecords: res.data.totalRecords,
+        totalDoctors: res.data.totalDoctors,
+        todayVisits: res.data.todayVisits || 0,
+      })
     })
+    return () => controller.abort()
   }, [user?.hospitalId])
 
   const handleLogout = async () => {
@@ -277,29 +278,13 @@ export default function HospitalWorkstation() {
       </aside>
 
       <main className="flex-1 min-w-0 overflow-auto">
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 h-14 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-base font-bold text-slate-900 truncate">
             {activeNav ? t[activeNav.labelKey] : t.dashboard}
           </h1>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="flex items-center gap-1 p-1 rounded-xl border bg-slate-50 border-slate-200">
-              <Globe className="w-3.5 h-3.5 mx-1 text-slate-500" />
-              {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setLanguage(lang)}
-                  className={cn(
-                    'px-2 py-0.5 text-xs font-semibold rounded-lg transition-colors',
-                    language === lang
-                      ? `${theme.iconBg} text-white`
-                      : 'text-slate-700 hover:bg-slate-200/70'
-                  )}
-                >
-                  {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <LanguageSwitcher activeClassName={`${theme.iconBg} text-white shadow-sm`} />
+            <DisplayAccessibilityControls compact />
 
             <Link
               to="/doctor/new-record"

@@ -22,9 +22,12 @@ import {
   QueryFlowStep,
   HospitalQueryResult,
   MedicalRecord,
+  NodeTimeoutError,
   User,
+  getNodeQueryTimeoutMs,
   isValidMyKadIc,
   normalizeIcNumber,
+  withTimeout,
 } from '../types';
 
 const router = Router();
@@ -260,14 +263,19 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
 
+    const timeoutMs = getNodeQueryTimeoutMs();
     const [patient, recordsPerHospital] = await Promise.all([
       findPatientInHospitals(icNumber, patientIndex.hospitals),
       Promise.allSettled(
-        patientIndex.hospitals.map(async hospitalId => ({
-          hospitalId,
-          hospitalName: getHospitalById(hospitalId)?.name || hospitalId,
-          records: await getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
-        }))
+        patientIndex.hospitals.map(async hospitalId => {
+          const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
+          const records = await withTimeout(
+            getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
+            timeoutMs,
+            hospitalName
+          );
+          return { hospitalId, hospitalName, records };
+        })
       ),
     ]);
 
@@ -518,6 +526,7 @@ router.get(
         return;
       }
 
+      const timeoutMs = getNodeQueryTimeoutMs();
       const hospitalResults: HospitalQueryResult[] = await Promise.all(
         patientIndex.hospitals.map(async (hospitalId, index): Promise<HospitalQueryResult> => {
           const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
@@ -534,7 +543,11 @@ router.get(
           const hospitalStartTime = Date.now();
 
           try {
-            const records = await getHospitalDb(hospitalId).getRecordsByPatient(icNumber);
+            const records = await withTimeout(
+              getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
+              timeoutMs,
+              hospitalName
+            );
             const isOwnHospital = user.role === 'doctor' && user.hospitalId === hospitalId;
             const markedRecords = records.map(r => ({
               ...r,
@@ -555,16 +568,20 @@ router.get(
               status: 'success',
               responseTime: Date.now() - hospitalStartTime,
             };
-          } catch {
+          } catch (nodeErr) {
+            const isTimeout = nodeErr instanceof NodeTimeoutError;
             step.status = 'error';
+            step.data = { timedOut: isTimeout };
             return {
               hospitalId,
               hospitalName,
               records: [],
               recordCount: 0,
-              status: 'error',
+              status: isTimeout ? 'timeout' : 'error',
               responseTime: Date.now() - hospitalStartTime,
-              error: `Hospital node ${hospitalName} is currently unreachable`,
+              error: isTimeout
+                ? `Hospital node ${hospitalName} timed out after ${timeoutMs}ms`
+                : `Hospital node ${hospitalName} is currently unreachable`,
             };
           }
         })
@@ -584,7 +601,7 @@ router.get(
         targetIcNumber: icNumber,
         details:
           failedHospitals.length > 0
-            ? `Cross-hospital query: ${patientIndex.hospitals.length} hospitals (${failedHospitals.length} offline), ${totalRecords} records`
+            ? `Cross-hospital query: ${patientIndex.hospitals.length} hospitals (${failedHospitals.length} offline/timeout), ${totalRecords} records`
             : `Cross-hospital query: ${patientIndex.hospitals.length} hospitals, ${totalRecords} records`,
         ipAddress: req.ip || 'unknown',
         success: true,
@@ -746,12 +763,17 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
       return;
     }
 
+    const timeoutMs = getNodeQueryTimeoutMs();
     const [hospitalDetails, patient] = await Promise.all([
       Promise.all(
         patientIndex.hospitals.map(async hospitalId => {
           const hospital = getHospitalById(hospitalId);
           try {
-            const recordCount = await getHospitalDb(hospitalId).countRecordsByPatient(icNumber);
+            const recordCount = await withTimeout(
+              getHospitalDb(hospitalId).countRecordsByPatient(icNumber),
+              timeoutMs,
+              hospital?.name || hospitalId
+            );
             return {
               hospitalId,
               hospitalName: hospital?.name || hospitalId,

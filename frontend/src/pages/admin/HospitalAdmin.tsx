@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, StatusBadge } from '@/components/ui/modal-dialog'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi, centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
@@ -70,16 +70,23 @@ export default function HospitalAdminDashboard() {
   const [hospitalInfo, setHospitalInfo] = useState<HospitalInfo | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const theme = getHospitalTheme(user?.hospitalId)
 
   useEffect(() => {
+    const controller = new AbortController()
     async function loadData() {
       if (!user?.hospitalId) return
+      setLoadError('')
       try {
         const [hospitalRes, logsRes] = await Promise.all([
-          hospitalApi.getHospital(user.hospitalId),
-          centralApi.getAuditLogs({ limit: 30 }),
+          hospitalApi.getHospital(user.hospitalId, controller.signal),
+          centralApi.getAuditLogs({ limit: 30 }, controller.signal),
         ])
+        if (hospitalRes.aborted || logsRes.aborted) return
+        if (!hospitalRes.success) {
+          setLoadError(hospitalRes.error || t.networkError)
+        }
 
         if (hospitalRes.success && hospitalRes.data) {
           const h = hospitalRes.data
@@ -123,14 +130,15 @@ export default function HospitalAdminDashboard() {
           })
           setRecentActivity(activities)
         }
-      } catch (error) {
-        console.error('Failed to load hospital data:', error)
+      } catch {
+        if (!controller.signal.aborted) setLoadError(t.networkError)
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
     void loadData()
-  }, [user?.hospitalId])
+    return () => controller.abort()
+  }, [user?.hospitalId, t.networkError])
 
   if (loading) {
     return (
@@ -171,6 +179,8 @@ export default function HospitalAdminDashboard() {
           </Button>
         </Link>
       </div>
+
+      {loadError && <DataErrorBanner message={loadError} />}
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -248,7 +258,7 @@ export default function HospitalAdminDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>

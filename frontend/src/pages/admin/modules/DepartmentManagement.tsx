@@ -6,7 +6,7 @@ import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,6 +21,7 @@ export default function DepartmentManagement() {
 
   const [departments, setDepartments] = useState<HospitalDepartmentDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingDept, setEditingDept] = useState<HospitalDepartmentDto | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -40,17 +41,23 @@ export default function DepartmentManagement() {
     specialtiesInput: '',
   })
 
-  const loadDepartments = useCallback(async () => {
+  const loadDepartments = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getDepartments(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getDepartments(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setDepartments(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadDepartments()
+    const controller = new AbortController()
+    void loadDepartments(controller.signal)
+    return () => controller.abort()
   }, [loadDepartments])
 
   const filtered = departments.filter((d) => {
@@ -178,11 +185,19 @@ export default function DepartmentManagement() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadDepartments()} />}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Skeleton className="h-48 w-full rounded-2xl" />
           <Skeleton className="h-48 w-full rounded-2xl" />
         </div>
+      ) : filtered.length === 0 ? (
+        <EmptyStatePanel
+          icon={Building2}
+          hasActiveFilters={Boolean(searchQuery.trim())}
+          onClearFilters={() => setSearchQuery('')}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((dept) => (

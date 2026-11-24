@@ -19,12 +19,26 @@ import { User, UserRole, normalizeIcNumber } from '../types';
 
 const router = Router();
 
+interface UserProfileResponse {
+  id: string;
+  icNumber: string;
+  role: UserRole;
+  hospitalId?: string;
+  availableRoles: UserRole[];
+  hospitalVerified: boolean;
+  doctorId?: string;
+  fullName?: string;
+  specialization?: string;
+  department?: string;
+  licenseNumber?: string;
+}
+
 async function buildUserResponse(
   user: User,
   availableRoles: UserRole[],
   hospitalVerified: boolean
-): Promise<Record<string, unknown>> {
-  const userInfo: Record<string, unknown> = {
+): Promise<UserProfileResponse> {
+  const userInfo: UserProfileResponse = {
     id: user.id,
     icNumber: user.icNumber,
     role: user.role,
@@ -38,13 +52,11 @@ async function buildUserResponse(
     if (!doctor || !doctor.isActive) {
       throw new Error('INACTIVE_DOCTOR');
     }
-    Object.assign(userInfo, {
-      doctorId: doctor.id,
-      fullName: doctor.fullName,
-      specialization: doctor.specialization,
-      department: doctor.department,
-      licenseNumber: doctor.licenseNumber,
-    });
+    userInfo.doctorId = doctor.id;
+    userInfo.fullName = doctor.fullName;
+    userInfo.specialization = doctor.specialization;
+    userInfo.department = doctor.department;
+    userInfo.licenseNumber = doctor.licenseNumber;
   } else if (user.role === 'hospital_admin' && user.hospitalId) {
     userInfo.fullName = getHospitalById(user.hospitalId)?.adminName || 'Hospital Administrator';
   } else if (user.role === 'central_admin') {
@@ -126,7 +138,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin';
     const hospitalVerified = !requiresHospitalStep;
 
-    let userInfo: Record<string, unknown>;
+    let userInfo: UserProfileResponse;
     try {
       userInfo = await buildUserResponse(user, availableRoles, hospitalVerified);
     } catch (err) {
@@ -150,7 +162,7 @@ router.post('/login', async (req: Request, res: Response) => {
       hospitalVerified,
     });
 
-    const userName = (userInfo.fullName as string) || user.icNumber;
+    const userName = userInfo.fullName || user.icNumber;
     await createAuditLog({
       timestamp: new Date().toISOString(),
       action: 'login',
@@ -363,7 +375,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
     const hospitalVerified = !requiresHospitalStep;
     const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
 
-    let userInfo: Record<string, unknown>;
+    let userInfo: UserProfileResponse;
     try {
       userInfo = await buildUserResponse(targetUser, availableRoles, hospitalVerified);
     } catch (err) {
@@ -459,7 +471,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 
     const allUsers = await getUsersByIc(dbUser.icNumber);
     const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
-    let userInfo: Record<string, unknown>;
+    let userInfo: UserProfileResponse;
     try {
       userInfo = await buildUserResponse(dbUser, availableRoles, Boolean(currentUser.hospitalVerified));
     } catch (err) {

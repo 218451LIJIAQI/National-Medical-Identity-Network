@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { EmergencyReportModal } from '@/components/EmergencyReportModal'
@@ -40,15 +40,20 @@ export default function EmergencyManagement() {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<EmergencyLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [selectedLog, setSelectedLog] = useState<EmergencyLog | null>(null)
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async (signal?: AbortSignal) => {
+    setLoadError('')
     try {
-      const response = await centralApi.getAuditLogs({ action: 'emergency_access', limit: 200 })
-      if (response.success && response.data) {
-        const emergencyLogs = (response.data as Array<Record<string, unknown>>)
+      const response = await centralApi.getAuditLogs({ action: 'emergency_access', limit: 200 }, signal)
+      if (response.aborted) return
+      if (!response.success) {
+        setLoadError(response.error || t.networkError)
+      } else if (response.data) {
+        const emergencyLogs = response.data
           .filter((log) => log.action === 'emergency' || log.action === 'emergency_access')
           .map((log) => ({
             id: String(log.id || ''),
@@ -64,17 +69,21 @@ export default function EmergencyManagement() {
           }))
         setLogs(emergencyLogs)
       }
-    } catch (error) {
-      console.error('Failed to load emergency logs:', error)
+    } catch {
+      if (!signal?.aborted) setLoadError(t.networkError)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (!signal?.aborted) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-  }
+  }, [t.networkError])
 
   useEffect(() => {
-    void loadLogs()
-  }, [])
+    const controller = new AbortController()
+    void loadLogs(controller.signal)
+    return () => controller.abort()
+  }, [loadLogs])
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -179,6 +188,8 @@ export default function EmergencyManagement() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={handleRefresh} />}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
@@ -258,10 +269,21 @@ export default function EmergencyManagement() {
         </div>
         <CardContent className="p-0">
           {filteredLogs.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 text-xs">
-              <Siren className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-              <p>No emergency break-glass events recorded.</p>
-            </div>
+            <EmptyStatePanel
+              icon={Siren}
+              title={
+                searchTerm.trim()
+                  ? 'No Matching Break-Glass Events'
+                  : 'No Emergency Break-Glass Events Recorded'
+              }
+              description={
+                searchTerm.trim()
+                  ? 'No break-glass audit records match your current MyKad IC or terminal filter.'
+                  : 'All emergency break-glass accesses across federated terminals will be logged here.'
+              }
+              onClearFilters={searchTerm.trim() ? () => setSearchTerm('') : undefined}
+              className="border-0 shadow-none rounded-none"
+            />
           ) : (
             <div className="divide-y divide-slate-100">
               {filteredLogs.map((log) => (

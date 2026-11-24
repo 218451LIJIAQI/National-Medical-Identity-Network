@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Receipt,
   CheckCircle2,
@@ -14,7 +14,7 @@ import {
   WorkstationModuleHeader,
   PatientRequiredGate,
 } from '@/components/ClinicalPatientBanner'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, StatusBadge } from '@/components/ui/modal-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useClinicalStore } from '@/store/clinical'
 import { useAuthStore } from '@/store/auth'
@@ -37,6 +37,7 @@ export default function Billing() {
   const loadSeqRef = useRef(0)
   const [account, setAccount] = useState<PatientBillingAccountDto | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [processing, setProcessing] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<'counter' | 'online' | 'waived'>('counter')
   const [newChargeCategory, setNewChargeCategory] = useState('Clinical Procedure')
@@ -44,34 +45,46 @@ export default function Billing() {
   const [newChargeAmount, setNewChargeAmount] = useState('')
 
   // Strictly reset & load patient-isolated billing account whenever activePatient changes
+  const fetchBilling = useCallback(
+    (ic: string, signal?: AbortSignal) => {
+      const seq = ++loadSeqRef.current
+      setLoading(true)
+      setLoadError('')
+      hospitalApi
+        .getBillingAccount(hospitalId, ic, signal)
+        .then((res) => {
+          if (res.aborted || seq !== loadSeqRef.current) return
+          if (res.accessDenied) {
+            clearActivePatient()
+            toast({
+              title: t.privacyRestrictedTitle,
+              description: res.error || t.privacyRestrictedDesc,
+              variant: 'destructive',
+            })
+            return
+          }
+          if (res.success && res.data) {
+            setAccount(res.data)
+          } else {
+            setLoadError(res.error || t.networkError)
+          }
+        })
+        .finally(() => {
+          if (seq === loadSeqRef.current) setLoading(false)
+        })
+    },
+    [hospitalId, clearActivePatient, toast, t.privacyRestrictedTitle, t.privacyRestrictedDesc, t.networkError]
+  )
+
   useEffect(() => {
     const ic = activePatient?.icNumber
     setAccount(null)
+    setLoadError('')
     if (!ic) return
-
-    const seq = ++loadSeqRef.current
-    setLoading(true)
-    hospitalApi
-      .getBillingAccount(hospitalId, ic)
-      .then((res) => {
-        if (seq !== loadSeqRef.current) return
-        if (res.accessDenied) {
-          clearActivePatient()
-          toast({
-            title: t.privacyRestrictedTitle,
-            description: res.error || t.privacyRestrictedDesc,
-            variant: 'destructive',
-          })
-          return
-        }
-        if (res.success && res.data) {
-          setAccount(res.data)
-        }
-      })
-      .finally(() => {
-        if (seq === loadSeqRef.current) setLoading(false)
-      })
-  }, [activePatient?.icNumber, hospitalId])
+    const controller = new AbortController()
+    fetchBilling(ic, controller.signal)
+    return () => controller.abort()
+  }, [activePatient?.icNumber, fetchBilling])
 
   const computedRows = (account?.items || []).map((item) => {
     const effectiveSubsidyPct =
@@ -200,11 +213,16 @@ export default function Billing() {
 
       {!activePatient ? (
         <PatientRequiredGate moduleTitle={t.billing} />
-      ) : loading || !account ? (
+      ) : loading ? (
         <div className="space-y-4">
           <Skeleton className="h-28 w-full rounded-2xl" />
           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
+      ) : loadError || !account ? (
+        <DataErrorBanner
+          message={loadError || t.networkError}
+          onRetry={() => fetchBilling(activePatient.icNumber)}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 space-y-5">
@@ -261,7 +279,17 @@ export default function Billing() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {computedRows.map((row) => (
+                    {computedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-4">
+                          <EmptyStatePanel
+                            title="No Billable Items on Statement"
+                            description="Add a procedure, diagnostic investigation, or pharmacy item below."
+                          />
+                        </td>
+                      </tr>
+                    ) : (
+                      computedRows.map((row) => (
                       <tr key={row.id} className="hover:bg-slate-50/70">
                         <td className="py-3 px-4 font-semibold text-slate-900">{row.description}</td>
                         <td className="py-3 px-4 text-slate-600">{row.category}</td>
@@ -281,7 +309,8 @@ export default function Billing() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -34,6 +34,7 @@ import {
   cn,
   downloadJsonFile,
   escapeHtml,
+  formatBloodPressure,
   formatDate,
   formatIC,
   isValidMyKad,
@@ -92,7 +93,7 @@ export default function PatientTimeline() {
   const triggerReload = useCallback(() => setReloadNonce((n) => n + 1), [])
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
 
     async function loadPatientData() {
       if (!formattedRouteIc) return
@@ -112,11 +113,11 @@ export default function PatientTimeline() {
 
       try {
         const [queryRes, patientRes] = await Promise.all([
-          centralApi.queryPatient(formattedRouteIc),
-          centralApi.getPatient(formattedRouteIc),
+          centralApi.queryPatient(formattedRouteIc, controller.signal),
+          centralApi.getPatient(formattedRouteIc, controller.signal),
         ])
 
-        if (cancelled) return
+        if (controller.signal.aborted || queryRes.aborted || patientRes.aborted) return
 
         if (queryRes.accessDenied || patientRes.accessDenied) {
           if (activePatient?.icNumber === formattedRouteIc) {
@@ -141,8 +142,12 @@ export default function PatientTimeline() {
 
         if (queryRes.success && queryRes.data) {
           if (queryRes.data.partialFailure) {
+            const hasTimeout = queryRes.data.hospitals.some((h) => h.status === 'timeout')
+            const warningPrefix = hasTimeout
+              ? t.nodeTimeoutWarning
+              : t.partialHospitalFailureWarning
             setPartialFailureWarning(
-              `${t.partialHospitalFailureWarning} (${(queryRes.data.failedHospitals || []).join(', ')})`
+              `${warningPrefix} (${(queryRes.data.failedHospitals || []).join(', ')})`
             )
           }
 
@@ -220,17 +225,17 @@ export default function PatientTimeline() {
           setAllergiesVerified(false)
         }
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setLoadError(t.networkError)
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
 
     void loadPatientData()
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [
     formattedRouteIc,
@@ -242,6 +247,7 @@ export default function PatientTimeline() {
     t.invalidMyKadFormat,
     t.networkError,
     t.partialHospitalFailureWarning,
+    t.nodeTimeoutWarning,
     t.patientNotFoundDesc,
     t.privacyRestrictedDesc,
   ])
@@ -690,10 +696,17 @@ export default function PatientTimeline() {
                         <span className="font-bold text-slate-700 flex items-center gap-1">
                           <Activity className="w-3.5 h-3.5" /> Vitals:
                         </span>
-                        {record.vitalSigns.bloodPressureSystolic && (
+                        {formatBloodPressure(
+                          record.vitalSigns.bloodPressureSystolic,
+                          record.vitalSigns.bloodPressureDiastolic
+                        ) && (
                           <Badge variant="outline">
-                            BP {record.vitalSigns.bloodPressureSystolic}/
-                            {record.vitalSigns.bloodPressureDiastolic} mmHg
+                            BP{' '}
+                            {formatBloodPressure(
+                              record.vitalSigns.bloodPressureSystolic,
+                              record.vitalSigns.bloodPressureDiastolic
+                            )}{' '}
+                            mmHg
                           </Badge>
                         )}
                         {record.vitalSigns.heartRate && (

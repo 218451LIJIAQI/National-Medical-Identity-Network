@@ -124,7 +124,7 @@ export default function NewRecord() {
   const [labReports, setLabReports] = useState<LabReportDto[]>([])
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
 
     async function initializeForm() {
       if (!formattedIc || !user?.hospitalId) {
@@ -144,8 +144,8 @@ export default function NewRecord() {
       setLabReports([])
 
       try {
-        const patientRes = await hospitalApi.getPatient(user.hospitalId, formattedIc)
-        if (cancelled) return
+        const patientRes = await hospitalApi.getPatient(user.hospitalId, formattedIc, controller.signal)
+        if (patientRes.aborted || controller.signal.aborted) return
 
         if (patientRes.accessDenied) {
           if (activePatient?.icNumber === formattedIc) {
@@ -215,8 +215,8 @@ export default function NewRecord() {
         }
 
         if (isEditMode && recordId) {
-          const recordRes = await hospitalApi.getRecord(user.hospitalId, recordId)
-          if (cancelled) return
+          const recordRes = await hospitalApi.getRecord(user.hospitalId, recordId, controller.signal)
+          if (recordRes.aborted || controller.signal.aborted) return
 
           if (!recordRes.success || !recordRes.data) {
             setBlockingError(
@@ -282,11 +282,11 @@ export default function NewRecord() {
           )
         }
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setBlockingError('Unable to load clinical record context.')
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setLoadingInitial(false)
         }
       }
@@ -294,7 +294,7 @@ export default function NewRecord() {
 
     void initializeForm()
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [
     formattedIc,
@@ -477,7 +477,7 @@ export default function NewRecord() {
         patientName: formData.patientName.trim() || undefined,
         dateOfBirth: formData.dateOfBirth || undefined,
         gender: formData.gender,
-        bloodType: formData.bloodType.trim() || undefined,
+        bloodType: formData.bloodType.trim(),
         allergies: effectiveAllergies,
         chronicConditions: cleanedConditions,
         replaceAllergiesAndConditions: true,

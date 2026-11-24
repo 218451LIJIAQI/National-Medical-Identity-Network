@@ -334,6 +334,38 @@ export interface JwtPayload {
   exp?: number;
 }
 
+export class NodeTimeoutError extends Error {
+  constructor(nodeLabel: string, timeoutMs: number) {
+    super(`${nodeLabel} timed out after ${timeoutMs}ms`);
+    this.name = 'NodeTimeoutError';
+  }
+}
+
+let nodeQueryTimeoutMs = 4000;
+
+export function getNodeQueryTimeoutMs(): number {
+  return nodeQueryTimeoutMs;
+}
+
+export function setNodeQueryTimeoutMsForTesting(ms: number): void {
+  nodeQueryTimeoutMs = ms > 0 && Number.isFinite(ms) ? Math.trunc(ms) : 4000;
+}
+
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs = nodeQueryTimeoutMs,
+  nodeLabel = 'Hospital node'
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new NodeTimeoutError(nodeLabel, timeoutMs)), timeoutMs);
+    timer.unref?.();
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 export function normalizeIcNumber(raw: string): string {
   const trimmed = String(raw || '').trim();
   const digitsOnly = trimmed.replace(/[-\s]/g, '');
@@ -341,6 +373,19 @@ export function normalizeIcNumber(raw: string): string {
     return `${digitsOnly.slice(0, 6)}-${digitsOnly.slice(6, 8)}-${digitsOnly.slice(8)}`;
   }
   return trimmed;
+}
+
+function buildValidUtcDate(year: number, month: number, day: number): Date | null {
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(candidate.getTime()) ||
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return candidate;
 }
 
 export function parseMyKadParts(rawIc: string): {
@@ -362,19 +407,23 @@ export function parseMyKadParts(rawIc: string): {
   const now = new Date();
   const currentYear = now.getUTCFullYear();
   const currentTwoDigitYear = currentYear % 100;
-  const year = yy <= currentTwoDigitYear ? 2000 + yy : 1900 + yy;
-  const candidate = new Date(Date.UTC(year, mm - 1, dd));
-  const isValidDate =
-    !Number.isNaN(candidate.getTime()) &&
-    candidate.getUTCFullYear() === year &&
-    candidate.getUTCMonth() === mm - 1 &&
-    candidate.getUTCDate() === dd;
+  const todayUtcMs = Date.UTC(currentYear, now.getUTCMonth(), now.getUTCDate());
 
-  if (!isValidDate) return null;
+  let year = yy <= currentTwoDigitYear ? 2000 + yy : 1900 + yy;
+  let candidate = buildValidUtcDate(year, mm, dd);
+
+  if (year >= 2000 && (!candidate || candidate.getTime() > todayUtcMs)) {
+    year = 1900 + yy;
+    candidate = buildValidUtcDate(year, mm, dd);
+  }
+
+  if (!candidate) return null;
 
   const lastDigit = parseInt(digits[11], 10);
   const gender: 'male' | 'female' = lastDigit % 2 === 1 ? 'male' : 'female';
-  const age = Math.max(0, currentYear - year);
+  const hasHadBirthdayThisYear =
+    now.getUTCMonth() > mm - 1 || (now.getUTCMonth() === mm - 1 && now.getUTCDate() >= dd);
+  const age = Math.max(0, currentYear - year - (hasHadBirthdayThisYear ? 0 : 1));
 
   return {
     formatted: `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`,

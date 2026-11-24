@@ -7,12 +7,18 @@ import {
   ToastViewport,
 } from "@/components/ui/toast"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuthStore } from "@/store/auth"
+import { getHospitalTheme } from "@/lib/hospital-themes"
 
 export function Toaster() {
   const { toasts } = useToast()
+  const user = useAuthStore((s) => s.user)
+  const isBottomDock =
+    (user?.role === "doctor" || user?.role === "hospital_admin") &&
+    getHospitalTheme(user?.hospitalId).shellVariant === "bottom-dock"
 
   return (
-    <ToastProvider>
+    <ToastProvider duration={3500}>
       {toasts.map(function ({ id, title, description, action, ...props }) {
         return (
           <Toast key={id} {...props}>
@@ -27,7 +33,7 @@ export function Toaster() {
           </Toast>
         )
       })}
-      <ToastViewport />
+      <ToastViewport className={isBottomDock ? "bottom-24" : undefined} style={isBottomDock ? { bottom: "5.5rem" } : undefined} />
     </ToastProvider>
   )
 }

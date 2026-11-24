@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import {
   escapeHtml,
+  formatBloodPressure,
   formatDate,
   formatIC,
   getHospitalColor,
@@ -501,12 +502,19 @@ export default function PatientRecords() {
 
                             {hasVitals && (
                               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 tabular-nums">
-                                {vitals.bloodPressureSystolic !== undefined && (
+                                {formatBloodPressure(
+                                  vitals.bloodPressureSystolic,
+                                  vitals.bloodPressureDiastolic
+                                ) && (
                                   <div className="flex items-center gap-1.5">
                                     <Activity className="w-3.5 h-3.5 text-red-600" />
                                     <span className="text-slate-600">BP:</span>
                                     <span className="font-bold text-slate-900">
-                                      {vitals.bloodPressureSystolic}/{vitals.bloodPressureDiastolic} mmHg
+                                      {formatBloodPressure(
+                                        vitals.bloodPressureSystolic,
+                                        vitals.bloodPressureDiastolic
+                                      )}{' '}
+                                      mmHg
                                     </span>
                                   </div>
                                 )}

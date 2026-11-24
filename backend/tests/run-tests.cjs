@@ -2088,3 +2088,262 @@ test('12. Hospital Admin operational persistence, cross-hospital isolation & liv
   const revokedQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', { token: klDocToken });
   assert.equal(revokedQuery.status, 403);
 });
+
+test('13. Enforces privacy consent on queue/appointment mutations & full PHI redaction on admin stats', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  const klAdminToken = adminVerify.body.data.token;
+
+  // Verify hospital_admin stats redact ALL clinical PHI fields (chiefComplaint, diagnosis, vitalSigns)
+  const adminStats = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/stats', {
+    token: klAdminToken,
+  });
+  assert.equal(adminStats.status, 200);
+  assert.ok(adminStats.body.data.recentRecords.length >= 1);
+  for (const rec of adminStats.body.data.recentRecords) {
+    assert.equal(rec.chiefComplaint, '');
+    assert.deepEqual(rec.diagnosis, []);
+    assert.deepEqual(rec.diagnosisCodes, []);
+    assert.deepEqual(rec.symptoms, []);
+    assert.equal(rec.notes, '');
+    assert.equal(rec.vitalSigns, undefined);
+    assert.deepEqual(rec.prescriptions, []);
+    assert.deepEqual(rec.labReports, []);
+  }
+
+  // Patient 850505-10-5111 blocks hospital-kl
+  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '850505-10-5111', password: 'demo123' },
+  });
+  const patToken = patLogin.body.data.token;
+  const blockRes = await requestJson(baseUrl, 'POST', '/api/central/privacy-settings/hospital-access', {
+    token: patToken,
+    body: { hospitalId: 'hospital-kl', isBlocked: true },
+  });
+  assert.equal(blockRes.status, 200);
+
+  // Attempting to mutate or delete KL-1001 (belonging to 850505-10-5111) or KL-APT-1 must return 403
+  const mutQueue = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/queue/KL-1001', {
+    token: klDocToken,
+    body: { status: 'completed' },
+  });
+  assert.equal(mutQueue.status, 403);
+  assert.equal(mutQueue.body.accessDenied, true);
+
+  const delQueue = await requestJson(baseUrl, 'DELETE', '/api/hospitals/hospital-kl/queue/KL-1001', {
+    token: klDocToken,
+  });
+  assert.equal(delQueue.status, 403);
+  assert.equal(delQueue.body.accessDenied, true);
+
+  const mutApt = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/appointments/KL-APT-1', {
+    token: klDocToken,
+    body: { status: 'completed' },
+  });
+  assert.equal(mutApt.status, 403);
+  assert.equal(mutApt.body.accessDenied, true);
+});
+
+test('14. Prevents phantom staff creation on partial PUT, preserves doctor on_leave status & blocks NaN/unwhitelisted admin updates', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  const klAdminToken = adminVerify.body.data.token;
+
+  // Partial PUT on doc-kl-1 WITHOUT role must update doctor in-place, set status='on_leave', and revoke active clinical token
+  const beforeRoster = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/staff', { token: klAdminToken });
+  const initialCount = beforeRoster.body.data.length;
+
+  const putLeave = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/staff/doc-kl-1', {
+    token: klAdminToken,
+    body: { status: 'on_leave', phone: '+60 3-2615 8899' },
+  });
+  assert.equal(putLeave.status, 200);
+  assert.equal(putLeave.body.data.role, 'doctor');
+  assert.equal(putLeave.body.data.status, 'on_leave');
+  assert.equal(putLeave.body.data.phone, '+60 3-2615 8899');
+
+  const afterRoster = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/staff', { token: klAdminToken });
+  assert.equal(afterRoster.body.data.length, initialCount, 'Partial PUT must not create phantom staff');
+  const rosterDoc = afterRoster.body.data.find((s) => s.id === 'doc-kl-1');
+  assert.equal(rosterDoc.status, 'on_leave');
+
+  // Doctor on leave must immediately lose clinical API access
+  const docQueryWhileOnLeave = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(docQueryWhileOnLeave.status, 403);
+
+  // Unknown staffId on PUT must return 404
+  const missingStaff = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/staff/non-existent-id', {
+    token: klAdminToken,
+    body: { status: 'inactive' },
+  });
+  assert.equal(missingStaff.status, 404);
+
+  // Ward NaN count injection must be rejected with 400
+  const nanWard = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/wards', {
+    token: klAdminToken,
+    body: { name: 'NaN Ward', totalBeds: 20, occupied: 'not-a-number' },
+  });
+  assert.equal(nanWard.status, 400);
+
+  // Department & Inventory PUT must preserve immutable id and reject negative pricePerUnit
+  const deptPut = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/departments/KL-DEP-EM', {
+    token: klAdminToken,
+    body: { id: 'HACKED-ID', location: 'Trauma Wing Level 1' },
+  });
+  assert.equal(deptPut.status, 200);
+  assert.equal(deptPut.body.data.id, 'KL-DEP-EM');
+  assert.equal(deptPut.body.data.location, 'Trauma Wing Level 1');
+
+  const badInvPut = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/inventory/KL-INV-01', {
+    token: klAdminToken,
+    body: { pricePerUnit: -50 },
+  });
+  assert.equal(badInvPut.status, 400);
+});
+
+test('15. Validates nursing BP/billing ledger reconciliation, explicit bloodType clearing, centenarian MyKad & federated node timeout', async () => {
+  const { hospitals } = buildSeededTestFixture();
+  const typesMod = require('../src/types');
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  const klAdminToken = adminVerify.body.data.token;
+
+  // Centenarian MyKad with late-year birth date in current two-digit year resolves to 19xx (never future DOB)
+  const parsedCentenarian = typesMod.parseMyKadParts('261231-14-5001');
+  assert.ok(parsedCentenarian);
+  assert.equal(parsedCentenarian.dateOfBirth, '1926-12-31');
+
+  // Nursing vitals reject inverted or non-numeric BP and out-of-range bloodSugar
+  const invertedBp = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/nursing/vitals',
+    {
+      token: klDocToken,
+      body: { bp: '80/140', pulse: 78, temp: 36.8, rr: 16, spo2: 98, painScore: 2 },
+    }
+  );
+  assert.equal(invertedBp.status, 400);
+
+  const nonNumericBp = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/nursing/vitals',
+    {
+      token: klDocToken,
+      body: { bp: 'abc/def', pulse: 78, temp: 36.8, rr: 16, spo2: 98, painScore: 2 },
+    }
+  );
+  assert.equal(nonNumericBp.status, 400);
+
+  const validBp = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/nursing/vitals',
+    {
+      token: klDocToken,
+      body: { bp: '124 / 78', pulse: 76, temp: 36.7, rr: 16, spo2: 99, painScore: 1, bloodSugar: 5.6 },
+    }
+  );
+  assert.equal(validBp.status, 201);
+  assert.equal(validBp.body.data.vitalsHistory[0].bp, '124/78');
+
+  // Billing: switching to not-eligible then adding an item without subsidyPercent defaults to 0% subsidy
+  await requestJson(
+    baseUrl,
+    'PUT',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/subsidy',
+    { token: klDocToken, body: { subsidyStatus: 'not-eligible' } }
+  );
+  const addItemRes = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/items',
+    { token: klDocToken, body: { category: 'Diagnostic Imaging', description: 'Chest X-Ray PA', originalPrice: 100 } }
+  );
+  assert.equal(addItemRes.status, 201);
+  const addedItem = addItemRes.body.data.items[addItemRes.body.data.items.length - 1];
+  assert.equal(addedItem.subsidyPercent, 0);
+
+  // Settle online -> check finance liveSettledRevenue -> waive same account -> liveSettledRevenue reconciles to 0 without double-counting receipts
+  const firstSettle = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+    { token: klDocToken, body: { paymentMethod: 'online' } }
+  );
+  assert.equal(firstSettle.status, 200);
+  assert.ok(firstSettle.body.data.receipt.netAmount > 100);
+
+  const waiveSettle = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+    { token: klDocToken, body: { paymentMethod: 'waived' } }
+  );
+  assert.equal(waiveSettle.status, 200);
+  assert.equal(waiveSettle.body.data.receipt.netAmount, 0);
+
+  const finRes = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/finance', { token: klAdminToken });
+  assert.equal(finRes.status, 200);
+  assert.equal(finRes.body.data.settledReceiptsCount, 1);
+  assert.equal(finRes.body.data.liveSettledRevenue, 0);
+
+  // Explicit bloodType: "" on record update clears erroneous patient bloodType
+  const clearBtRes = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/records/rec-kl-101', {
+    token: klDocToken,
+    body: { bloodType: '' },
+  });
+  assert.equal(clearBtRes.status, 200);
+  const patCheck = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/patients/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(patCheck.status, 200);
+  assert.equal(patCheck.body.data.patient.bloodType, '');
+
+  // Federated node timeout classifies hung hospital node as status='timeout' without stalling healthy nodes
+  const origFindMany = hospitals['hospital-penang'].medicalRecord.findMany;
+  typesMod.setNodeQueryTimeoutMsForTesting(40);
+  hospitals['hospital-penang'].medicalRecord.findMany = () =>
+    new Promise((resolve) => setTimeout(() => resolve([]), 200));
+
+  try {
+    const queryRes = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+      token: klDocToken,
+    });
+    assert.equal(queryRes.status, 200);
+    assert.equal(queryRes.body.data.partialFailure, true);
+    const pgNode = queryRes.body.data.hospitals.find((h) => h.hospitalId === 'hospital-penang');
+    const klNode = queryRes.body.data.hospitals.find((h) => h.hospitalId === 'hospital-kl');
+    assert.equal(pgNode.status, 'timeout');
+    assert.equal(klNode.status, 'success');
+  } finally {
+    hospitals['hospital-penang'].medicalRecord.findMany = origFindMany;
+    typesMod.setNodeQueryTimeoutMsForTesting(4000);
+  }
+});

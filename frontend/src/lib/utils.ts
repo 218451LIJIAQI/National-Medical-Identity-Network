@@ -65,6 +65,19 @@ export function formatIC(ic: string): string {
   return trimmed
 }
 
+function buildValidUtcDate(year: number, month: number, day: number): Date | null {
+  const candidate = new Date(Date.UTC(year, month - 1, day))
+  if (
+    Number.isNaN(candidate.getTime()) ||
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return candidate
+}
+
 export function parseMyKadDemographics(ic: string): {
   dateOfBirth: string
   gender: 'male' | 'female'
@@ -77,17 +90,21 @@ export function parseMyKadDemographics(ic: string): {
   const pb = parseInt(digits.slice(6, 8), 10)
   if (pb < 1 || pb > 99) return null
 
-  const currentYY = new Date().getUTCFullYear() % 100
-  const year = yy <= currentYY ? 2000 + yy : 1900 + yy
-  const candidate = new Date(Date.UTC(year, mm - 1, dd))
-  if (
-    Number.isNaN(candidate.getTime()) ||
-    candidate.getUTCFullYear() !== year ||
-    candidate.getUTCMonth() !== mm - 1 ||
-    candidate.getUTCDate() !== dd
-  ) {
-    return null
+  const now = new Date()
+  const currentYear = now.getUTCFullYear()
+  const currentYY = currentYear % 100
+  const todayUtcMs = Date.UTC(currentYear, now.getUTCMonth(), now.getUTCDate())
+
+  let year = yy <= currentYY ? 2000 + yy : 1900 + yy
+  let candidate = buildValidUtcDate(year, mm, dd)
+
+  if (year >= 2000 && (!candidate || candidate.getTime() > todayUtcMs)) {
+    year = 1900 + yy
+    candidate = buildValidUtcDate(year, mm, dd)
   }
+
+  if (!candidate) return null
+
   const gender: 'male' | 'female' = parseInt(digits[11], 10) % 2 === 1 ? 'male' : 'female'
   return {
     dateOfBirth: candidate.toISOString().split('T')[0],
@@ -109,6 +126,22 @@ export function maskIC(ic?: string): string {
     return `${ic.slice(0, 6)}****`
   }
   return ic
+}
+
+export function formatBloodPressure(
+  sys?: number | null,
+  dia?: number | null
+): string | null {
+  if (sys !== undefined && sys !== null && dia !== undefined && dia !== null) {
+    return `${sys}/${dia}`
+  }
+  if (sys !== undefined && sys !== null) {
+    return `${sys}/—`
+  }
+  if (dia !== undefined && dia !== null) {
+    return `—/${dia}`
+  }
+  return null
 }
 
 export function formatTimeAgo(timestamp: string): string {
@@ -207,7 +240,8 @@ export function sanitizeCsvCell(val: string | number | boolean | null | undefine
     needsQuotePrefix = true
   } else if (/^[+-]/.test(trimmed)) {
     const isBenignPhoneOrNumber =
-      (raw.replace(/\D/g, "").length >= 8 && SAFE_E164_PHONE.test(raw.trim())) || SAFE_PLAIN_SIGNED_NUM.test(raw.trim())
+      (raw.replace(/\D/g, '').length >= 8 && SAFE_E164_PHONE.test(raw.trim())) ||
+      SAFE_PLAIN_SIGNED_NUM.test(raw.trim())
     if (!isBenignPhoneOrNumber) {
       needsQuotePrefix = true
     }

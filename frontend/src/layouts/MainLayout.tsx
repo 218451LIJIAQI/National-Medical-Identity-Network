@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore, type UserRole } from '@/store/auth'
-import { useSettingsStore } from '@/store/settings'
 import { authApi } from '@/lib/api'
-import { useTranslation, type Language } from '@/lib/i18n'
+import { useTranslation } from '@/lib/i18n'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import {
   Home,
   FileText,
@@ -17,16 +17,12 @@ import {
   Database,
   Siren,
   ArrowRightLeft,
-  Globe,
-  Eye,
-  Type,
 } from 'lucide-react'
 import { cn, formatIC, getRoleHomePath } from '@/lib/utils'
 
 export default function MainLayout() {
   const { user, logout, setSession } = useAuthStore()
-  const { fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -122,7 +118,7 @@ export default function MainLayout() {
               <p className="text-sm font-bold truncate text-slate-900">
                 {user?.fullName || user?.icNumber}
               </p>
-              <p className="text-xs font-mono text-slate-600 truncate">
+              <p className="text-xs font-mono text-slate-600 truncate tabular-nums">
                 {user?.icNumber ? formatIC(user.icNumber) : ''}
               </p>
             </div>
@@ -177,72 +173,8 @@ export default function MainLayout() {
 
         {/* Language, Accessibility & Logout */}
         <div className="p-3.5 border-t border-slate-200 space-y-2.5 bg-slate-50/50">
-          <div className="flex items-center justify-between px-2.5 py-1.5 bg-white rounded-xl border border-slate-200">
-            <span className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-slate-500" />
-              <span>Lang</span>
-            </span>
-            <div className="flex items-center gap-1">
-              {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setLanguage(lang)}
-                  className={cn(
-                    'px-2 py-0.5 text-xs font-semibold rounded-md transition-colors',
-                    language === lang
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  )}
-                >
-                  {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 bg-white rounded-xl border border-slate-200">
-            <div className="flex items-center gap-1" role="group" aria-label={t.fontScaleLabel}>
-              <Type className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
-              {(
-                [
-                  ['normal', 'A'],
-                  ['large', 'A+'],
-                  ['xlarge', 'A++'],
-                ] as const
-              ).map(([scale, label]) => (
-                <button
-                  key={scale}
-                  type="button"
-                  onClick={() => setFontSize(scale)}
-                  className={cn(
-                    'px-1.5 py-0.5 text-[11px] font-bold rounded transition-colors',
-                    fontSize === scale
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={toggleHighContrast}
-              aria-pressed={highContrast}
-              title={t.highContrastLabel}
-              className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors',
-                highContrast
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              )}
-            >
-              <Eye className="w-3 h-3" />
-              <span>HC</span>
-            </button>
-          </div>
+          <LanguageSwitcher className="w-full justify-between bg-white px-2.5 py-1.5" />
+          <DisplayAccessibilityControls compact />
 
           <Button
             variant="ghost"

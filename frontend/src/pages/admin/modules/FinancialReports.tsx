@@ -7,6 +7,7 @@ import { useTranslation } from '@/lib/i18n'
 import { downloadCsvFile, escapeHtml, formatMYR, printHtmlDocument } from '@/lib/utils'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
 import { Button } from '@/components/ui/button'
+import { DataErrorBanner } from '@/components/ui/modal-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function FinancialReports() {
@@ -17,18 +18,25 @@ export default function FinancialReports() {
 
   const [summary, setSummary] = useState<HospitalFinanceSummaryDto | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
-  const loadFinance = useCallback(async () => {
+  const loadFinance = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getFinanceSummary(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getFinanceSummary(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setSummary(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadFinance()
+    const controller = new AbortController()
+    void loadFinance(controller.signal)
+    return () => controller.abort()
   }, [loadFinance])
 
   const totalAllocation = (summary?.monthlySeries || []).reduce((s, m) => s + m.mohAllocation, 0)
@@ -92,7 +100,7 @@ export default function FinancialReports() {
         badge={summary?.fiscalYear || theme.shortName}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={loadFinance}>
+            <Button variant="outline" size="sm" onClick={() => void loadFinance()}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               {t.refreshData}
             </Button>
@@ -108,7 +116,7 @@ export default function FinancialReports() {
         }
       />
 
-      {loading || !summary ? (
+      {loading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Skeleton className="h-28 w-full rounded-2xl" />
@@ -118,6 +126,8 @@ export default function FinancialReports() {
           </div>
           <Skeleton className="h-72 w-full rounded-2xl" />
         </div>
+      ) : loadError || !summary ? (
+        <DataErrorBanner message={loadError || t.networkError} onRetry={() => void loadFinance()} />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 tabular-nums">
@@ -151,7 +161,7 @@ export default function FinancialReports() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Monthly Ledger Table */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-slate-100">
                 <h2 className="text-sm font-bold text-slate-900">Monthly Operating Vote & Revenue Ledger</h2>
               </div>
@@ -159,31 +169,31 @@ export default function FinancialReports() {
                 <table className="w-full text-xs tabular-nums">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
                     <tr>
-                      <th className="py-3 px-4 text-left font-bold">Period</th>
-                      <th className="py-3 px-4 text-right font-bold">MOH Allocation</th>
-                      <th className="py-3 px-4 text-right font-bold">Co-Payments</th>
-                      <th className="py-3 px-4 text-right font-bold">Expenditure</th>
-                      <th className="py-3 px-4 text-right font-bold">Subsidy Absorbed</th>
+                      <th className="py-3 px-3 text-left font-bold whitespace-nowrap">Period</th>
+                      <th className="py-3 px-3 text-right font-bold whitespace-nowrap">MOH Allocation</th>
+                      <th className="py-3 px-3 text-right font-bold whitespace-nowrap">Co-Payments</th>
+                      <th className="py-3 px-3 text-right font-bold whitespace-nowrap">Expenditure</th>
+                      <th className="py-3 px-3 text-right font-bold whitespace-nowrap">Subsidy Absorbed</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {summary.monthlySeries.map((row) => (
                       <tr key={row.month} className="hover:bg-slate-50/70">
-                        <td className="py-3 px-4 font-bold text-slate-900">{row.month} 2026</td>
-                        <td className="py-3 px-4 text-right font-semibold">{formatMYR(row.mohAllocation)}</td>
-                        <td className="py-3 px-4 text-right text-blue-800 font-semibold">{formatMYR(row.patientCollection)}</td>
-                        <td className="py-3 px-4 text-right text-slate-700">{formatMYR(row.operatingExpense)}</td>
-                        <td className="py-3 px-4 text-right text-emerald-800 font-semibold">{formatMYR(row.subsidyAbsorbed)}</td>
+                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">{row.month} 2026</td>
+                        <td className="py-3 px-3 text-right font-semibold whitespace-nowrap">{formatMYR(row.mohAllocation)}</td>
+                        <td className="py-3 px-3 text-right text-blue-800 font-semibold whitespace-nowrap">{formatMYR(row.patientCollection)}</td>
+                        <td className="py-3 px-3 text-right text-slate-700 whitespace-nowrap">{formatMYR(row.operatingExpense)}</td>
+                        <td className="py-3 px-3 text-right text-emerald-800 font-semibold whitespace-nowrap">{formatMYR(row.subsidyAbsorbed)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-extrabold text-slate-900">
                     <tr>
-                      <td className="py-3 px-4">6-Month Total</td>
-                      <td className="py-3 px-4 text-right">{formatMYR(totalAllocation)}</td>
-                      <td className="py-3 px-4 text-right text-blue-900">{formatMYR(totalPatientCollection)}</td>
-                      <td className="py-3 px-4 text-right">{formatMYR(totalOperatingExpense)}</td>
-                      <td className="py-3 px-4 text-right text-emerald-900">{formatMYR(totalSubsidyAbsorbed)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">6-Month Total</td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">{formatMYR(totalAllocation)}</td>
+                      <td className="py-3 px-3 text-right text-blue-900 whitespace-nowrap">{formatMYR(totalPatientCollection)}</td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">{formatMYR(totalOperatingExpense)}</td>
+                      <td className="py-3 px-3 text-right text-emerald-900 whitespace-nowrap">{formatMYR(totalSubsidyAbsorbed)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -191,7 +201,7 @@ export default function FinancialReports() {
             </div>
 
             {/* Expenditure Breakdown */}
-            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 tabular-nums">
+            <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 tabular-nums">
               <h2 className="text-sm font-bold text-slate-900">Monthly Operating Expenditure Breakdown</h2>
               <div className="space-y-3.5">
                 {summary.expenseBreakdown.map((item) => (

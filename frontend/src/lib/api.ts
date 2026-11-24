@@ -8,11 +8,23 @@ export interface ApiResponse<T> {
   error?: string
   message?: string
   status?: number
+  aborted?: boolean
   accessDenied?: boolean
   notFound?: boolean
   verificationRequired?: boolean
   rateLimited?: boolean
   retryAfter?: number
+}
+
+export interface VitalSignsDto {
+  bloodPressureSystolic?: number
+  bloodPressureDiastolic?: number
+  heartRate?: number
+  temperature?: number
+  respiratoryRate?: number
+  oxygenSaturation?: number
+  weight?: number
+  height?: number
 }
 
 export interface PrescriptionDto {
@@ -54,16 +66,7 @@ export interface MedicalRecordDto {
   diagnosisCodes: string[]
   symptoms: string[]
   notes: string
-  vitalSigns?: {
-    bloodPressureSystolic?: number
-    bloodPressureDiastolic?: number
-    heartRate?: number
-    temperature?: number
-    respiratoryRate?: number
-    oxygenSaturation?: number
-    weight?: number
-    height?: number
-  }
+  vitalSigns?: VitalSignsDto
   prescriptions?: PrescriptionDto[]
   labReports?: LabReportDto[]
   followUpDate?: string
@@ -73,7 +76,7 @@ export interface MedicalRecordDto {
   updatedAt?: string
 }
 
-export interface HospitalDetailResponse {
+export interface HospitalSummaryDto {
   id: string
   name: string
   shortName: string
@@ -82,7 +85,11 @@ export interface HospitalDetailResponse {
   address: string
   phone: string
   email: string
+  apiEndpoint?: string
   isActive: boolean
+}
+
+export interface HospitalDetailResponse extends HospitalSummaryDto {
   stats?: {
     totalPatients: number
     totalRecords: number
@@ -90,6 +97,39 @@ export interface HospitalDetailResponse {
     todayVisits?: number
     recentRecords: MedicalRecordDto[]
   }
+}
+
+export interface PatientProfileDto {
+  icNumber: string
+  fullName: string
+  dateOfBirth: string
+  gender: 'male' | 'female' | string
+  bloodType: string
+  phone: string
+  email: string
+  address: string
+  emergencyContact: string
+  emergencyPhone: string
+  allergies: string[]
+  chronicConditions: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AuditLogEntryDto {
+  id: string
+  timestamp: string
+  action: string
+  actorId?: string
+  actorName?: string
+  actorType: string
+  actorHospitalId?: string
+  hospitalName?: string
+  targetIcNumber?: string
+  targetHospitalId?: string
+  details: string
+  ipAddress: string
+  success: boolean
 }
 
 export interface DoctorDto {
@@ -268,6 +308,16 @@ function getToken(): string | null {
   return useAuthStore.getState().token
 }
 
+function isAbortError(error: unknown, signal?: AbortSignal | null): boolean {
+  if (signal?.aborted) return true
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error as { name?: string }).name === 'AbortError'
+  )
+}
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -319,6 +369,13 @@ async function fetchApi<T>(
       status: response.status,
     }
   } catch (error) {
+    if (isAbortError(error, options.signal)) {
+      return {
+        success: false,
+        status: 0,
+        aborted: true,
+      }
+    }
     console.error('API Error:', error)
     return {
       success: false,
@@ -338,10 +395,14 @@ export interface LoginResponseData {
 
 export const authApi = {
   login: (icNumber: string, password: string, role?: string) =>
-    fetchApi<LoginResponseData>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ icNumber, password, role }),
-    }, true),
+    fetchApi<LoginResponseData>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ icNumber, password, role }),
+      },
+      true
+    ),
 
   verifyHospital: (payload: {
     method: 'credentials' | 'ic_chip'
@@ -365,15 +426,14 @@ export const authApi = {
       method: 'POST',
     }),
 
-  me: () =>
-    fetchApi<{ user: User }>('/auth/me'),
+  me: (signal?: AbortSignal) => fetchApi<{ user: User }>('/auth/me', { signal }),
 }
 
 export const centralApi = {
-  getHospitals: () =>
-    fetchApi<Array<Record<string, unknown>>>('/central/hospitals', {}, true),
+  getHospitals: (signal?: AbortSignal) =>
+    fetchApi<HospitalSummaryDto[]>('/central/hospitals', { signal }, true),
 
-  getStats: () =>
+  getStats: (signal?: AbortSignal) =>
     fetchApi<{
       totalPatients: number
       activeHospitals: number
@@ -382,9 +442,9 @@ export const centralApi = {
       queryChangePercent: number
       newHospitalsThisMonth: number
       avgResponseTime: number
-    }>('/central/stats'),
+    }>('/central/stats', { signal }),
 
-  queryPatient: (icNumber: string) =>
+  queryPatient: (icNumber: string, signal?: AbortSignal) =>
     fetchApi<{
       icNumber: string
       querySteps: Array<{
@@ -411,9 +471,9 @@ export const centralApi = {
       partialFailure?: boolean
       failedHospitals?: string[]
       message?: string
-    }>(`/central/query/${encodeURIComponent(icNumber)}`),
+    }>(`/central/query/${encodeURIComponent(icNumber)}`, { signal }),
 
-  emergencyQuery: (icNumber: string) =>
+  emergencyQuery: (icNumber: string, signal?: AbortSignal) =>
     fetchApi<{
       found: boolean
       icNumber: string
@@ -444,25 +504,28 @@ export const centralApi = {
       accessType?: string
       warning?: string
       message?: string
-    }>(`/central/emergency/${encodeURIComponent(icNumber)}`, { method: 'GET' }, true),
+    }>(`/central/emergency/${encodeURIComponent(icNumber)}`, { method: 'GET', signal }, true),
 
-  getPatient: (icNumber: string) =>
+  getPatient: (icNumber: string, signal?: AbortSignal) =>
     fetchApi<{
-      patient: Record<string, unknown>
+      patient: PatientProfileDto
       hospitals: string[]
       lastUpdated: string
-    }>(`/central/patient/${encodeURIComponent(icNumber)}`),
+    }>(`/central/patient/${encodeURIComponent(icNumber)}`, { signal }),
 
-  getAuditLogs: (params?: {
-    actorId?: string
-    targetIcNumber?: string
-    hospitalId?: string
-    action?: string
-    status?: 'success' | 'failed'
-    startDate?: string
-    endDate?: string
-    limit?: number
-  }) => {
+  getAuditLogs: (
+    params?: {
+      actorId?: string
+      targetIcNumber?: string
+      hospitalId?: string
+      action?: string
+      status?: 'success' | 'failed'
+      startDate?: string
+      endDate?: string
+      limit?: number
+    },
+    signal?: AbortSignal
+  ) => {
     const searchParams = new URLSearchParams()
     if (params?.actorId) searchParams.set('actorId', params.actorId)
     if (params?.targetIcNumber) searchParams.set('targetIcNumber', params.targetIcNumber)
@@ -472,19 +535,21 @@ export const centralApi = {
     if (params?.startDate) searchParams.set('startDate', params.startDate)
     if (params?.endDate) searchParams.set('endDate', params.endDate)
     if (params?.limit) searchParams.set('limit', params.limit.toString())
-    return fetchApi<Array<Record<string, unknown>>>(
-      `/central/audit-logs?${searchParams.toString()}`
-    )
+    return fetchApi<AuditLogEntryDto[]>(`/central/audit-logs?${searchParams.toString()}`, {
+      signal,
+    })
   },
 
-  getAllPatientIndexes: () =>
-    fetchApi<Array<{
-      icNumber: string
-      hospitals: string[]
-      lastUpdated: string
-    }>>('/central/indexes'),
+  getAllPatientIndexes: (signal?: AbortSignal) =>
+    fetchApi<
+      Array<{
+        icNumber: string
+        hospitals: string[]
+        lastUpdated: string
+      }>
+    >('/central/indexes', { signal }),
 
-  searchPatientIndex: (icNumber: string) =>
+  searchPatientIndex: (icNumber: string, signal?: AbortSignal) =>
     fetchApi<{
       icNumber: string
       patient: {
@@ -504,33 +569,37 @@ export const centralApi = {
       totalHospitals: number
       totalRecords: number
       lastUpdated: string
-    }>(`/central/index/${encodeURIComponent(icNumber)}`),
+    }>(`/central/index/${encodeURIComponent(icNumber)}`, { signal }),
 
-  getMyAccessLogs: (limit?: number) => {
+  getMyAccessLogs: (limit?: number, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams()
     if (limit) searchParams.set('limit', limit.toString())
-    return fetchApi<Array<{
-      id: string
-      timestamp: string
-      action: string
-      actorId: string
-      actorName: string
-      actorType: string
-      actorHospitalId?: string
-      hospitalName: string
-      targetIcNumber?: string
-      details: string
-      success: boolean
-    }>>(`/central/my-access-logs?${searchParams.toString()}`)
+    return fetchApi<
+      Array<{
+        id: string
+        timestamp: string
+        action: string
+        actorId: string
+        actorName: string
+        actorType: string
+        actorHospitalId?: string
+        hospitalName: string
+        targetIcNumber?: string
+        details: string
+        success: boolean
+      }>
+    >(`/central/my-access-logs?${searchParams.toString()}`, { signal })
   },
 
-  getPrivacySettings: () =>
-    fetchApi<Array<{
-      hospitalId: string
-      hospitalName: string
-      city: string
-      isBlocked: boolean
-    }>>('/central/privacy-settings'),
+  getPrivacySettings: (signal?: AbortSignal) =>
+    fetchApi<
+      Array<{
+        hospitalId: string
+        hospitalName: string
+        city: string
+        isBlocked: boolean
+      }>
+    >('/central/privacy-settings', { signal }),
 
   setHospitalAccess: (hospitalId: string, isBlocked: boolean) =>
     fetchApi<{ message: string }>('/central/privacy-settings/hospital-access', {
@@ -538,18 +607,20 @@ export const centralApi = {
       body: JSON.stringify({ hospitalId, isBlocked }),
     }),
 
-  getMyActivityLogs: (limit?: number) => {
+  getMyActivityLogs: (limit?: number, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams()
     if (limit) searchParams.set('limit', limit.toString())
-    return fetchApi<Array<{
-      id: string
-      timestamp: string
-      action: string
-      targetIcNumber?: string
-      patientName: string
-      details: string
-      success: boolean
-    }>>(`/central/my-activity-logs?${searchParams.toString()}`)
+    return fetchApi<
+      Array<{
+        id: string
+        timestamp: string
+        action: string
+        targetIcNumber?: string
+        patientName: string
+        details: string
+        success: boolean
+      }>
+    >(`/central/my-activity-logs?${searchParams.toString()}`, { signal })
   },
 }
 
@@ -563,7 +634,7 @@ export interface SaveRecordRequest {
   diagnosisCodes?: string[]
   symptoms?: string[]
   notes?: string
-  vitalSigns?: Record<string, unknown>
+  vitalSigns?: VitalSignsDto
   prescriptions?: PrescriptionDto[]
   labReports?: LabReportDto[]
   followUpDate?: string
@@ -580,27 +651,32 @@ export interface SaveRecordRequest {
 }
 
 export const hospitalApi = {
-  getHospital: (hospitalId: string) =>
-    fetchApi<HospitalDetailResponse>(`/hospitals/${encodeURIComponent(hospitalId)}`),
+  getHospital: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<HospitalDetailResponse>(`/hospitals/${encodeURIComponent(hospitalId)}`, { signal }),
 
-  getStats: (hospitalId: string) =>
+  getStats: (hospitalId: string, signal?: AbortSignal) =>
     fetchApi<NonNullable<HospitalDetailResponse['stats']>>(
-      `/hospitals/${encodeURIComponent(hospitalId)}/stats`
+      `/hospitals/${encodeURIComponent(hospitalId)}/stats`,
+      { signal }
     ),
 
-  getDoctors: (hospitalId: string) =>
-    fetchApi<DoctorDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/doctors`),
+  getDoctors: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<DoctorDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/doctors`, { signal }),
 
-  getPatient: (hospitalId: string, icNumber: string) =>
+  getPatient: (hospitalId: string, icNumber: string, signal?: AbortSignal) =>
     fetchApi<{
-      patient: Record<string, unknown>
+      patient: PatientProfileDto
       isLocal: boolean
       federatedFrom?: string[]
-    }>(`/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}`),
+    }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}`,
+      { signal }
+    ),
 
-  getRecord: (hospitalId: string, recordId: string) =>
+  getRecord: (hospitalId: string, recordId: string, signal?: AbortSignal) =>
     fetchApi<MedicalRecordDto>(
-      `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}`
+      `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}`,
+      { signal }
     ),
 
   createRecord: (hospitalId: string, record: SaveRecordRequest) =>
@@ -622,8 +698,8 @@ export const hospitalApi = {
     ),
 
   // Outpatient Queue & Clinic Appointments
-  getQueue: (hospitalId: string) =>
-    fetchApi<QueueTicketDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/queue`),
+  getQueue: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<QueueTicketDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/queue`, { signal }),
 
   enqueuePatient: (
     hospitalId: string,
@@ -646,8 +722,10 @@ export const hospitalApi = {
       { method: 'DELETE' }
     ),
 
-  getAppointments: (hospitalId: string) =>
-    fetchApi<ClinicAppointmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/appointments`),
+  getAppointments: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<ClinicAppointmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/appointments`, {
+      signal,
+    }),
 
   createAppointment: (
     hospitalId: string,
@@ -669,9 +747,10 @@ export const hospitalApi = {
     ),
 
   // Patient-Scoped Nursing Chart & Billing
-  getNursingChart: (hospitalId: string, icNumber: string) =>
+  getNursingChart: (hospitalId: string, icNumber: string, signal?: AbortSignal) =>
     fetchApi<PatientNursingChartDto>(
-      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing`
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing`,
+      { signal }
     ),
 
   addNursingVitals: (
@@ -719,9 +798,10 @@ export const hospitalApi = {
       { method: 'PUT', body: JSON.stringify(payload) }
     ),
 
-  getBillingAccount: (hospitalId: string, icNumber: string) =>
+  getBillingAccount: (hospitalId: string, icNumber: string, signal?: AbortSignal) =>
     fetchApi<PatientBillingAccountDto>(
-      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing`
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing`,
+      { signal }
     ),
 
   addBillingItem: (
@@ -761,8 +841,8 @@ export const hospitalApi = {
     ),
 
   // Hospital Admin Modules
-  getWards: (hospitalId: string) =>
-    fetchApi<HospitalWardDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/wards`),
+  getWards: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<HospitalWardDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/wards`, { signal }),
 
   createWard: (hospitalId: string, payload: Omit<HospitalWardDto, 'id'>) =>
     fetchApi<HospitalWardDto>(`/hospitals/${encodeURIComponent(hospitalId)}/wards`, {
@@ -776,8 +856,10 @@ export const hospitalApi = {
       { method: 'PUT', body: JSON.stringify(payload) }
     ),
 
-  getDepartments: (hospitalId: string) =>
-    fetchApi<HospitalDepartmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/departments`),
+  getDepartments: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<HospitalDepartmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/departments`, {
+      signal,
+    }),
 
   createDepartment: (hospitalId: string, payload: Omit<HospitalDepartmentDto, 'id'>) =>
     fetchApi<HospitalDepartmentDto>(`/hospitals/${encodeURIComponent(hospitalId)}/departments`, {
@@ -795,8 +877,10 @@ export const hospitalApi = {
       { method: 'PUT', body: JSON.stringify(payload) }
     ),
 
-  getStaff: (hospitalId: string) =>
-    fetchApi<StaffRosterMemberDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/staff`),
+  getStaff: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<StaffRosterMemberDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/staff`, {
+      signal,
+    }),
 
   createStaff: (hospitalId: string, payload: Omit<StaffRosterMemberDto, 'id'>) =>
     fetchApi<StaffRosterMemberDto>(`/hospitals/${encodeURIComponent(hospitalId)}/staff`, {
@@ -816,8 +900,10 @@ export const hospitalApi = {
       { method: 'DELETE' }
     ),
 
-  getInventory: (hospitalId: string) =>
-    fetchApi<InventorySkuDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/inventory`),
+  getInventory: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<InventorySkuDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/inventory`, {
+      signal,
+    }),
 
   createInventoryItem: (hospitalId: string, payload: Omit<InventorySkuDto, 'id'>) =>
     fetchApi<InventorySkuDto>(`/hospitals/${encodeURIComponent(hospitalId)}/inventory`, {
@@ -841,6 +927,8 @@ export const hospitalApi = {
       { method: 'DELETE' }
     ),
 
-  getFinanceSummary: (hospitalId: string) =>
-    fetchApi<HospitalFinanceSummaryDto>(`/hospitals/${encodeURIComponent(hospitalId)}/finance`),
+  getFinanceSummary: (hospitalId: string, signal?: AbortSignal) =>
+    fetchApi<HospitalFinanceSummaryDto>(`/hospitals/${encodeURIComponent(hospitalId)}/finance`, {
+      signal,
+    }),
 }

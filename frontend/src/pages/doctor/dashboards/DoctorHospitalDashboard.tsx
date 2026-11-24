@@ -73,16 +73,16 @@ export function DoctorHospitalDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
     const hospitalId = user?.hospitalId || 'hospital-kl'
 
     Promise.all([
-      centralApi.getStats(),
-      centralApi.getMyActivityLogs(6),
-      hospitalApi.getStats(hospitalId),
+      centralApi.getStats(controller.signal),
+      centralApi.getMyActivityLogs(6, controller.signal),
+      hospitalApi.getStats(hospitalId, controller.signal),
     ])
       .then(([statsRes, logsRes, hospStatsRes]) => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
         setStats((prev) => ({
           ...prev,
           ...(statsRes.success && statsRes.data ? statsRes.data : {}),
@@ -110,11 +110,11 @@ export function DoctorHospitalDashboard() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       })
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [user?.hospitalId])
 
@@ -153,7 +153,7 @@ export function DoctorHospitalDashboard() {
   ]
 
   return (
-    <div className={cn('space-y-6', theme.fontClass)}>
+    <div className="space-y-6">
       {/* Hospital Hero Banner */}
       <div
         className={cn(

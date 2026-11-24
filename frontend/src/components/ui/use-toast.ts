@@ -2,7 +2,8 @@ import * as React from "react"
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 5000
+const TOAST_AUTO_DISMISS_MS = 3500
+const TOAST_REMOVE_DELAY = 250
 
 type ToasterToast = ToastProps & {
   id: string
@@ -28,8 +29,18 @@ function genId() {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const autoDismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+function clearAutoDismissTimer(toastId: string) {
+  const timer = autoDismissTimeouts.get(toastId)
+  if (timer) {
+    clearTimeout(timer)
+    autoDismissTimeouts.delete(toastId)
+  }
+}
 
 const addToRemoveQueue = (toastId: string) => {
+  clearAutoDismissTimer(toastId)
   if (toastTimeouts.has(toastId)) return
 
   const timeout = setTimeout(() => {
@@ -92,6 +103,14 @@ function dispatch(action: Action) {
   listeners.forEach((listener) => listener(memoryState))
 }
 
+export function clearAllToasts() {
+  for (const timer of autoDismissTimeouts.values()) clearTimeout(timer)
+  autoDismissTimeouts.clear()
+  for (const timer of toastTimeouts.values()) clearTimeout(timer)
+  toastTimeouts.clear()
+  dispatch({ type: "REMOVE_TOAST" })
+}
+
 type Toast = Omit<ToasterToast, "id">
 
 function toast(props: Toast) {
@@ -104,6 +123,10 @@ function toast(props: Toast) {
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
+  for (const existing of memoryState.toasts) {
+    clearAutoDismissTimer(existing.id)
+  }
+
   dispatch({
     type: "ADD_TOAST",
     toast: {
@@ -115,6 +138,12 @@ function toast(props: Toast) {
       },
     },
   })
+
+  const autoTimer = setTimeout(() => {
+    autoDismissTimeouts.delete(id)
+    dismiss()
+  }, TOAST_AUTO_DISMISS_MS)
+  autoDismissTimeouts.set(id, autoTimer)
 
   return { id, dismiss, update }
 }

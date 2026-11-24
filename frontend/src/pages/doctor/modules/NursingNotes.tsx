@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Stethoscope,
   Plus,
@@ -15,7 +15,7 @@ import {
   WorkstationModuleHeader,
   PatientRequiredGate,
 } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -62,6 +62,7 @@ export default function NursingNotes() {
   const loadSeqRef = useRef(0)
   const [chart, setChart] = useState<PatientNursingChartDto | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [savingAction, setSavingAction] = useState(false)
   const [activeTab, setActiveTab] = useState<'vitals' | 'notes' | 'io'>('vitals')
   const [showNewVitals, setShowNewVitals] = useState(false)
@@ -94,45 +95,57 @@ export default function NursingNotes() {
   })
 
   // Strictly reset and reload patient-scoped nursing chart whenever bound patient changes
+  const fetchNursingChart = useCallback(
+    (ic: string, signal?: AbortSignal) => {
+      const seq = ++loadSeqRef.current
+      setLoading(true)
+      setLoadError('')
+      hospitalApi
+        .getNursingChart(hospitalId, ic, signal)
+        .then((res) => {
+          if (res.aborted || seq !== loadSeqRef.current) return
+          if (res.accessDenied) {
+            clearActivePatient()
+            toast({
+              title: t.privacyRestrictedTitle,
+              description: res.error || t.privacyRestrictedDesc,
+              variant: 'destructive',
+            })
+            return
+          }
+          if (res.success && res.data) {
+            setChart(res.data)
+            setIoDraft({
+              oralMl: res.data.ioChart.oralMl,
+              ivFluidMl: res.data.ioChart.ivFluidMl,
+              bloodMl: res.data.ioChart.bloodMl,
+              urineMl: res.data.ioChart.urineMl,
+              drainMl: res.data.ioChart.drainMl,
+              vomitusMl: res.data.ioChart.vomitusMl,
+            })
+          } else {
+            setLoadError(res.error || t.networkError)
+          }
+        })
+        .finally(() => {
+          if (seq === loadSeqRef.current) setLoading(false)
+        })
+    },
+    [hospitalId, clearActivePatient, toast, t.privacyRestrictedTitle, t.privacyRestrictedDesc, t.networkError]
+  )
+
   useEffect(() => {
     const ic = activePatient?.icNumber
     setChart(null)
+    setLoadError('')
     setShowNewVitals(false)
     setShowNewNote(false)
-
     if (!ic) return
 
-    const seq = ++loadSeqRef.current
-    setLoading(true)
-    hospitalApi
-      .getNursingChart(hospitalId, ic)
-      .then((res) => {
-        if (seq !== loadSeqRef.current) return
-        if (res.accessDenied) {
-          clearActivePatient()
-          toast({
-            title: t.privacyRestrictedTitle,
-            description: res.error || t.privacyRestrictedDesc,
-            variant: 'destructive',
-          })
-          return
-        }
-        if (res.success && res.data) {
-          setChart(res.data)
-          setIoDraft({
-            oralMl: res.data.ioChart.oralMl,
-            ivFluidMl: res.data.ioChart.ivFluidMl,
-            bloodMl: res.data.ioChart.bloodMl,
-            urineMl: res.data.ioChart.urineMl,
-            drainMl: res.data.ioChart.drainMl,
-            vomitusMl: res.data.ioChart.vomitusMl,
-          })
-        }
-      })
-      .finally(() => {
-        if (seq === loadSeqRef.current) setLoading(false)
-      })
-  }, [activePatient?.icNumber, hospitalId])
+    const controller = new AbortController()
+    fetchNursingChart(ic, controller.signal)
+    return () => controller.abort()
+  }, [activePatient?.icNumber, fetchNursingChart])
 
   const handleAddVitals = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -271,11 +284,16 @@ export default function NursingNotes() {
 
       {!activePatient ? (
         <PatientRequiredGate moduleTitle={t.nursingNotes} />
-      ) : loading || !chart ? (
+      ) : loading ? (
         <div className="space-y-4">
           <Skeleton className="h-12 w-72 rounded-xl" />
           <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
+      ) : loadError || !chart ? (
+        <DataErrorBanner
+          message={loadError || t.networkError}
+          onRetry={() => fetchNursingChart(activePatient.icNumber)}
+        />
       ) : (
         <>
           <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">

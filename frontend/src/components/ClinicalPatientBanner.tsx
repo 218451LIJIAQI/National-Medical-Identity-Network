@@ -108,9 +108,10 @@ export function ClinicalPatientBanner({
       return
     }
 
+    const controller = new AbortController()
     const seq = ++verifySeqRef.current
-    centralApi.getPatient(boundIc).then((res) => {
-      if (seq !== verifySeqRef.current) return
+    centralApi.getPatient(boundIc, controller.signal).then((res) => {
+      if (res.aborted || controller.signal.aborted || seq !== verifySeqRef.current) return
       if (res.accessDenied) {
         clearActivePatient()
         setPrivacyRevokedNotice(
@@ -155,6 +156,9 @@ export function ClinicalPatientBanner({
         }
       }
     })
+    return () => {
+      controller.abort()
+    }
   }, [activePatient?.icNumber, user?.hospitalId, user?.role])
 
   const handleLookup = async (e: React.FormEvent) => {

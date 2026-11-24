@@ -32,7 +32,6 @@ export interface HospitalTheme {
   iconBg: string
   iconColor: string
   activeNavClass: string
-  fontClass: string
   specialties: string[]
   bedCount: number
   departments: number
@@ -64,7 +63,6 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
     iconBg: 'bg-blue-600',
     iconColor: 'text-blue-600',
     activeNavClass: 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-800 border-l-4 border-blue-600 shadow-sm',
-    fontClass: 'font-inter',
     specialties: ['Cardiology', 'Neurology', 'Oncology', 'Pediatrics'],
     bedCount: 1200,
     departments: 45,
@@ -95,7 +93,6 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
     iconBg: 'bg-emerald-600',
     iconColor: 'text-emerald-600',
     activeNavClass: 'bg-emerald-50 text-emerald-800 border-l-4 border-emerald-600 shadow-sm',
-    fontClass: 'font-nunito',
     specialties: ['Orthopedics', 'Dermatology', 'Gastroenterology', 'Psychiatry'],
     bedCount: 850,
     departments: 38,
@@ -126,7 +123,6 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
     iconBg: 'bg-amber-600',
     iconColor: 'text-amber-700',
     activeNavClass: 'bg-amber-50 text-amber-900 border-l-4 border-amber-600 shadow-sm',
-    fontClass: 'font-poppins',
     specialties: ['Surgery', 'ENT', 'Urology', 'Ophthalmology'],
     bedCount: 720,
     departments: 32,
@@ -157,7 +153,6 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
     iconBg: 'bg-violet-600',
     iconColor: 'text-violet-600',
     activeNavClass: 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-900 border-l-4 border-violet-600 shadow-sm',
-    fontClass: 'font-space',
     specialties: ['Tropical Medicine', 'Rehabilitation', 'Nephrology', 'Pulmonology'],
     bedCount: 950,
     departments: 40,
@@ -188,7 +183,6 @@ export const hospitalThemes: Record<string, HospitalTheme> = {
     iconBg: 'bg-red-600',
     iconColor: 'text-red-600',
     activeNavClass: 'bg-rose-50 text-red-800 border-l-4 border-red-600 shadow-sm',
-    fontClass: 'font-inter',
     specialties: ['Emergency Medicine', 'Trauma Surgery', 'Obstetrics', 'Geriatrics'],
     bedCount: 1100,
     departments: 42,

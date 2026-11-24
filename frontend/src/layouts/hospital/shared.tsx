@@ -18,7 +18,6 @@ import {
   Package,
   DollarSign,
   Leaf,
-  Heart,
   LogOut,
   User as UserIcon,
   Bell,
@@ -50,50 +49,43 @@ import { Input } from '@/components/ui/input'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 
-export type { HospitalShellVariant }
-
-export interface HospitalNavItem {
+interface HospitalNavItem {
   icon: LucideIcon
   labelKey: TranslationKey
-  shortLabel: string
   path: string
 }
 
-export interface HospitalNavSection {
+interface HospitalNavSection {
   titleKey: TranslationKey
-  sectionIcon: LucideIcon
   items: HospitalNavItem[]
 }
 
 const DOCTOR_NAV_SECTIONS: HospitalNavSection[] = [
   {
     titleKey: 'navMainSection',
-    sectionIcon: Leaf,
     items: [
-      { icon: Home, labelKey: 'dashboard', shortLabel: 'Home', path: '/doctor' },
-      { icon: Search, labelKey: 'patientSearch', shortLabel: 'Search', path: '/doctor/search' },
-      { icon: FileText, labelKey: 'newRecord', shortLabel: 'Record', path: '/doctor/new-record' },
+      { icon: Home, labelKey: 'dashboard', path: '/doctor' },
+      { icon: Search, labelKey: 'patientSearch', path: '/doctor/search' },
+      { icon: FileText, labelKey: 'newRecord', path: '/doctor/new-record' },
     ],
   },
   {
     titleKey: 'clinicalModules',
-    sectionIcon: Heart,
     items: [
-      { icon: Users, labelKey: 'queue', shortLabel: 'Queue', path: '/doctor/queue' },
-      { icon: Pill, labelKey: 'ePrescription', shortLabel: 'Rx', path: '/doctor/prescription' },
-      { icon: FlaskConical, labelKey: 'labOrders', shortLabel: 'Lab', path: '/doctor/lab' },
-      { icon: ScanLine, labelKey: 'radiology', shortLabel: 'Imaging', path: '/doctor/radiology' },
-      { icon: FileText, labelKey: 'medicalCert', shortLabel: 'MC', path: '/doctor/mc' },
+      { icon: Users, labelKey: 'queue', path: '/doctor/queue' },
+      { icon: Pill, labelKey: 'ePrescription', path: '/doctor/prescription' },
+      { icon: FlaskConical, labelKey: 'labOrders', path: '/doctor/lab' },
+      { icon: ScanLine, labelKey: 'radiology', path: '/doctor/radiology' },
+      { icon: FileText, labelKey: 'medicalCert', path: '/doctor/mc' },
     ],
   },
   {
     titleKey: 'managementModules',
-    sectionIcon: Calendar,
     items: [
-      { icon: ArrowRightLeft, labelKey: 'referral', shortLabel: 'Refer', path: '/doctor/referral' },
-      { icon: Calendar, labelKey: 'appointments', shortLabel: 'Appt', path: '/doctor/appointments' },
-      { icon: Stethoscope, labelKey: 'nursingNotes', shortLabel: 'Nurse', path: '/doctor/nursing' },
-      { icon: Receipt, labelKey: 'billing', shortLabel: 'Bill', path: '/doctor/billing' },
+      { icon: ArrowRightLeft, labelKey: 'referral', path: '/doctor/referral' },
+      { icon: Calendar, labelKey: 'appointments', path: '/doctor/appointments' },
+      { icon: Stethoscope, labelKey: 'nursingNotes', path: '/doctor/nursing' },
+      { icon: Receipt, labelKey: 'billing', path: '/doctor/billing' },
     ],
   },
 ]
@@ -101,27 +93,153 @@ const DOCTOR_NAV_SECTIONS: HospitalNavSection[] = [
 const ADMIN_NAV_SECTIONS: HospitalNavSection[] = [
   {
     titleKey: 'navMainSection',
-    sectionIcon: Home,
     items: [
-      { icon: Home, labelKey: 'dashboard', shortLabel: 'Home', path: '/admin/hospital' },
-      { icon: Activity, labelKey: 'auditLogs', shortLabel: 'Audit', path: '/admin/audit' },
+      { icon: Home, labelKey: 'dashboard', path: '/admin/hospital' },
+      { icon: Activity, labelKey: 'auditLogs', path: '/admin/audit' },
     ],
   },
   {
     titleKey: 'hospitalAdminModules',
-    sectionIcon: Building2,
     items: [
-      { icon: Users, labelKey: 'staffManagement', shortLabel: 'Staff', path: '/admin/staff' },
-      { icon: Building2, labelKey: 'departments', shortLabel: 'Dept', path: '/admin/departments' },
-      { icon: Bed, labelKey: 'bedManagement', shortLabel: 'Beds', path: '/admin/beds' },
-      { icon: Package, labelKey: 'inventory', shortLabel: 'Stock', path: '/admin/inventory' },
-      { icon: DollarSign, labelKey: 'financialReports', shortLabel: 'Finance', path: '/admin/finance' },
+      { icon: Users, labelKey: 'staffManagement', path: '/admin/staff' },
+      { icon: Building2, labelKey: 'departments', path: '/admin/departments' },
+      { icon: Bed, labelKey: 'bedManagement', path: '/admin/beds' },
+      { icon: Package, labelKey: 'inventory', path: '/admin/inventory' },
+      { icon: DollarSign, labelKey: 'financialReports', path: '/admin/finance' },
     ],
   },
 ]
 
-export function getHospitalNavSections(role?: string): HospitalNavSection[] {
+function getHospitalNavSections(role?: string): HospitalNavSection[] {
   return role === 'doctor' ? DOCTOR_NAV_SECTIONS : ADMIN_NAV_SECTIONS
+}
+
+export function LanguageSwitcher({
+  inverted = false,
+  activeClassName = 'bg-blue-600 text-white shadow-sm',
+  showIcon = true,
+  className,
+}: {
+  inverted?: boolean
+  activeClassName?: string
+  showIcon?: boolean
+  className?: string
+}) {
+  const { language, setLanguage } = useTranslation()
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-0.5 p-1 rounded-xl border',
+        inverted ? 'bg-white/10 border-white/20' : 'bg-slate-50 border-slate-200',
+        className
+      )}
+      role="group"
+      aria-label="Language Switcher"
+    >
+      {showIcon && (
+        <Globe
+          className={cn(
+            'w-3.5 h-3.5 mx-1 shrink-0',
+            inverted ? 'text-white/85' : 'text-slate-500'
+          )}
+        />
+      )}
+      {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
+        <button
+          key={lang}
+          type="button"
+          onClick={() => setLanguage(lang)}
+          aria-pressed={language === lang}
+          className={cn(
+            'px-2 py-0.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0',
+            language === lang
+              ? inverted
+                ? 'bg-white text-slate-900 shadow-sm'
+                : activeClassName
+              : inverted
+                ? 'text-white/85 hover:bg-white/15'
+                : 'text-slate-700 hover:bg-slate-200/70'
+          )}
+        >
+          {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function DisplayAccessibilityControls({
+  compact = false,
+  inverted = false,
+  className,
+}: {
+  compact?: boolean
+  inverted?: boolean
+  className?: string
+}) {
+  const { fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
+  const { t } = useTranslation()
+
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl border',
+        inverted ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-slate-200',
+        className
+      )}
+    >
+      <div className="flex items-center gap-1" role="group" aria-label={t.fontScaleLabel}>
+        <Type className={cn('w-3.5 h-3.5 mr-0.5 shrink-0', inverted ? 'text-white/80' : 'text-slate-500')} />
+        {(
+          [
+            ['normal', 'A'],
+            ['large', 'A+'],
+            ['xlarge', 'A++'],
+          ] as const
+        ).map(([scale, label]) => (
+          <button
+            key={scale}
+            type="button"
+            onClick={() => setFontSize(scale)}
+            aria-pressed={fontSize === scale}
+            className={cn(
+              'px-1.5 py-0.5 text-[11px] font-bold rounded transition-colors',
+              fontSize === scale
+                ? inverted
+                  ? 'bg-white text-slate-900'
+                  : 'bg-slate-900 text-white'
+                : inverted
+                  ? 'text-white/85 hover:bg-white/15'
+                  : 'text-slate-700 hover:bg-slate-200/70'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={toggleHighContrast}
+        aria-pressed={highContrast}
+        title={t.highContrastLabel}
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors whitespace-nowrap shrink-0',
+          highContrast
+            ? inverted
+              ? 'bg-white text-slate-900 border-white'
+              : 'bg-slate-900 text-white border-slate-900'
+            : inverted
+              ? 'bg-white/10 text-white border-white/25 hover:bg-white/20'
+              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+        )}
+      >
+        <Eye className="w-3 h-3 shrink-0" />
+        <span>{compact ? 'HC' : t.highContrastLabel}</span>
+      </button>
+    </div>
+  )
 }
 
 export function formatStaffDisplayName(user?: User | null, mode: 'short' | 'full' = 'short'): string {
@@ -134,7 +252,7 @@ export function formatStaffDisplayName(user?: User | null, mode: 'short' | 'full
   return user.fullName || user.icNumber
 }
 
-export function formatStaffSubtitle(user?: User | null): string {
+function formatStaffSubtitle(user?: User | null): string {
   if (!user) return ''
   if (user.specialization) return user.specialization
   if (user.role === 'hospital_admin') return 'Hospital Administrator'
@@ -186,12 +304,6 @@ export function LiveDate({
   return <span className={cn('tabular-nums', className)}>{now.toLocaleDateString(locale, options)}</span>
 }
 
-export interface HospitalPortalShellProps {
-  hospitalId: string
-  variant: HospitalShellVariant
-  brandSubtitle?: string
-}
-
 const VARIANT_ICONS: Record<HospitalShellVariant, LucideIcon> = {
   sidebar: Building2,
   'hover-rail': Leaf,
@@ -200,19 +312,15 @@ const VARIANT_ICONS: Record<HospitalShellVariant, LucideIcon> = {
   'royal-top': Crown,
 }
 
-export function HospitalPortalShell({
-  hospitalId,
-  variant,
-  brandSubtitle,
-}: HospitalPortalShellProps) {
+export default function HospitalLayout() {
   const { user, logout, setSession } = useAuthStore()
-  const { fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const theme = getHospitalTheme(user?.hospitalId || hospitalId)
+  const theme = getHospitalTheme(user?.hospitalId || 'hospital-kl')
+  const variant = theme.shellVariant
   const navSections = getHospitalNavSections(user?.role)
   const BrandIcon = VARIANT_ICONS[variant]
 
@@ -348,35 +456,10 @@ export function HospitalPortalShell({
         </kbd>
       </Button>
 
-      <div
-        className={cn(
-          'flex items-center gap-0.5 p-1 rounded-xl border',
-          inverted ? 'bg-white/10 border-white/20' : 'bg-slate-50 border-slate-200'
-        )}
-        role="group"
-        aria-label="Language Switcher"
-      >
-        <Globe className={cn('w-3.5 h-3.5 mx-1 shrink-0', inverted ? 'text-white/85' : 'text-slate-500')} />
-        {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-          <button
-            key={lang}
-            type="button"
-            onClick={() => setLanguage(lang)}
-            className={cn(
-              'px-2 py-0.5 text-xs font-semibold rounded-lg transition-colors',
-              language === lang
-                ? inverted
-                  ? 'bg-white text-slate-900'
-                  : `${theme.iconBg} text-white`
-                : inverted
-                  ? 'text-white/85 hover:bg-white/15'
-                  : 'text-slate-700 hover:bg-slate-200/70'
-            )}
-          >
-            {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-          </button>
-        ))}
-      </div>
+      <LanguageSwitcher
+        inverted={inverted}
+        activeClassName={`${theme.iconBg} text-white shadow-sm`}
+      />
 
       {/* Node Telemetry Popover */}
       <div className="relative">
@@ -458,45 +541,8 @@ export function HospitalPortalShell({
               </Badge>
             </div>
 
-            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/60">
-              <div className="flex items-center gap-1" role="group" aria-label={t.fontScaleLabel}>
-                <Type className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
-                {(
-                  [
-                    ['normal', 'A'],
-                    ['large', 'A+'],
-                    ['xlarge', 'A++'],
-                  ] as const
-                ).map(([scale, label]) => (
-                  <button
-                    key={scale}
-                    type="button"
-                    onClick={() => setFontSize(scale)}
-                    className={cn(
-                      'px-1.5 py-0.5 text-[11px] font-bold rounded transition-colors',
-                      fontSize === scale
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-700 hover:bg-slate-200/70'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={toggleHighContrast}
-                aria-pressed={highContrast}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors',
-                  highContrast
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                )}
-              >
-                <Eye className="w-3 h-3" />
-                <span>{t.highContrastLabel}</span>
-              </button>
+            <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+              <DisplayAccessibilityControls className="border-0 bg-transparent px-1 py-0.5" />
             </div>
 
             {alternateRoles.length > 0 && (
@@ -614,7 +660,7 @@ export function HospitalPortalShell({
                   )}
                 >
                   <MapPin className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{brandSubtitle || `${theme.city}, ${theme.state}`}</span>
+                  <span className="truncate">{theme.city}, {theme.state}</span>
                   <span>•</span>
                   <Clock className="w-3 h-3 shrink-0" />
                   <LiveClock />
@@ -684,6 +730,15 @@ export function HospitalPortalShell({
             onMouseEnter={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
             onMouseLeave={variant === 'hover-rail' ? () => setSidebarOpen(false) : undefined}
             onFocusCapture={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
+            onBlurCapture={
+              variant === 'hover-rail'
+                ? (e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setSidebarOpen(false)
+                    }
+                  }
+                : undefined
+            }
             className={cn(
               'flex flex-col z-30 h-[calc(100vh-4rem)] transition-all duration-200 border-r',
               variant === 'hover-rail' ? 'fixed top-16 left-0' : 'sticky top-16 shrink-0',
@@ -903,8 +958,3 @@ export function HospitalPortalShell({
   )
 }
 
-export default function HospitalLayout() {
-  const user = useAuthStore((s) => s.user)
-  const theme = getHospitalTheme(user?.hospitalId || 'hospital-kl')
-  return <HospitalPortalShell hospitalId={theme.id} variant={theme.shellVariant} />
-}

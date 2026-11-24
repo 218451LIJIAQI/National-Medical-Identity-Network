@@ -1,13 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
-import { centralApi } from '@/lib/api'
+import { DataErrorBanner, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { centralApi, type HospitalSummaryDto } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { formatDateTime, formatIC, formatTimeAgo, getHospitalColor, maskIC } from '@/lib/utils'
+import {
+  formatDateTime,
+  formatIC,
+  formatTimeAgo,
+  getHospitalColor,
+  isValidMyKad,
+  maskIC,
+} from '@/lib/utils'
 import {
   Building2,
   Users,
@@ -25,11 +32,11 @@ import {
   FileText,
   Database,
   AlertTriangle,
-  Heart,
   User,
   Phone,
   Mail,
   MapPinned,
+  RefreshCw,
 } from 'lucide-react'
 
 interface CentralStats {
@@ -41,18 +48,6 @@ interface CentralStats {
   avgResponseTime?: number
 }
 
-interface Hospital {
-  id: string
-  name: string
-  shortName: string
-  city: string
-  state: string
-  address: string
-  phone: string
-  email: string
-  isActive: boolean
-}
-
 interface NetworkActivity {
   from: string
   to: string
@@ -62,29 +57,9 @@ interface NetworkActivity {
   success: boolean
 }
 
-interface PatientIndexResult {
-  icNumber: string
-  patient: {
-    fullName: string
-    icNumber: string
-    dateOfBirth: string
-    gender: string
-    bloodType: string
-    allergies: string[]
-    chronicConditions: string[]
-  } | null
-  hospitals: Array<{
-    hospitalId: string
-    hospitalName: string
-    shortName: string
-    city: string
-    recordCount: number
-    isActive: boolean
-  }>
-  totalHospitals: number
-  totalRecords: number
-  lastUpdated: string
-}
+type PatientIndexResult = NonNullable<
+  Awaited<ReturnType<typeof centralApi.searchPatientIndex>>['data']
+>
 
 const ACTION_LABELS: Record<string, string> = {
   query: 'Federated Query',
@@ -111,65 +86,89 @@ export default function CentralAdminDashboard() {
     queryChangePercent: 0,
     avgResponseTime: 0.4,
   })
-  const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [hospitals, setHospitals] = useState<HospitalSummaryDto[]>([])
   const [networkActivity, setNetworkActivity] = useState<NetworkActivity[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchIC, setSearchIC] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<PatientIndexResult | null>(null)
   const [searchError, setSearchError] = useState('')
-  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null)
+  const [selectedHospital, setSelectedHospital] = useState<HospitalSummaryDto | null>(null)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [statsRes, hospitalsRes, logsRes] = await Promise.all([
-          centralApi.getStats(),
-          centralApi.getHospitals(),
-          centralApi.getAuditLogs({ limit: 20 }),
-        ])
+  const loadData = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [statsRes, hospitalsRes, logsRes] = await Promise.all([
+        centralApi.getStats(signal),
+        centralApi.getHospitals(signal),
+        centralApi.getAuditLogs({ limit: 20 }, signal),
+      ])
 
-        if (statsRes.success && statsRes.data) {
-          setStats(statsRes.data)
-        }
-        if (hospitalsRes.success && hospitalsRes.data) {
-          setHospitals(hospitalsRes.data as unknown as Hospital[])
-        }
-        if (logsRes.success && logsRes.data) {
-          const activities = (logsRes.data as Array<Record<string, unknown>>)
-            .filter((log) =>
-              ['query', 'view', 'create', 'update', 'emergency_access'].includes(String(log.action))
-            )
-            .slice(0, 10)
-            .map((log) => ({
-              from: String(log.hospitalName || log.actorHospitalId || 'Central Hub'),
-              to: 'Federated Network',
-              type: ACTION_LABELS[String(log.action)] || 'Audit Event',
-              patient: log.targetIcNumber ? maskIC(String(log.targetIcNumber)) : 'System',
-              time: formatTimeAgo(String(log.timestamp)),
-              success: Boolean(log.success),
-            }))
-          setNetworkActivity(activities)
-        }
-      } catch (error) {
-        console.error('Failed to load central admin data:', error)
-      } finally {
+      if (statsRes.aborted || hospitalsRes.aborted || logsRes.aborted) return
+
+      if (!statsRes.success && !hospitalsRes.success) {
+        setLoadError(statsRes.error || hospitalsRes.error || t.networkError)
+        return
+      }
+
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data)
+      }
+      if (hospitalsRes.success && hospitalsRes.data) {
+        setHospitals(hospitalsRes.data)
+      }
+      if (logsRes.success && logsRes.data) {
+        const activities = logsRes.data
+          .filter((log) =>
+            ['query', 'view', 'create', 'update', 'emergency_access'].includes(String(log.action))
+          )
+          .slice(0, 10)
+          .map((log) => ({
+            from: String(log.hospitalName || log.actorHospitalId || 'Central Hub'),
+            to: 'Federated Network',
+            type: ACTION_LABELS[String(log.action)] || 'Audit Event',
+            patient: log.targetIcNumber ? maskIC(String(log.targetIcNumber)) : 'System',
+            time: formatTimeAgo(String(log.timestamp)),
+            success: Boolean(log.success),
+          }))
+        setNetworkActivity(activities)
+      }
+    } catch {
+      if (!signal?.aborted) {
+        setLoadError(t.networkError)
+      }
+    } finally {
+      if (!signal?.aborted) {
         setLoading(false)
       }
     }
-    void loadData()
-  }, [])
+  }, [t.networkError])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadData(controller.signal)
+    return () => controller.abort()
+  }, [loadData])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!searchIC.trim()) return
+    const normalizedIc = formatIC(searchIC.trim())
+    if (!normalizedIc) return
+
+    if (!isValidMyKad(normalizedIc)) {
+      setSearchError(t.invalidMyKadFormat)
+      setSearchResult(null)
+      return
+    }
 
     setSearching(true)
     setSearchError('')
     setSearchResult(null)
 
     try {
-      const response = await centralApi.searchPatientIndex(formatIC(searchIC.trim()))
+      const response = await centralApi.searchPatientIndex(normalizedIc)
       if (response.success && response.data) {
         setSearchResult(response.data)
       } else {
@@ -194,10 +193,12 @@ export default function CentralAdminDashboard() {
   }
 
   const changePct = stats.queryChangePercent ?? 0
+  const onlineNodeCount = hospitals.filter((h) => h.isActive).length
+  const allNodesOnline = hospitals.length > 0 && onlineNodeCount === hospitals.length
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 p-7 text-white shadow-md flex items-center justify-between gap-6 flex-wrap">
+      <div className="dark-surface rounded-2xl bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 p-7 text-white shadow-md flex items-center justify-between gap-6 flex-wrap">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-white/15 rounded-2xl border border-white/25">
             <Network className="w-7 h-7 text-cyan-300" />
@@ -215,7 +216,16 @@ export default function CentralAdminDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => void loadData()}
+            className="border border-white/25 bg-white/10 text-white hover:bg-white/20 gap-1.5"
+          >
+            <RefreshCw className="w-4 h-4" />
+            {t.refreshData}
+          </Button>
           <Link to="/admin/patient-index">
             <Button
               variant="ghost"
@@ -235,13 +245,15 @@ export default function CentralAdminDashboard() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadData()} />}
+
       {/* Real-Data KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             label: t.connectedHospitals,
             value: stats.activeHospitals,
-            sub: 'All regional nodes active',
+            sub: allNodesOnline ? 'All regional nodes active' : `${onlineNodeCount}/${hospitals.length} nodes online`,
             icon: Building2,
             accent: 'border-t-blue-600',
             iconWrap: 'bg-blue-50 text-blue-700',
@@ -280,11 +292,11 @@ export default function CentralAdminDashboard() {
                 <p className="text-xs font-semibold text-slate-600 mb-1">{stat.label}</p>
                 <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
                 <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 tabular-nums">
-                  <TrendingUp className="w-3 h-3 text-emerald-600" />
+                  <TrendingUp className="w-3 h-3 text-emerald-600 shrink-0" />
                   <span>{stat.sub}</span>
                 </p>
               </div>
-              <div className={`p-2.5 rounded-xl ${stat.iconWrap}`}>
+              <div className={`p-2.5 rounded-xl shrink-0 ${stat.iconWrap}`}>
                 <stat.icon className="w-5 h-5" />
               </div>
             </CardContent>
@@ -295,25 +307,29 @@ export default function CentralAdminDashboard() {
       {/* Patient Index Lookup */}
       <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
         <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center gap-3">
-          <div className="p-2.5 bg-blue-600 rounded-xl text-white">
+          <div className="p-2.5 bg-blue-600 rounded-xl text-white shrink-0">
             <Database className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900">Central Patient Pointer Lookup</h2>
             <p className="text-xs text-slate-600">
-              Inspect which hospital nodes hold records for a MyKad IC (central hub stores pointers only)
+              Inspect which hospital nodes hold records for a MyKad IC (central hub stores pointers only; clinical PHI is strictly redacted)
             </p>
           </div>
         </div>
         <CardContent className="p-5 space-y-5">
-          <form onSubmit={handleSearch} className="flex items-center gap-3">
+          <form onSubmit={handleSearch} className="flex items-center gap-3 flex-wrap">
             <Input
-              placeholder="Enter Patient MyKad IC Number (e.g., 880101-14-5678)"
+              placeholder="Enter Patient MyKad IC Number (e.g., 850505-10-5111)"
               value={searchIC}
-              onChange={(e) => setSearchIC(e.target.value)}
-              className="h-11 font-mono text-sm tabular-nums flex-1"
+              onChange={(e) => {
+                setSearchIC(e.target.value)
+                if (searchError) setSearchError('')
+              }}
+              aria-invalid={Boolean(searchError)}
+              className="h-11 font-mono text-sm tabular-nums flex-1 min-w-[240px]"
             />
-            <Button type="submit" disabled={searching || !searchIC.trim()} className="h-11 px-6">
+            <Button type="submit" disabled={searching || !searchIC.trim()} className="h-11 px-6 shrink-0">
               {searching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -326,7 +342,10 @@ export default function CentralAdminDashboard() {
           </form>
 
           {searchError && (
-            <div className="p-3.5 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-red-900">
+            <div
+              role="alert"
+              className="p-3.5 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-red-900"
+            >
               <AlertTriangle className="w-4 h-4 text-red-700 shrink-0" />
               <span>{searchError}</span>
             </div>
@@ -337,7 +356,7 @@ export default function CentralAdminDashboard() {
               {searchResult.patient && (
                 <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl">
+                    <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
                       <User className="w-5 h-5" />
                     </div>
                     <div>
@@ -345,20 +364,16 @@ export default function CentralAdminDashboard() {
                         {searchResult.patient.fullName}
                       </h3>
                       <p className="text-xs text-slate-600 font-mono tabular-nums">
-                        {formatIC(searchResult.patient.icNumber)}
+                        {formatIC(searchResult.patient.icNumber)} • DOB: {searchResult.patient.dateOfBirth}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        {searchResult.patient.bloodType && (
-                          <Badge className="bg-red-50 text-red-800 border border-red-200 text-xs font-bold">
-                            <Heart className="w-3 h-3 mr-1" /> {searchResult.patient.bloodType}
-                          </Badge>
-                        )}
                         <Badge variant="outline" className="capitalize text-xs">
                           {searchResult.patient.gender}
                         </Badge>
-                        {searchResult.patient.allergies?.map((alg) => (
-                          <StatusBadge key={alg} tone="critical" label={`Allergy: ${alg}`} />
-                        ))}
+                        <StatusBadge
+                          tone="info"
+                          label="Zero-Trust Pointer Only • Clinical PHI Redacted"
+                        />
                       </div>
                     </div>
                   </div>
@@ -372,7 +387,7 @@ export default function CentralAdminDashboard() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                 {searchResult.hospitals.map((hospital) => {
                   const color = getHospitalColor(hospital.hospitalId)
                   return (
@@ -404,16 +419,24 @@ export default function CentralAdminDashboard() {
       </Card>
 
       {/* Hospital Network Status & Recent Activity */}
-      <div className="grid grid-cols-12 gap-6">
-        <Card className="col-span-7 border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <Card className="lg:col-span-7 border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h2 className="text-base font-bold text-slate-900">Hospital Node Directory</h2>
               <p className="text-xs text-slate-600">Select any hospital node to inspect endpoint details</p>
             </div>
-            <StatusBadge tone="success" icon={CheckCircle2} label="All Nodes Online" />
+            <StatusBadge
+              tone={allNodesOnline ? 'success' : 'warning'}
+              icon={allNodesOnline ? CheckCircle2 : AlertTriangle}
+              label={
+                allNodesOnline
+                  ? 'All Nodes Online'
+                  : `${onlineNodeCount}/${hospitals.length} Nodes Online`
+              }
+            />
           </div>
-          <CardContent className="p-5 grid grid-cols-2 gap-3.5">
+          <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {hospitals.map((hospital) => {
               const color = getHospitalColor(hospital.id)
               return (
@@ -457,7 +480,7 @@ export default function CentralAdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-5 border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="lg:col-span-5 border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="p-5 border-b border-slate-100 bg-slate-50/70">
             <h2 className="text-base font-bold text-slate-900">Recent Federated Events</h2>
             <p className="text-xs text-slate-600">Live cross-hospital query & governance stream</p>

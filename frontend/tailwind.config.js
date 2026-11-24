@@ -13,12 +13,6 @@ export default {
       },
     },
     extend: {
-      fontFamily: {
-        inter: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        nunito: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
-        poppins: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
-        space: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
-      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -459,10 +459,95 @@ test('8. Verifies zero hardcoded patient IC fallbacks, debloated themes & zoom-s
 
   // ClinicalPatientBanner must re-verify bound patient consent against centralApi.getPatient
   const bannerSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ClinicalPatientBanner.tsx'), 'utf8');
-  assert.match(bannerSrc, /centralApi\.getPatient\(boundIc\)/, 'ClinicalPatientBanner must re-verify activePatient consent');
+  assert.match(bannerSrc, /centralApi\.getPatient\(boundIc,\s*controller\.signal\)/, 'ClinicalPatientBanner must re-verify activePatient consent with AbortSignal');
 
   // NewRecord must include respiratoryRate and height inputs so editing never drops vital fields
   const newRecSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/NewRecord.tsx'), 'utf8');
   assert.match(newRecSrc, /respiratoryRate/, 'NewRecord must preserve respiratoryRate');
   assert.match(newRecSrc, /id="v-ht"/, 'NewRecord must render height input');
+});
+
+test('9. Validates centenarian MyKad century rollback, safe partial BP formatting & silent AbortSignal handling', async () => {
+  const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
+
+  // Centenarian born Dec 31 of 1926 (when 2026-12-31 is in the future) resolves to 1926-12-31, never a future date
+  const centenarian = utils.parseMyKadDemographics('261231-14-5001');
+  assert.deepEqual(centenarian, { dateOfBirth: '1926-12-31', gender: 'male' });
+
+  // Safe blood pressure formatter prevents malformed "120/ mmHg" strings
+  assert.equal(utils.formatBloodPressure(122, 78), '122/78');
+  assert.equal(utils.formatBloodPressure(122, undefined), '122/—');
+  assert.equal(utils.formatBloodPressure(undefined, 80), '—/80');
+  assert.equal(utils.formatBloodPressure(undefined, undefined), null);
+
+  // Aborted requests in api.ts return { success: false, aborted: true } cleanly without throwing
+  const origFetch = global.fetch;
+  const controller = new AbortController();
+  controller.abort();
+  global.fetch = async (_url, opts) => {
+    if (opts?.signal?.aborted) {
+      const err = new Error('The operation was aborted.');
+      err.name = 'AbortError';
+      throw err;
+    }
+    return { ok: true, status: 200, json: async () => ({ success: true, data: [] }) };
+  };
+  try {
+    const { centralApi } = require(path.join(SRC_ROOT, 'lib/api.ts'));
+    const res = await centralApi.getHospitals(controller.signal);
+    assert.equal(res.success, false);
+    assert.equal(res.aborted, true);
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('10. Enforces 100% trilingual key utilization, zero dead theme/nav metadata & dark-surface high-contrast protection', () => {
+  const { translations } = require(path.join(SRC_ROOT, 'lib/i18n.ts'));
+  const { hospitalThemes } = require(path.join(SRC_ROOT, 'lib/hospital-themes.ts'));
+  const sharedShellSrc = fs.readFileSync(path.join(SRC_ROOT, 'layouts/hospital/shared.tsx'), 'utf8');
+
+  // Zero dead fontClass on themes & zero dead shortLabel/sectionIcon on nav sections
+  for (const [id, theme] of Object.entries(hospitalThemes)) {
+    assert.equal(theme.fontClass, undefined, `Dead fontClass should be removed from ${id}`);
+  }
+  assert.ok(!sharedShellSrc.includes('shortLabel'), 'Dead shortLabel should be removed from shared.tsx');
+  assert.ok(!sharedShellSrc.includes('sectionIcon'), 'Dead sectionIcon should be removed from shared.tsx');
+
+  // Every translation key in en/ms/zh is actively referenced outside i18n.ts
+  const nonI18nCombined = allSrcFiles
+    .filter((f) => !f.endsWith(path.join('lib', 'i18n.ts')))
+    .map((f) => fs.readFileSync(f, 'utf8'))
+    .join('\n');
+
+  const unusedKeys = Object.keys(translations.en).filter(
+    (k) => !new RegExp(`\\b${k}\\b`).test(nonI18nCombined)
+  );
+  assert.deepEqual(unusedKeys, [], `Found unused translation keys: ${unusedKeys.join(', ')}`);
+
+  // High-contrast CSS protects dark surfaces against dark-on-dark slate foreground overrides
+  const cssSrc = fs.readFileSync(path.join(SRC_ROOT, 'index.css'), 'utf8');
+  assert.match(cssSrc, /html\.high-contrast\s+\.dark-surface\s+\.text-slate-400/, 'index.css must protect dark-surface contrast in high-contrast mode');
+});
+
+test('11. Verifies modal focus trap, error-retry boundaries (zero infinite skeletons), bloodType clearing & redacted pointer UI', () => {
+  const modalSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/modal-dialog.tsx'), 'utf8');
+  assert.match(modalSrc, /FOCUSABLE_SELECTOR/, 'ModalDialog must implement focusable element trap');
+  assert.match(modalSrc, /previousFocused\.focus\(\)/, 'ModalDialog must restore focus on close');
+
+  for (const rel of [
+    'pages/admin/modules/FinancialReports.tsx',
+    'pages/doctor/modules/Billing.tsx',
+    'pages/doctor/modules/NursingNotes.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.match(src, /DataErrorBanner/, `${rel} must render DataErrorBanner on load failure instead of infinite skeleton`);
+  }
+
+  const newRecSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/NewRecord.tsx'), 'utf8');
+  assert.match(newRecSrc, /bloodType:\s*formData\.bloodType\.trim\(\),/, 'NewRecord must allow explicit empty string bloodType clearing');
+
+  const centralSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/admin/CentralAdmin.tsx'), 'utf8');
+  assert.ok(!centralSrc.includes('searchResult.patient.allergies'), 'CentralAdmin must not render redacted clinical allergies');
+  assert.ok(!centralSrc.includes('searchResult.patient.bloodType'), 'CentralAdmin must not render redacted clinical bloodType');
 });

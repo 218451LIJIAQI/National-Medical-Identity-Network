@@ -68,6 +68,7 @@ export default function PatientDashboard() {
   const [accessLogsLoading, setAccessLogsLoading] = useState(true)
 
   useEffect(() => {
+    const controller = new AbortController()
     async function loadPatientData() {
       if (!user?.icNumber) {
         setLoading(false)
@@ -75,9 +76,10 @@ export default function PatientDashboard() {
       }
       try {
         const [queryRes, patientRes] = await Promise.all([
-          centralApi.queryPatient(user.icNumber),
-          centralApi.getPatient(user.icNumber),
+          centralApi.queryPatient(user.icNumber, controller.signal),
+          centralApi.getPatient(user.icNumber, controller.signal),
         ])
+        if (queryRes.aborted || patientRes.aborted) return
 
         let hospitalsCount = 0
         let recordsCount = 0
@@ -116,46 +118,46 @@ export default function PatientDashboard() {
           }
         }
 
-        const p = patientRes.success
-          ? (patientRes.data?.patient as Record<string, unknown> | undefined)
-          : undefined
+        const p = patientRes.success ? patientRes.data?.patient : undefined
 
         setPatientData({
           hospitalsCount,
           recordsCount,
           activeMedicationsCount,
           lastVisit,
-          allergies: Array.isArray(p?.allergies) ? (p?.allergies as string[]) : [],
-          chronicConditions: Array.isArray(p?.chronicConditions)
-            ? (p?.chronicConditions as string[])
-            : [],
-          bloodType: (p?.bloodType as string) || '',
-          fullName: (p?.fullName as string) || '',
+          allergies: Array.isArray(p?.allergies) ? p.allergies : [],
+          chronicConditions: Array.isArray(p?.chronicConditions) ? p.chronicConditions : [],
+          bloodType: p?.bloodType || '',
+          fullName: p?.fullName || '',
           partialFailure,
         })
-      } catch (error) {
-        console.error('Failed to load patient data:', error)
+      } catch {
+        // Ignore aborted or transient fetch error
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
     void loadPatientData()
+    return () => controller.abort()
   }, [user?.icNumber])
 
   useEffect(() => {
+    const controller = new AbortController()
     async function loadAccessLogs() {
       try {
-        const response = await centralApi.getMyAccessLogs(10)
+        const response = await centralApi.getMyAccessLogs(10, controller.signal)
+        if (response.aborted) return
         if (response.success && response.data) {
           setAccessLogs(response.data)
         }
-      } catch (error) {
-        console.error('Failed to load access logs:', error)
+      } catch {
+        // Ignore aborted or transient fetch error
       } finally {
-        setAccessLogsLoading(false)
+        if (!controller.signal.aborted) setAccessLogsLoading(false)
       }
     }
     void loadAccessLogs()
+    return () => controller.abort()
   }, [])
 
   return (

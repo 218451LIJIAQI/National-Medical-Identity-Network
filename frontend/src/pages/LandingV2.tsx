@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import {
   Building2,
   Shield,
@@ -13,16 +14,14 @@ import {
   Lock,
   CreditCard,
   Scan,
-  Type,
-  Eye,
   Database,
   Network,
   Activity,
   Siren,
   MapPin,
+  KeyRound,
 } from 'lucide-react'
-import { useSettingsStore } from '@/store/settings'
-import { useTranslation, type Language } from '@/lib/i18n'
+import { useTranslation } from '@/lib/i18n'
 import { hospitalThemes } from '@/lib/hospital-themes'
 import { cn } from '@/lib/utils'
 
@@ -81,7 +80,7 @@ function ICCardInteractiveDemo() {
       <button
         type="button"
         onClick={startScan}
-        className="relative w-full h-48 rounded-2xl overflow-hidden text-left shadow-md border border-slate-800 transition-transform hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-blue-600"
+        className="dark-surface relative w-full h-48 rounded-2xl overflow-hidden text-left shadow-md border border-slate-800 transition-transform hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-blue-600"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)' }}
       >
         <div className="h-1.5 bg-gradient-to-r from-red-600 via-white to-blue-800" />
@@ -139,14 +138,13 @@ function ICCardInteractiveDemo() {
 }
 
 export default function LandingPageV2() {
-  const { fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Sticky Desktop Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between gap-4">
+        <div className="container mx-auto px-6 min-h-[4rem] py-2 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center text-white shadow-sm">
               <Building2 className="w-5 h-5" />
@@ -161,7 +159,7 @@ export default function LandingPageV2() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <Link
               to="/about"
               className="px-3 py-1.5 text-sm font-semibold text-slate-700 hover:text-blue-700 rounded-lg hover:bg-slate-100 transition-colors"
@@ -169,52 +167,8 @@ export default function LandingPageV2() {
               {t.about}
             </Link>
 
-            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
-              {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setLanguage(lang)}
-                  className={cn(
-                    'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors',
-                    language === lang
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-700 hover:bg-white'
-                  )}
-                >
-                  {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setFontSize(fontSize === 'normal' ? 'large' : fontSize === 'large' ? 'xlarge' : 'normal')
-              }
-              title={t.fontScaleLabel}
-              aria-label={t.fontScaleLabel}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700"
-            >
-              <Type className="w-4 h-4" />
-              <span>{fontSize === 'normal' ? 'A' : fontSize === 'large' ? 'A+' : 'A++'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleHighContrast}
-              aria-pressed={highContrast}
-              title={t.highContrastLabel}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors',
-                highContrast
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-              )}
-            >
-              <Eye className="w-4 h-4" />
-              <span>{t.highContrastLabel}</span>
-            </button>
+            <LanguageSwitcher showIcon={false} className="bg-slate-100" />
+            <DisplayAccessibilityControls compact />
 
             <Link to="/emergency">
               <Button
@@ -239,8 +193,8 @@ export default function LandingPageV2() {
 
       {/* Hero Section */}
       <section className="py-16 px-6 bg-gradient-to-b from-white via-blue-50/40 to-slate-50 border-b border-slate-200/80">
-        <div className="container mx-auto grid grid-cols-12 gap-12 items-center">
-          <div className="col-span-7 space-y-6">
+        <div className="container mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-7 space-y-6">
             <Badge variant="success" className="px-3.5 py-1 text-xs">
               <Shield className="w-3.5 h-3.5 mr-1.5" />
               {t.pdpaComplianceBadge}
@@ -255,7 +209,7 @@ export default function LandingPageV2() {
               {t.heroSubtitle}
             </p>
 
-            <div className="flex items-center gap-4 pt-2">
+            <div className="flex items-center gap-4 pt-2 flex-wrap">
               <Link to="/login">
                 <Button size="lg" className="gap-2 px-7">
                   <span>{t.getStarted}</span>
@@ -290,7 +244,7 @@ export default function LandingPageV2() {
             </div>
           </div>
 
-          <div className="col-span-5">
+          <div className="lg:col-span-5">
             <ICCardInteractiveDemo />
           </div>
         </div>
@@ -302,7 +256,7 @@ export default function LandingPageV2() {
           <div className="text-center max-w-2xl mx-auto mb-10">
             <Badge variant="info" className="mb-3">
               <Network className="w-3.5 h-3.5 mr-1" />
-              Federated Regional Nodes
+              {t.nationwideTitle}
             </Badge>
             <h2 className="text-3xl font-bold text-slate-900">{t.connectedHospitals}</h2>
             <p className="text-sm text-slate-600 mt-2">{t.nationwideDesc}</p>
@@ -354,8 +308,8 @@ export default function LandingPageV2() {
 
       {/* How Federated Architecture Works & Security Pillars */}
       <section className="py-16 px-6 bg-white border-y border-slate-200">
-        <div className="container mx-auto grid grid-cols-12 gap-10 items-start">
-          <div className="col-span-5 space-y-4">
+        <div className="container mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          <div className="lg:col-span-5 space-y-4">
             <h2 className="text-2xl font-bold text-slate-900">{t.howItWorks}</h2>
             <p className="text-sm text-slate-600 leading-relaxed">{t.howItWorksSubtitle}</p>
             <div className="space-y-3 pt-2">
@@ -368,7 +322,7 @@ export default function LandingPageV2() {
                   key={s.step}
                   className="flex items-start gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-200"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 tabular-nums">
                     0{s.step}
                   </div>
                   <div>
@@ -380,15 +334,20 @@ export default function LandingPageV2() {
             </div>
           </div>
 
-          <div className="col-span-7 space-y-4">
-            <h2 className="text-2xl font-bold text-slate-900">{t.securityByDesign}</h2>
-            <p className="text-sm text-slate-600 leading-relaxed">{t.securityByDesignDesc}</p>
-            <div className="grid grid-cols-2 gap-4 pt-2">
+          <div className="lg:col-span-7 space-y-4">
+            <div>
+              <Badge variant="outline" className="mb-2 border-blue-200 bg-blue-50 text-blue-800">
+                {t.features}
+              </Badge>
+              <h2 className="text-2xl font-bold text-slate-900">{t.securityByDesign}</h2>
+              <p className="text-sm text-slate-600 leading-relaxed mt-1">{t.featuresSubtitle}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               {[
                 { icon: Shield, title: t.dataSovereigntyTitle, desc: t.dataSovereigntyDesc },
                 { icon: Activity, title: t.instantAccessTitle, desc: t.instantAccessDesc },
-                { icon: Lock, title: t.privacyFirstTitle, desc: t.privacyFirstDesc },
-                { icon: Users, title: t.auditTrail, desc: 'Every clinical query, consent update, and emergency break-glass event is recorded.' },
+                { icon: Lock, title: t.patientConsent, desc: t.privacyFirstDesc },
+                { icon: KeyRound, title: t.dataEncryption, desc: t.securityByDesignDesc },
               ].map((item) => (
                 <Card key={item.title} className="border border-slate-200 shadow-sm">
                   <CardContent className="p-5 space-y-2">
@@ -401,20 +360,33 @@ export default function LandingPageV2() {
                 </Card>
               ))}
             </div>
+
+            <div className="flex items-center justify-between gap-4 flex-wrap rounded-2xl bg-slate-50 border border-slate-200 p-5 mt-2">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">{t.ctaTitle}</p>
+                <p className="text-xs text-slate-600 mt-0.5">{t.ctaSubtitle}</p>
+              </div>
+              <Link to="/login" className="shrink-0">
+                <Button size="sm" className="gap-1.5">
+                  <Users className="w-4 h-4" />
+                  <span>{t.loginNow}</span>
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-10 px-6 bg-slate-900 text-slate-300">
-        <div className="container mx-auto flex items-center justify-between gap-6">
+      <footer className="dark-surface py-10 px-6 bg-slate-900 text-slate-300">
+        <div className="container mx-auto flex items-center justify-between gap-6 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
               <p className="font-bold text-sm text-white">{t.appName}</p>
-              <p className="text-xs text-slate-400">{t.pdpaComplianceBadge}</p>
+              <p className="text-xs text-slate-400">{t.auditTrail} • {t.pdpaComplianceBadge}</p>
             </div>
           </div>
 

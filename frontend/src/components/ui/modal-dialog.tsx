@@ -6,10 +6,15 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  RefreshCw,
+  RotateCcw,
+  SearchX,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
+import { Button } from '@/components/ui/button'
 
 export type StatusTone = 'critical' | 'warning' | 'success' | 'info' | 'neutral' | 'blocked'
 
@@ -77,6 +82,116 @@ export function StatusBadge({
   )
 }
 
+export function DataErrorBanner({
+  message,
+  onRetry,
+  className,
+}: {
+  message: string
+  onRetry?: () => void
+  className?: string
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      role="alert"
+      className={cn(
+        'rounded-2xl border border-red-200 bg-red-50/90 p-5 flex items-center justify-between gap-4 flex-wrap shadow-sm',
+        className
+      )}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+          <AlertTriangle className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-red-950">{t.loadFailedTitle}</h3>
+          <p className="text-xs text-red-800 mt-0.5 leading-relaxed">{message}</p>
+        </div>
+      </div>
+      {onRetry && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          className="border-red-300 bg-white text-red-800 hover:bg-red-100 shrink-0 gap-1.5"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>{t.retryLoad}</span>
+        </Button>
+      )}
+    </div>
+  )
+}
+
+export function EmptyStatePanel({
+  icon: Icon = SearchX,
+  title,
+  description,
+  hasActiveFilters = false,
+  onClearFilters,
+  action,
+  className,
+}: {
+  icon?: LucideIcon
+  title?: string
+  description?: string
+  hasActiveFilters?: boolean
+  onClearFilters?: () => void
+  action?: React.ReactNode
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const resolvedTitle = title || t.noMatchingResults
+
+  return (
+    <div
+      className={cn(
+        'bg-white rounded-2xl border border-dashed border-slate-300 px-6 py-10 text-center',
+        className
+      )}
+    >
+      <div className="w-11 h-11 rounded-2xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center mx-auto mb-3">
+        <Icon className="w-5 h-5" />
+      </div>
+      <p className="text-sm font-bold text-slate-900">{resolvedTitle}</p>
+      {description && (
+        <p className="text-xs text-slate-600 max-w-md mx-auto mt-1 leading-relaxed">
+          {description}
+        </p>
+      )}
+      {(hasActiveFilters && onClearFilters) || action ? (
+        <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+          {hasActiveFilters && onClearFilters && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClearFilters}
+              className="gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{t.clearFilters}</span>
+            </Button>
+          )}
+          {action}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
+
 export interface ModalDialogProps {
   open: boolean
   onClose: () => void
@@ -102,26 +217,74 @@ export function ModalDialog({
 }: ModalDialogProps) {
   const titleId = React.useId()
   const descId = React.useId()
+  const dialogRef = React.useRef<HTMLDivElement | null>(null)
+  const onCloseRef = React.useRef(onClose)
+  onCloseRef.current = onClose
 
   React.useEffect(() => {
     if (!open) return
 
+    const previousFocused = document.activeElement as HTMLElement | null
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
+    const focusInitial = () => {
+      const container = dialogRef.current
+      if (!container || container.contains(document.activeElement)) return
+      const preferred = container.querySelector<HTMLElement>(
+        '[autofocus], [data-autofocus="true"], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])'
+      )
+      const fallback = container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+      ;(preferred || fallback || container).focus()
+    }
+    focusInitial()
+    const focusTimer = window.setTimeout(focusInitial, 0)
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onClose()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const container = dialogRef.current
+      if (!container) return
+
+      const focusables = Array.from(
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+
+      if (focusables.length === 0) {
+        event.preventDefault()
+        container.focus()
+        return
+      }
+
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement as HTMLElement | null
+
+      if (event.shiftKey) {
+        if (!active || !container.contains(active) || active === first) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else if (!active || !container.contains(active) || active === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.clearTimeout(focusTimer)
       document.body.style.overflow = prevOverflow
       window.removeEventListener('keydown', handleKeyDown)
+      if (previousFocused && typeof previousFocused.focus === 'function' && document.contains(previousFocused)) {
+        previousFocused.focus()
+      }
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
@@ -134,12 +297,14 @@ export function ModalDialog({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
+        tabIndex={-1}
         className={cn(
-          'relative flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl',
+          'relative flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl focus:outline-none',
           maxWidthClassName
         )}
       >

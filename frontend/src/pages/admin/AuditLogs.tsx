@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { centralApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
@@ -93,6 +93,7 @@ export default function AuditLogs() {
 
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchTerm, setSearchTerm] = useState(urlTargetIc)
   const [filterAction, setFilterAction] = useState<string>('all')
   const [refreshing, setRefreshing] = useState(false)
@@ -108,7 +109,7 @@ export default function AuditLogs() {
   }, [urlTargetIc])
 
   const loadLogs = useCallback(
-    async (overrideStart?: string, overrideEnd?: string) => {
+    async (overrideStart?: string, overrideEnd?: string, signal?: AbortSignal) => {
       const effectiveStart = overrideStart !== undefined ? overrideStart : startDate
       const effectiveEnd = overrideEnd !== undefined ? overrideEnd : endDate
 
@@ -122,13 +123,19 @@ export default function AuditLogs() {
         return
       }
 
+      setLoadError('')
       try {
-        const response = await centralApi.getAuditLogs({
-          limit: 150,
-          startDate: effectiveStart || undefined,
-          endDate: effectiveEnd || undefined,
-        })
+        const response = await centralApi.getAuditLogs(
+          {
+            limit: 150,
+            startDate: effectiveStart || undefined,
+            endDate: effectiveEnd || undefined,
+          },
+          signal
+        )
+        if (response.aborted) return
         if (!response.success) {
+          setLoadError(response.error || t.networkError)
           toast({
             title: 'Audit Filter Rejected',
             description: response.error || 'Failed to load audit logs',
@@ -137,43 +144,43 @@ export default function AuditLogs() {
           return
         }
         if (response.data) {
-          const apiLogs = (response.data as Array<Record<string, unknown>>).map((log) => {
-            const rawAction = String(log.action || '')
-            const actorType = String(log.actorType || 'unknown')
-            const isSuccess = Boolean(log.success)
-            const mappedAction = resolveActionCategory(rawAction, actorType, isSuccess)
-
+          const apiLogs: AuditLog[] = response.data.map((log) => {
+            const actorType = log.actorType || 'unknown'
             return {
-              id: String(log.id || ''),
-              timestamp: String(log.timestamp || ''),
-              action: mappedAction,
-              userId: String(log.actorId || '').slice(0, 14) || 'System',
-              userName: String(log.actorName || log.actorId || 'System'),
+              id: log.id,
+              timestamp: log.timestamp,
+              action: resolveActionCategory(log.action, actorType, log.success),
+              userId: log.actorId.slice(0, 14) || 'System',
+              userName: log.actorName || log.actorId || 'System',
               userRole: actorType,
-              targetIcNumber: log.targetIcNumber ? String(log.targetIcNumber) : undefined,
-              sourceHospital: String(log.hospitalName || log.actorHospitalId || 'Central Hub'),
+              targetIcNumber: log.targetIcNumber || undefined,
+              sourceHospital: log.hospitalName || log.actorHospitalId || 'Central Hub',
               targetHospitals: log.targetHospitalId
-                ? [resolveHospitalLabel(String(log.targetHospitalId))]
+                ? [resolveHospitalLabel(log.targetHospitalId)]
                 : undefined,
-              status: isSuccess ? ('success' as const) : ('denied' as const),
-              details: log.details ? String(log.details) : undefined,
+              status: log.success ? 'success' : 'denied',
+              details: log.details || undefined,
             }
           })
           setLogs(apiLogs)
           setCurrentPage(1)
         }
-      } catch (error) {
-        console.error('Failed to load audit logs:', error)
+      } catch {
+        if (!signal?.aborted) setLoadError(t.networkError)
       } finally {
-        setLoading(false)
-        setRefreshing(false)
+        if (!signal?.aborted) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       }
     },
-    [startDate, endDate, toast]
+    [startDate, endDate, toast, t.networkError]
   )
 
   useEffect(() => {
-    void loadLogs('', '')
+    const controller = new AbortController()
+    void loadLogs('', '', controller.signal)
+    return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -358,6 +365,8 @@ export default function AuditLogs() {
         ))}
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={handleRefresh} />}
+
       <Card className="border border-slate-200 shadow-sm rounded-2xl">
         <CardContent className="p-5 space-y-3.5">
           <div className="flex items-center gap-3">
@@ -447,9 +456,16 @@ export default function AuditLogs() {
         </CardHeader>
         <CardContent className="p-0">
           {paginatedLogs.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 text-xs">
-              <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-              <p>No audit logs found matching your filter criteria.</p>
+            <div className="p-5">
+              <EmptyStatePanel
+                icon={FileText}
+                hasActiveFilters={Boolean(searchTerm.trim() || filterAction !== 'all' || startDate || endDate)}
+                onClearFilters={() => {
+                  setSearchTerm('')
+                  setFilterAction('all')
+                  if (startDate || endDate) handleClearDates()
+                }}
+              />
             </div>
           ) : (
             <div className="divide-y divide-slate-100">

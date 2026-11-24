@@ -6,7 +6,7 @@ import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
 import { cn, downloadCsvFile, formatIC, isValidMyKad } from '@/lib/utils'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
-import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +29,7 @@ export default function StaffManagement() {
 
   const [staff, setStaff] = useState<StaffRosterMemberDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingMember, setEditingMember] = useState<StaffRosterMemberDto | null>(null)
@@ -48,17 +49,23 @@ export default function StaffManagement() {
     joinDate: new Date().toISOString().split('T')[0],
   })
 
-  const loadStaff = useCallback(async () => {
+  const loadStaff = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getStaff(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getStaff(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setStaff(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadStaff()
+    const controller = new AbortController()
+    void loadStaff(controller.signal)
+    return () => controller.abort()
   }, [loadStaff])
 
   const filtered = staff.filter((s) => {
@@ -228,6 +235,8 @@ export default function StaffManagement() {
         ))}
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadStaff()} />}
+
       {/* Roster Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
@@ -250,6 +259,17 @@ export default function StaffManagement() {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-5">
+            <EmptyStatePanel
+              icon={Users}
+              hasActiveFilters={Boolean(searchQuery.trim() || roleFilter !== 'all')}
+              onClearFilters={() => {
+                setSearchQuery('')
+                setRoleFilter('all')
+              }}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

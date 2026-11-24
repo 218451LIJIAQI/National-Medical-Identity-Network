@@ -10,7 +10,8 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/lib/api'
 import { cn, formatIC, getRoleHomePath } from '@/lib/utils'
 import { getHospitalTheme, type HospitalTheme } from '@/lib/hospital-themes'
-import { useTranslation, type Language } from '@/lib/i18n'
+import { useTranslation } from '@/lib/i18n'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import {
   Loader2,
   Lock,
@@ -29,7 +30,7 @@ import {
 export default function HospitalVerification() {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
   const {
     user,
     isAuthenticated,
@@ -163,24 +164,13 @@ export default function HospitalVerification() {
   return (
     <div className={cn('min-h-screen flex flex-col justify-center items-center p-6 bg-gradient-to-br', theme.heroSoftGradient)}>
       <div className="w-full max-w-lg space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <Badge variant="outline" className="bg-white/90 text-slate-700 border-slate-200 px-3 py-1">
             Step 2 of 2 • Hospital Node Step-Up Auth
           </Badge>
-          <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200 shadow-sm">
-            {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setLanguage(lang)}
-                className={cn(
-                  'px-2.5 py-0.5 text-xs font-semibold rounded-lg transition-colors',
-                  language === lang ? `${theme.iconBg} text-white` : 'text-slate-700 hover:bg-slate-100'
-                )}
-              >
-                {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <LanguageSwitcher showIcon={false} activeClassName={`${theme.iconBg} text-white shadow-sm`} className="bg-white shadow-sm" />
+            <DisplayAccessibilityControls compact className="shadow-sm" />
           </div>
         </div>
 

@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, EmptyStatePanel, ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
 import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
 import {
   Users,
@@ -59,6 +59,7 @@ export default function QueueManagement() {
 
   const [queue, setQueue] = useState<QueueTicketDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [filter, setFilter] = useState<'all' | QueueTicketDto['status']>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -71,17 +72,23 @@ export default function QueueManagement() {
     complaint: '',
   })
 
-  const loadQueue = useCallback(async () => {
+  const loadQueue = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
-    const res = await hospitalApi.getQueue(hospitalId)
+    setLoadError('')
+    const res = await hospitalApi.getQueue(hospitalId, signal)
+    if (res.aborted) return
     if (res.success && res.data) {
       setQueue(res.data)
+    } else {
+      setLoadError(res.error || t.networkError)
     }
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, t.networkError])
 
   useEffect(() => {
-    void loadQueue()
+    const controller = new AbortController()
+    void loadQueue(controller.signal)
+    return () => controller.abort()
   }, [loadQueue])
 
   const filteredQueue = queue.filter((p) => {
@@ -241,7 +248,7 @@ export default function QueueManagement() {
         subtitle="MTS colour-coded outpatient triage & live consultation dispatch"
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={loadQueue}>
+            <Button variant="outline" size="sm" onClick={() => void loadQueue()}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               {t.refreshData}
             </Button>
@@ -307,6 +314,8 @@ export default function QueueManagement() {
         </div>
       </div>
 
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadQueue()} />}
+
       {/* Queue Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
@@ -316,9 +325,15 @@ export default function QueueManagement() {
             <Skeleton className="h-14 w-full" />
           </div>
         ) : filteredQueue.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 text-sm">
-            <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="font-semibold text-slate-700">{t.noMatchingResults}</p>
+          <div className="p-5">
+            <EmptyStatePanel
+              icon={Users}
+              hasActiveFilters={Boolean(searchQuery.trim() || filter !== 'all')}
+              onClearFilters={() => {
+                setSearchQuery('')
+                setFilter('all')
+              }}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">

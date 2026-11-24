@@ -18,8 +18,10 @@ import {
   HospitalDepartment,
   StaffRosterMember,
   InventorySku,
+  getNodeQueryTimeoutMs,
   normalizeIcNumber,
   parseMyKadParts,
+  withTimeout,
 } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
 import { getHospitalById } from '../config';
@@ -40,13 +42,20 @@ function parseOptionalDate(raw?: string | null): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function cleanStringArray(items: string[]): string[] {
+  return Array.from(new Set(items.map(item => String(item || '').trim()).filter(Boolean)));
+}
+
 function normalizePrescriptionInput(p: Partial<Prescription>) {
   return {
     medicationName: String(p.medicationName || '').trim(),
     dosage: String(p.dosage || '').trim(),
     frequency: String(p.frequency || '').trim(),
     duration: p.duration ? String(p.duration).trim() : null,
-    quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? Math.max(1, Math.trunc(p.quantity)) : null,
+    quantity:
+      typeof p.quantity === 'number' && Number.isFinite(p.quantity)
+        ? Math.max(1, Math.trunc(p.quantity))
+        : null,
     instructions: p.instructions ? String(p.instructions).trim() : null,
     isActive: p.isActive !== false,
   };
@@ -314,6 +323,8 @@ export class HospitalDatabaseMulti {
   private appointments: ClinicAppointment[];
   private nursingCharts = new Map<string, PatientNursingChart>();
   private billingAccounts = new Map<string, PatientBillingAccount>();
+  private settledAmountsByPatient = new Map<string, { net: number; subsidy: number }>();
+  private doctorLeaveSet = new Set<string>();
   private wards: HospitalWard[];
   private departments: HospitalDepartment[];
   private supportStaff: StaffRosterMember[];
@@ -364,6 +375,8 @@ export class HospitalDatabaseMulti {
   async createPatient(patient: Patient): Promise<Patient> {
     const icNumber = normalizeIcNumber(patient.icNumber);
     const safeDob = parseOptionalDate(patient.dateOfBirth) || new Date('1990-01-01T00:00:00.000Z');
+    const cleanAllergies = cleanStringArray(patient.allergies || []);
+    const cleanConditions = cleanStringArray(patient.chronicConditions || []);
 
     const created = await this.prisma.patient.create({
       data: {
@@ -377,14 +390,16 @@ export class HospitalDatabaseMulti {
         address: patient.address || '',
         emergencyContact: patient.emergencyContact || '',
         emergencyPhone: patient.emergencyPhone || '',
-        allergies: JSON.stringify(Array.from(new Set((patient.allergies || []).map(a => a.trim()).filter(Boolean)))),
-        chronicConditions: JSON.stringify(Array.from(new Set((patient.chronicConditions || []).map(c => c.trim()).filter(Boolean)))),
+        allergies: JSON.stringify(cleanAllergies),
+        chronicConditions: JSON.stringify(cleanConditions),
       },
     });
 
     return {
       ...patient,
       icNumber,
+      allergies: cleanAllergies,
+      chronicConditions: cleanConditions,
       dateOfBirth: safeDob.toISOString().split('T')[0],
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
@@ -400,37 +415,36 @@ export class HospitalDatabaseMulti {
     const existing = await this.getPatient(icNumber);
     if (!existing) return null;
 
-    const cleanList = (arr: string[]) =>
-      Array.from(new Set(arr.map(item => String(item || '').trim()).filter(Boolean)));
-
     const mergedAllergies =
       updates.allergies !== undefined
         ? options?.replaceArrays
-          ? cleanList(updates.allergies)
-          : cleanList([...existing.allergies, ...updates.allergies])
+          ? cleanStringArray(updates.allergies)
+          : cleanStringArray([...existing.allergies, ...updates.allergies])
         : existing.allergies;
 
     const mergedConditions =
       updates.chronicConditions !== undefined
         ? options?.replaceArrays
-          ? cleanList(updates.chronicConditions)
-          : cleanList([...existing.chronicConditions, ...updates.chronicConditions])
+          ? cleanStringArray(updates.chronicConditions)
+          : cleanStringArray([...existing.chronicConditions, ...updates.chronicConditions])
         : existing.chronicConditions;
 
     const safeDob = parseOptionalDate(updates.dateOfBirth) || new Date(existing.dateOfBirth);
+    const resolveOptionalString = (nextVal: string | undefined, fallback: string) =>
+      nextVal !== undefined ? String(nextVal).trim() : fallback;
 
     const updated = await this.prisma.patient.update({
       where: { icNumber },
       data: {
-        fullName: updates.fullName || existing.fullName,
+        fullName: updates.fullName?.trim() || existing.fullName,
         dateOfBirth: safeDob,
-        gender: updates.gender || existing.gender,
-        bloodType: updates.bloodType ?? existing.bloodType,
-        phone: updates.phone ?? existing.phone,
-        email: updates.email ?? existing.email,
-        address: updates.address ?? existing.address,
-        emergencyContact: updates.emergencyContact ?? existing.emergencyContact,
-        emergencyPhone: updates.emergencyPhone ?? existing.emergencyPhone,
+        gender: updates.gender === 'male' || updates.gender === 'female' ? updates.gender : existing.gender,
+        bloodType: resolveOptionalString(updates.bloodType, existing.bloodType),
+        phone: resolveOptionalString(updates.phone, existing.phone),
+        email: resolveOptionalString(updates.email, existing.email),
+        address: resolveOptionalString(updates.address, existing.address),
+        emergencyContact: resolveOptionalString(updates.emergencyContact, existing.emergencyContact),
+        emergencyPhone: resolveOptionalString(updates.emergencyPhone, existing.emergencyPhone),
         allergies: JSON.stringify(mergedAllergies),
         chronicConditions: JSON.stringify(mergedConditions),
       },
@@ -544,7 +558,10 @@ export class HospitalDatabaseMulti {
 
     const data: Record<string, unknown> = {
       visitDate: safeVisitDate,
-      visitType: updates.visitType || existing.visitType,
+      visitType:
+        updates.visitType === 'outpatient' || updates.visitType === 'inpatient' || updates.visitType === 'emergency'
+          ? updates.visitType
+          : existing.visitType,
       chiefComplaint: updates.chiefComplaint !== undefined ? updates.chiefComplaint : existing.chiefComplaint,
       diagnosis: updates.diagnosis !== undefined ? JSON.stringify(updates.diagnosis) : existing.diagnosis,
       diagnosisCodes: updates.diagnosisCodes !== undefined ? JSON.stringify(updates.diagnosisCodes) : existing.diagnosisCodes,
@@ -747,7 +764,12 @@ export class HospitalDatabaseMulti {
         if (options?.redactClinicalDetails) {
           return {
             ...formatted,
+            chiefComplaint: '',
+            diagnosis: [],
+            diagnosisCodes: [],
+            symptoms: [],
             notes: '',
+            vitalSigns: undefined,
             prescriptions: [],
             labReports: [],
           };
@@ -773,6 +795,11 @@ export class HospitalDatabaseMulti {
     );
   }
 
+  getQueueTicketByNo(queueNo: string): QueueTicket | null {
+    const found = this.queueTickets.find(q => q.queueNo === queueNo);
+    return found ? { ...found } : null;
+  }
+
   enqueuePatient(input: {
     name: string;
     icNumber: string;
@@ -794,7 +821,7 @@ export class HospitalDatabaseMulti {
       createdAt: new Date().toISOString(),
     };
     this.queueTickets.push(ticket);
-    return ticket;
+    return { ...ticket };
   }
 
   updateQueueTicket(queueNo: string, status: QueueTicket['status']): QueueTicket | null {
@@ -816,6 +843,11 @@ export class HospitalDatabaseMulti {
     );
   }
 
+  getAppointmentById(id: string): ClinicAppointment | null {
+    const found = this.appointments.find(a => a.id === id);
+    return found ? { ...found } : null;
+  }
+
   createAppointment(input: Omit<ClinicAppointment, 'id' | 'status'> & { status?: ClinicAppointment['status'] }): ClinicAppointment {
     const created: ClinicAppointment = {
       id: `${this.prefix}-APT-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 90 + 10)}`,
@@ -828,7 +860,7 @@ export class HospitalDatabaseMulti {
       status: input.status || 'confirmed',
     };
     this.appointments.unshift(created);
-    return created;
+    return { ...created };
   }
 
   updateAppointmentStatus(id: string, status: ClinicAppointment['status']): ClinicAppointment | null {
@@ -916,8 +948,12 @@ export class HospitalDatabaseMulti {
     updates: Partial<Omit<PatientFluidBalance, 'updatedAt'>> & { ward?: string; bedNumber?: string }
   ): Promise<PatientNursingChart> {
     const chart = await this.getOrInitNursingChart(rawIcNumber);
-    if (updates.ward) chart.ward = updates.ward;
-    if (updates.bedNumber) chart.bedNumber = updates.bedNumber;
+    if (updates.ward !== undefined && String(updates.ward).trim()) {
+      chart.ward = String(updates.ward).trim();
+    }
+    if (updates.bedNumber !== undefined && String(updates.bedNumber).trim()) {
+      chart.bedNumber = String(updates.bedNumber).trim();
+    }
     const nonNeg = (val: unknown, prev: number) =>
       val !== undefined && Number.isFinite(Number(val)) ? Math.max(0, Math.round(Number(val))) : prev;
     chart.ioChart = {
@@ -982,16 +1018,18 @@ export class HospitalDatabaseMulti {
 
   async addBillingItem(
     rawIcNumber: string,
-    item: Omit<BillingLineItem, 'id'>
+    item: Omit<BillingLineItem, 'id' | 'subsidyPercent'> & { subsidyPercent?: number }
   ): Promise<PatientBillingAccount> {
     const account = await this.getOrInitBillingAccount(rawIcNumber);
+    const defaultSubsidy =
+      account.subsidyStatus === 'eligible' ? 95 : account.subsidyStatus === 'pending' ? 50 : 0;
     account.receipt = null;
     account.items.push({
       id: `bil-${crypto.randomUUID().slice(0, 8)}`,
       category: String(item.category || 'Clinical Service').trim(),
       description: String(item.description || '').trim(),
-      originalPrice: Math.max(0, Number(item.originalPrice) || 0),
-      subsidyPercent: Math.min(100, Math.max(0, Number(item.subsidyPercent ?? (account.subsidyStatus === 'eligible' ? 95 : 0)))),
+      originalPrice: Number(Math.max(0, Number(item.originalPrice) || 0).toFixed(2)),
+      subsidyPercent: Math.min(100, Math.max(0, Number(item.subsidyPercent ?? defaultSubsidy))),
     });
     return account;
   }
@@ -1028,7 +1066,8 @@ export class HospitalDatabaseMulti {
     rawIcNumber: string,
     paymentMethod: 'counter' | 'online' | 'waived'
   ): Promise<PatientBillingAccount> {
-    const account = await this.getOrInitBillingAccount(rawIcNumber);
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    const account = await this.getOrInitBillingAccount(icNumber);
     const grossAmount = Number(account.items.reduce((s, i) => s + i.originalPrice, 0).toFixed(2));
     const netAmount =
       paymentMethod === 'waived'
@@ -1036,18 +1075,29 @@ export class HospitalDatabaseMulti {
         : Number(
             account.items
               .reduce((s, i) => {
-                const effSubsidy = account.subsidyStatus === 'eligible' ? i.subsidyPercent : account.subsidyStatus === 'pending' ? Math.min(50, i.subsidyPercent) : 0;
+                const effSubsidy =
+                  account.subsidyStatus === 'eligible'
+                    ? i.subsidyPercent
+                    : account.subsidyStatus === 'pending'
+                      ? Math.min(50, i.subsidyPercent)
+                      : 0;
                 return s + i.originalPrice * (1 - effSubsidy / 100);
               }, 0)
               .toFixed(2)
           );
     const subsidyAmount = Number(Math.max(0, grossAmount - netAmount).toFixed(2));
 
-    if (!account.receipt) {
-      this.settledRevenueTotal = Number((this.settledRevenueTotal + netAmount).toFixed(2));
-      this.settledSubsidyTotal = Number((this.settledSubsidyTotal + subsidyAmount).toFixed(2));
+    const previousSettled = this.settledAmountsByPatient.get(icNumber);
+    if (!previousSettled) {
       this.settledReceiptsCount += 1;
     }
+    this.settledRevenueTotal = Number(
+      Math.max(0, this.settledRevenueTotal - (previousSettled?.net ?? 0) + netAmount).toFixed(2)
+    );
+    this.settledSubsidyTotal = Number(
+      Math.max(0, this.settledSubsidyTotal - (previousSettled?.subsidy ?? 0) + subsidyAmount).toFixed(2)
+    );
+    this.settledAmountsByPatient.set(icNumber, { net: netAmount, subsidy: subsidyAmount });
 
     account.receipt = {
       receiptNo: `RCP-${this.prefix}-${Date.now().toString().slice(-6)}`,
@@ -1069,7 +1119,13 @@ export class HospitalDatabaseMulti {
 
   createWard(input: Omit<HospitalWard, 'id'>): HospitalWard {
     const created: HospitalWard = {
-      ...input,
+      name: input.name,
+      nameMY: input.nameMY,
+      totalBeds: input.totalBeds,
+      occupied: input.occupied,
+      reserved: input.reserved,
+      maintenance: input.maintenance,
+      type: input.type,
       id: `${this.prefix}-W${this.wards.length + 1}-${Date.now().toString(36).slice(-3).toUpperCase()}`,
     };
     this.wards.push(created);
@@ -1079,7 +1135,13 @@ export class HospitalDatabaseMulti {
   updateWard(wardId: string, updates: Partial<Omit<HospitalWard, 'id'>>): HospitalWard | null {
     const ward = this.wards.find(w => w.id === wardId);
     if (!ward) return null;
-    Object.assign(ward, updates);
+    if (updates.name !== undefined) ward.name = updates.name;
+    if (updates.nameMY !== undefined) ward.nameMY = updates.nameMY;
+    if (updates.totalBeds !== undefined) ward.totalBeds = updates.totalBeds;
+    if (updates.occupied !== undefined) ward.occupied = updates.occupied;
+    if (updates.reserved !== undefined) ward.reserved = updates.reserved;
+    if (updates.maintenance !== undefined) ward.maintenance = updates.maintenance;
+    if (updates.type !== undefined) ward.type = updates.type;
     return { ...ward };
   }
 
@@ -1089,20 +1151,53 @@ export class HospitalDatabaseMulti {
 
   createDepartment(input: Omit<HospitalDepartment, 'id'>): HospitalDepartment {
     const created: HospitalDepartment = {
-      ...input,
+      name: input.name,
+      nameMY: input.nameMY,
+      head: input.head,
+      headTitle: input.headTitle,
+      staffCount: input.staffCount,
+      doctorCount: input.doctorCount,
+      nurseCount: input.nurseCount,
+      location: input.location,
+      extension: input.extension,
+      operatingHours: input.operatingHours,
+      status: input.status,
       id: `${this.prefix}-DEP-${Date.now().toString(36).slice(-4).toUpperCase()}`,
       specialties: [...(input.specialties || [])],
     };
     this.departments.push(created);
-    return { ...created };
+    return { ...created, specialties: [...created.specialties] };
   }
 
   updateDepartment(deptId: string, updates: Partial<Omit<HospitalDepartment, 'id'>>): HospitalDepartment | null {
     const dept = this.departments.find(d => d.id === deptId);
     if (!dept) return null;
-    Object.assign(dept, updates);
-    if (updates.specialties) dept.specialties = [...updates.specialties];
+    if (updates.name !== undefined) dept.name = updates.name;
+    if (updates.nameMY !== undefined) dept.nameMY = updates.nameMY;
+    if (updates.head !== undefined) dept.head = updates.head;
+    if (updates.headTitle !== undefined) dept.headTitle = updates.headTitle;
+    if (updates.doctorCount !== undefined) dept.doctorCount = updates.doctorCount;
+    if (updates.nurseCount !== undefined) dept.nurseCount = updates.nurseCount;
+    if (updates.staffCount !== undefined) dept.staffCount = updates.staffCount;
+    if (updates.location !== undefined) dept.location = updates.location;
+    if (updates.extension !== undefined) dept.extension = updates.extension;
+    if (updates.operatingHours !== undefined) dept.operatingHours = updates.operatingHours;
+    if (updates.status !== undefined) dept.status = updates.status;
+    if (updates.specialties !== undefined) dept.specialties = [...updates.specialties];
     return { ...dept, specialties: [...dept.specialties] };
+  }
+
+  private resolveDoctorStatus(doc: { id: string; isActive: boolean }): StaffRosterMember['status'] {
+    if (doc.isActive) return 'active';
+    return this.doctorLeaveSet.has(doc.id) ? 'on_leave' : 'inactive';
+  }
+
+  private syncDoctorLeaveFlag(docId: string, status: StaffRosterMember['status']): void {
+    if (status === 'on_leave') {
+      this.doctorLeaveSet.add(docId);
+    } else {
+      this.doctorLeaveSet.delete(docId);
+    }
   }
 
   async getStaffRoster(): Promise<StaffRosterMember[]> {
@@ -1115,7 +1210,7 @@ export class HospitalDatabaseMulti {
       department: doc.department || doc.specialization || 'General Medicine',
       email: doc.email || `${doc.id}@${this.hospitalId}.gov.my`,
       phone: doc.phone || '+60 3-2615 5555',
-      status: doc.isActive ? 'active' : 'inactive',
+      status: this.resolveDoctorStatus(doc),
       joinDate: '2020-01-15',
       specialization: doc.specialization,
       licenseNumber: doc.licenseNumber,
@@ -1123,45 +1218,21 @@ export class HospitalDatabaseMulti {
     return [...doctorMembers, ...this.supportStaff.map(s => ({ ...s }))];
   }
 
-  async upsertStaffMember(input: Partial<StaffRosterMember> & { id?: string }): Promise<StaffRosterMember> {
+  async createStaffMember(input: Partial<StaffRosterMember>): Promise<StaffRosterMember> {
     const normalizedIc = normalizeIcNumber(String(input.icNumber || ''));
-    const role = input.role || 'nurse';
-    const status = input.status || 'active';
+    const role: StaffRosterMember['role'] = input.role || 'nurse';
+    const status: StaffRosterMember['status'] = input.status || 'active';
 
     if (role === 'doctor') {
-      const existingById = input.id ? await this.prisma.doctor.findUnique({ where: { id: input.id } }) : null;
-      const existingByIc = !existingById && normalizedIc ? await this.prisma.doctor.findFirst({ where: { icNumber: normalizedIc } }) : null;
-      const target = existingById || existingByIc;
-
-      if (target) {
-        const updatedDoc = await this.prisma.doctor.update({
-          where: { id: target.id },
-          data: {
-            fullName: input.name ? String(input.name).trim() : target.fullName,
-            specialization: input.specialization ? String(input.specialization).trim() : target.specialization,
-            department: input.department ? String(input.department).trim() : target.department,
-            licenseNumber: input.licenseNumber !== undefined ? String(input.licenseNumber).trim() : target.licenseNumber,
-            phone: input.phone !== undefined ? String(input.phone).trim() : target.phone,
-            email: input.email !== undefined ? String(input.email).trim() : target.email,
-            isActive: status === 'active',
-          },
-        });
-        return {
-          id: updatedDoc.id,
-          name: updatedDoc.fullName,
-          icNumber: updatedDoc.icNumber,
-          role: 'doctor',
-          department: updatedDoc.department || updatedDoc.specialization,
-          email: updatedDoc.email || '',
-          phone: updatedDoc.phone || '',
-          status: updatedDoc.isActive ? 'active' : 'inactive',
-          joinDate: input.joinDate || '2020-01-15',
-          specialization: updatedDoc.specialization,
-          licenseNumber: updatedDoc.licenseNumber || '',
-        };
+      const existingByIc = normalizedIc
+        ? await this.prisma.doctor.findFirst({ where: { icNumber: normalizedIc } })
+        : null;
+      if (existingByIc) {
+        const updated = await this.updateStaffMember(existingByIc.id, { ...input, role: 'doctor', status });
+        if (updated) return updated;
       }
 
-      const newId = input.id || `doc-${this.prefix.toLowerCase()}-${Date.now().toString(36).slice(-4)}`;
+      const newId = `doc-${this.prefix.toLowerCase()}-${Date.now().toString(36).slice(-4)}`;
       const createdDoc = await this.prisma.doctor.create({
         data: {
           id: newId,
@@ -1175,6 +1246,7 @@ export class HospitalDatabaseMulti {
           isActive: status === 'active',
         },
       });
+      this.syncDoctorLeaveFlag(createdDoc.id, status);
       return {
         id: createdDoc.id,
         name: createdDoc.fullName,
@@ -1183,30 +1255,17 @@ export class HospitalDatabaseMulti {
         department: createdDoc.department || createdDoc.specialization,
         email: createdDoc.email || '',
         phone: createdDoc.phone || '',
-        status: createdDoc.isActive ? 'active' : 'inactive',
+        status: this.resolveDoctorStatus(createdDoc),
         joinDate: input.joinDate || new Date().toISOString().split('T')[0],
         specialization: createdDoc.specialization,
         licenseNumber: createdDoc.licenseNumber || '',
       };
     }
 
-    const existingIdx = this.supportStaff.findIndex(
-      s => (input.id && s.id === input.id) || (normalizedIc && s.icNumber === normalizedIc)
-    );
+    const existingIdx = this.supportStaff.findIndex(s => normalizedIc && s.icNumber === normalizedIc);
     if (existingIdx >= 0) {
-      const curr = this.supportStaff[existingIdx];
-      const updated: StaffRosterMember = {
-        ...curr,
-        name: input.name ? String(input.name).trim() : curr.name,
-        icNumber: normalizedIc || curr.icNumber,
-        role,
-        department: input.department ? String(input.department).trim() : curr.department,
-        email: input.email !== undefined ? String(input.email).trim() : curr.email,
-        phone: input.phone !== undefined ? String(input.phone).trim() : curr.phone,
-        status,
-      };
-      this.supportStaff[existingIdx] = updated;
-      return { ...updated };
+      const updated = await this.updateStaffMember(this.supportStaff[existingIdx].id, { ...input, role, status });
+      if (updated) return updated;
     }
 
     const created: StaffRosterMember = {
@@ -1224,9 +1283,69 @@ export class HospitalDatabaseMulti {
     return { ...created };
   }
 
+  async updateStaffMember(
+    staffId: string,
+    updates: Partial<Omit<StaffRosterMember, 'id'>>
+  ): Promise<StaffRosterMember | null> {
+    const existingDoc = await this.prisma.doctor.findUnique({ where: { id: staffId } });
+    if (existingDoc) {
+      const nextStatus: StaffRosterMember['status'] = updates.status || this.resolveDoctorStatus(existingDoc);
+      const updatedDoc = await this.prisma.doctor.update({
+        where: { id: existingDoc.id },
+        data: {
+          fullName: updates.name?.trim() || existingDoc.fullName,
+          icNumber: updates.icNumber ? normalizeIcNumber(updates.icNumber) : existingDoc.icNumber,
+          specialization: updates.specialization?.trim() || existingDoc.specialization,
+          department: updates.department?.trim() || existingDoc.department,
+          licenseNumber:
+            updates.licenseNumber !== undefined ? String(updates.licenseNumber).trim() : existingDoc.licenseNumber,
+          phone: updates.phone !== undefined ? String(updates.phone).trim() : existingDoc.phone,
+          email: updates.email !== undefined ? String(updates.email).trim() : existingDoc.email,
+          isActive: nextStatus === 'active',
+        },
+      });
+      this.syncDoctorLeaveFlag(updatedDoc.id, nextStatus);
+      return {
+        id: updatedDoc.id,
+        name: updatedDoc.fullName,
+        icNumber: updatedDoc.icNumber,
+        role: 'doctor',
+        department: updatedDoc.department || updatedDoc.specialization,
+        email: updatedDoc.email || '',
+        phone: updatedDoc.phone || '',
+        status: this.resolveDoctorStatus(updatedDoc),
+        joinDate: updates.joinDate || '2020-01-15',
+        specialization: updatedDoc.specialization,
+        licenseNumber: updatedDoc.licenseNumber || '',
+      };
+    }
+
+    const existingIdx = this.supportStaff.findIndex(s => s.id === staffId);
+    if (existingIdx < 0) return null;
+
+    const curr = this.supportStaff[existingIdx];
+    const nextRole =
+      updates.role && updates.role !== 'doctor'
+        ? updates.role
+        : curr.role;
+    const updated: StaffRosterMember = {
+      ...curr,
+      name: updates.name?.trim() || curr.name,
+      icNumber: updates.icNumber ? normalizeIcNumber(updates.icNumber) : curr.icNumber,
+      role: nextRole,
+      department: updates.department?.trim() || curr.department,
+      email: updates.email !== undefined ? String(updates.email).trim() : curr.email,
+      phone: updates.phone !== undefined ? String(updates.phone).trim() : curr.phone,
+      status: updates.status || curr.status,
+    };
+    this.supportStaff[existingIdx] = updated;
+    return { ...updated };
+  }
+
   async deactivateOrRemoveStaff(staffId: string): Promise<boolean> {
     const doc = await this.prisma.doctor.findUnique({ where: { id: staffId } });
     if (doc) {
+      this.doctorLeaveSet.delete(staffId);
       await this.prisma.doctor.update({
         where: { id: staffId },
         data: { isActive: false },
@@ -1244,7 +1363,18 @@ export class HospitalDatabaseMulti {
 
   createInventoryItem(input: Omit<InventorySku, 'id'>): InventorySku {
     const created: InventorySku = {
-      ...input,
+      name: input.name,
+      nameMY: input.nameMY,
+      category: input.category,
+      sku: input.sku,
+      currentStock: input.currentStock,
+      minStock: input.minStock,
+      maxStock: input.maxStock,
+      unit: input.unit,
+      lastRestocked: input.lastRestocked,
+      expiryDate: input.expiryDate,
+      supplier: input.supplier,
+      pricePerUnit: input.pricePerUnit,
       id: `${this.prefix}-INV-${Date.now().toString(36).slice(-4).toUpperCase()}`,
     };
     this.inventory.unshift(created);
@@ -1254,7 +1384,18 @@ export class HospitalDatabaseMulti {
   updateInventoryItem(itemId: string, updates: Partial<Omit<InventorySku, 'id'>>): InventorySku | null {
     const item = this.inventory.find(i => i.id === itemId);
     if (!item) return null;
-    Object.assign(item, updates);
+    if (updates.name !== undefined) item.name = updates.name;
+    if (updates.nameMY !== undefined) item.nameMY = updates.nameMY;
+    if (updates.category !== undefined) item.category = updates.category;
+    if (updates.sku !== undefined) item.sku = updates.sku;
+    if (updates.currentStock !== undefined) item.currentStock = updates.currentStock;
+    if (updates.minStock !== undefined) item.minStock = updates.minStock;
+    if (updates.maxStock !== undefined) item.maxStock = updates.maxStock;
+    if (updates.unit !== undefined) item.unit = updates.unit;
+    if (updates.lastRestocked !== undefined) item.lastRestocked = updates.lastRestocked;
+    if (updates.expiryDate !== undefined) item.expiryDate = updates.expiryDate;
+    if (updates.supplier !== undefined) item.supplier = updates.supplier;
+    if (updates.pricePerUnit !== undefined) item.pricePerUnit = updates.pricePerUnit;
     return { ...item };
   }
 
@@ -1281,9 +1422,9 @@ export class HospitalDatabaseMulti {
       {
         month: 'May',
         mohAllocation: roundRM(4500000),
-        patientCollection: roundRM(216000) + this.settledRevenueTotal,
+        patientCollection: Number((roundRM(216000) + this.settledRevenueTotal).toFixed(2)),
         operatingExpense: roundRM(4170000),
-        subsidyAbsorbed: roundRM(2940000) + this.settledSubsidyTotal,
+        subsidyAbsorbed: Number((roundRM(2940000) + this.settledSubsidyTotal).toFixed(2)),
       },
     ];
 
@@ -1327,9 +1468,12 @@ export function resetHospitalDbInstances(): void {
 export async function findPatientInHospitals(rawIcNumber: string, hospitalIds: string[]): Promise<Patient | null> {
   const icNumber = normalizeIcNumber(rawIcNumber);
   let merged: Patient | null = null;
+  const timeoutMs = getNodeQueryTimeoutMs();
 
   const results = await Promise.allSettled(
-    hospitalIds.map(hospitalId => getHospitalDb(hospitalId).getPatient(icNumber))
+    hospitalIds.map(hospitalId =>
+      withTimeout(getHospitalDb(hospitalId).getPatient(icNumber), timeoutMs, hospitalId)
+    )
   );
 
   for (const res of results) {
