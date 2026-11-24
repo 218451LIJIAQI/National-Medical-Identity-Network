@@ -463,6 +463,7 @@ require.extensions['.ts'] = function compileTs(module, filename) {
 // ---------------------------------------------------------------------------
 const configMod = require('../src/config');
 const multiDbManager = require('../src/database/multi-db-manager');
+const centralMultiMod = require('../src/database/central-multi');
 const hospitalMultiMod = require('../src/database/hospital-multi');
 const authMiddleware = require('../src/middleware/auth');
 const centralRouteMod = require('../src/routes/central');
@@ -813,11 +814,25 @@ function createMockHospitalPrisma(seed = {}) {
         checkOnline();
         state.prescriptions = state.prescriptions.filter((p) => p.recordId !== where.recordId);
       },
+      async update({ where, data }) {
+        checkOnline();
+        const existing = state.prescriptions.find((p) => p.id === where.id);
+        if (!existing) throw new Error('Prescription not found');
+        Object.assign(existing, data);
+        return existing;
+      },
     },
     labReport: {
       async deleteMany({ where }) {
         checkOnline();
         state.labReports = state.labReports.filter((l) => l.recordId !== where.recordId);
+      },
+      async update({ where, data }) {
+        checkOnline();
+        const existing = state.labReports.find((l) => l.id === where.id);
+        if (!existing) throw new Error('LabReport not found');
+        Object.assign(existing, data);
+        return existing;
       },
     },
   };
@@ -1169,6 +1184,9 @@ function buildSeededTestFixture() {
 
   authMiddleware.clearRevokedTokensForTesting();
   centralRouteMod.clearEmergencyRateLimitsForTesting();
+  if (typeof centralMultiMod.resetCentralTransientStateForTesting === 'function') {
+    centralMultiMod.resetCentralTransientStateForTesting();
+  }
   if (typeof hospitalRouteMod.clearRecordSubmissionGuardForTesting === 'function') {
     hospitalRouteMod.clearRecordSubmissionGuardForTesting();
   }
@@ -2346,4 +2364,425 @@ test('15. Validates nursing BP/billing ledger reconciliation, explicit bloodType
     hospitals['hospital-penang'].medicalRecord.findMany = origFindMany;
     typesMod.setNodeQueryTimeoutMsForTesting(4000);
   }
+});
+
+test('16. Auth boundary hardening: verify-hospital empty ic_chip / invalid method, role enum checks, idempotent switch-role & licenseRevoked flag', async () => {
+  buildSeededTestFixture();
+
+  const badRoleLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '800101-14-5001', password: 'demo123', role: 'super_admin' },
+  });
+  assert.equal(badRoleLogin.status, 400);
+
+  const docLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '800101-14-5001', password: 'demo123', role: 'doctor' },
+  });
+  assert.equal(docLogin.status, 200);
+  const preToken = docLogin.body.data.token;
+
+  // Empty icNumber on ic_chip must NOT bypass chip verification
+  const emptyChip = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: preToken,
+    body: { method: 'ic_chip', icNumber: '' },
+  });
+  assert.equal(emptyChip.status, 400);
+
+  const unknownMethod = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: preToken,
+    body: { method: 'magic_bypass' },
+  });
+  assert.equal(unknownMethod.status, 400);
+
+  const verifiedRes = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: preToken,
+    body: { method: 'ic_chip', icNumber: '800101145001' },
+  });
+  assert.equal(verifiedRes.status, 200);
+  const verifiedDocToken = verifiedRes.body.data.token;
+
+  // Invalid target role on switch-role rejected with 400
+  const invalidSwitch = await requestJson(baseUrl, 'POST', '/api/auth/switch-role', {
+    token: verifiedDocToken,
+    body: { role: 'unknown_role' },
+  });
+  assert.equal(invalidSwitch.status, 400);
+
+  // Idempotent same-role switch preserves hospitalVerified=true and active token
+  const sameRoleSwitch = await requestJson(baseUrl, 'POST', '/api/auth/switch-role', {
+    token: verifiedDocToken,
+    body: { role: 'doctor' },
+  });
+  assert.equal(sameRoleSwitch.status, 200);
+  assert.equal(sameRoleSwitch.body.data.user.hospitalVerified, true);
+  assert.equal(sameRoleSwitch.body.data.token, verifiedDocToken);
+
+  // Deactivating clinician returns licenseRevoked: true across auth/me, central, and hospital routes
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  await requestJson(baseUrl, 'DELETE', '/api/hospitals/hospital-kl/staff/doc-kl-1', {
+    token: adminVerify.body.data.token,
+  });
+
+  for (const endpoint of ['/api/auth/me', '/api/central/query/850505-10-5111', '/api/hospitals/hospital-kl/stats']) {
+    const res = await requestJson(baseUrl, 'GET', endpoint, { token: verifiedDocToken });
+    assert.equal(res.status, 403, `Expected 403 on ${endpoint}`);
+    assert.equal(res.body.licenseRevoked, true, `Expected licenseRevoked=true on ${endpoint}`);
+  }
+});
+
+test('17. Federated node outage semantics (503 vs 404), emergency break-glass failure auditing & sensitive specialty consent redaction', async () => {
+  const { hospitals } = buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+  const { verifiedToken: pgDocToken } = await loginAndVerifyDoctor(baseUrl, '790303-07-5002');
+
+  // Create a sensitive mental-health record at hospital-kl for 850505-10-5111
+  const psychRec = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      visitDate: '2026-05-25T10:00:00.000Z',
+      visitType: 'outpatient',
+      chiefComplaint: 'Insomnia and low mood',
+      diagnosis: ['Major Depressive Episode'],
+      diagnosisCodes: ['F32.9'],
+      notes: 'Psychiatry outpatient counselling initiated',
+    },
+  });
+  assert.equal(psychRec.status, 201);
+
+  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '850505-10-5111', password: 'demo123' },
+  });
+  const patToken = patLogin.body.data.token;
+
+  // By default mentalHealth=true (Protected): external doctor (Penang) has KL's F32.9 psychiatry record redacted
+  const defaultSens = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+  });
+  assert.equal(defaultSens.status, 200);
+  assert.equal(defaultSens.body.data.mentalHealth, true);
+
+  const pgProtectedQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: pgDocToken,
+  });
+  assert.equal(pgProtectedQuery.status, 200);
+  assert.equal(pgProtectedQuery.body.data.redactedSensitiveCount, 1);
+  const klNodeProtected = pgProtectedQuery.body.data.hospitals.find((h) => h.hospitalId === 'hospital-kl');
+  assert.equal(klNodeProtected.records.length, 1);
+  assert.ok(!klNodeProtected.records.some((r) => r.diagnosisCodes.includes('F32.9')));
+
+  // When patient opts into Standard sharing (mentalHealth: false), external doctor sees all 2 KL records
+  const updateSens = await requestJson(baseUrl, 'PUT', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+    body: { mentalHealth: false },
+  });
+  assert.equal(updateSens.status, 200);
+  assert.equal(updateSens.body.data.mentalHealth, false);
+
+  const pgStandardQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: pgDocToken,
+  });
+  assert.equal(pgStandardQuery.status, 200);
+  assert.equal(pgStandardQuery.body.data.redactedSensitiveCount, undefined);
+  const klNodeStandard = pgStandardQuery.body.data.hospitals.find((h) => h.hospitalId === 'hospital-kl');
+  assert.equal(klNodeStandard.records.length, 2);
+
+  // Authoring hospital doctor (KL) and the patient themselves still see all local/own records
+  const klQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(klQuery.body.data.totalRecords, 3);
+  const selfQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: patToken,
+  });
+  assert.equal(selfQuery.body.data.totalRecords, 3);
+
+  // Simulate total outage of all indexed nodes for 850505-10-5111 (KL + Penang offline)
+  hospitals['hospital-kl']._state.offline = true;
+  hospitals['hospital-penang']._state.offline = true;
+  try {
+    const allDownQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+      token: pgDocToken,
+    });
+    assert.equal(allDownQuery.status, 200);
+    assert.equal(allDownQuery.body.data.allNodesFailed, true);
+    assert.equal(allDownQuery.body.data.partialFailure, true);
+    assert.equal(allDownQuery.body.data.offlineHospitals.length, 2);
+
+    const allDownPatient = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
+      token: pgDocToken,
+    });
+    assert.equal(allDownPatient.status, 503);
+    assert.equal(allDownPatient.body.nodesUnavailable, true);
+
+    const erOutageIp = '203.0.113.88';
+    const allDownEr = await requestJson(baseUrl, 'GET', '/api/central/emergency/850505-10-5111', {
+      ip: erOutageIp,
+    });
+    assert.equal(allDownEr.status, 503);
+    assert.equal(allDownEr.body.nodesUnavailable, true);
+
+    // Failed emergency break-glass attempt must be audited with success=false
+    const centralLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+      body: { icNumber: '700101-14-7001', password: 'demo123' },
+    });
+    const erLogs = await requestJson(
+      baseUrl,
+      'GET',
+      '/api/central/audit-logs?action=emergency_access&status=failed',
+      { token: centralLogin.body.data.token }
+    );
+    assert.equal(erLogs.status, 200);
+    assert.ok(erLogs.body.data.some((l) => l.ipAddress === erOutageIp && l.targetIcNumber === '850505-10-5111'));
+  } finally {
+    hospitals['hospital-kl']._state.offline = false;
+    hospitals['hospital-penang']._state.offline = false;
+  }
+});
+
+test('18. Enforces patient hospital privacy blacklist in hospital_admin audit-logs & finance aggregations', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  const klAdminToken = adminVerify.body.data.token;
+
+  // Settle a bill for 850505-10-5111 in hospital-kl
+  const settleRes = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+    { token: klDocToken, body: { paymentMethod: 'counter' } }
+  );
+  assert.equal(settleRes.status, 200);
+  const settledNet = settleRes.body.data.receipt.netAmount;
+  assert.ok(settledNet > 0);
+
+  const finBefore = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/finance', {
+    token: klAdminToken,
+  });
+  assert.equal(finBefore.body.data.settledReceiptsCount, 1);
+  assert.equal(finBefore.body.data.liveSettledRevenue, settledNet);
+
+  // Patient 850505-10-5111 blocks hospital-kl
+  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '850505-10-5111', password: 'demo123' },
+  });
+  await requestJson(baseUrl, 'POST', '/api/central/privacy-settings/hospital-access', {
+    token: patLogin.body.data.token,
+    body: { hospitalId: 'hospital-kl', isBlocked: true },
+  });
+
+  // hospital_admin audit-logs and finance summary must exclude blocked patient
+  const adminAuditAll = await requestJson(baseUrl, 'GET', '/api/central/audit-logs', {
+    token: klAdminToken,
+  });
+  assert.equal(adminAuditAll.status, 200);
+  assert.ok(adminAuditAll.body.data.every((l) => l.targetIcNumber !== '850505-10-5111'));
+
+  const adminAuditTargeted = await requestJson(
+    baseUrl,
+    'GET',
+    '/api/central/audit-logs?targetIcNumber=850505-10-5111',
+    { token: klAdminToken }
+  );
+  assert.equal(adminAuditTargeted.status, 200);
+  assert.equal(adminAuditTargeted.body.data.length, 0);
+
+  const finAfterBlock = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/finance', {
+    token: klAdminToken,
+  });
+  assert.equal(finAfterBlock.status, 200);
+  assert.equal(finAfterBlock.body.data.settledReceiptsCount, 0);
+  assert.equal(finAfterBlock.body.data.liveSettledRevenue, 0);
+});
+
+test('19. Closed-loop prescription dispensing, lab sign-off, 409 state-transition guards & billing invalidation reversal', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '750101-14-6001', password: 'demo123' },
+  });
+  const adminVerify = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
+    token: adminLogin.body.data.token,
+    body: { method: 'ic_chip', icNumber: '750101-14-6001' },
+  });
+  const klAdminToken = adminVerify.body.data.token;
+
+  // Create encounter for existing patient with updated phone + active Rx + pending Lab requisition
+  const createRec = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      phone: '+60 12-777 9900',
+      visitDate: '2026-05-26T09:00:00.000Z',
+      visitType: 'outpatient',
+      chiefComplaint: 'Follow-up lipid & glucose check',
+      diagnosis: ['Dyslipidemia'],
+      prescriptions: [
+        {
+          medicationName: 'Atorvastatin',
+          dosage: '20mg',
+          frequency: 'ON',
+          duration: '30 days',
+          quantity: 30,
+          instructions: 'Take at night',
+          isActive: true,
+        },
+      ],
+      labReports: [
+        {
+          testType: 'Biochemistry',
+          testName: 'Fasting Lipid Profile',
+          result: 'Pending Specimen Analysis',
+          unit: 'mmol/L',
+          referenceRange: '< 5.2',
+          isAbnormal: false,
+          reportDate: '2026-05-26T09:00:00.000Z',
+          notes: 'STAT fasting sample',
+        },
+      ],
+    },
+  });
+  assert.equal(createRec.status, 201);
+  const rec = createRec.body.data.record;
+  const rxId = rec.prescriptions[0].id;
+  const labId = rec.labReports[0].id;
+
+  // Verify existing patient's demographic patch (phone) persisted during POST /records
+  const patAfterPost = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/patients/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(patAfterPost.body.data.patient.phone, '+60 12-777 9900');
+
+  // Dispense prescription -> 200 (isActive=false), duplicate dispense -> 409
+  const dispense1 = await requestJson(
+    baseUrl,
+    'POST',
+    `/api/hospitals/hospital-kl/records/${rec.id}/prescriptions/${rxId}/dispense`,
+    { token: klDocToken }
+  );
+  assert.equal(dispense1.status, 200);
+  assert.equal(dispense1.body.data.prescription.isActive, false);
+  assert.match(dispense1.body.data.prescription.instructions, /\[Dispensed/);
+
+  const dispense2 = await requestJson(
+    baseUrl,
+    'POST',
+    `/api/hospitals/hospital-kl/records/${rec.id}/prescriptions/${rxId}/dispense`,
+    { token: klDocToken }
+  );
+  assert.equal(dispense2.status, 409);
+  assert.equal(dispense2.body.alreadyDispensed, true);
+
+  // Sign off lab report: placeholder result rejected with 400, valid result -> 200, second sign-off -> 409
+  const badSignOff = await requestJson(
+    baseUrl,
+    'PUT',
+    `/api/hospitals/hospital-kl/records/${rec.id}/lab-reports/${labId}/signoff`,
+    { token: klDocToken, body: { result: 'Pending verification' } }
+  );
+  assert.equal(badSignOff.status, 400);
+
+  const okSignOff = await requestJson(
+    baseUrl,
+    'PUT',
+    `/api/hospitals/hospital-kl/records/${rec.id}/lab-reports/${labId}/signoff`,
+    {
+      token: klDocToken,
+      body: { result: '5.8', unit: 'mmol/L', referenceRange: '< 5.2', isAbnormal: true, notes: 'Elevated LDL' },
+    }
+  );
+  assert.equal(okSignOff.status, 200);
+  assert.equal(okSignOff.body.data.labReport.result, '5.8');
+  assert.equal(okSignOff.body.data.labReport.isAbnormal, true);
+
+  const dupSignOff = await requestJson(
+    baseUrl,
+    'PUT',
+    `/api/hospitals/hospital-kl/records/${rec.id}/lab-reports/${labId}/signoff`,
+    { token: klDocToken, body: { result: '5.9' } }
+  );
+  assert.equal(dupSignOff.status, 409);
+  assert.equal(dupSignOff.body.alreadyFinalized, true);
+
+  // Queue: duplicate active check-in -> 409; completed ticket -> serving -> 409
+  const dupQueue = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/queue', {
+    token: klDocToken,
+    body: { icNumber: '850505-10-5111', name: 'Tan Wei Ming', category: 'Green', complaint: 'Follow-up' },
+  });
+  assert.equal(dupQueue.status, 409);
+
+  await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/queue/KL-1001', {
+    token: klDocToken,
+    body: { status: 'completed' },
+  });
+  const reopenCompletedQueue = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/queue/KL-1001', {
+    token: klDocToken,
+    body: { status: 'in-progress' },
+  });
+  assert.equal(reopenCompletedQueue.status, 409);
+
+  // Appointments: slot collision -> 409; mutating cancelled appointment -> 409
+  const todayStr = new Date().toISOString().split('T')[0];
+  const slotConflict = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/appointments', {
+    token: klDocToken,
+    body: { icNumber: '900202-07-5222', patientName: 'Aisyah', date: todayStr, time: '09:30', type: 'new' },
+  });
+  assert.equal(slotConflict.status, 409);
+
+  await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/appointments/KL-APT-2', {
+    token: klDocToken,
+    body: { status: 'cancelled' },
+  });
+  const editCancelledApt = await requestJson(baseUrl, 'PUT', '/api/hospitals/hospital-kl/appointments/KL-APT-2', {
+    token: klDocToken,
+    body: { status: 'confirmed' },
+  });
+  assert.equal(editCancelledApt.status, 409);
+
+  // Billing: duplicate online settle -> 409; adding item after settlement invalidates receipt and reverses finance revenue
+  const settleOnline = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+    { token: klDocToken, body: { paymentMethod: 'online' } }
+  );
+  assert.equal(settleOnline.status, 200);
+
+  const dupSettleOnline = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+    { token: klDocToken, body: { paymentMethod: 'online' } }
+  );
+  assert.equal(dupSettleOnline.status, 409);
+  assert.equal(dupSettleOnline.body.alreadySettled, true);
+
+  const postSettleItem = await requestJson(
+    baseUrl,
+    'POST',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/items',
+    { token: klDocToken, body: { category: 'Medication', description: 'Atorvastatin 20mg', originalPrice: 45 } }
+  );
+  assert.equal(postSettleItem.status, 201);
+  assert.equal(postSettleItem.body.data.receipt, null);
+
+  const finAfterInvalidation = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/finance', {
+    token: klAdminToken,
+  });
+  assert.equal(finAfterInvalidation.body.data.settledReceiptsCount, 0);
+  assert.equal(finAfterInvalidation.body.data.liveSettledRevenue, 0);
 });

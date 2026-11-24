@@ -250,6 +250,27 @@ export interface InventorySku {
 
 export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin';
 
+export const VALID_USER_ROLES: ReadonlyArray<UserRole> = [
+  'patient',
+  'doctor',
+  'hospital_admin',
+  'central_admin',
+];
+
+export type SensitiveCategoryKey =
+  | 'mentalHealth'
+  | 'reproductiveHealth'
+  | 'substanceAbuse'
+  | 'hivStatus';
+
+export interface SensitiveCategorySettings {
+  mentalHealth: boolean;
+  reproductiveHealth: boolean;
+  substanceAbuse: boolean;
+  hivStatus: boolean;
+  updatedAt: string;
+}
+
 export interface User {
   id: string;
   icNumber: string;
@@ -309,7 +330,11 @@ export interface CrossHospitalQueryResult {
   accessDenied?: boolean;
   notFound?: boolean;
   partialFailure?: boolean;
+  allNodesFailed?: boolean;
   failedHospitals?: string[];
+  timedOutHospitals?: string[];
+  offlineHospitals?: string[];
+  redactedSensitiveCount?: number;
   message?: string;
 }
 
@@ -320,6 +345,7 @@ export interface HospitalQueryResult {
   recordCount: number;
   status: 'success' | 'error' | 'timeout';
   responseTime: number;
+  redactedSensitiveCount?: number;
   error?: string;
 }
 

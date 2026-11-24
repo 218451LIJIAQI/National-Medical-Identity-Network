@@ -38,11 +38,22 @@ import {
   printHtmlDocument,
 } from '@/lib/utils'
 
+function isPendingLabValue(result: string): boolean {
+  const normalized = (result || '').trim().toLowerCase()
+  return (
+    !normalized ||
+    normalized.startsWith('pending') ||
+    normalized.startsWith('imaging scheduled') ||
+    normalized === 'ordered'
+  )
+}
+
 export default function PatientRecords() {
   const { user } = useAuthStore()
   const { t } = useTranslation()
   const [records, setRecords] = useState<MedicalRecordDto[]>([])
   const [partialFailure, setPartialFailure] = useState(false)
+  const [allNodesFailed, setAllNodesFailed] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedHospital, setSelectedHospital] = useState<string>('all')
@@ -56,9 +67,17 @@ export default function PatientRecords() {
     }
     setLoading(true)
     setLoadError(null)
+    setAllNodesFailed(false)
+    setPartialFailure(false)
     try {
       const response = await centralApi.queryPatient(user.icNumber)
       if (response.success && response.data) {
+        if (response.data.allNodesFailed) {
+          setAllNodesFailed(true)
+          setRecords([])
+          setLoadError(response.data.message || t.allNodesUnavailableDesc)
+          return
+        }
         setPartialFailure(Boolean(response.data.partialFailure))
         const allRecords: MedicalRecordDto[] = []
         response.data.hospitals.forEach((hospital) => {
@@ -87,7 +106,7 @@ export default function PatientRecords() {
     } finally {
       setLoading(false)
     }
-  }, [user?.icNumber, t.networkError])
+  }, [user?.icNumber, t.allNodesUnavailableDesc, t.networkError])
 
   useEffect(() => {
     void loadRecords()
@@ -283,7 +302,9 @@ export default function PatientRecords() {
             <div className="flex items-center gap-3 text-red-900">
               <WifiOff className="w-6 h-6 text-red-700 shrink-0" />
               <div>
-                <p className="font-bold text-sm">{t.loadFailedTitle}</p>
+                <p className="font-bold text-sm">
+                  {allNodesFailed ? t.allNodesUnavailableTitle : t.loadFailedTitle}
+                </p>
                 <p className="text-xs text-red-800 mt-0.5">{loadError}</p>
               </div>
             </div>
@@ -348,6 +369,8 @@ export default function PatientRecords() {
                 <div className="relative w-72 max-w-full">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <Input
+                    id="patient-records-filter"
+                    aria-label="Filter medical records"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter diagnosis, drug, lab, doctor…"
@@ -384,7 +407,7 @@ export default function PatientRecords() {
                 <div className="text-center py-12 px-4">
                   <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                   <p className="text-sm text-slate-700 font-bold">No Hospital Visits Recorded Yet</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     Clinical encounters from participating hospitals will automatically appear here once indexed under your MyKad.
                   </p>
                 </div>
@@ -582,7 +605,7 @@ export default function PatientRecords() {
                                         <td className="py-2 px-3">
                                           <StatusBadge
                                             tone={rx.isActive !== false ? 'success' : 'neutral'}
-                                            label={rx.isActive !== false ? 'Active' : 'Completed'}
+                                            label={rx.isActive !== false ? 'Active' : t.dispensedStatus}
                                           />
                                         </td>
                                       </tr>
@@ -604,29 +627,34 @@ export default function PatientRecords() {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
-                                    {record.labReports.map((lab, idx) => (
-                                      <tr
-                                        key={lab.id || `${record.id}-lab-${idx}`}
-                                        className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
-                                      >
-                                        <td className="py-2 px-3 font-bold text-slate-900">
-                                          {lab.testName}
-                                        </td>
-                                        <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
-                                          {lab.result} {lab.unit}
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-600 tabular-nums">
-                                          {lab.referenceRange || '—'}
-                                        </td>
-                                        <td className="py-2 px-3">
-                                          {lab.isAbnormal ? (
-                                            <StatusBadge tone="critical" label="Abnormal" />
-                                          ) : (
-                                            <StatusBadge tone="success" label="Normal" />
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {record.labReports.map((lab, idx) => {
+                                      const pending = isPendingLabValue(lab.result)
+                                      return (
+                                        <tr
+                                          key={lab.id || `${record.id}-lab-${idx}`}
+                                          className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
+                                        >
+                                          <td className="py-2 px-3 font-bold text-slate-900">
+                                            {lab.testName}
+                                          </td>
+                                          <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
+                                            {lab.result} {lab.unit}
+                                          </td>
+                                          <td className="py-2 px-3 text-slate-600 tabular-nums">
+                                            {lab.referenceRange || '—'}
+                                          </td>
+                                          <td className="py-2 px-3">
+                                            {pending ? (
+                                              <StatusBadge tone="warning" label="Pending" />
+                                            ) : lab.isAbnormal ? (
+                                              <StatusBadge tone="critical" label="Abnormal" />
+                                            ) : (
+                                              <StatusBadge tone="success" label="Normal" />
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

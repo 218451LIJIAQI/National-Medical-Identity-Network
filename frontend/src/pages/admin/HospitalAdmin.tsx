@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DataErrorBanner, StatusBadge } from '@/components/ui/modal-dialog'
 import { useAuthStore } from '@/store/auth'
-import { hospitalApi, centralApi } from '@/lib/api'
+import { hospitalApi, centralApi, type AuditLogEntryDto } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { cn, deduplicateByWindow, formatTimeAgo } from '@/lib/utils'
 import {
@@ -47,17 +47,6 @@ interface RecentActivity {
   type: 'create' | 'query'
 }
 
-interface AuditLogEntry {
-  timestamp: string
-  actorId?: string
-  actorName?: string
-  actorHospitalId?: string
-  targetHospitalId?: string
-  action?: string
-  targetIcNumber?: string
-  details?: string
-}
-
 export default function HospitalAdminDashboard() {
   const { user } = useAuthStore()
   const { t } = useTranslation()
@@ -73,72 +62,73 @@ export default function HospitalAdminDashboard() {
   const [loadError, setLoadError] = useState('')
   const theme = getHospitalTheme(user?.hospitalId)
 
+  const loadData = useCallback(async (signal?: AbortSignal) => {
+    if (!user?.hospitalId) return
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [hospitalRes, logsRes] = await Promise.all([
+        hospitalApi.getHospital(user.hospitalId, signal),
+        centralApi.getAuditLogs({ limit: 30 }, signal),
+      ])
+      if (hospitalRes.aborted || logsRes.aborted) return
+      if (!hospitalRes.success) {
+        setLoadError(hospitalRes.error || t.networkError)
+      }
+
+      if (hospitalRes.success && hospitalRes.data) {
+        const h = hospitalRes.data
+        setHospitalInfo({
+          id: h.id,
+          name: h.name,
+          city: h.city,
+        })
+        if (h.stats) {
+          setStats({
+            totalPatients: h.stats.totalPatients || 0,
+            totalRecords: h.stats.totalRecords || 0,
+            totalDoctors: h.stats.totalDoctors || 0,
+            todayVisits: h.stats.todayVisits || 0,
+          })
+        }
+      }
+
+      if (logsRes.success && logsRes.data) {
+        const deduplicatedLogs = deduplicateByWindow<AuditLogEntryDto>(
+          logsRes.data,
+          (a, b) =>
+            a.actorId === b.actorId &&
+            a.action === b.action &&
+            a.targetIcNumber === b.targetIcNumber
+        )
+
+        const activities = deduplicatedLogs.slice(0, 6).map((log) => {
+          let actionDesc = log.details || 'Hospital system event'
+          if (log.action === 'login') actionDesc = `${log.actorName || 'Staff'} signed in`
+          else if (log.action === 'verify')
+            actionDesc = `${log.actorName || 'Staff'} completed hospital verification`
+          else if (log.action === 'logout') actionDesc = `${log.actorName || 'Staff'} signed out`
+          return {
+            action: actionDesc,
+            user: log.actorName || 'System',
+            time: formatTimeAgo(log.timestamp),
+            type: log.action === 'query' ? ('query' as const) : ('create' as const),
+          }
+        })
+        setRecentActivity(activities)
+      }
+    } catch {
+      if (!signal?.aborted) setLoadError(t.networkError)
+    } finally {
+      if (!signal?.aborted) setLoading(false)
+    }
+  }, [user?.hospitalId, t.networkError])
+
   useEffect(() => {
     const controller = new AbortController()
-    async function loadData() {
-      if (!user?.hospitalId) return
-      setLoadError('')
-      try {
-        const [hospitalRes, logsRes] = await Promise.all([
-          hospitalApi.getHospital(user.hospitalId, controller.signal),
-          centralApi.getAuditLogs({ limit: 30 }, controller.signal),
-        ])
-        if (hospitalRes.aborted || logsRes.aborted) return
-        if (!hospitalRes.success) {
-          setLoadError(hospitalRes.error || t.networkError)
-        }
-
-        if (hospitalRes.success && hospitalRes.data) {
-          const h = hospitalRes.data
-          setHospitalInfo({
-            id: h.id,
-            name: h.name,
-            city: h.city,
-          })
-          if (h.stats) {
-            setStats({
-              totalPatients: h.stats.totalPatients || 0,
-              totalRecords: h.stats.totalRecords || 0,
-              totalDoctors: h.stats.totalDoctors || 0,
-              todayVisits: h.stats.todayVisits || 0,
-            })
-          }
-        }
-
-        if (logsRes.success && logsRes.data) {
-          const hospitalLogs = logsRes.data as unknown as AuditLogEntry[]
-          const deduplicatedLogs = deduplicateByWindow(
-            hospitalLogs,
-            (a, b) =>
-              a.actorId === b.actorId &&
-              a.action === b.action &&
-              a.targetIcNumber === b.targetIcNumber
-          )
-
-          const activities = deduplicatedLogs.slice(0, 6).map((log) => {
-            let actionDesc = log.details || 'Hospital system event'
-            if (log.action === 'login') actionDesc = `${log.actorName || 'Staff'} signed in`
-            else if (log.action === 'verify')
-              actionDesc = `${log.actorName || 'Staff'} completed hospital verification`
-            else if (log.action === 'logout') actionDesc = `${log.actorName || 'Staff'} signed out`
-            return {
-              action: actionDesc,
-              user: log.actorName || 'System',
-              time: formatTimeAgo(log.timestamp),
-              type: log.action === 'query' ? ('query' as const) : ('create' as const),
-            }
-          })
-          setRecentActivity(activities)
-        }
-      } catch {
-        if (!controller.signal.aborted) setLoadError(t.networkError)
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
-    }
-    void loadData()
+    void loadData(controller.signal)
     return () => controller.abort()
-  }, [user?.hospitalId, t.networkError])
+  }, [loadData])
 
   if (loading) {
     return (
@@ -180,7 +170,7 @@ export default function HospitalAdminDashboard() {
         </Link>
       </div>
 
-      {loadError && <DataErrorBanner message={loadError} />}
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadData()} />}
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -301,7 +291,7 @@ export default function HospitalAdminDashboard() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   {item.latency !== '—' && (
-                    <span className="text-slate-500 tabular-nums">{item.latency}</span>
+                    <span className="text-slate-600 tabular-nums">{item.latency}</span>
                   )}
                   <StatusBadge tone="success" label={item.status} />
                 </div>
@@ -325,7 +315,7 @@ export default function HospitalAdminDashboard() {
           <CardContent className="p-0">
             <div className="divide-y divide-slate-100">
               {recentActivity.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 text-xs">
+                <div className="p-8 text-center text-slate-600 text-xs">
                   No recent hospital audit events.
                 </div>
               ) : (
@@ -345,7 +335,7 @@ export default function HospitalAdminDashboard() {
                       <p className="text-xs font-bold text-slate-900 truncate">{activity.action}</p>
                       <p className="text-xs text-slate-600">{activity.user}</p>
                     </div>
-                    <span className="text-xs text-slate-500 shrink-0 tabular-nums">
+                    <span className="text-xs text-slate-600 shrink-0 tabular-nums">
                       {activity.time}
                     </span>
                   </div>

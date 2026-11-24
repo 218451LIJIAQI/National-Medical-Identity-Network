@@ -1,6 +1,60 @@
-import { PatientIndex, AuditLog, Hospital, User, normalizeIcNumber } from '../types';
+import {
+  PatientIndex,
+  AuditLog,
+  Hospital,
+  User,
+  SensitiveCategorySettings,
+  normalizeIcNumber,
+} from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
+
+const sensitiveConsentByPatient = new Map<string, SensitiveCategorySettings>();
+
+const DEFAULT_SENSITIVE_SETTINGS: Omit<SensitiveCategorySettings, 'updatedAt'> = {
+  mentalHealth: true,
+  reproductiveHealth: true,
+  substanceAbuse: true,
+  hivStatus: true,
+};
+
+export function resetCentralTransientStateForTesting(): void {
+  sensitiveConsentByPatient.clear();
+}
+
+export async function getSensitiveCategorySettings(
+  rawIcNumber: string
+): Promise<SensitiveCategorySettings> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
+  const existing = sensitiveConsentByPatient.get(icNumber);
+  if (existing) return { ...existing };
+  return {
+    ...DEFAULT_SENSITIVE_SETTINGS,
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+export async function updateSensitiveCategorySettings(
+  rawIcNumber: string,
+  patch: Partial<Omit<SensitiveCategorySettings, 'updatedAt'>>
+): Promise<SensitiveCategorySettings> {
+  const icNumber = normalizeIcNumber(rawIcNumber);
+  const current = await getSensitiveCategorySettings(icNumber);
+  const next: SensitiveCategorySettings = {
+    mentalHealth:
+      typeof patch.mentalHealth === 'boolean' ? patch.mentalHealth : current.mentalHealth,
+    reproductiveHealth:
+      typeof patch.reproductiveHealth === 'boolean'
+        ? patch.reproductiveHealth
+        : current.reproductiveHealth,
+    substanceAbuse:
+      typeof patch.substanceAbuse === 'boolean' ? patch.substanceAbuse : current.substanceAbuse,
+    hivStatus: typeof patch.hivStatus === 'boolean' ? patch.hivStatus : current.hivStatus,
+    updatedAt: new Date().toISOString(),
+  };
+  sensitiveConsentByPatient.set(icNumber, next);
+  return { ...next };
+}
 
 function mapUser(user: {
   id: string;
@@ -29,7 +83,7 @@ export function parseSafeLimit(raw: unknown, fallback = 100, max = 500): number 
   return Math.min(Math.trunc(parsed), max);
 }
 
-export function parseAuditDateBound(raw: string, bound: 'start' | 'end'): Date | null {
+function parseAuditDateBound(raw: string, bound: 'start' | 'end'): Date | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 

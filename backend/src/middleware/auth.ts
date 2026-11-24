@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { JwtPayload } from '../types';
+import { JwtPayload, UserRole } from '../types';
 import { CONFIG } from '../config';
 import { getUserById } from '../database/central-multi';
 import { getHospitalDb } from '../database/hospital-multi';
@@ -27,7 +27,7 @@ setInterval(() => {
   }
 }, 300_000).unref();
 
-export function revokeToken(tokenOrJti?: string, expSeconds?: number): void {
+function revokeToken(tokenOrJti?: string, expSeconds?: number): void {
   if (!tokenOrJti) return;
   const expiresAt = expSeconds ? expSeconds * 1000 : Date.now() + DEFAULT_REVOCATION_TTL_MS;
   revokedTokens.set(tokenOrJti, expiresAt);
@@ -38,7 +38,7 @@ export function revokeRequestSession(rawToken?: string, user?: Pick<JwtPayload, 
   if (user?.jti) revokeToken(user.jti, user.exp);
 }
 
-export function isTokenRevoked(token: string, jti?: string): boolean {
+function isTokenRevoked(token: string, jti?: string): boolean {
   const now = Date.now();
   const tokenExp = revokedTokens.get(token);
   if (tokenExp && tokenExp > now) return true;
@@ -63,7 +63,7 @@ export function generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string 
   } as jwt.SignOptions);
 }
 
-export function verifyToken(token: string): JwtPayload | null {
+function verifyToken(token: string): JwtPayload | null {
   try {
     const decoded = jwt.verify(token, CONFIG.jwt.secret) as JwtPayload;
     if (isTokenRevoked(token, decoded.jti)) {
@@ -141,6 +141,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       if (!doctorRosterActive) {
         res.status(403).json({
           success: false,
+          licenseRevoked: true,
           error: 'Doctor clinical license is inactive at the assigned hospital',
         });
         return;
@@ -187,7 +188,7 @@ export function requireHospitalVerification(req: Request, res: Response, next: N
   next();
 }
 
-export function authorize(...roles: string[]) {
+export function authorize(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({

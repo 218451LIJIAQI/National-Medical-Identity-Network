@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
-import { centralApi } from '@/lib/api'
+import { centralApi, type SensitiveCategorySettingsDto } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { cn, formatTimeAgo, formatActorDisplayName, downloadJsonFile } from '@/lib/utils'
 import {
@@ -41,14 +41,7 @@ interface AccessLog {
   status: 'success' | 'blocked'
 }
 
-interface SensitiveFlags {
-  mentalHealth: boolean
-  reproductiveHealth: boolean
-  substanceAbuse: boolean
-  hivStatus: boolean
-}
-
-const DEFAULT_SENSITIVE_FLAGS: SensitiveFlags = {
+const DEFAULT_SENSITIVE_FLAGS: SensitiveCategorySettingsDto = {
   mentalHealth: true,
   reproductiveHealth: true,
   substanceAbuse: true,
@@ -62,12 +55,16 @@ export default function PatientPrivacy() {
   const [hospitals, setHospitals] = useState<HospitalAccess[]>([])
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [updatingHospitalId, setUpdatingHospitalId] = useState<string | null>(null)
+  const [updatingSensitiveKey, setUpdatingSensitiveKey] = useState<
+    keyof SensitiveCategorySettingsDto | null
+  >(null)
 
   const storageKey = `medlink_sensitive_prefs_${user?.icNumber || 'default'}`
 
-  const [sensitiveRecords, setSensitiveRecords] = useState<SensitiveFlags>(() => {
+  const [sensitiveRecords, setSensitiveRecords] = useState<SensitiveCategorySettingsDto>(() => {
     try {
       const saved = localStorage.getItem(storageKey)
       if (saved) {
@@ -96,15 +93,16 @@ export default function PatientPrivacy() {
     }
   }, [])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    async function loadData() {
+  const loadData = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoadError('')
       try {
-        const [privacyRes] = await Promise.all([
-          centralApi.getPrivacySettings(controller.signal),
-          refreshAccessLogs(controller.signal),
+        const [privacyRes, sensitiveRes] = await Promise.all([
+          centralApi.getPrivacySettings(signal),
+          centralApi.getSensitivePrivacySettings(signal),
+          refreshAccessLogs(signal),
         ])
-        if (privacyRes.aborted) return
+        if (privacyRes.aborted || sensitiveRes.aborted) return
 
         if (privacyRes.success && privacyRes.data) {
           setHospitals(
@@ -115,16 +113,32 @@ export default function PatientPrivacy() {
               allowed: !h.isBlocked,
             }))
           )
+        } else {
+          setLoadError(privacyRes.error || t.networkError)
+        }
+
+        if (sensitiveRes.success && sensitiveRes.data) {
+          setSensitiveRecords(sensitiveRes.data)
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(sensitiveRes.data))
+          } catch {
+            // ignore storage errors
+          }
         }
       } catch {
-        // Ignore aborted or transient fetch error
+        if (!signal?.aborted) setLoadError(t.networkError)
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!signal?.aborted) setLoading(false)
       }
-    }
-    void loadData()
+    },
+    [refreshAccessLogs, storageKey, t.networkError]
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadData(controller.signal)
     return () => controller.abort()
-  }, [refreshAccessLogs])
+  }, [loadData])
 
   const toggleHospitalAccess = async (hospitalId: string) => {
     const hospital = hospitals.find((h) => h.id === hospitalId)
@@ -165,31 +179,62 @@ export default function PatientPrivacy() {
     }
   }
 
-  const toggleSensitiveRecord = (key: keyof SensitiveFlags, label: string) => {
-    setSensitiveRecords((prev) => {
-      const newValue = !prev[key]
-      const updated = { ...prev, [key]: newValue }
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(updated))
-      } catch {
-        // ignore storage errors
+  const toggleSensitiveRecord = async (
+    key: keyof SensitiveCategorySettingsDto,
+    label: string
+  ) => {
+    if (updatingSensitiveKey) return
+    const previous = sensitiveRecords
+    const newValue = !previous[key]
+    const optimistic = { ...previous, [key]: newValue }
+
+    setSensitiveRecords(optimistic)
+    setUpdatingSensitiveKey(key)
+
+    try {
+      const res = await centralApi.updateSensitivePrivacySettings({ [key]: newValue })
+      if (res.success && res.data) {
+        setSensitiveRecords(res.data)
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(res.data))
+        } catch {
+          // ignore storage errors
+        }
+        await refreshAccessLogs()
+        toast({
+          title: newValue ? 'Protection Enabled' : 'Protection Disabled',
+          description: `${label} ${newValue ? 'is now withheld from external hospital queries' : 'is shared with authorized hospitals'}.`,
+          variant: newValue ? 'success' : 'default',
+        })
+      } else {
+        setSensitiveRecords(previous)
+        toast({
+          title: 'Consent Sync Failed',
+          description: res.error || 'Unable to update sensitive specialty consent policy.',
+          variant: 'destructive',
+        })
       }
+    } catch {
+      setSensitiveRecords(previous)
       toast({
-        title: newValue ? 'Protection Enabled' : 'Protection Disabled',
-        description: `${label} ${newValue ? 'now requires step-up consent' : 'is visible to authorized hospitals'}.`,
+        title: 'Consent Sync Failed',
+        description: t.networkError,
+        variant: 'destructive',
       })
-      return updated
-    })
+    } finally {
+      setUpdatingSensitiveKey(null)
+    }
   }
 
   const handleDownloadData = async () => {
     if (!user?.icNumber || downloading) return
     setDownloading(true)
     try {
-      const [patientRes, queryRes, privacyRes, logsRes] = await Promise.all([
+      const [patientRes, queryRes, privacyRes, sensitiveRes, logsRes] = await Promise.all([
         centralApi.getPatient(user.icNumber),
         centralApi.queryPatient(user.icNumber),
         centralApi.getPrivacySettings(),
+        centralApi.getSensitivePrivacySettings(),
         centralApi.getMyAccessLogs(100),
       ])
 
@@ -209,7 +254,7 @@ export default function PatientPrivacy() {
         federatedHospitalRecords: queryRes.success ? queryRes.data : null,
         privacyConsentPolicy: {
           hospitalPermissions: privacyRes.success ? privacyRes.data : hospitals,
-          sensitiveCategoryConsentRequired: sensitiveRecords,
+          sensitiveCategoryConsentRequired: sensitiveRes.success ? sensitiveRes.data : sensitiveRecords,
         },
         accessAuditHistory: logsRes.success ? logsRes.data : accessLogs,
       }
@@ -238,7 +283,7 @@ export default function PatientPrivacy() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-3" />
-          <p className="text-xs text-slate-500">Loading privacy settings…</p>
+          <p className="text-xs text-slate-600">Loading privacy settings…</p>
         </div>
       </div>
     )
@@ -281,6 +326,8 @@ export default function PatientPrivacy() {
           {t.downloadMyData}
         </Button>
       </div>
+
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadData()} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
         <Card className="border border-emerald-200 bg-emerald-50/70 rounded-2xl shadow-sm">
@@ -413,21 +460,23 @@ export default function PatientPrivacy() {
         </CardHeader>
         <CardContent className="p-5 space-y-4">
           <p className="text-xs text-slate-600 leading-relaxed">
-            Configure step-up consent requirements for sensitive specialty categories. Preferences persist locally and are included in your downloadable PDPA data archive.
+            Configure step-up consent policies for sensitive specialty consultations. Protected categories are persisted on the Central Hub, enforced in real time on cross-hospital queries, and logged in your immutable audit trail.
           </p>
           <div className="grid grid-cols-2 gap-3.5">
             {sensitiveItems.map((item) => {
               const Icon = item.icon
               const isProtected = sensitiveRecords[item.key]
+              const isSyncing = updatingSensitiveKey === item.key
               return (
                 <button
                   key={item.key}
                   type="button"
                   role="switch"
                   aria-checked={isProtected}
-                  onClick={() => toggleSensitiveRecord(item.key, item.label)}
+                  disabled={Boolean(updatingSensitiveKey)}
+                  onClick={() => void toggleSensitiveRecord(item.key, item.label)}
                   className={cn(
-                    'flex items-center justify-between gap-3 p-4 rounded-xl border text-left transition-colors',
+                    'flex items-center justify-between gap-3 p-4 rounded-xl border text-left transition-colors disabled:opacity-70',
                     isProtected
                       ? 'bg-amber-50/70 border-amber-300'
                       : 'bg-slate-50 border-slate-200 hover:border-slate-300'
@@ -442,7 +491,11 @@ export default function PatientPrivacy() {
                           : 'bg-slate-200 text-slate-700'
                       )}
                     >
-                      <Icon className="w-4 h-4" />
+                      {isSyncing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Icon className="w-4 h-4" />
+                      )}
                     </div>
                     <span className="font-bold text-xs text-slate-900 truncate">{item.label}</span>
                   </div>
@@ -499,7 +552,7 @@ export default function PatientPrivacy() {
                 </div>
                 <div className="text-right ml-auto mr-2">
                   <p className="text-xs font-semibold text-slate-800">{log.action}</p>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1 justify-end mt-0.5 tabular-nums">
+                  <p className="text-[11px] text-slate-600 flex items-center gap-1 justify-end mt-0.5 tabular-nums">
                     <Clock className="h-3 w-3" />
                     {log.time}
                   </p>
@@ -511,7 +564,7 @@ export default function PatientPrivacy() {
               </div>
             ))}
             {accessLogs.length === 0 && (
-              <div className="text-center py-10 text-slate-500 text-xs">
+              <div className="text-center py-10 text-slate-600 text-xs">
                 <Eye className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                 <p>No external access logs recorded yet.</p>
               </div>

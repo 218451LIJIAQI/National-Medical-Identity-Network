@@ -11,9 +11,18 @@ export interface ApiResponse<T> {
   aborted?: boolean
   accessDenied?: boolean
   notFound?: boolean
+  nodesUnavailable?: boolean
+  licenseRevoked?: boolean
   verificationRequired?: boolean
   rateLimited?: boolean
   retryAfter?: number
+}
+
+export interface SensitiveCategorySettingsDto {
+  mentalHealth: boolean
+  reproductiveHealth: boolean
+  substanceAbuse: boolean
+  hivStatus: boolean
 }
 
 export interface VitalSignsDto {
@@ -347,6 +356,10 @@ async function fetchApi<T>(
         getToken()
       ) {
         useAuthStore.getState().logout()
+      } else if (response.status === 403 && data.licenseRevoked) {
+        if (!endpoint.includes('/auth/login') && getToken()) {
+          useAuthStore.getState().logout()
+        }
       } else if (response.status === 403 && data.verificationRequired) {
         useAuthStore.getState().markHospitalUnverified()
       }
@@ -358,6 +371,8 @@ async function fetchApi<T>(
         data: data.data,
         accessDenied: Boolean(data.accessDenied),
         notFound: Boolean(data.notFound || response.status === 404),
+        nodesUnavailable: Boolean(data.nodesUnavailable || response.status === 503),
+        licenseRevoked: Boolean(data.licenseRevoked),
         verificationRequired: Boolean(data.verificationRequired),
         rateLimited: Boolean(data.rateLimited || response.status === 429),
         retryAfter: typeof data.retryAfter === 'number' ? data.retryAfter : undefined,
@@ -469,7 +484,11 @@ export const centralApi = {
       accessDenied?: boolean
       notFound?: boolean
       partialFailure?: boolean
+      allNodesFailed?: boolean
       failedHospitals?: string[]
+      timedOutHospitals?: string[]
+      offlineHospitals?: string[]
+      redactedSensitiveCount?: number
       message?: string
     }>(`/central/query/${encodeURIComponent(icNumber)}`, { signal }),
 
@@ -501,6 +520,8 @@ export const centralApi = {
       hospitalsWithRecords?: number
       respondingHospitals?: number
       partialFailure?: boolean
+      timedOutHospitals?: string[]
+      offlineHospitals?: string[]
       accessType?: string
       warning?: string
       message?: string
@@ -607,6 +628,15 @@ export const centralApi = {
       body: JSON.stringify({ hospitalId, isBlocked }),
     }),
 
+  getSensitivePrivacySettings: (signal?: AbortSignal) =>
+    fetchApi<SensitiveCategorySettingsDto>('/central/privacy-settings/sensitive', { signal }),
+
+  updateSensitivePrivacySettings: (payload: Partial<SensitiveCategorySettingsDto>) =>
+    fetchApi<SensitiveCategorySettingsDto>('/central/privacy-settings/sensitive', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
   getMyActivityLogs: (limit?: number, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams()
     if (limit) searchParams.set('limit', limit.toString())
@@ -695,6 +725,23 @@ export const hospitalApi = {
         method: 'PUT',
         body: JSON.stringify(record),
       }
+    ),
+
+  dispensePrescription: (hospitalId: string, recordId: string, prescriptionId: string) =>
+    fetchApi<{ prescription: PrescriptionDto; record: MedicalRecordDto }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}/prescriptions/${encodeURIComponent(prescriptionId)}/dispense`,
+      { method: 'POST' }
+    ),
+
+  signOffLabReport: (
+    hospitalId: string,
+    recordId: string,
+    labReportId: string,
+    payload: { result: string; unit?: string; referenceRange?: string; isAbnormal?: boolean; notes?: string }
+  ) =>
+    fetchApi<{ labReport: LabReportDto; record: MedicalRecordDto }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/records/${encodeURIComponent(recordId)}/lab-reports/${encodeURIComponent(labReportId)}/signoff`,
+      { method: 'PUT', body: JSON.stringify(payload) }
     ),
 
   // Outpatient Queue & Clinic Appointments

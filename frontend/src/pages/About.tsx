@@ -3,19 +3,20 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Shield, Zap, Globe, Users, Building2, ArrowRight, MapPin } from 'lucide-react'
-import { useTranslation, type Language } from '@/lib/i18n'
+import { useTranslation } from '@/lib/i18n'
 import { hospitalThemes } from '@/lib/hospital-themes'
+import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
 import { cn } from '@/lib/utils'
 
 const HOSPITALS = Object.values(hospitalThemes)
 
 export default function AboutPage() {
-  const { t, language, setLanguage } = useTranslation()
+  const { t } = useTranslation()
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-6">
       <div className="container mx-auto max-w-5xl space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <Link to="/">
             <Button variant="outline" size="sm">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -23,20 +24,9 @@ export default function AboutPage() {
             </Button>
           </Link>
 
-          <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200">
-            {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setLanguage(lang)}
-                className={cn(
-                  'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors',
-                  language === lang ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'
-                )}
-              >
-                {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <LanguageSwitcher className="bg-white shadow-sm" />
+            <DisplayAccessibilityControls compact className="shadow-sm" />
           </div>
         </div>
 
@@ -96,7 +86,7 @@ export default function AboutPage() {
                     <MapPin className="w-3 h-3 shrink-0" />
                     <span>{h.city}</span>
                   </p>
-                  <p className="text-[11px] font-mono font-semibold text-slate-700 mt-2">
+                  <p className="text-[11px] font-mono font-semibold text-slate-700 mt-2 tabular-nums">
                     {h.code} • {h.departments} depts
                   </p>
                 </div>

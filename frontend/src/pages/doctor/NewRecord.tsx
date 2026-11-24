@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import {
   Plus,
   Trash2,
   ShieldAlert,
+  RefreshCw,
 } from 'lucide-react'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { cn, formatIC, isValidMyKad, parseMyKadDemographics, toDateInputValue } from '@/lib/utils'
@@ -81,6 +82,8 @@ export default function NewRecord() {
   const [saving, setSaving] = useState(false)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [blockingError, setBlockingError] = useState<string | null>(null)
+  const [canRetryLoad, setCanRetryLoad] = useState(false)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const [patientExists, setPatientExists] = useState(false)
   const [isFederatedFirstVisit, setIsFederatedFirstVisit] = useState(false)
 
@@ -123,6 +126,8 @@ export default function NewRecord() {
   const [prescriptions, setPrescriptions] = useState<PrescriptionDto[]>([])
   const [labReports, setLabReports] = useState<LabReportDto[]>([])
 
+  const triggerReload = useCallback(() => setReloadNonce((n) => n + 1), [])
+
   useEffect(() => {
     const controller = new AbortController()
 
@@ -133,12 +138,14 @@ export default function NewRecord() {
       }
       if (!isValidMyKad(formattedIc)) {
         setBlockingError(t.invalidMyKadFormat)
+        setCanRetryLoad(false)
         setLoadingInitial(false)
         return
       }
 
       setLoadingInitial(true)
       setBlockingError(null)
+      setCanRetryLoad(false)
       setPatientInfo(null)
       setPrescriptions([])
       setLabReports([])
@@ -152,6 +159,14 @@ export default function NewRecord() {
             clearActivePatient()
           }
           setBlockingError(patientRes.error || t.privacyRestrictedDesc)
+          setCanRetryLoad(false)
+          setLoadingInitial(false)
+          return
+        }
+
+        if (patientRes.nodesUnavailable || patientRes.status === 503) {
+          setBlockingError(patientRes.error || t.allNodesUnavailableDesc)
+          setCanRetryLoad(true)
           setLoadingInitial(false)
           return
         }
@@ -210,6 +225,7 @@ export default function NewRecord() {
           }))
         } else {
           setBlockingError(patientRes.error || t.networkError)
+          setCanRetryLoad(true)
           setLoadingInitial(false)
           return
         }
@@ -222,6 +238,7 @@ export default function NewRecord() {
             setBlockingError(
               recordRes.error || 'Record not found or cross-hospital records cannot be modified.'
             )
+            setCanRetryLoad(false)
             setLoadingInitial(false)
             return
           }
@@ -229,11 +246,13 @@ export default function NewRecord() {
           const rec = recordRes.data
           if (formatIC(rec.icNumber) !== formattedIc) {
             setBlockingError('Record patient identity mismatch: this record belongs to another patient.')
+            setCanRetryLoad(false)
             setLoadingInitial(false)
             return
           }
           if (rec.hospitalId !== user.hospitalId || rec.isReadOnly) {
             setBlockingError('Cross-hospital records are strictly read-only.')
+            setCanRetryLoad(false)
             setLoadingInitial(false)
             return
           }
@@ -284,6 +303,7 @@ export default function NewRecord() {
       } catch {
         if (!controller.signal.aborted) {
           setBlockingError('Unable to load clinical record context.')
+          setCanRetryLoad(true)
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -300,10 +320,12 @@ export default function NewRecord() {
     formattedIc,
     isEditMode,
     recordId,
+    reloadNonce,
     user?.hospitalId,
     user?.doctorId,
     setActivePatient,
     clearActivePatient,
+    t.allNodesUnavailableDesc,
     t.invalidMyKadFormat,
     t.privacyRestrictedDesc,
     t.networkError,
@@ -524,13 +546,23 @@ export default function NewRecord() {
         <CardContent className="p-8 space-y-4">
           <div className="flex items-center gap-3 text-red-900">
             <ShieldAlert className="w-7 h-7 text-red-700 shrink-0" />
-            <h2 className="text-xl font-bold">Action Blocked</h2>
+            <h2 className="text-xl font-bold">
+              {canRetryLoad ? t.loadFailedTitle : 'Action Blocked'}
+            </h2>
           </div>
           <p className="text-sm text-red-900">{blockingError}</p>
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" onClick={() => navigate(-1)} className="bg-white">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
+            </Button>
+            {canRetryLoad && (
+              <Button onClick={triggerReload} className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
+                <RefreshCw className="w-4 h-4 mr-1.5" />
+                {t.retryLoad}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     )
@@ -779,10 +811,10 @@ export default function NewRecord() {
 
             {/* Complete 8-Metric Physiological Vital Signs */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                 <Activity className="w-3.5 h-3.5 text-slate-500" />
                 Vital Signs (Tabular Clinical Metrics)
-              </Label>
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <Label htmlFor="v-sys" className="text-[11px] text-slate-600 flex items-center gap-1 mb-1">
@@ -961,7 +993,7 @@ export default function NewRecord() {
                 id="notes"
                 rows={3}
                 maxLength={10000}
-                className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 placeholder="Examination findings, clinical assessment, and management plan…"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -997,48 +1029,63 @@ export default function NewRecord() {
             )}
 
             {prescriptions.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-2">
+              <p className="text-xs text-slate-600 text-center py-2">
                 No prescriptions attached to this encounter. Click "Add Medication" to prescribe.
               </p>
             ) : (
               prescriptions.map((rx, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                   <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-                    <div className="col-span-2">
-                      <Label className="text-xs font-semibold">Medication Name *</Label>
+                    <div className="col-span-2 space-y-1">
+                      <Label htmlFor={`rx-med-${idx}`} className="text-xs font-semibold">
+                        Medication Name *
+                      </Label>
                       <Input
+                        id={`rx-med-${idx}`}
                         placeholder="e.g., Metformin"
                         value={rx.medicationName}
                         onChange={(e) => updatePrescriptionRow(idx, { medicationName: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Dosage *</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`rx-dose-${idx}`} className="text-xs font-semibold">
+                        Dosage *
+                      </Label>
                       <Input
+                        id={`rx-dose-${idx}`}
                         placeholder="500mg"
                         value={rx.dosage}
                         onChange={(e) => updatePrescriptionRow(idx, { dosage: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Frequency *</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`rx-freq-${idx}`} className="text-xs font-semibold">
+                        Frequency *
+                      </Label>
                       <Input
+                        id={`rx-freq-${idx}`}
                         placeholder="Twice daily"
                         value={rx.frequency}
                         onChange={(e) => updatePrescriptionRow(idx, { frequency: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Duration</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`rx-dur-${idx}`} className="text-xs font-semibold">
+                        Duration
+                      </Label>
                       <Input
+                        id={`rx-dur-${idx}`}
                         placeholder="30 days"
                         value={rx.duration}
                         onChange={(e) => updatePrescriptionRow(idx, { duration: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Qty</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`rx-qty-${idx}`} className="text-xs font-semibold">
+                        Qty
+                      </Label>
                       <Input
+                        id={`rx-qty-${idx}`}
                         type="number"
                         min={1}
                         className="tabular-nums"
@@ -1051,12 +1098,14 @@ export default function NewRecord() {
                   </div>
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Input
+                      id={`rx-inst-${idx}`}
+                      aria-label={`Prescription ${idx + 1} administration instructions`}
                       placeholder="Administration instructions (e.g. Take after meals)"
                       value={rx.instructions}
                       onChange={(e) => updatePrescriptionRow(idx, { instructions: e.target.value })}
                       className="flex-1 min-w-[200px]"
                     />
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 shrink-0">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 shrink-0 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={rx.isActive}
@@ -1094,49 +1143,64 @@ export default function NewRecord() {
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             {labReports.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-2">
+              <p className="text-xs text-slate-600 text-center py-2">
                 No laboratory results attached to this encounter. Click "Add Lab Result" to record findings.
               </p>
             ) : (
               labReports.map((lab, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                    <div>
-                      <Label className="text-xs font-semibold">Category</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lab-cat-${idx}`} className="text-xs font-semibold">
+                        Category
+                      </Label>
                       <Input
+                        id={`lab-cat-${idx}`}
                         placeholder="Blood Chemistry"
                         value={lab.testType}
                         onChange={(e) => updateLabReportRow(idx, { testType: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Test Name *</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lab-name-${idx}`} className="text-xs font-semibold">
+                        Test Name *
+                      </Label>
                       <Input
+                        id={`lab-name-${idx}`}
                         placeholder="HbA1c"
                         value={lab.testName}
                         onChange={(e) => updateLabReportRow(idx, { testName: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Result *</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lab-res-${idx}`} className="text-xs font-semibold">
+                        Result *
+                      </Label>
                       <Input
+                        id={`lab-res-${idx}`}
                         placeholder="6.8"
                         className="tabular-nums"
                         value={lab.result}
                         onChange={(e) => updateLabReportRow(idx, { result: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Unit</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lab-unit-${idx}`} className="text-xs font-semibold">
+                        Unit
+                      </Label>
                       <Input
+                        id={`lab-unit-${idx}`}
                         placeholder="%"
                         value={lab.unit}
                         onChange={(e) => updateLabReportRow(idx, { unit: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold">Ref Range</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lab-ref-${idx}`} className="text-xs font-semibold">
+                        Ref Range
+                      </Label>
                       <Input
+                        id={`lab-ref-${idx}`}
                         placeholder="4.0 - 5.6"
                         className="tabular-nums"
                         value={lab.referenceRange}
@@ -1146,12 +1210,14 @@ export default function NewRecord() {
                   </div>
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Input
+                      id={`lab-notes-${idx}`}
+                      aria-label={`Lab report ${idx + 1} pathology notes`}
                       placeholder="Pathology notes…"
                       value={lab.notes}
                       onChange={(e) => updateLabReportRow(idx, { notes: e.target.value })}
                       className="flex-1 min-w-[200px]"
                     />
-                    <label className="flex items-center gap-2 text-xs font-bold text-red-800 shrink-0">
+                    <label className="flex items-center gap-2 text-xs font-bold text-red-800 shrink-0 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={lab.isAbnormal}

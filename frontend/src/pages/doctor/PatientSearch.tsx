@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
@@ -28,6 +29,7 @@ import {
   Network,
   Download,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react'
 import { cn, formatIC, getHospitalColor, isValidMyKad } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
@@ -130,14 +132,14 @@ export default function PatientSearch() {
   const [totalRecords, setTotalRecords] = useState(0)
   const [queryTime, setQueryTime] = useState(0)
   const [partialFailure, setPartialFailure] = useState(false)
+  const [allNodesFailed, setAllNodesFailed] = useState(false)
+  const [redactedSensitiveCount, setRedactedSensitiveCount] = useState(0)
   const [failedHospitals, setFailedHospitals] = useState<string[]>([])
   const [showResults, setShowResults] = useState(false)
   const [errorState, setErrorState] = useState<SearchErrorState>(null)
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const formattedIc = formatIC(icNumber.trim())
+  const runSearch = async (rawIc: string) => {
+    const formattedIc = formatIC(rawIc.trim())
     if (!formattedIc || !isValidMyKad(formattedIc)) {
       setShowResults(false)
       setQuerySteps([])
@@ -157,6 +159,8 @@ export default function PatientSearch() {
     setShowResults(false)
     setErrorState(null)
     setPartialFailure(false)
+    setAllNodesFailed(false)
+    setRedactedSensitiveCount(0)
     setFailedHospitals([])
     setHospitalResults([])
 
@@ -211,6 +215,8 @@ export default function PatientSearch() {
         setTotalRecords(response.data.totalRecords)
         setQueryTime(response.data.queryTime)
         setPartialFailure(Boolean(response.data.partialFailure))
+        setAllNodesFailed(Boolean(response.data.allNodesFailed))
+        setRedactedSensitiveCount(Number(response.data.redactedSensitiveCount || 0))
         setFailedHospitals(response.data.failedHospitals || [])
         setShowResults(true)
         return
@@ -253,6 +259,11 @@ export default function PatientSearch() {
         setIsSearching(false)
       }
     }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    void runSearch(icNumber)
   }
 
   return (
@@ -304,35 +315,41 @@ export default function PatientSearch() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5">
-          <form onSubmit={handleSearch} className="flex items-center gap-3 flex-wrap">
-            <Input
-              placeholder="e.g., 880101-14-5678"
-              value={icNumber}
-              onChange={(e) => {
-                setIcNumber(e.target.value)
-                if (errorState?.kind === 'invalid_format') setErrorState(null)
-              }}
-              aria-invalid={errorState?.kind === 'invalid_format'}
-              className="text-base h-11 px-4 font-mono tabular-nums flex-1 min-w-[240px]"
-            />
-            <Button
-              type="submit"
-              disabled={!icNumber.trim()}
-              size="lg"
-              className={cn('h-11 px-6 text-white font-bold bg-gradient-to-r', theme.buttonGradient)}
-            >
-              {isSearching ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Querying…
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Search Network
-                </>
-              )}
-            </Button>
+          <form onSubmit={handleSearch} className="space-y-2">
+            <Label htmlFor="doctor-patient-search-ic" className="text-xs font-bold text-slate-700">
+              Patient 12-Digit MyKad IC Number *
+            </Label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Input
+                id="doctor-patient-search-ic"
+                placeholder="e.g., 880101-14-5678"
+                value={icNumber}
+                onChange={(e) => {
+                  setIcNumber(e.target.value)
+                  if (errorState?.kind === 'invalid_format') setErrorState(null)
+                }}
+                aria-invalid={errorState?.kind === 'invalid_format'}
+                className="text-base h-11 px-4 font-mono tabular-nums flex-1 min-w-[240px]"
+              />
+              <Button
+                type="submit"
+                disabled={!icNumber.trim() || isSearching}
+                size="lg"
+                className={cn('h-11 px-6 text-white font-bold bg-gradient-to-r', theme.buttonGradient)}
+              >
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Querying…
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Search Network
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -410,12 +427,20 @@ export default function PatientSearch() {
 
       {errorState?.kind === 'network' && (
         <Card className="border-2 border-slate-300 bg-slate-50 rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3 text-slate-900">
-            <WifiOff className="w-5 h-5 text-slate-700 shrink-0" />
-            <div>
-              <p className="font-bold text-sm">{t.networkError}</p>
-              <p className="text-xs text-slate-700">{errorState.message}</p>
+          <CardContent className="p-5 flex items-center justify-between gap-3 flex-wrap text-slate-900">
+            <div className="flex items-center gap-3">
+              <WifiOff className="w-5 h-5 text-slate-700 shrink-0" />
+              <div>
+                <p className="font-bold text-sm">{t.networkError}</p>
+                <p className="text-xs text-slate-700">{errorState.message}</p>
+              </div>
             </div>
+            {searchedIc && (
+              <Button variant="outline" size="sm" onClick={() => void runSearch(searchedIc)}>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                {t.retryLoad}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -469,58 +494,92 @@ export default function PatientSearch() {
 
       {showResults && (
         <div className="space-y-4">
-          {partialFailure && (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <p className="font-bold text-sm">{t.partialHospitalFailureWarning}</p>
-                {failedHospitals.length > 0 && (
-                  <p className="text-amber-900 mt-0.5">
-                    Unreachable nodes: {failedHospitals.join(', ')}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+          {allNodesFailed ? (
+            <Card className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm">
+              <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-start gap-3.5 text-red-950">
+                  <WifiOff className="w-6 h-6 text-red-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h2 className="text-base font-bold">{t.allNodesUnavailableTitle}</h2>
+                    <p className="text-xs text-red-900 mt-0.5">{t.allNodesUnavailableDesc}</p>
+                    {failedHospitals.length > 0 && (
+                      <p className="text-xs text-red-800 mt-1 font-semibold">
+                        Unreachable nodes: {failedHospitals.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button variant="outline" className="bg-white" onClick={() => void runSearch(searchedIc)}>
+                  <RefreshCw className="w-4 h-4 mr-1.5" />
+                  {t.retryLoad}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {partialFailure && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-sm">{t.partialHospitalFailureWarning}</p>
+                    {failedHospitals.length > 0 && (
+                      <p className="text-amber-900 mt-0.5">
+                        Unreachable nodes: {failedHospitals.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
-          <Card className="border border-emerald-200 bg-emerald-50/70 rounded-2xl shadow-sm">
-            <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 bg-emerald-700 rounded-xl flex items-center justify-center text-white">
-                  <CheckCircle2 className="w-6 h-6" />
+              {redactedSensitiveCount > 0 && (
+                <div className="p-3.5 rounded-2xl bg-violet-50 border border-violet-200 text-violet-950 text-xs font-semibold flex items-center gap-2.5">
+                  <Lock className="w-4 h-4 text-violet-700 shrink-0" />
+                  <span>
+                    {t.sensitiveRedactedNotice} ({redactedSensitiveCount} encounter(s) withheld)
+                  </span>
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Patient Found:{' '}
-                    <span className="font-mono tabular-nums">{searchedIc}</span>
-                  </h2>
-                  <p className="text-emerald-900 text-xs font-medium tabular-nums">
-                    {totalRecords} medical record(s) retrieved across{' '}
-                    {hospitalResults.filter((h) => h.recordCount > 0).length} hospital(s)
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="text-right px-3.5 py-2 bg-white rounded-xl border border-emerald-200">
-                  <p className="text-[11px] text-emerald-800 font-semibold">Round-Trip Latency</p>
-                  <p className="text-lg font-extrabold text-emerald-900 tabular-nums">{queryTime}ms</p>
-                </div>
-                <Button
-                  onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}`)}
-                  className={cn('bg-gradient-to-r text-white font-bold', theme.buttonGradient)}
-                >
-                  View Unified Timeline
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}/new-record`)}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  {t.newRecord}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              )}
+
+              <Card className="border border-emerald-200 bg-emerald-50/70 rounded-2xl shadow-sm">
+                <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 bg-emerald-700 rounded-xl flex items-center justify-center text-white">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Patient Found:{' '}
+                        <span className="font-mono tabular-nums">{searchedIc}</span>
+                      </h2>
+                      <p className="text-emerald-900 text-xs font-medium tabular-nums">
+                        {totalRecords} medical record(s) retrieved across{' '}
+                        {hospitalResults.filter((h) => h.recordCount > 0).length} hospital(s)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="text-right px-3.5 py-2 bg-white rounded-xl border border-emerald-200">
+                      <p className="text-[11px] text-emerald-800 font-semibold">Round-Trip Latency</p>
+                      <p className="text-lg font-extrabold text-emerald-900 tabular-nums">{queryTime}ms</p>
+                    </div>
+                    <Button
+                      onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}`)}
+                      className={cn('bg-gradient-to-r text-white font-bold', theme.buttonGradient)}
+                    >
+                      View Unified Timeline
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}/new-record`)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      {t.newRecord}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           <Card className="border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <CardHeader className={cn('bg-gradient-to-r border-b border-slate-100 py-4 px-5', theme.cardHeaderGradient)}>

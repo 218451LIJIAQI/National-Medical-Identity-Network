@@ -143,7 +143,6 @@ export default function QueueManagement() {
   const handleOpenConsult = async (ticket: QueueTicketDto) => {
     setHydratingQueueNo(ticket.queueNo)
     try {
-      await hospitalApi.updateQueueTicket(hospitalId, ticket.queueNo, 'in-progress')
       const formattedIc = formatIC(ticket.icNumber)
       const res = await centralApi.getPatient(formattedIc)
       if (res.accessDenied) {
@@ -155,6 +154,34 @@ export default function QueueManagement() {
         await loadQueue()
         return
       }
+      if (res.nodesUnavailable || res.status === 503) {
+        toast({
+          title: t.allNodesUnavailableTitle,
+          description: res.error || t.allNodesUnavailableDesc,
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!res.success && !res.notFound && res.status !== 404) {
+        toast({
+          title: t.loadFailedTitle,
+          description: res.error || t.networkError,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      const statusRes = await hospitalApi.updateQueueTicket(hospitalId, ticket.queueNo, 'in-progress')
+      if (!statusRes.success) {
+        toast({
+          title: 'Ticket Update Rejected',
+          description: statusRes.error || 'Unable to open consultation for this queue ticket.',
+          variant: 'destructive',
+        })
+        await loadQueue()
+        return
+      }
+
       if (res.success && res.data?.patient) {
         const p = res.data.patient
         setActivePatient({
@@ -237,6 +264,12 @@ export default function QueueManagement() {
     if (res.success) {
       setQueue((prev) => prev.filter((q) => q.queueNo !== queueNo))
       toast({ title: 'Ticket Removed', description: `Removed ${queueNo} from active queue.` })
+    } else {
+      toast({
+        title: 'Remove Failed',
+        description: res.error || 'Could not remove queue ticket.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -306,6 +339,8 @@ export default function QueueManagement() {
         <div className="relative w-72 max-w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
+            id="queue-search-input"
+            aria-label="Search triage queue"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search ticket, name, MyKad IC…"
@@ -435,8 +470,11 @@ export default function QueueManagement() {
         <form onSubmit={handleRegisterWalkIn} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Patient Full Name *</label>
+              <label htmlFor="walkin-name" className="text-xs font-bold text-slate-700">
+                Patient Full Name *
+              </label>
               <Input
+                id="walkin-name"
                 required
                 value={walkIn.name}
                 onChange={(e) => setWalkIn({ ...walkIn, name: e.target.value })}
@@ -444,8 +482,11 @@ export default function QueueManagement() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">MyKad IC Number *</label>
+              <label htmlFor="walkin-ic" className="text-xs font-bold text-slate-700">
+                MyKad IC Number *
+              </label>
               <Input
+                id="walkin-ic"
                 required
                 value={walkIn.icNumber}
                 onChange={(e) => setWalkIn({ ...walkIn, icNumber: e.target.value })}
@@ -455,8 +496,11 @@ export default function QueueManagement() {
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">MTS Triage Acuity</label>
+            <label htmlFor="walkin-category" className="text-xs font-bold text-slate-700">
+              MTS Triage Acuity
+            </label>
             <select
+              id="walkin-category"
               value={walkIn.category}
               onChange={(e) => setWalkIn({ ...walkIn, category: e.target.value as QueueTicketDto['category'] })}
               className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
@@ -467,8 +511,11 @@ export default function QueueManagement() {
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">Chief Complaint</label>
+            <label htmlFor="walkin-complaint" className="text-xs font-bold text-slate-700">
+              Chief Complaint
+            </label>
             <Input
+              id="walkin-complaint"
               value={walkIn.complaint}
               onChange={(e) => setWalkIn({ ...walkIn, complaint: e.target.value })}
               placeholder="Primary symptoms or reason for visit…"

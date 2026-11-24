@@ -244,7 +244,7 @@ export default function MedicalCertificate() {
                     <strong>Clinician Remarks:</strong> {remarks}
                   </p>
                 )}
-                <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 tabular-nums">
+                <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 tabular-nums">
                   <span>
                     Attending Clinician: <strong className="text-slate-800">{resolvedDoctorName}</strong> ({resolvedLicense})
                   </span>
@@ -256,18 +256,25 @@ export default function MedicalCertificate() {
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5 max-w-3xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-600">Bound Patient Name</label>
-                  <Input value={activePatient.fullName} readOnly className="mt-1 bg-slate-50 font-semibold" />
+                  <label htmlFor="mc-patient-name" className="text-xs font-bold text-slate-600">
+                    Bound Patient Name
+                  </label>
+                  <Input id="mc-patient-name" value={activePatient.fullName} readOnly className="mt-1 bg-slate-50 font-semibold" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600">Bound MyKad IC</label>
-                  <Input value={activePatient.icNumber} readOnly className="mt-1 bg-slate-50 font-mono tabular-nums" />
+                  <label htmlFor="mc-patient-ic" className="text-xs font-bold text-slate-600">
+                    Bound MyKad IC
+                  </label>
+                  <Input id="mc-patient-ic" value={activePatient.icNumber} readOnly className="mt-1 bg-slate-50 font-mono tabular-nums" />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700">Clinical Diagnosis *</label>
+                <label htmlFor="mc-diagnosis" className="text-xs font-bold text-slate-700">
+                  Clinical Diagnosis *
+                </label>
                 <Input
+                  id="mc-diagnosis"
                   value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
                   className="mt-1"
@@ -277,8 +284,11 @@ export default function MedicalCertificate() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 tabular-nums">
                 <div>
-                  <label className="text-xs font-bold text-slate-700">Leave Duration (Days)</label>
+                  <label htmlFor="mc-days" className="text-xs font-bold text-slate-700">
+                    Leave Duration (Days)
+                  </label>
                   <Input
+                    id="mc-days"
                     type="number"
                     min={1}
                     max={90}
@@ -288,8 +298,11 @@ export default function MedicalCertificate() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700">Start Date</label>
+                  <label htmlFor="mc-start" className="text-xs font-bold text-slate-700">
+                    Start Date
+                  </label>
                   <Input
+                    id="mc-start"
                     type="date"
                     value={startDate}
                     onChange={(e) => handleStartChange(e.target.value)}
@@ -297,14 +310,19 @@ export default function MedicalCertificate() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700">End Date (Inclusive)</label>
-                  <Input type="date" value={endDate} readOnly className="mt-1 bg-slate-50 tabular-nums" />
+                  <label htmlFor="mc-end" className="text-xs font-bold text-slate-700">
+                    End Date (Inclusive)
+                  </label>
+                  <Input id="mc-end" type="date" value={endDate} readOnly className="mt-1 bg-slate-50 tabular-nums" />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700">Clinical Remarks (Optional)</label>
+                <label htmlFor="mc-remarks" className="text-xs font-bold text-slate-700">
+                  Clinical Remarks (Optional)
+                </label>
                 <Input
+                  id="mc-remarks"
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="Rest advised, review if fever persists…"
@@ -312,7 +330,7 @@ export default function MedicalCertificate() {
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={fitForLight}

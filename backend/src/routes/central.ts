@@ -11,6 +11,9 @@ import {
   getBlockedPatientIcsForHospital,
   setHospitalAccess,
   getPrivacySettings,
+  getSensitiveCategorySettings,
+  updateSensitiveCategorySettings,
+  resetCentralTransientStateForTesting,
   parseSafeLimit,
 } from '../database/central-multi';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
@@ -23,6 +26,7 @@ import {
   HospitalQueryResult,
   MedicalRecord,
   NodeTimeoutError,
+  SensitiveCategoryKey,
   User,
   getNodeQueryTimeoutMs,
   isValidMyKadIc,
@@ -32,6 +36,50 @@ import {
 
 const router = Router();
 const LOG_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
+const SENSITIVE_CATEGORY_MATCHERS: Array<{
+  key: SensitiveCategoryKey;
+  icdRegex: RegExp;
+  textRegex: RegExp;
+}> = [
+  {
+    key: 'mentalHealth',
+    icdRegex: /^F[2-9]\d/i,
+    textRegex: /\b(schizophren|bipolar|major\s+depress|psychiat|suicid|psychosis|anxiety\s+disorder|ptsd)\b/i,
+  },
+  {
+    key: 'substanceAbuse',
+    icdRegex: /^F1\d/i,
+    textRegex: /\b(substance\s+abuse|opioid|alcohol\s+depend|drug\s+overdose|methadone|addiction|withdrawal\s+syndrome)\b/i,
+  },
+  {
+    key: 'hivStatus',
+    icdRegex: /^B2[0-4]/i,
+    textRegex: /\b(hiv|human\s+immunodeficiency|aids|antiretroviral)\b/i,
+  },
+  {
+    key: 'reproductiveHealth',
+    icdRegex: /^O\d{2}/i,
+    textRegex: /\b(obstetric|ectopic\s+pregnan|miscarriage|contracepti|fertility|ivf|reproductive\s+health|termination\s+of\s+pregnancy)\b/i,
+  },
+];
+
+function classifySensitiveCategories(record: MedicalRecord): SensitiveCategoryKey[] {
+  const codes = (record.diagnosisCodes || []).map(c => String(c || '').trim());
+  const combinedText = [
+    record.chiefComplaint || '',
+    ...(record.diagnosis || []),
+    record.notes || '',
+  ].join(' ');
+
+  const matched: SensitiveCategoryKey[] = [];
+  for (const rule of SENSITIVE_CATEGORY_MATCHERS) {
+    if (codes.some(code => rule.icdRegex.test(code)) || rule.textRegex.test(combinedText)) {
+      matched.push(rule.key);
+    }
+  }
+  return matched;
+}
 
 function deduplicateLogs<T extends { timestamp: string }>(
   logs: T[],
@@ -181,6 +229,7 @@ const EMERGENCY_MAX_IP_ATTEMPTS_PER_WINDOW = 15;
 export function clearEmergencyRateLimitsForTesting(): void {
   emergencySuccessCooldowns.clear();
   emergencyIpAttempts.clear();
+  resetCentralTransientStateForTesting();
 }
 
 setInterval(() => {
@@ -199,6 +248,28 @@ setInterval(() => {
     }
   }
 }, 300_000).unref();
+
+async function safeWriteEmergencyAudit(
+  icNumber: string,
+  clientIp: string,
+  details: string,
+  success: boolean
+): Promise<void> {
+  try {
+    await createAuditLog({
+      timestamp: new Date().toISOString(),
+      action: 'emergency_access',
+      actorId: undefined,
+      actorType: 'emergency',
+      targetIcNumber: icNumber,
+      details,
+      ipAddress: clientIp,
+      success,
+    });
+  } catch (logError) {
+    console.warn('Failed to log emergency access:', logError);
+  }
+}
 
 router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   const icNumber = normalizeIcNumber(req.params.icNumber);
@@ -251,8 +322,15 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     const patientIndex = await getPatientIndex(icNumber);
 
     if (!patientIndex || patientIndex.hospitals.length === 0) {
+      await safeWriteEmergencyAudit(
+        icNumber,
+        clientIp,
+        `Emergency break-glass lookup from IP: ${clientIp} (patient not indexed in network)`,
+        false
+      );
       res.status(404).json({
         success: false,
+        notFound: true,
         error: 'Patient not found in any hospital',
         data: {
           found: false,
@@ -266,27 +344,57 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     const timeoutMs = getNodeQueryTimeoutMs();
     const [patient, recordsPerHospital] = await Promise.all([
       findPatientInHospitals(icNumber, patientIndex.hospitals),
-      Promise.allSettled(
+      Promise.all(
         patientIndex.hospitals.map(async hospitalId => {
           const hospitalName = getHospitalById(hospitalId)?.name || hospitalId;
-          const records = await withTimeout(
-            getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
-            timeoutMs,
-            hospitalName
-          );
-          return { hospitalId, hospitalName, records };
+          try {
+            const records = await withTimeout(
+              getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
+              timeoutMs,
+              hospitalName
+            );
+            return { hospitalId, hospitalName, status: 'success' as const, records };
+          } catch (err) {
+            return {
+              hospitalId,
+              hospitalName,
+              status: err instanceof NodeTimeoutError ? ('timeout' as const) : ('error' as const),
+              records: [] as MedicalRecord[],
+            };
+          }
         })
       ),
     ]);
 
+    const timedOutHospitals = recordsPerHospital
+      .filter(r => r.status === 'timeout')
+      .map(r => r.hospitalName);
+    const offlineHospitals = recordsPerHospital
+      .filter(r => r.status === 'error')
+      .map(r => r.hospitalName);
+
     if (!patient) {
-      res.status(404).json({
+      await safeWriteEmergencyAudit(
+        icNumber,
+        clientIp,
+        `Emergency break-glass lookup failed from IP: ${clientIp} (all ${patientIndex.hospitals.length} indexed hospital node(s) unreachable or timed out)`,
+        false
+      );
+      res.status(503).json({
         success: false,
-        error: 'Patient data not available',
+        nodesUnavailable: true,
+        error:
+          'Patient is registered in the national index, but all originating hospital nodes are currently unreachable or timed out',
         data: {
           found: false,
+          nodesUnavailable: true,
           icNumber,
-          message: 'Patient data not available',
+          hospitalsWithRecords: patientIndex.hospitals.length,
+          respondingHospitals: 0,
+          timedOutHospitals: timedOutHospitals.length > 0 ? timedOutHospitals : undefined,
+          offlineHospitals: offlineHospitals.length > 0 ? offlineHospitals : undefined,
+          message:
+            'Indexed hospital nodes are currently unreachable or timed out. Do NOT assume no medical history exists.',
         },
       });
       return;
@@ -294,17 +402,16 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
 
     const allHospitalRecords: Array<{ hospitalName: string; rec: MedicalRecord }> = [];
     let respondingHospitals = 0;
-    let failedHospitals = 0;
+    let failedHospitalCount = 0;
 
     for (const outcome of recordsPerHospital) {
-      if (outcome.status !== 'fulfilled') {
-        failedHospitals++;
+      if (outcome.status !== 'success') {
+        failedHospitalCount++;
         continue;
       }
       respondingHospitals++;
-      const { hospitalName, records } = outcome.value;
-      for (const rec of records) {
-        allHospitalRecords.push({ hospitalName, rec });
+      for (const rec of outcome.records) {
+        allHospitalRecords.push({ hospitalName: outcome.hospitalName, rec });
       }
     }
 
@@ -363,20 +470,12 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
 
     emergencySuccessCooldowns.set(pairKey, Date.now());
 
-    try {
-      await createAuditLog({
-        timestamp: new Date().toISOString(),
-        action: 'emergency_access',
-        actorId: undefined,
-        actorType: 'emergency',
-        targetIcNumber: icNumber,
-        details: `Emergency break-glass access from IP: ${clientIp} (${respondingHospitals}/${patientIndex.hospitals.length} hospitals responded)`,
-        ipAddress: clientIp,
-        success: true,
-      });
-    } catch (logError) {
-      console.warn('Failed to log emergency access:', logError);
-    }
+    await safeWriteEmergencyAudit(
+      icNumber,
+      clientIp,
+      `Emergency break-glass access from IP: ${clientIp} (${respondingHospitals}/${patientIndex.hospitals.length} hospitals responded)`,
+      true
+    );
 
     res.json({
       success: true,
@@ -395,7 +494,9 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
         emergencyPhone: patient.emergencyPhone,
         hospitalsWithRecords: patientIndex.hospitals.length,
         respondingHospitals,
-        partialFailure: failedHospitals > 0,
+        partialFailure: failedHospitalCount > 0,
+        timedOutHospitals: timedOutHospitals.length > 0 ? timedOutHospitals : undefined,
+        offlineHospitals: offlineHospitals.length > 0 ? offlineHospitals : undefined,
         accessType: 'emergency',
         warning: 'This is emergency break-glass access. Full audit trail has been recorded.',
       },
@@ -502,7 +603,10 @@ router.get(
         timestamp: new Date().toISOString(),
       });
 
-      const patientIndex = await getPatientIndex(icNumber);
+      const [patientIndex, sensitiveSettings] = await Promise.all([
+        getPatientIndex(icNumber),
+        user.role === 'doctor' ? getSensitiveCategorySettings(icNumber) : Promise.resolve(null),
+      ]);
 
       querySteps[0].status = 'completed';
       querySteps[0].data = { hospitalsFound: patientIndex ? patientIndex.hospitals.length : 0 };
@@ -543,13 +647,28 @@ router.get(
           const hospitalStartTime = Date.now();
 
           try {
-            const records = await withTimeout(
+            const rawRecords = await withTimeout(
               getHospitalDb(hospitalId).getRecordsByPatient(icNumber),
               timeoutMs,
               hospitalName
             );
             const isOwnHospital = user.role === 'doctor' && user.hospitalId === hospitalId;
-            const markedRecords = records.map(r => ({
+
+            let nodeRedactedCount = 0;
+            const visibleRecords =
+              user.role === 'doctor' && !isOwnHospital && sensitiveSettings
+                ? rawRecords.filter(r => {
+                    const matchedCats = classifySensitiveCategories(r);
+                    const isRestricted = matchedCats.some(cat => sensitiveSettings[cat]);
+                    if (isRestricted) {
+                      nodeRedactedCount++;
+                      return false;
+                    }
+                    return true;
+                  })
+                : rawRecords;
+
+            const markedRecords = visibleRecords.map(r => ({
               ...r,
               hospitalId,
               hospitalName,
@@ -558,15 +677,19 @@ router.get(
             }));
 
             step.status = 'completed';
-            step.data = { recordCount: records.length };
+            step.data = {
+              recordCount: markedRecords.length,
+              ...(nodeRedactedCount > 0 ? { redactedSensitiveCount: nodeRedactedCount } : {}),
+            };
 
             return {
               hospitalId,
               hospitalName,
               records: markedRecords,
-              recordCount: records.length,
+              recordCount: markedRecords.length,
               status: 'success',
               responseTime: Date.now() - hospitalStartTime,
+              ...(nodeRedactedCount > 0 ? { redactedSensitiveCount: nodeRedactedCount } : {}),
             };
           } catch (nodeErr) {
             const isTimeout = nodeErr instanceof NodeTimeoutError;
@@ -588,9 +711,21 @@ router.get(
       );
 
       const totalRecords = hospitalResults.reduce((sum, h) => sum + h.recordCount, 0);
+      const redactedSensitiveCount = hospitalResults.reduce(
+        (sum, h) => sum + (h.redactedSensitiveCount || 0),
+        0
+      );
+      const timedOutHospitals = hospitalResults
+        .filter(h => h.status === 'timeout')
+        .map(h => h.hospitalName);
+      const offlineHospitals = hospitalResults
+        .filter(h => h.status === 'error')
+        .map(h => h.hospitalName);
       const failedHospitals = hospitalResults
         .filter(h => h.status !== 'success')
         .map(h => h.hospitalName);
+      const allNodesFailed =
+        hospitalResults.length > 0 && hospitalResults.every(h => h.status !== 'success');
 
       await createAuditLog({
         timestamp: new Date().toISOString(),
@@ -604,7 +739,7 @@ router.get(
             ? `Cross-hospital query: ${patientIndex.hospitals.length} hospitals (${failedHospitals.length} offline/timeout), ${totalRecords} records`
             : `Cross-hospital query: ${patientIndex.hospitals.length} hospitals, ${totalRecords} records`,
         ipAddress: req.ip || 'unknown',
-        success: true,
+        success: !allNodesFailed,
       });
 
       const result: CrossHospitalQueryResult = {
@@ -614,7 +749,14 @@ router.get(
         totalRecords,
         queryTime: Date.now() - startTime,
         partialFailure: failedHospitals.length > 0,
+        allNodesFailed: allNodesFailed || undefined,
         failedHospitals: failedHospitals.length > 0 ? failedHospitals : undefined,
+        timedOutHospitals: timedOutHospitals.length > 0 ? timedOutHospitals : undefined,
+        offlineHospitals: offlineHospitals.length > 0 ? offlineHospitals : undefined,
+        redactedSensitiveCount: redactedSensitiveCount > 0 ? redactedSensitiveCount : undefined,
+        message: allNodesFailed
+          ? 'All indexed hospital nodes timed out or were unreachable. Zero records could be retrieved — do NOT interpret this as an empty medical history.'
+          : undefined,
       };
 
       res.json({ success: true, data: result });
@@ -703,6 +845,7 @@ router.get(
       if (!patientInfo) {
         res.status(503).json({
           success: false,
+          nodesUnavailable: true,
           error: 'Indexed hospital nodes are currently unreachable',
         });
         return;
@@ -862,19 +1005,26 @@ router.get(
 
       const parsedSuccess =
         status === 'success' ? true : status === 'failed' ? false : undefined;
+      const requestedLimit = parseSafeLimit(limit, 100, 500);
 
       let logs: AuditLog[];
+      let blockedForAdminHospital = new Set<string>();
       try {
-        logs = await getAuditLogs({
-          actorId: actorId as string | undefined,
-          targetIcNumber: targetIcNumber as string | undefined,
-          hospitalScopeId,
-          action: action ? String(action) : undefined,
-          success: parsedSuccess,
-          startDate: startDate as string | undefined,
-          endDate: endDate as string | undefined,
-          limit: parseSafeLimit(limit, 100, 500),
-        });
+        [logs, blockedForAdminHospital] = await Promise.all([
+          getAuditLogs({
+            actorId: actorId as string | undefined,
+            targetIcNumber: targetIcNumber as string | undefined,
+            hospitalScopeId,
+            action: action ? String(action) : undefined,
+            success: parsedSuccess,
+            startDate: startDate as string | undefined,
+            endDate: endDate as string | undefined,
+            limit: user.role === 'hospital_admin' ? Math.min(500, requestedLimit * 2) : requestedLimit,
+          }),
+          user.role === 'hospital_admin' && user.hospitalId
+            ? getBlockedPatientIcsForHospital(user.hospitalId)
+            : Promise.resolve(new Set<string>()),
+        ]);
       } catch (filterError) {
         if (filterError instanceof Error && filterError.message.includes('Invalid')) {
           res.status(400).json({
@@ -886,7 +1036,18 @@ router.get(
         throw filterError;
       }
 
-      const enrichedLogs = await enrichAuditLogsWithActors(logs, 'admin');
+      const privacyScopedLogs =
+        user.role === 'hospital_admin' && blockedForAdminHospital.size > 0
+          ? logs
+              .filter(
+                log =>
+                  !log.targetIcNumber ||
+                  !blockedForAdminHospital.has(normalizeIcNumber(log.targetIcNumber))
+              )
+              .slice(0, requestedLimit)
+          : logs.slice(0, requestedLimit);
+
+      const enrichedLogs = await enrichAuditLogsWithActors(privacyScopedLogs, 'admin');
 
       res.json({
         success: true,
@@ -1130,6 +1291,91 @@ router.post(
         success: false,
         error: 'Failed to update hospital access',
       });
+    }
+  }
+);
+
+router.get(
+  '/privacy-settings/sensitive',
+  authenticate,
+  authorize('patient'),
+  async (req: Request, res: Response) => {
+    try {
+      const userIcNumber = req.user?.icNumber;
+      if (!userIcNumber) {
+        res.status(400).json({ success: false, error: 'User IC number not found' });
+        return;
+      }
+      const settings = await getSensitiveCategorySettings(userIcNumber);
+      res.json({ success: true, data: settings });
+    } catch (error) {
+      console.error('Get sensitive privacy settings error:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch sensitive category settings' });
+    }
+  }
+);
+
+router.put(
+  '/privacy-settings/sensitive',
+  authenticate,
+  authorize('patient'),
+  async (req: Request, res: Response) => {
+    try {
+      const userIcNumber = req.user?.icNumber;
+      if (!userIcNumber) {
+        res.status(400).json({ success: false, error: 'User IC number not found' });
+        return;
+      }
+
+      const body = req.body || {};
+      const allowedKeys: ReadonlyArray<SensitiveCategoryKey> = [
+        'mentalHealth',
+        'reproductiveHealth',
+        'substanceAbuse',
+        'hivStatus',
+      ];
+      const patch: Partial<Record<SensitiveCategoryKey, boolean>> = {};
+      const changedDescriptions: string[] = [];
+
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) {
+          if (typeof body[key] !== 'boolean') {
+            res.status(400).json({
+              success: false,
+              error: `Sensitive consent field "${key}" must be a boolean`,
+            });
+            return;
+          }
+          patch[key] = body[key];
+          changedDescriptions.push(`${key}=${body[key] ? 'protected' : 'shared'}`);
+        }
+      }
+
+      if (changedDescriptions.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'At least one sensitive category boolean flag is required',
+        });
+        return;
+      }
+
+      const updated = await updateSensitiveCategorySettings(userIcNumber, patch);
+
+      await createAuditLog({
+        timestamp: new Date().toISOString(),
+        action: 'update',
+        actorId: req.user?.userId || '',
+        actorType: 'patient',
+        targetIcNumber: userIcNumber,
+        details: `Updated sensitive record consent (${changedDescriptions.join(', ')})`,
+        ipAddress: req.ip || 'unknown',
+        success: true,
+      });
+
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('Update sensitive privacy settings error:', error);
+      res.status(500).json({ success: false, error: 'Failed to update sensitive category settings' });
     }
   }
 );

@@ -250,6 +250,8 @@ export default function Radiology() {
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
+                  id="rad-catalog-search"
+                  aria-label="Search radiology examination catalog"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search CXR, CT Brain, MRI, Echo…"
@@ -278,7 +280,7 @@ export default function Radiology() {
                           <span className="font-mono mr-1.5">{exam.code}</span>
                           {exam.name}
                         </p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-600">
                           {exam.modality} • {exam.bodyPart}
                           {exam.contrast ? ' • IV Contrast' : ''}
                         </p>
@@ -292,8 +294,11 @@ export default function Radiology() {
 
             <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700">Clinical History & Question to Radiologist</label>
+                <label htmlFor="rad-clinical-info" className="text-xs font-bold text-slate-700">
+                  Clinical History & Question to Radiologist
+                </label>
                 <Input
+                  id="rad-clinical-info"
                   value={clinicalInfo}
                   onChange={(e) => setClinicalInfo(e.target.value)}
                   placeholder="e.g., Acute pleuritic chest pain; exclude pulmonary embolism / pneumothorax…"
@@ -302,7 +307,7 @@ export default function Radiology() {
               </div>
 
               {selectedOrders.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
+                <div className="py-12 text-center text-xs text-slate-600 border border-dashed border-slate-200 rounded-xl">
                   Select imaging examinations from the catalog on the left.
                 </div>
               ) : (

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { StatusBadge } from '@/components/ui/modal-dialog'
+import { DataErrorBanner, StatusBadge } from '@/components/ui/modal-dialog'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
@@ -34,6 +34,7 @@ interface PatientData {
   bloodType: string
   fullName: string
   partialFailure: boolean
+  allNodesFailed: boolean
 }
 
 interface AccessLog {
@@ -62,84 +63,94 @@ export default function PatientDashboard() {
     bloodType: '',
     fullName: '',
     partialFailure: false,
+    allNodesFailed: false,
   })
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [accessLogsLoading, setAccessLogsLoading] = useState(true)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    async function loadPatientData() {
-      if (!user?.icNumber) {
-        setLoading(false)
-        return
-      }
-      try {
-        const [queryRes, patientRes] = await Promise.all([
-          centralApi.queryPatient(user.icNumber, controller.signal),
-          centralApi.getPatient(user.icNumber, controller.signal),
-        ])
-        if (queryRes.aborted || patientRes.aborted) return
+  const loadPatientData = useCallback(async (signal?: AbortSignal) => {
+    if (!user?.icNumber) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [queryRes, patientRes] = await Promise.all([
+        centralApi.queryPatient(user.icNumber, signal),
+        centralApi.getPatient(user.icNumber, signal),
+      ])
+      if (queryRes.aborted || patientRes.aborted) return
 
-        let hospitalsCount = 0
-        let recordsCount = 0
-        let activeMedicationsCount = 0
-        let lastVisit = '—'
-        let partialFailure = false
+      let hospitalsCount = 0
+      let recordsCount = 0
+      let activeMedicationsCount = 0
+      let lastVisit = '—'
+      let partialFailure = false
+      let allNodesFailed = false
 
-        if (queryRes.success && queryRes.data) {
-          const hospitalsWithRecords = queryRes.data.hospitals.filter((h) => h.recordCount > 0)
-          hospitalsCount = hospitalsWithRecords.length
-          recordsCount = queryRes.data.totalRecords
-          partialFailure = Boolean(queryRes.data.partialFailure)
+      if (queryRes.success && queryRes.data) {
+        allNodesFailed = Boolean(queryRes.data.allNodesFailed)
+        const hospitalsWithRecords = queryRes.data.hospitals.filter((h) => h.recordCount > 0)
+        hospitalsCount = hospitalsWithRecords.length
+        recordsCount = queryRes.data.totalRecords
+        partialFailure = Boolean(queryRes.data.partialFailure)
 
-          const allVisitDates: string[] = []
-          const activeMedicationKeys = new Set<string>()
+        const allVisitDates: string[] = []
+        const activeMedicationKeys = new Set<string>()
 
-          for (const hospital of queryRes.data.hospitals) {
-            for (const rec of hospital.records || []) {
-              if (rec.visitDate) {
-                allVisitDates.push(rec.visitDate)
-              }
-              for (const rx of rec.prescriptions || []) {
-                if (rx.isActive !== false && rx.medicationName) {
-                  activeMedicationKeys.add(
-                    `${rx.medicationName.trim().toLowerCase()}|${(rx.dosage || '').trim().toLowerCase()}`
-                  )
-                }
+        for (const hospital of queryRes.data.hospitals) {
+          for (const rec of hospital.records || []) {
+            if (rec.visitDate) {
+              allVisitDates.push(rec.visitDate)
+            }
+            for (const rx of rec.prescriptions || []) {
+              if (rx.isActive !== false && rx.medicationName) {
+                activeMedicationKeys.add(
+                  `${rx.medicationName.trim().toLowerCase()}|${(rx.dosage || '').trim().toLowerCase()}`
+                )
               }
             }
           }
-
-          activeMedicationsCount = activeMedicationKeys.size
-          if (allVisitDates.length > 0) {
-            allVisitDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-            lastVisit = formatDate(allVisitDates[0])
-          }
         }
 
-        const p = patientRes.success ? patientRes.data?.patient : undefined
-
-        setPatientData({
-          hospitalsCount,
-          recordsCount,
-          activeMedicationsCount,
-          lastVisit,
-          allergies: Array.isArray(p?.allergies) ? p.allergies : [],
-          chronicConditions: Array.isArray(p?.chronicConditions) ? p.chronicConditions : [],
-          bloodType: p?.bloodType || '',
-          fullName: p?.fullName || '',
-          partialFailure,
-        })
-      } catch {
-        // Ignore aborted or transient fetch error
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        activeMedicationsCount = activeMedicationKeys.size
+        if (allVisitDates.length > 0) {
+          allVisitDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+          lastVisit = formatDate(allVisitDates[0])
+        }
+      } else if (!queryRes.notFound && !patientRes.success && !patientRes.notFound) {
+        setLoadError(queryRes.error || patientRes.error || t.networkError)
       }
+
+      const p = patientRes.success ? patientRes.data?.patient : undefined
+
+      setPatientData({
+        hospitalsCount,
+        recordsCount,
+        activeMedicationsCount,
+        lastVisit,
+        allergies: Array.isArray(p?.allergies) ? p.allergies : [],
+        chronicConditions: Array.isArray(p?.chronicConditions) ? p.chronicConditions : [],
+        bloodType: p?.bloodType || '',
+        fullName: p?.fullName || '',
+        partialFailure,
+        allNodesFailed,
+      })
+    } catch {
+      if (!signal?.aborted) setLoadError(t.networkError)
+    } finally {
+      if (!signal?.aborted) setLoading(false)
     }
-    void loadPatientData()
+  }, [user?.icNumber, t.networkError])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadPatientData(controller.signal)
     return () => controller.abort()
-  }, [user?.icNumber])
+  }, [loadPatientData])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -217,12 +228,20 @@ export default function PatientDashboard() {
         </div>
       </div>
 
-      {patientData.partialFailure && (
+      {loadError && <DataErrorBanner message={loadError} onRetry={() => void loadPatientData()} />}
+
+      {patientData.allNodesFailed ? (
+        <DataErrorBanner
+          title={t.allNodesUnavailableTitle}
+          message={t.allNodesUnavailableDesc}
+          onRetry={() => void loadPatientData()}
+        />
+      ) : patientData.partialFailure ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3.5 text-xs font-semibold text-amber-950 flex items-center gap-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{t.partialHospitalFailureWarning}</span>
         </div>
-      )}
+      ) : null}
 
       {patientData.allergies.length > 0 && (
         <Card className="border-2 border-red-300 bg-red-50/70 rounded-2xl shadow-sm">
@@ -252,28 +271,28 @@ export default function PatientDashboard() {
         {[
           {
             label: t.hospitalsVisited,
-            value: loading ? '—' : patientData.hospitalsCount,
+            value: loading || patientData.allNodesFailed ? '—' : patientData.hospitalsCount,
             icon: Building2,
             accent: 'border-t-blue-600',
             iconWrap: 'bg-blue-50 text-blue-700',
           },
           {
             label: t.medicalRecordsCount,
-            value: loading ? '—' : patientData.recordsCount,
+            value: loading || patientData.allNodesFailed ? '—' : patientData.recordsCount,
             icon: FileText,
             accent: 'border-t-emerald-600',
             iconWrap: 'bg-emerald-50 text-emerald-700',
           },
           {
             label: t.activeMedications,
-            value: loading ? '—' : patientData.activeMedicationsCount,
+            value: loading || patientData.allNodesFailed ? '—' : patientData.activeMedicationsCount,
             icon: Pill,
             accent: 'border-t-violet-600',
             iconWrap: 'bg-violet-50 text-violet-700',
           },
           {
             label: t.lastVisit,
-            value: loading ? '—' : patientData.lastVisit,
+            value: loading || patientData.allNodesFailed ? '—' : patientData.lastVisit,
             icon: Calendar,
             accent: 'border-t-amber-600',
             iconWrap: 'bg-amber-50 text-amber-800',
@@ -350,12 +369,12 @@ export default function PatientDashboard() {
             {accessLogsLoading ? (
               <div className="p-8 text-center">
                 <Loader2 className="h-6 w-6 animate-spin text-blue-600 mx-auto" />
-                <p className="text-xs text-slate-500 mt-2">Loading access logs…</p>
+                <p className="text-xs text-slate-600 mt-2">Loading access logs…</p>
               </div>
             ) : accessLogs.length === 0 ? (
               <div className="p-8 text-center">
                 <Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-xs text-slate-500">No external access to your records yet</p>
+                <p className="text-xs text-slate-600">No external access to your records yet</p>
               </div>
             ) : (
               accessLogs.map((log) => {
@@ -390,7 +409,7 @@ export default function PatientDashboard() {
                         </p>
                       </div>
                       <div className="text-right shrink-0 space-y-1">
-                        <p className="text-xs text-slate-500 tabular-nums">
+                        <p className="text-xs text-slate-600 tabular-nums">
                           {formatTimeAgo(log.timestamp)}
                         </p>
                         <StatusBadge

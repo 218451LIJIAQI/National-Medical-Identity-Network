@@ -160,6 +160,12 @@ export default function StaffManagement() {
             ? `${member.name}'s clinical portal access at ${theme.shortName} has been immediately revoked.`
             : `${member.name} removed from active roster.`,
       })
+    } else {
+      toast({
+        title: 'Action Failed',
+        description: res.error || 'Unable to update staff status.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -214,7 +220,7 @@ export default function StaffManagement() {
             roleFilter === 'all' ? `${theme.bgLight} ${theme.borderColor}` : 'bg-white border-slate-200'
           )}
         >
-          <p className="text-xs font-semibold text-slate-500">Total Roster</p>
+          <p className="text-xs font-semibold text-slate-600">Total Roster</p>
           <p className="text-xl font-extrabold text-slate-900 mt-0.5">{staff.length}</p>
         </button>
         {ROLES.map((r) => (
@@ -227,7 +233,7 @@ export default function StaffManagement() {
               roleFilter === r ? `${theme.bgLight} ${theme.borderColor}` : 'bg-white border-slate-200'
             )}
           >
-            <p className="text-xs font-semibold text-slate-500">{r}s</p>
+            <p className="text-xs font-semibold text-slate-600">{r}s</p>
             <p className="text-xl font-extrabold text-slate-900 mt-0.5">
               {staff.filter((s) => s.role === r).length}
             </p>
@@ -246,6 +252,8 @@ export default function StaffManagement() {
           <div className="relative w-72 max-w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
+              id="staff-search-input"
+              aria-label="Search hospital staff roster"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search name, MyKad IC, MMC…"
@@ -289,7 +297,7 @@ export default function StaffManagement() {
                   <tr key={m.id} className="hover:bg-slate-50/70">
                     <td className="py-3.5 px-4">
                       <p className="font-bold text-slate-900 text-sm">{m.name}</p>
-                      <p className="text-slate-500">
+                      <p className="text-slate-600">
                         {m.licenseNumber ? `${m.licenseNumber} • ` : ''}
                         {m.email}
                       </p>
@@ -342,8 +350,11 @@ export default function StaffManagement() {
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Full Name *</label>
+              <label htmlFor="staff-full-name" className="text-xs font-bold text-slate-700">
+                Full Name *
+              </label>
               <Input
+                id="staff-full-name"
                 required
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -351,8 +362,11 @@ export default function StaffManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">MyKad IC Number *</label>
+              <label htmlFor="staff-ic" className="text-xs font-bold text-slate-700">
+                MyKad IC Number *
+              </label>
               <Input
+                id="staff-ic"
                 required
                 value={draft.icNumber}
                 onChange={(e) => setDraft({ ...draft, icNumber: e.target.value })}
@@ -364,8 +378,11 @@ export default function StaffManagement() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Role</label>
+              <label htmlFor="staff-role" className="text-xs font-bold text-slate-700">
+                Role
+              </label>
               <select
+                id="staff-role"
                 value={draft.role}
                 onChange={(e) => setDraft({ ...draft, role: e.target.value as StaffRosterMemberDto['role'] })}
                 className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm capitalize"
@@ -378,15 +395,21 @@ export default function StaffManagement() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Department</label>
+              <label htmlFor="staff-dept" className="text-xs font-bold text-slate-700">
+                Department
+              </label>
               <Input
+                id="staff-dept"
                 value={draft.department}
                 onChange={(e) => setDraft({ ...draft, department: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Status</label>
+              <label htmlFor="staff-status" className="text-xs font-bold text-slate-700">
+                Status
+              </label>
               <select
+                id="staff-status"
                 value={draft.status}
                 onChange={(e) => setDraft({ ...draft, status: e.target.value as StaffRosterMemberDto['status'] })}
                 className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
@@ -401,16 +424,22 @@ export default function StaffManagement() {
           {draft.role === 'doctor' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700">MMC License No</label>
+                <label htmlFor="staff-license" className="text-xs font-bold text-slate-700">
+                  MMC License No
+                </label>
                 <Input
+                  id="staff-license"
                   value={draft.licenseNumber}
                   onChange={(e) => setDraft({ ...draft, licenseNumber: e.target.value })}
                   className="font-mono"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700">Clinical Specialization</label>
+                <label htmlFor="staff-spec" className="text-xs font-bold text-slate-700">
+                  Clinical Specialization
+                </label>
                 <Input
+                  id="staff-spec"
                   value={draft.specialization}
                   onChange={(e) => setDraft({ ...draft, specialization: e.target.value })}
                 />
@@ -420,16 +449,22 @@ export default function StaffManagement() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Hospital Email</label>
+              <label htmlFor="staff-email" className="text-xs font-bold text-slate-700">
+                Hospital Email
+              </label>
               <Input
+                id="staff-email"
                 type="email"
                 value={draft.email}
                 onChange={(e) => setDraft({ ...draft, email: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Contact Phone</label>
+              <label htmlFor="staff-phone" className="text-xs font-bold text-slate-700">
+                Contact Phone
+              </label>
               <Input
+                id="staff-phone"
                 value={draft.phone}
                 onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
                 className="tabular-nums"

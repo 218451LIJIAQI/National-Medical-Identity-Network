@@ -231,8 +231,11 @@ export default function Referral() {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Receiving Tertiary Hospital *</label>
+                <label htmlFor="ref-receiving-hospital" className="text-xs font-bold text-slate-700">
+                  Receiving Tertiary Hospital *
+                </label>
                 <select
+                  id="ref-receiving-hospital"
                   value={referToHospital}
                   onChange={(e) => setReferToHospital(e.target.value)}
                   className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm font-medium"
@@ -243,14 +246,17 @@ export default function Referral() {
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <p className="text-[11px] text-slate-600 flex items-center gap-1">
                   <MapPin className="w-3 h-3" /> Originating from {theme.name}
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Target Specialty Department *</label>
+                <label htmlFor="ref-specialty" className="text-xs font-bold text-slate-700">
+                  Target Specialty Department *
+                </label>
                 <select
+                  id="ref-specialty"
                   value={referToDepartment}
                   onChange={(e) => setReferToDepartment(e.target.value)}
                   className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm font-medium"
@@ -264,13 +270,14 @@ export default function Referral() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700">Transfer Acuity & Priority</label>
+            <div className="space-y-2" role="group" aria-label="Transfer Acuity and Priority">
+              <p className="text-xs font-bold text-slate-700">Transfer Acuity & Priority</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {URGENCY_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
+                    aria-pressed={urgency === opt.value}
                     onClick={() => setUrgency(opt.value)}
                     className={cn(
                       'p-3.5 rounded-xl border-2 text-left transition-colors',
@@ -289,8 +296,11 @@ export default function Referral() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Primary Diagnosis / Reason for Referral *</label>
+              <label htmlFor="ref-reason" className="text-xs font-bold text-slate-700">
+                Primary Diagnosis / Reason for Referral *
+              </label>
               <Input
+                id="ref-reason"
                 required
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -299,19 +309,22 @@ export default function Referral() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">ISBAR Clinical Handover Summary *</label>
+              <label htmlFor="ref-summary" className="text-xs font-bold text-slate-700">
+                ISBAR Clinical Handover Summary *
+              </label>
               <textarea
+                id="ref-summary"
                 required
                 rows={4}
                 value={clinicalSummary}
                 onChange={(e) => setClinicalSummary(e.target.value)}
                 placeholder="Presenting history, physical findings, hemodynamic stability, and treatment initiated…"
-                className="w-full p-3 border border-slate-300 rounded-xl text-sm"
+                className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700">Completed Pre-Transfer Workup</label>
+            <div className="space-y-2" role="group" aria-label="Completed Pre-Transfer Workup">
+              <p className="text-xs font-bold text-slate-700">Completed Pre-Transfer Workup</p>
               <div className="flex flex-wrap gap-2">
                 {INVESTIGATIONS.map((inv) => {
                   const checked = investigations.includes(inv)
@@ -319,6 +332,7 @@ export default function Referral() {
                     <button
                       key={inv}
                       type="button"
+                      aria-pressed={checked}
                       onClick={() => toggleInvestigation(inv)}
                       className={cn(
                         'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors',

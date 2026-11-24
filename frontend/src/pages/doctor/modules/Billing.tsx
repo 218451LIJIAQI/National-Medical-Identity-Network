@@ -103,12 +103,21 @@ export default function Billing() {
   const totalOriginal = computedRows.reduce((s, r) => s + r.originalPrice, 0)
   const totalSubsidy = computedRows.reduce((s, r) => s + r.subsidyAmount, 0)
   const totalFinal = computedRows.reduce((s, r) => s + r.finalPrice, 0)
+  const alreadySettledSameMode =
+    Boolean(account?.receipt) && account?.receipt?.paymentMethod === selectedPayment
 
   const handleAddCharge = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activePatient) return
     const amt = parseFloat(newChargeAmount)
-    if (!newChargeDesc.trim() || Number.isNaN(amt) || amt <= 0) return
+    if (!newChargeDesc.trim() || Number.isNaN(amt) || amt <= 0) {
+      toast({
+        title: 'Invalid Charge Entry',
+        description: 'Provide a description and a positive gross RM amount.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     setProcessing(true)
     try {
@@ -121,6 +130,12 @@ export default function Billing() {
         setAccount(res.data)
         setNewChargeDesc('')
         setNewChargeAmount('')
+      } else {
+        toast({
+          title: 'Charge Rejected',
+          description: res.error || 'Could not append billing item.',
+          variant: 'destructive',
+        })
       }
     } finally {
       setProcessing(false)
@@ -132,6 +147,12 @@ export default function Billing() {
     const res = await hospitalApi.removeBillingItem(hospitalId, activePatient.icNumber, itemId)
     if (res.success && res.data) {
       setAccount(res.data)
+    } else {
+      toast({
+        title: 'Remove Rejected',
+        description: res.error || 'Unable to remove billing item.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -140,6 +161,12 @@ export default function Billing() {
     const res = await hospitalApi.updateBillingSubsidy(hospitalId, activePatient.icNumber, tier)
     if (res.success && res.data) {
       setAccount(res.data)
+    } else {
+      toast({
+        title: 'Subsidy Update Failed',
+        description: res.error || 'Could not update citizen subsidy tier.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -154,6 +181,12 @@ export default function Billing() {
           title: 'Official Receipt Issued',
           description: `${res.data.receipt?.receiptNo} settled (${formatMYR(res.data.receipt?.netAmount || 0)}).`,
           variant: 'success',
+        })
+      } else {
+        toast({
+          title: 'Settlement Rejected',
+          description: res.error || 'Could not settle billing statement.',
+          variant: 'destructive',
         })
       }
     } finally {
@@ -316,7 +349,11 @@ export default function Billing() {
               </div>
 
               <form onSubmit={handleAddCharge} className="p-4 bg-slate-50 border-t border-slate-200 flex items-center gap-2.5 flex-wrap">
+                <label htmlFor="billing-charge-cat" className="sr-only">
+                  Charge Category
+                </label>
                 <select
+                  id="billing-charge-cat"
                   value={newChargeCategory}
                   onChange={(e) => setNewChargeCategory(e.target.value)}
                   className="h-9 px-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium"
@@ -326,13 +363,21 @@ export default function Billing() {
                   <option value="Pharmacy Dispensing">Medication</option>
                   <option value="Ward & Bed">Ward Charge</option>
                 </select>
+                <label htmlFor="billing-charge-desc" className="sr-only">
+                  Charge Description
+                </label>
                 <Input
+                  id="billing-charge-desc"
                   value={newChargeDesc}
                   onChange={(e) => setNewChargeDesc(e.target.value)}
                   placeholder="Add procedure or consumable description…"
                   className="h-9 text-xs flex-1 min-w-[180px] bg-white"
                 />
+                <label htmlFor="billing-charge-amt" className="sr-only">
+                  Gross Amount in MYR
+                </label>
                 <Input
+                  id="billing-charge-amt"
                   type="number"
                   step="0.5"
                   min="0.5"
@@ -373,8 +418,8 @@ export default function Billing() {
                 <span className="text-2xl font-extrabold text-slate-900">{formatMYR(totalFinal)}</span>
               </div>
 
-              <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-bold text-slate-700">Settlement Mode</label>
+              <div className="space-y-1.5 pt-1" role="group" aria-label="Settlement Mode">
+                <p className="text-xs font-bold text-slate-700">Settlement Mode</p>
                 <div className="grid grid-cols-3 gap-2">
                   {(
                     [
@@ -386,6 +431,7 @@ export default function Billing() {
                     <button
                       key={mode}
                       type="button"
+                      aria-pressed={selectedPayment === mode}
                       onClick={() => setSelectedPayment(mode)}
                       className={cn(
                         'py-2 px-2 rounded-xl text-xs font-bold border transition-colors',
@@ -402,7 +448,7 @@ export default function Billing() {
 
               <Button
                 onClick={handleSettle}
-                disabled={processing || computedRows.length === 0}
+                disabled={processing || computedRows.length === 0 || alreadySettledSameMode}
                 className={cn('w-full h-11 text-white font-bold bg-gradient-to-r', theme.buttonGradient)}
               >
                 {processing ? (
@@ -410,7 +456,11 @@ export default function Billing() {
                 ) : (
                   <CreditCard className="w-4 h-4 mr-1.5" />
                 )}
-                {account.receipt ? 'Re-Issue Official Receipt' : 'Settle & Issue Receipt'}
+                {alreadySettledSameMode
+                  ? `Settled (${selectedPayment.toUpperCase()})`
+                  : account.receipt
+                    ? 'Re-Settle Under Selected Mode'
+                    : 'Settle & Issue Receipt'}
               </Button>
             </div>
           </div>

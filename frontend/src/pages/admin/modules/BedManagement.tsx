@@ -200,7 +200,7 @@ export default function BedManagement() {
           { label: 'Terminal Cleaning / Maint.', value: totals.maintenance, sub: 'Temporarily closed' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">{kpi.label}</p>
+            <p className="text-xs font-semibold text-slate-600">{kpi.label}</p>
             <p className="text-2xl font-extrabold text-slate-900 mt-1">{kpi.value}</p>
             <p className="text-[11px] text-slate-600 mt-0.5">{kpi.sub}</p>
           </div>
@@ -259,7 +259,7 @@ export default function BedManagement() {
               <div key={ward.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 tabular-nums">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <span className="font-mono text-[11px] font-bold text-slate-500">{ward.id}</span>
+                    <span className="font-mono text-[11px] font-bold text-slate-600">{ward.id}</span>
                     <h2 className="text-base font-bold text-slate-900">
                       {language === 'ms' ? ward.nameMY : ward.name}
                     </h2>
@@ -281,7 +281,7 @@ export default function BedManagement() {
                 <div className="grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="p-2 rounded-xl bg-slate-50">
                     <p className="font-extrabold text-slate-900">{ward.totalBeds}</p>
-                    <p className="text-[10px] text-slate-500">Total</p>
+                    <p className="text-[10px] text-slate-600">Total</p>
                   </div>
                   <div className="p-2 rounded-xl bg-blue-50">
                     <p className="font-extrabold text-blue-900">{ward.occupied}</p>
@@ -321,8 +321,11 @@ export default function BedManagement() {
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Ward Name (EN) *</label>
+              <label htmlFor="ward-name-en" className="text-xs font-bold text-slate-700">
+                Ward Name (EN) *
+              </label>
               <Input
+                id="ward-name-en"
                 required
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -330,8 +333,11 @@ export default function BedManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Nama Wad (BM)</label>
+              <label htmlFor="ward-name-bm" className="text-xs font-bold text-slate-700">
+                Nama Wad (BM)
+              </label>
               <Input
+                id="ward-name-bm"
                 value={draft.nameMY}
                 onChange={(e) => setDraft({ ...draft, nameMY: e.target.value })}
                 placeholder="cth., Wad Pembedahan 6B"
@@ -340,8 +346,11 @@ export default function BedManagement() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-700">Ward Classification</label>
+            <label htmlFor="ward-type" className="text-xs font-bold text-slate-700">
+              Ward Classification
+            </label>
             <select
+              id="ward-type"
               value={draft.type}
               onChange={(e) => setDraft({ ...draft, type: e.target.value as HospitalWardDto['type'] })}
               className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm mt-1"
@@ -356,8 +365,11 @@ export default function BedManagement() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
             <div>
-              <label className="text-xs font-bold text-slate-700">Total Beds</label>
+              <label htmlFor="ward-total-beds" className="text-xs font-bold text-slate-700">
+                Total Beds
+              </label>
               <Input
+                id="ward-total-beds"
                 type="number"
                 min={1}
                 value={draft.totalBeds}
@@ -365,8 +377,11 @@ export default function BedManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Occupied</label>
+              <label htmlFor="ward-occupied-beds" className="text-xs font-bold text-slate-700">
+                Occupied
+              </label>
               <Input
+                id="ward-occupied-beds"
                 type="number"
                 min={0}
                 value={draft.occupied}
@@ -374,8 +389,11 @@ export default function BedManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Reserved</label>
+              <label htmlFor="ward-reserved-beds" className="text-xs font-bold text-slate-700">
+                Reserved
+              </label>
               <Input
+                id="ward-reserved-beds"
                 type="number"
                 min={0}
                 value={draft.reserved}
@@ -383,8 +401,11 @@ export default function BedManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Maintenance</label>
+              <label htmlFor="ward-maintenance-beds" className="text-xs font-bold text-slate-700">
+                Maintenance
+              </label>
               <Input
+                id="ward-maintenance-beds"
                 type="number"
                 min={0}
                 value={draft.maintenance}

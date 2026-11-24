@@ -168,7 +168,7 @@ export default function EmergencyManagement() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            {t.refreshData}
           </Button>
           <Button
             onClick={handleExportAllCsv}
@@ -247,6 +247,8 @@ export default function EmergencyManagement() {
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <Input
+              id="emergency-audit-search"
+              aria-label="Filter break-glass events by MyKad IC or origin terminal"
               placeholder="Filter by patient MyKad IC or origin terminal…"
               className="pl-10 h-10 font-mono tabular-nums"
               value={searchTerm}
@@ -320,7 +322,7 @@ export default function EmergencyManagement() {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 text-xs text-slate-500 tabular-nums">
+                    <div className="text-right shrink-0 text-xs text-slate-600 tabular-nums">
                       <StatusBadge
                         tone={log.success ? 'success' : 'blocked'}
                         label={log.success ? 'Granted' : 'Denied'}

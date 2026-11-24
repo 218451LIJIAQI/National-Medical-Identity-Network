@@ -551,3 +551,130 @@ test('11. Verifies modal focus trap, error-retry boundaries (zero infinite skele
   assert.ok(!centralSrc.includes('searchResult.patient.allergies'), 'CentralAdmin must not render redacted clinical allergies');
   assert.ok(!centralSrc.includes('searchResult.patient.bloodType'), 'CentralAdmin must not render redacted clinical bloodType');
 });
+
+test('12. Verifies zero unused runtime dependencies, Radix/Framer removal & standardized h-10 Input token', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(FRONTEND_ROOT, 'package.json'), 'utf8'));
+  const lock = JSON.parse(fs.readFileSync(path.join(FRONTEND_ROOT, 'package-lock.json'), 'utf8'));
+  const deps = Object.keys(pkg.dependencies || {});
+
+  for (const removed of ['framer-motion', '@radix-ui/react-label', '@radix-ui/react-slot', '@radix-ui/react-toast', 'tailwindcss-animate']) {
+    assert.ok(!deps.includes(removed), `${removed} must be removed from dependencies`);
+    assert.equal(lock.packages?.[`node_modules/${removed}`], undefined, `${removed} must be pruned from package-lock.json`);
+  }
+
+  const combinedSrc = allSrcFiles.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+  for (const dep of deps) {
+    if (dep === 'react-dom') {
+      assert.match(combinedSrc, /from ['"]react-dom/, 'react-dom must be imported');
+    } else {
+      const escaped = dep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      assert.match(combinedSrc, new RegExp(`from ['"]${escaped}(?:['"/])`), `Dependency ${dep} must be actively imported`);
+    }
+  }
+
+  const inputSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/input.tsx'), 'utf8');
+  assert.match(inputSrc, /\bh-10\b/, 'Input primitive must standardize on h-10 height');
+  assert.match(inputSrc, /\bborder-slate-300\b/, 'Input primitive must use border-slate-300 token');
+});
+
+test('13. Verifies fetchApi 403 licenseRevoked auto-logout + clinical purge, 503 nodesUnavailable & closed-loop endpoints', async () => {
+  const { useAuthStore } = require(path.join(SRC_ROOT, 'store/auth.ts'));
+  const { useClinicalStore } = require(path.join(SRC_ROOT, 'store/clinical.ts'));
+  const { centralApi, hospitalApi } = require(path.join(SRC_ROOT, 'lib/api.ts'));
+
+  const origFetch = global.fetch;
+  try {
+    useAuthStore.getState().setSession('tok-doc-active', {
+      id: 'user-doc-kl',
+      icNumber: '800101-14-5001',
+      role: 'doctor',
+      hospitalId: 'hospital-kl',
+      hospitalVerified: true,
+    });
+    useClinicalStore.getState().setActivePatient({
+      icNumber: '850505-10-5111',
+      fullName: 'Tan Wei Ming',
+      allergies: ['Aspirin'],
+      chronicConditions: [],
+      scopedHospitalId: 'hospital-kl',
+    });
+
+    // Simulate 403 licenseRevoked from backend
+    global.fetch = async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({ success: false, licenseRevoked: true, error: 'Clinician deactivated' }),
+    });
+    const revokedRes = await centralApi.queryPatient('850505-10-5111');
+    assert.equal(revokedRes.success, false);
+    assert.equal(revokedRes.licenseRevoked, true);
+    assert.equal(useAuthStore.getState().isAuthenticated, false);
+    assert.equal(useAuthStore.getState().token, null);
+    assert.equal(useClinicalStore.getState().activePatient, null);
+
+    // Simulate 503 nodesUnavailable
+    global.fetch = async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({ success: false, nodesUnavailable: true, error: 'Originating hospital nodes unreachable' }),
+    });
+    const outageRes = await centralApi.emergencyQuery('850505-10-5111');
+    assert.equal(outageRes.status, 503);
+    assert.equal(outageRes.nodesUnavailable, true);
+
+    // Verify endpoint paths & HTTP verbs for sensitive privacy, dispense & lab sign-off
+    const calls = [];
+    global.fetch = async (url, opts = {}) => {
+      calls.push({ url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+      return { ok: true, status: 200, json: async () => ({ success: true, data: {} }) };
+    };
+
+    await centralApi.getSensitivePrivacySettings();
+    await centralApi.updateSensitivePrivacySettings({ mentalHealth: false });
+    await hospitalApi.dispensePrescription('hospital-kl', 'rec-1', 'rx-1');
+    await hospitalApi.signOffLabReport('hospital-kl', 'rec-1', 'lab-1', { result: '5.4', isAbnormal: false });
+
+    assert.equal(calls[0].url, '/api/central/privacy-settings/sensitive');
+    assert.equal(calls[0].method, 'GET');
+    assert.equal(calls[1].url, '/api/central/privacy-settings/sensitive');
+    assert.equal(calls[1].method, 'PUT');
+    assert.deepEqual(calls[1].body, { mentalHealth: false });
+    assert.equal(calls[2].url, '/api/hospitals/hospital-kl/records/rec-1/prescriptions/rx-1/dispense');
+    assert.equal(calls[2].method, 'POST');
+    assert.equal(calls[3].url, '/api/hospitals/hospital-kl/records/rec-1/lab-reports/lab-1/signoff');
+    assert.equal(calls[3].method, 'PUT');
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('14. Verifies shared LanguageSwitcher in About, AuditLogs optional actorId safety, 503 walk-in guard & closed-loop UI wiring', () => {
+  const aboutSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/About.tsx'), 'utf8');
+  assert.match(aboutSrc, /LanguageSwitcher/, 'About.tsx must reuse shared LanguageSwitcher');
+  assert.ok(!aboutSrc.includes("(['en', 'ms', 'zh'] as const).map"), 'About.tsx must not duplicate inline language pill map');
+
+  const auditSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/admin/AuditLogs.tsx'), 'utf8');
+  assert.match(auditSrc, /typeof log\.actorId === 'string'/, 'AuditLogs must safely normalize optional actorId before string operations');
+
+  for (const rel of [
+    'components/ClinicalPatientBanner.tsx',
+    'pages/doctor/modules/QueueManagement.tsx',
+    'pages/doctor/NewRecord.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.match(src, /nodesUnavailable/, `${rel} must guard against 503 nodesUnavailable before provisional walk-in fallback`);
+  }
+
+  const privacySrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/patient/Privacy.tsx'), 'utf8');
+  assert.match(privacySrc, /getSensitivePrivacySettings/, 'Privacy.tsx must load persisted sensitive settings');
+  assert.match(privacySrc, /updateSensitivePrivacySettings/, 'Privacy.tsx must persist sensitive setting toggles');
+
+  const rxSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/EPrescription.tsx'), 'utf8');
+  assert.match(rxSrc, /dispensePrescription/, 'EPrescription.tsx must wire hospitalApi.dispensePrescription');
+
+  const labSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/LabOrders.tsx'), 'utf8');
+  assert.match(labSrc, /signOffLabReport/, 'LabOrders.tsx must wire hospitalApi.signOffLabReport');
+
+  const patRecSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/patient/Records.tsx'), 'utf8');
+  assert.match(patRecSrc, /isPendingLabValue/, 'patient/Records.tsx must distinguish pending lab results from normal results');
+});

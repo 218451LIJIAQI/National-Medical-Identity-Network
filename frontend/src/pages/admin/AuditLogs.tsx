@@ -146,12 +146,13 @@ export default function AuditLogs() {
         if (response.data) {
           const apiLogs: AuditLog[] = response.data.map((log) => {
             const actorType = log.actorType || 'unknown'
+            const rawActorId = typeof log.actorId === 'string' ? log.actorId.trim() : ''
             return {
               id: log.id,
               timestamp: log.timestamp,
               action: resolveActionCategory(log.action, actorType, log.success),
-              userId: log.actorId.slice(0, 14) || 'System',
-              userName: log.actorName || log.actorId || 'System',
+              userId: rawActorId ? rawActorId.slice(0, 14) : 'System',
+              userName: log.actorName || rawActorId || 'Emergency / System',
               userRole: actorType,
               targetIcNumber: log.targetIcNumber || undefined,
               sourceHospital: log.hospitalName || log.actorHospitalId || 'Central Hub',
@@ -333,7 +334,7 @@ export default function AuditLogs() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            {t.refreshData}
           </Button>
           <Button
             onClick={handleExportCsv}
@@ -373,6 +374,8 @@ export default function AuditLogs() {
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
               <Input
+                id="audit-search-input"
+                aria-label="Search audit logs"
                 placeholder="Search by MyKad IC, clinician name, hospital, or audit detail…"
                 className="pl-10 h-10"
                 value={searchTerm}
@@ -382,6 +385,8 @@ export default function AuditLogs() {
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-500" />
               <select
+                id="audit-action-filter"
+                aria-label="Filter by action type"
                 title="Filter by action type"
                 className="h-10 border border-slate-300 rounded-xl px-3 text-xs font-semibold bg-white text-slate-800"
                 value={filterAction}
@@ -409,6 +414,7 @@ export default function AuditLogs() {
             </div>
             <div className="flex items-center gap-2">
               <Input
+                id="audit-start-date"
                 type="date"
                 aria-label="Audit start date"
                 value={startDate}
@@ -417,6 +423,7 @@ export default function AuditLogs() {
               />
               <span className="text-slate-400">→</span>
               <Input
+                id="audit-end-date"
                 type="date"
                 aria-label="Audit end date"
                 value={endDate}

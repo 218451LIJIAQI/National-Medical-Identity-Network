@@ -216,6 +216,14 @@ export function ClinicalPatientBanner({
           description: res.error || t.privacyRestrictedDesc,
           variant: 'destructive',
         })
+      } else if (res.nodesUnavailable || res.status === 503) {
+        const msg = res.error || t.allNodesUnavailableDesc
+        setInputError(msg)
+        toast({
+          title: t.allNodesUnavailableTitle,
+          description: msg,
+          variant: 'destructive',
+        })
       } else if (res.notFound || res.status === 404) {
         const inferred = parseMyKadDemographics(formatted)
         const provisional: ActiveClinicalPatient = {
@@ -238,9 +246,11 @@ export function ClinicalPatientBanner({
           description: 'No federated record found. Please verify drug allergies directly with the patient.',
         })
       } else {
+        const msg = res.error || t.networkError
+        setInputError(msg)
         toast({
           title: t.loadFailedTitle,
-          description: res.error || t.networkError,
+          description: msg,
           variant: 'destructive',
         })
       }
@@ -359,11 +369,15 @@ export function ClinicalPatientBanner({
         ) : (
           <div className="space-y-1.5">
             <form onSubmit={handleLookup} className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 shrink-0">
+              <label
+                htmlFor="clinical-banner-ic-input"
+                className="flex items-center gap-2 text-sm font-semibold text-slate-800 shrink-0 cursor-pointer"
+              >
                 <Search className="w-4 h-4 text-blue-600" />
                 <span>{t.activeConsultationPatient}:</span>
-              </div>
+              </label>
               <Input
+                id="clinical-banner-ic-input"
                 value={icInput}
                 onChange={(e) => {
                   setIcInput(e.target.value)
@@ -384,7 +398,7 @@ export function ClinicalPatientBanner({
               </Button>
             </form>
             {inputError && (
-              <p role="alert" className="text-xs font-medium text-red-600 pl-6">
+              <p role="alert" className="text-xs font-medium text-red-700 pl-6">
                 {inputError}
               </p>
             )}

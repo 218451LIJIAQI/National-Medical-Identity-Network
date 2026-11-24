@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { DataErrorBanner, ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi, type HospitalSummaryDto } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
@@ -186,7 +187,7 @@ export default function CentralAdminDashboard() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-          <p className="text-xs text-slate-500">Loading national network telemetry…</p>
+          <p className="text-xs text-slate-600">Loading national network telemetry…</p>
         </div>
       </div>
     )
@@ -291,7 +292,7 @@ export default function CentralAdminDashboard() {
               <div>
                 <p className="text-xs font-semibold text-slate-600 mb-1">{stat.label}</p>
                 <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
-                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 tabular-nums">
+                <p className="text-xs text-slate-600 mt-1 flex items-center gap-1 tabular-nums">
                   <TrendingUp className="w-3 h-3 text-emerald-600 shrink-0" />
                   <span>{stat.sub}</span>
                 </p>
@@ -318,27 +319,33 @@ export default function CentralAdminDashboard() {
           </div>
         </div>
         <CardContent className="p-5 space-y-5">
-          <form onSubmit={handleSearch} className="flex items-center gap-3 flex-wrap">
-            <Input
-              placeholder="Enter Patient MyKad IC Number (e.g., 850505-10-5111)"
-              value={searchIC}
-              onChange={(e) => {
-                setSearchIC(e.target.value)
-                if (searchError) setSearchError('')
-              }}
-              aria-invalid={Boolean(searchError)}
-              className="h-11 font-mono text-sm tabular-nums flex-1 min-w-[240px]"
-            />
-            <Button type="submit" disabled={searching || !searchIC.trim()} className="h-11 px-6 shrink-0">
-              {searching ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Search className="w-4 h-4 mr-2" />
-                  Search Index
-                </>
-              )}
-            </Button>
+          <form onSubmit={handleSearch} className="space-y-2">
+            <Label htmlFor="central-pointer-ic-input" className="text-xs font-bold text-slate-700">
+              Patient MyKad IC Number *
+            </Label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Input
+                id="central-pointer-ic-input"
+                placeholder="Enter Patient MyKad IC Number (e.g., 850505-10-5111)"
+                value={searchIC}
+                onChange={(e) => {
+                  setSearchIC(e.target.value)
+                  if (searchError) setSearchError('')
+                }}
+                aria-invalid={Boolean(searchError)}
+                className="h-11 font-mono text-sm tabular-nums flex-1 min-w-[240px]"
+              />
+              <Button type="submit" disabled={searching || !searchIC.trim()} className="h-11 px-6 shrink-0">
+                {searching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Search Index
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
 
           {searchError && (
@@ -467,7 +474,7 @@ export default function CentralAdminDashboard() {
                           tone={hospital.isActive ? 'success' : 'critical'}
                           label={hospital.isActive ? 'Online' : 'Offline'}
                         />
-                        <span className="text-xs text-slate-500 flex items-center gap-1 tabular-nums">
+                        <span className="text-xs text-slate-600 flex items-center gap-1 tabular-nums">
                           <Zap className="w-3 h-3" />
                           {getSimulatedLatencyMs(hospital.id)}ms
                         </span>
@@ -488,7 +495,7 @@ export default function CentralAdminDashboard() {
           <CardContent className="p-0">
             <div className="divide-y divide-slate-100">
               {networkActivity.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500">
+                <div className="p-8 text-center text-xs text-slate-600">
                   No recent network activity
                 </div>
               ) : (
@@ -496,7 +503,7 @@ export default function CentralAdminDashboard() {
                   <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-bold text-slate-900 truncate">{activity.from}</span>
-                      <span className="text-slate-500 shrink-0 tabular-nums">{activity.time}</span>
+                      <span className="text-slate-600 shrink-0 tabular-nums">{activity.time}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <StatusBadge
@@ -543,7 +550,7 @@ export default function CentralAdminDashboard() {
             <div className="flex items-start gap-3">
               <MapPinned className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-slate-500">Official Address</p>
+                <p className="text-xs font-semibold text-slate-600">Official Address</p>
                 <p className="font-medium text-slate-900">{selectedHospital.address}</p>
                 <p className="text-xs text-slate-600">
                   {selectedHospital.city}, {selectedHospital.state}
@@ -554,7 +561,7 @@ export default function CentralAdminDashboard() {
             <div className="flex items-start gap-3">
               <Phone className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-slate-500">Switchboard Phone</p>
+                <p className="text-xs font-semibold text-slate-600">Switchboard Phone</p>
                 <p className="font-medium text-slate-900 tabular-nums">{selectedHospital.phone}</p>
               </div>
             </div>
@@ -562,13 +569,13 @@ export default function CentralAdminDashboard() {
             <div className="flex items-start gap-3">
               <Mail className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-slate-500">Administrative Email</p>
+                <p className="text-xs font-semibold text-slate-600">Administrative Email</p>
                 <p className="font-medium text-slate-900">{selectedHospital.email}</p>
               </div>
             </div>
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">Node Status</span>
+              <span className="text-xs font-semibold text-slate-600">Node Status</span>
               <StatusBadge
                 tone={selectedHospital.isActive ? 'success' : 'critical'}
                 label={selectedHospital.isActive ? 'Online & Synced' : 'Offline'}

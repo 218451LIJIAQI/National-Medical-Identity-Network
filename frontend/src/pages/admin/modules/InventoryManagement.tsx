@@ -97,6 +97,12 @@ export default function InventoryManagement() {
           description: `Added ${delta} ${res.data.unit} to ${res.data.name}.`,
           variant: 'success',
         })
+      } else {
+        toast({
+          title: 'Restock Failed',
+          description: res.error || 'Could not update SKU stock.',
+          variant: 'destructive',
+        })
       }
     } finally {
       setSaving(false)
@@ -134,6 +140,12 @@ export default function InventoryManagement() {
     if (res.success) {
       setItems((prev) => prev.filter((i) => i.id !== id))
       toast({ title: 'SKU Removed', description: 'Inventory item removed from active catalog.' })
+    } else {
+      toast({
+        title: 'Delete Failed',
+        description: res.error || 'Could not remove inventory SKU.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -182,17 +194,17 @@ export default function InventoryManagement() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 tabular-nums">
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500">Tracked Store SKUs</p>
+          <p className="text-xs font-semibold text-slate-600">Tracked Store SKUs</p>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{items.length}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500">Below Reorder Threshold</p>
+          <p className="text-xs font-semibold text-slate-600">Below Reorder Threshold</p>
           <p className={cn('text-2xl font-extrabold mt-1', lowStockCount > 0 ? 'text-red-700' : 'text-emerald-700')}>
             {lowStockCount} SKU(s)
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500">On-Hand Store Valuation</p>
+          <p className="text-xs font-semibold text-slate-600">On-Hand Store Valuation</p>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{formatMYR(totalValuation)}</p>
         </div>
       </div>
@@ -215,6 +227,7 @@ export default function InventoryManagement() {
           ))}
           <button
             type="button"
+            aria-pressed={lowStockOnly}
             onClick={() => setLowStockOnly((v) => !v)}
             className={cn(
               'px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors',
@@ -230,6 +243,8 @@ export default function InventoryManagement() {
         <div className="relative w-64 max-w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
+            id="inv-search-input"
+            aria-label="Search inventory SKUs"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search SKU, drug, supplier…"
@@ -283,7 +298,7 @@ export default function InventoryManagement() {
                         <p className="font-bold text-sm text-slate-900">
                           {language === 'ms' ? item.nameMY : item.name}
                         </p>
-                        <p className="text-slate-500">
+                        <p className="text-slate-600">
                           {item.supplier}
                           {item.expiryDate ? ` • Exp: ${item.expiryDate}` : ''}
                         </p>
@@ -293,7 +308,7 @@ export default function InventoryManagement() {
                         <span className={cn('font-bold', isLow ? 'text-red-700' : 'text-slate-900')}>
                           {item.currentStock.toLocaleString()}
                         </span>{' '}
-                        <span className="text-slate-500">/ {item.minStock.toLocaleString()} {item.unit}</span>
+                        <span className="text-slate-600">/ {item.minStock.toLocaleString()} {item.unit}</span>
                       </td>
                       <td className="py-3.5 px-4 text-right font-semibold">{formatMYR(item.pricePerUnit)}</td>
                       <td className="py-3.5 px-4">
@@ -343,8 +358,11 @@ export default function InventoryManagement() {
       >
         <form onSubmit={handleRestock} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-slate-700">Quantity Received ({restockItem?.unit}) *</label>
+            <label htmlFor="inv-restock-qty" className="text-xs font-bold text-slate-700">
+              Quantity Received ({restockItem?.unit}) *
+            </label>
             <Input
+              id="inv-restock-qty"
               type="number"
               min={1}
               required
@@ -374,8 +392,11 @@ export default function InventoryManagement() {
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Item Name *</label>
+              <label htmlFor="inv-sku-name" className="text-xs font-bold text-slate-700">
+                Item Name *
+              </label>
               <Input
+                id="inv-sku-name"
                 required
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -383,8 +404,11 @@ export default function InventoryManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">SKU Code *</label>
+              <label htmlFor="inv-sku-code" className="text-xs font-bold text-slate-700">
+                SKU Code *
+              </label>
               <Input
+                id="inv-sku-code"
                 required
                 value={draft.sku}
                 onChange={(e) => setDraft({ ...draft, sku: e.target.value })}
@@ -396,8 +420,11 @@ export default function InventoryManagement() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
             <div>
-              <label className="text-xs font-bold text-slate-700">Category</label>
+              <label htmlFor="inv-sku-cat" className="text-xs font-bold text-slate-700">
+                Category
+              </label>
               <select
+                id="inv-sku-cat"
                 value={draft.category}
                 onChange={(e) => setDraft({ ...draft, category: e.target.value as InventorySkuDto['category'] })}
                 className="w-full h-10 px-2.5 rounded-xl border border-slate-300 bg-white text-sm"
@@ -409,8 +436,11 @@ export default function InventoryManagement() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Initial Stock</label>
+              <label htmlFor="inv-sku-stock" className="text-xs font-bold text-slate-700">
+                Initial Stock
+              </label>
               <Input
+                id="inv-sku-stock"
                 type="number"
                 min={0}
                 value={draft.currentStock}
@@ -418,8 +448,11 @@ export default function InventoryManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Min Threshold</label>
+              <label htmlFor="inv-sku-min" className="text-xs font-bold text-slate-700">
+                Min Threshold
+              </label>
               <Input
+                id="inv-sku-min"
                 type="number"
                 min={0}
                 value={draft.minStock}
@@ -427,8 +460,11 @@ export default function InventoryManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Unit Price (RM)</label>
+              <label htmlFor="inv-sku-price" className="text-xs font-bold text-slate-700">
+                Unit Price (RM)
+              </label>
               <Input
+                id="inv-sku-price"
                 type="number"
                 step="0.01"
                 min={0}
@@ -440,12 +476,16 @@ export default function InventoryManagement() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Dispensing Unit</label>
-              <Input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} />
+              <label htmlFor="inv-sku-unit" className="text-xs font-bold text-slate-700">
+                Dispensing Unit
+              </label>
+              <Input id="inv-sku-unit" value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Contract Supplier</label>
-              <Input value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} />
+              <label htmlFor="inv-sku-supplier" className="text-xs font-bold text-slate-700">
+                Contract Supplier
+              </label>
+              <Input id="inv-sku-supplier" value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} />
             </div>
           </div>
 

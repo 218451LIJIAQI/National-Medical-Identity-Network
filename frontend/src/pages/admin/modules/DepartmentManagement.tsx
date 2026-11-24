@@ -177,6 +177,8 @@ export default function DepartmentManagement() {
         <div className="relative w-72 max-w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
+            id="dept-search-input"
+            aria-label="Search clinical departments"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search department, head, specialty…"
@@ -204,7 +206,7 @@ export default function DepartmentManagement() {
             <div key={dept.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span className="font-mono text-[11px] font-bold text-slate-500">{dept.id}</span>
+                  <span className="font-mono text-[11px] font-bold text-slate-600">{dept.id}</span>
                   <h2 className="text-base font-bold text-slate-900">
                     {language === 'ms' ? dept.nameMY : dept.name}
                   </h2>
@@ -229,7 +231,7 @@ export default function DepartmentManagement() {
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50">
                   <p className="font-extrabold text-slate-900">Ext. {dept.extension}</p>
-                  <p className="text-[11px] text-slate-500">PABX</p>
+                  <p className="text-[11px] text-slate-600">PABX</p>
                 </div>
               </div>
 
@@ -278,16 +280,22 @@ export default function DepartmentManagement() {
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Department Name *</label>
+              <label htmlFor="dept-name" className="text-xs font-bold text-slate-700">
+                Department Name *
+              </label>
               <Input
+                id="dept-name"
                 required
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Head of Department</label>
+              <label htmlFor="dept-head" className="text-xs font-bold text-slate-700">
+                Head of Department
+              </label>
               <Input
+                id="dept-head"
                 value={draft.head}
                 onChange={(e) => setDraft({ ...draft, head: e.target.value })}
                 placeholder="Dr. ..."
@@ -297,8 +305,11 @@ export default function DepartmentManagement() {
 
           <div className="grid grid-cols-3 gap-3 tabular-nums">
             <div>
-              <label className="text-xs font-bold text-slate-700">Doctors</label>
+              <label htmlFor="dept-doctors" className="text-xs font-bold text-slate-700">
+                Doctors
+              </label>
               <Input
+                id="dept-doctors"
                 type="number"
                 min={0}
                 value={draft.doctorCount}
@@ -306,8 +317,11 @@ export default function DepartmentManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Nurses</label>
+              <label htmlFor="dept-nurses" className="text-xs font-bold text-slate-700">
+                Nurses
+              </label>
               <Input
+                id="dept-nurses"
                 type="number"
                 min={0}
                 value={draft.nurseCount}
@@ -315,8 +329,11 @@ export default function DepartmentManagement() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Status</label>
+              <label htmlFor="dept-status" className="text-xs font-bold text-slate-700">
+                Status
+              </label>
               <select
+                id="dept-status"
                 value={draft.status}
                 onChange={(e) => setDraft({ ...draft, status: e.target.value as HospitalDepartmentDto['status'] })}
                 className="w-full h-10 px-2.5 rounded-xl border border-slate-300 bg-white text-sm"
@@ -330,15 +347,21 @@ export default function DepartmentManagement() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Location</label>
+              <label htmlFor="dept-location" className="text-xs font-bold text-slate-700">
+                Location
+              </label>
               <Input
+                id="dept-location"
                 value={draft.location}
                 onChange={(e) => setDraft({ ...draft, location: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">PABX Extension</label>
+              <label htmlFor="dept-ext" className="text-xs font-bold text-slate-700">
+                PABX Extension
+              </label>
               <Input
+                id="dept-ext"
                 value={draft.extension}
                 onChange={(e) => setDraft({ ...draft, extension: e.target.value })}
                 className="tabular-nums"
@@ -347,8 +370,11 @@ export default function DepartmentManagement() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-700">Sub-Specialties (comma-separated)</label>
+            <label htmlFor="dept-specialties" className="text-xs font-bold text-slate-700">
+              Sub-Specialties (comma-separated)
+            </label>
             <Input
+              id="dept-specialties"
               value={draft.specialtiesInput}
               onChange={(e) => setDraft({ ...draft, specialtiesInput: e.target.value })}
               placeholder="e.g., Interventional Cardiology, Heart Failure"

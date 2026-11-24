@@ -75,6 +75,11 @@ function normalizeLabReportInput(l: Partial<LabReport>, fallbackDate: Date) {
   };
 }
 
+export function isPendingLabResult(result: string): boolean {
+  const normalized = String(result || '').trim();
+  return !normalized || /^(?:pending\b|imaging scheduled\b)/i.test(normalized);
+}
+
 const HOSPITAL_PREFIX: Record<string, string> = {
   'hospital-kl': 'KL',
   'hospital-penang': 'PG',
@@ -609,6 +614,103 @@ export class HospitalDatabaseMulti {
     return this.formatRecord(updated);
   }
 
+  async dispensePrescription(
+    recordId: string,
+    prescriptionId: string,
+    dispensedBy: string
+  ): Promise<
+    | { status: 'not_found' }
+    | { status: 'already_dispensed'; record: MedicalRecord }
+    | { status: 'dispensed'; record: MedicalRecord; prescription: Prescription }
+  > {
+    const existing = await this.prisma.medicalRecord.findUnique({
+      where: { id: recordId },
+      include: { doctor: true, prescriptions: true, labReports: true },
+    });
+    if (!existing) return { status: 'not_found' };
+
+    const targetRx = existing.prescriptions.find(p => p.id === prescriptionId);
+    if (!targetRx) return { status: 'not_found' };
+
+    if (!targetRx.isActive) {
+      return { status: 'already_dispensed', record: this.formatRecord(existing) };
+    }
+
+    const stamp = `[Dispensed ${new Date().toISOString().split('T')[0]} by ${dispensedBy}]`;
+    const nextInstructions = targetRx.instructions
+      ? `${targetRx.instructions} ${stamp}`.slice(0, 500)
+      : stamp;
+
+    await this.prisma.prescription.update({
+      where: { id: prescriptionId },
+      data: {
+        isActive: false,
+        instructions: nextInstructions,
+      },
+    });
+
+    const refreshed = await this.getRecordById(recordId);
+    const updatedRx = refreshed?.prescriptions?.find(p => p.id === prescriptionId);
+    if (!refreshed || !updatedRx) return { status: 'not_found' };
+
+    return { status: 'dispensed', record: refreshed, prescription: updatedRx };
+  }
+
+  async signOffLabReport(
+    recordId: string,
+    labReportId: string,
+    input: {
+      result: string;
+      unit?: string;
+      referenceRange?: string;
+      isAbnormal?: boolean;
+      notes?: string;
+      signedOffBy: string;
+    }
+  ): Promise<
+    | { status: 'not_found' }
+    | { status: 'already_finalized'; record: MedicalRecord }
+    | { status: 'signed_off'; record: MedicalRecord; labReport: LabReport }
+  > {
+    const existing = await this.prisma.medicalRecord.findUnique({
+      where: { id: recordId },
+      include: { doctor: true, prescriptions: true, labReports: true },
+    });
+    if (!existing) return { status: 'not_found' };
+
+    const targetLab = existing.labReports.find(l => l.id === labReportId);
+    if (!targetLab) return { status: 'not_found' };
+
+    if (!isPendingLabResult(targetLab.result)) {
+      return { status: 'already_finalized', record: this.formatRecord(existing) };
+    }
+
+    const stamp = `[Verified by ${input.signedOffBy}]`;
+    const baseNote = input.notes !== undefined ? String(input.notes).trim() : targetLab.notes || '';
+    const nextNotes = baseNote ? `${baseNote} ${stamp}`.slice(0, 1000) : stamp;
+
+    await this.prisma.labReport.update({
+      where: { id: labReportId },
+      data: {
+        result: input.result.trim(),
+        unit: input.unit !== undefined ? (input.unit.trim() || null) : targetLab.unit,
+        referenceRange:
+          input.referenceRange !== undefined
+            ? input.referenceRange.trim() || null
+            : targetLab.referenceRange,
+        isAbnormal: input.isAbnormal !== undefined ? Boolean(input.isAbnormal) : targetLab.isAbnormal,
+        reportDate: new Date(),
+        notes: nextNotes,
+      },
+    });
+
+    const refreshed = await this.getRecordById(recordId);
+    const updatedLab = refreshed?.labReports?.find(l => l.id === labReportId);
+    if (!refreshed || !updatedLab) return { status: 'not_found' };
+
+    return { status: 'signed_off', record: refreshed, labReport: updatedLab };
+  }
+
   private formatRecord(record: {
     id: string;
     icNumber: string;
@@ -800,6 +902,14 @@ export class HospitalDatabaseMulti {
     return found ? { ...found } : null;
   }
 
+  findActiveQueueTicketByIc(rawIcNumber: string): QueueTicket | null {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    const active = this.queueTickets.find(
+      q => normalizeIcNumber(q.icNumber) === icNumber && q.status !== 'completed'
+    );
+    return active ? { ...active } : null;
+  }
+
   enqueuePatient(input: {
     name: string;
     icNumber: string;
@@ -845,6 +955,13 @@ export class HospitalDatabaseMulti {
 
   getAppointmentById(id: string): ClinicAppointment | null {
     const found = this.appointments.find(a => a.id === id);
+    return found ? { ...found } : null;
+  }
+
+  findSlotAppointmentConflict(date: string, time: string): ClinicAppointment | null {
+    const found = this.appointments.find(
+      a => a.date === date && a.time === time && a.status !== 'cancelled'
+    );
     return found ? { ...found } : null;
   }
 
@@ -968,6 +1085,17 @@ export class HospitalDatabaseMulti {
     return chart;
   }
 
+  private invalidateAccountReceipt(account: PatientBillingAccount): void {
+    account.receipt = null;
+    const prevSettled = this.settledAmountsByPatient.get(account.icNumber);
+    if (prevSettled) {
+      this.settledRevenueTotal = Number(Math.max(0, this.settledRevenueTotal - prevSettled.net).toFixed(2));
+      this.settledSubsidyTotal = Number(Math.max(0, this.settledSubsidyTotal - prevSettled.subsidy).toFixed(2));
+      this.settledReceiptsCount = Math.max(0, this.settledReceiptsCount - 1);
+      this.settledAmountsByPatient.delete(account.icNumber);
+    }
+  }
+
   async getOrInitBillingAccount(rawIcNumber: string): Promise<PatientBillingAccount> {
     const icNumber = normalizeIcNumber(rawIcNumber);
     const existing = this.billingAccounts.get(icNumber);
@@ -1023,7 +1151,7 @@ export class HospitalDatabaseMulti {
     const account = await this.getOrInitBillingAccount(rawIcNumber);
     const defaultSubsidy =
       account.subsidyStatus === 'eligible' ? 95 : account.subsidyStatus === 'pending' ? 50 : 0;
-    account.receipt = null;
+    this.invalidateAccountReceipt(account);
     account.items.push({
       id: `bil-${crypto.randomUUID().slice(0, 8)}`,
       category: String(item.category || 'Clinical Service').trim(),
@@ -1034,11 +1162,18 @@ export class HospitalDatabaseMulti {
     return account;
   }
 
-  async removeBillingItem(rawIcNumber: string, itemId: string): Promise<PatientBillingAccount> {
+  async removeBillingItem(
+    rawIcNumber: string,
+    itemId: string
+  ): Promise<{ removed: boolean; account: PatientBillingAccount }> {
     const account = await this.getOrInitBillingAccount(rawIcNumber);
+    const before = account.items.length;
     account.items = account.items.filter(i => i.id !== itemId);
-    account.receipt = null;
-    return account;
+    const removed = account.items.length < before;
+    if (removed) {
+      this.invalidateAccountReceipt(account);
+    }
+    return { removed, account };
   }
 
   async setBillingSubsidyStatus(
@@ -1058,7 +1193,7 @@ export class HospitalDatabaseMulti {
               ? 100
               : 95,
     }));
-    account.receipt = null;
+    this.invalidateAccountReceipt(account);
     return account;
   }
 
@@ -1405,13 +1540,32 @@ export class HospitalDatabaseMulti {
     return this.inventory.length < before;
   }
 
-  async getFinancialSummary() {
+  async getFinancialSummary(blockedIcs?: Set<string>) {
     const mult =
       this.prefix === 'KL' ? 1.35 : this.prefix === 'PG' ? 1.1 : this.prefix === 'JB' ? 1.05 : 0.88;
     const roundRM = (v: number) => Math.round(v * mult);
     const inventoryValuation = Number(
       this.inventory.reduce((sum, i) => sum + i.currentStock * i.pricePerUnit, 0).toFixed(2)
     );
+
+    let effectiveRevenue = this.settledRevenueTotal;
+    let effectiveSubsidy = this.settledSubsidyTotal;
+    let effectiveCount = this.settledReceiptsCount;
+
+    if (blockedIcs && blockedIcs.size > 0) {
+      let visibleNet = 0;
+      let visibleSub = 0;
+      let visibleReceipts = 0;
+      for (const [ic, entry] of this.settledAmountsByPatient.entries()) {
+        if (blockedIcs.has(normalizeIcNumber(ic))) continue;
+        visibleNet += entry.net;
+        visibleSub += entry.subsidy;
+        visibleReceipts += 1;
+      }
+      effectiveRevenue = Number(visibleNet.toFixed(2));
+      effectiveSubsidy = Number(visibleSub.toFixed(2));
+      effectiveCount = visibleReceipts;
+    }
 
     const monthlySeries = [
       { month: 'Dec', mohAllocation: roundRM(4100000), patientCollection: roundRM(185000), operatingExpense: roundRM(3890000), subsidyAbsorbed: roundRM(2640000) },
@@ -1422,9 +1576,9 @@ export class HospitalDatabaseMulti {
       {
         month: 'May',
         mohAllocation: roundRM(4500000),
-        patientCollection: Number((roundRM(216000) + this.settledRevenueTotal).toFixed(2)),
+        patientCollection: Number((roundRM(216000) + effectiveRevenue).toFixed(2)),
         operatingExpense: roundRM(4170000),
-        subsidyAbsorbed: Number((roundRM(2940000) + this.settledSubsidyTotal).toFixed(2)),
+        subsidyAbsorbed: Number((roundRM(2940000) + effectiveSubsidy).toFixed(2)),
       },
     ];
 
@@ -1440,9 +1594,9 @@ export class HospitalDatabaseMulti {
       hospitalId: this.hospitalId,
       hospitalName: getHospitalById(this.hospitalId)?.name || this.hospitalId,
       fiscalYear: 'FY 2026 (KKM Operating Vote B42)',
-      settledReceiptsCount: this.settledReceiptsCount,
-      liveSettledRevenue: this.settledRevenueTotal,
-      liveSubsidyAbsorbed: this.settledSubsidyTotal,
+      settledReceiptsCount: effectiveCount,
+      liveSettledRevenue: effectiveRevenue,
+      liveSubsidyAbsorbed: effectiveSubsidy,
       inventoryValuation,
       monthlySeries,
       expenseBreakdown,

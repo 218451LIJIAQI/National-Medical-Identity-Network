@@ -15,7 +15,7 @@ import {
 } from '../middleware/auth';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
 import { getHospitalById } from '../config';
-import { User, UserRole, normalizeIcNumber } from '../types';
+import { User, UserRole, VALID_USER_ROLES, normalizeIcNumber } from '../types';
 
 const router = Router();
 
@@ -86,6 +86,14 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
+    if (role !== undefined && role !== '' && !VALID_USER_ROLES.includes(role as UserRole)) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid role specified',
+      });
+      return;
+    }
+
     const icNumber = normalizeIcNumber(String(rawIc));
     const candidates = await getUsersByIc(icNumber);
     const matchingUsers = candidates.filter(u => verifyPassword(String(password), u.passwordHash));
@@ -145,6 +153,7 @@ router.post('/login', async (req: Request, res: Response) => {
       if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
         res.status(403).json({
           success: false,
+          licenseRevoked: true,
           error: 'Doctor profile is inactive or not registered at the assigned hospital',
         });
         return;
@@ -217,6 +226,14 @@ router.post(
       }
 
       const { method = 'credentials', username, staffId, password, icNumber } = req.body || {};
+      if (method !== 'credentials' && method !== 'ic_chip') {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid verification method; expected "credentials" or "ic_chip"',
+        });
+        return;
+      }
+
       const hospitalName = getHospitalById(currentUser.hospitalId)?.name || currentUser.hospitalId;
 
       let doctorRecord = null;
@@ -236,6 +253,7 @@ router.post(
           });
           res.status(403).json({
             success: false,
+            licenseRevoked: true,
             error: 'Active clinician profile not found at this hospital',
           });
           return;
@@ -243,7 +261,15 @@ router.post(
       }
 
       if (method === 'ic_chip') {
-        const scannedIc = icNumber ? normalizeIcNumber(String(icNumber)) : dbUser.icNumber;
+        const rawChipIc = String(icNumber ?? '').trim();
+        if (!rawChipIc) {
+          res.status(400).json({
+            success: false,
+            error: 'Scanned MyKad IC number is required for chip verification',
+          });
+          return;
+        }
+        const scannedIc = normalizeIcNumber(rawChipIc);
         if (scannedIc !== normalizeIcNumber(dbUser.icNumber)) {
           await createAuditLog({
             timestamp: new Date().toISOString(),
@@ -352,10 +378,10 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
     const { role } = req.body || {};
     const currentUser = req.user!;
 
-    if (!role || typeof role !== 'string') {
+    if (!role || typeof role !== 'string' || !VALID_USER_ROLES.includes(role as UserRole)) {
       res.status(400).json({
         success: false,
-        error: 'Target role is required',
+        error: 'Valid target role is required',
       });
       return;
     }
@@ -371,9 +397,38 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
       return;
     }
 
+    const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
+
+    // Idempotent no-op when switching to the currently active role: preserve step-up hospitalVerified state
+    if (targetUser.id === currentUser.userId && targetUser.role === currentUser.role) {
+      const preservedVerified = Boolean(currentUser.hospitalVerified);
+      let sameUserInfo: UserProfileResponse;
+      try {
+        sameUserInfo = await buildUserResponse(targetUser, availableRoles, preservedVerified);
+      } catch (err) {
+        if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
+          res.status(403).json({
+            success: false,
+            licenseRevoked: true,
+            error: 'Doctor profile is inactive at the assigned hospital',
+          });
+          return;
+        }
+        throw err;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          token: req.rawToken!,
+          user: sameUserInfo,
+        },
+      });
+      return;
+    }
+
     const requiresHospitalStep = targetUser.role === 'doctor' || targetUser.role === 'hospital_admin';
     const hospitalVerified = !requiresHospitalStep;
-    const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
 
     let userInfo: UserProfileResponse;
     try {
@@ -382,6 +437,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
       if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
         res.status(403).json({
           success: false,
+          licenseRevoked: true,
           error: 'Doctor profile is inactive at the assigned hospital',
         });
         return;
@@ -478,6 +534,7 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
       if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
         res.status(403).json({
           success: false,
+          licenseRevoked: true,
           error: 'Doctor profile is inactive or not registered at the assigned hospital',
         });
         return;

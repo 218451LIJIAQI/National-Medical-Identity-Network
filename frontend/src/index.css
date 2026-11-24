@@ -126,6 +126,15 @@
   scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 ::selection {
   @apply bg-blue-600/20 text-blue-950;
 }

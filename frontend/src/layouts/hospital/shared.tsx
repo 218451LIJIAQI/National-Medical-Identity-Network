@@ -46,6 +46,7 @@ import { cn, formatIC, getRoleHomePath, isValidMyKad } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ModalDialog } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -482,7 +483,7 @@ export default function HospitalLayout() {
 
         {showNotifications && (
           <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 text-left">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">
               Federated Node Status
             </p>
             <div className="space-y-2 text-xs text-slate-700">
@@ -603,7 +604,7 @@ export default function HospitalLayout() {
             : 'bg-white/95 backdrop-blur-xl border-slate-200 shadow-sm'
         )}
       >
-        <div className="max-w-[1600px] mx-auto px-5 min-h-[4rem] py-2 flex items-center justify-between gap-4">
+        <div className="max-w-[1600px] mx-auto px-5 min-h-[4rem] py-2 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             {hasLeftSidebar && (
               <button
@@ -689,7 +690,7 @@ export default function HospitalLayout() {
               </button>
               <div
                 ref={dockScrollRef}
-                className="flex items-center gap-1 overflow-x-auto flex-1 py-0.5"
+                className="no-scrollbar flex items-center gap-1 overflow-x-auto flex-1 py-0.5"
               >
                 {navSections.flatMap((s) => s.items).map((item) => {
                   const Icon = item.icon
@@ -866,7 +867,7 @@ export default function HospitalLayout() {
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div ref={dockScrollRef} className="flex items-center gap-1 overflow-x-auto px-1">
+            <div ref={dockScrollRef} className="no-scrollbar flex items-center gap-1 overflow-x-auto px-1">
               {navSections.flatMap((s) => s.items).map((item) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
@@ -914,7 +915,11 @@ export default function HospitalLayout() {
       >
         <form onSubmit={handleQuickJump} className="space-y-4">
           <div className="space-y-1.5">
+            <Label htmlFor="quick-jump-ic-input" className="text-xs font-bold text-slate-700">
+              Patient 12-Digit MyKad IC *
+            </Label>
             <Input
+              id="quick-jump-ic-input"
               autoFocus
               value={quickIc}
               onChange={(e) => {
@@ -926,7 +931,7 @@ export default function HospitalLayout() {
               className="h-11 font-mono text-sm tabular-nums"
             />
             {quickError && (
-              <p role="alert" className="text-xs font-medium text-red-600">
+              <p role="alert" className="text-xs font-medium text-red-700">
                 {quickError}
               </p>
             )}
@@ -957,4 +962,3 @@ export default function HospitalLayout() {
     </div>
   )
 }
-

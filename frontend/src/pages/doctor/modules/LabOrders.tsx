@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   FlaskConical,
   Plus,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Printer,
   Loader2,
+  ClipboardCheck,
 } from 'lucide-react'
 import {
   ClinicalPatientBanner,
@@ -19,10 +20,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useClinicalStore } from '@/store/clinical'
 import { useAuthStore } from '@/store/auth'
-import { hospitalApi } from '@/lib/api'
+import { centralApi, hospitalApi, type LabReportDto } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { useTranslation } from '@/lib/i18n'
-import { cn, escapeHtml, printHtmlDocument } from '@/lib/utils'
+import { cn, escapeHtml, formatDate, printHtmlDocument } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
 interface LabTestItem {
@@ -36,6 +37,19 @@ interface LabTestItem {
   turnaround: string
 }
 
+interface HospitalLabRequisition extends LabReportDto {
+  recordId: string
+  visitDate: string
+}
+
+interface LabSignOffDraft {
+  result: string
+  unit: string
+  referenceRange: string
+  isAbnormal: boolean
+  notes: string
+}
+
 const LAB_CATALOG = [
   { code: 'FBC', name: 'Full Blood Count', category: 'Hematology', sampleType: 'EDTA Blood', turnaround: '2 hours', fasting: false },
   { code: 'PT/INR', name: 'Prothrombin Time / INR', category: 'Hematology', sampleType: 'Citrate Blood', turnaround: '2 hours', fasting: false },
@@ -47,11 +61,21 @@ const LAB_CATALOG = [
   { code: 'Cardiac', name: 'Troponin-I & CK-MB', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '1 hour', fasting: false },
   { code: 'BCx', name: 'Aerobic Blood Culture', category: 'Microbiology', sampleType: 'Culture Bottle', turnaround: '48-72 hours', fasting: false },
   { code: 'UFEME', name: 'Urine FEME', category: 'Microbiology', sampleType: 'Midstream Urine', turnaround: '2 hours', fasting: false },
-  { code: 'Dengue', name: 'Dengue NS1 / IgM / IgG', category: 'Serology', sampleType: 'Plain Blood', turnaround: '4 hours', fasting: false },
+  { code: 'Dengue', name: 'Dengue NS1 / IgM / IgG', category: 'Microbiology', sampleType: 'Plain Blood', turnaround: '4 hours', fasting: false },
   { code: 'TFT', name: 'Thyroid Panel (TSH, fT4)', category: 'Biochemistry', sampleType: 'Plain Blood', turnaround: '24 hours', fasting: false },
 ]
 
 const CATEGORIES = ['All', 'Hematology', 'Biochemistry', 'Microbiology', 'Serology']
+
+function isPendingLabValue(result: string): boolean {
+  const normalized = (result || '').trim().toLowerCase()
+  return (
+    !normalized ||
+    normalized.startsWith('pending') ||
+    normalized.startsWith('imaging scheduled') ||
+    normalized === 'ordered'
+  )
+}
 
 export default function LabOrders() {
   const user = useAuthStore((s) => s.user)
@@ -66,13 +90,54 @@ export default function LabOrders() {
   const [clinicalInfo, setClinicalInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [orderRef, setOrderRef] = useState<string | null>(null)
+  const [requisitions, setRequisitions] = useState<HospitalLabRequisition[]>([])
+  const [signOffDrafts, setSignOffDrafts] = useState<Record<string, LabSignOffDraft>>({})
+  const [signingOffId, setSigningOffId] = useState<string | null>(null)
   const submitLockRef = useRef(false)
+
+  const loadHospitalLabRequisitions = useCallback(
+    async (ic: string, signal?: AbortSignal) => {
+      if (!user?.hospitalId) return
+      const res = await centralApi.queryPatient(ic, signal)
+      if (res.aborted || signal?.aborted) return
+      if (res.success && res.data) {
+        const localNode = res.data.hospitals.find((h) => h.hospitalId === user.hospitalId)
+        const items: HospitalLabRequisition[] = []
+        const drafts: Record<string, LabSignOffDraft> = {}
+        for (const rec of localNode?.records || []) {
+          for (const lab of rec.labReports || []) {
+            if (lab.id) {
+              items.push({ ...lab, recordId: rec.id, visitDate: rec.visitDate })
+              if (isPendingLabValue(lab.result)) {
+                drafts[lab.id] = {
+                  result: '',
+                  unit: lab.unit || '',
+                  referenceRange: lab.referenceRange || '',
+                  isAbnormal: false,
+                  notes: lab.notes || '',
+                }
+              }
+            }
+          }
+        }
+        setRequisitions(items)
+        setSignOffDrafts((prev) => ({ ...drafts, ...prev }))
+      }
+    },
+    [user?.hospitalId]
+  )
 
   useEffect(() => {
     setSelectedTests([])
     setClinicalInfo('')
     setOrderRef(null)
-  }, [activePatient?.icNumber])
+    setRequisitions([])
+    setSignOffDrafts({})
+    if (!activePatient?.icNumber) return
+    const controller = new AbortController()
+    void loadHospitalLabRequisitions(activePatient.icNumber, controller.signal)
+    return () => controller.abort()
+  }, [activePatient?.icNumber, loadHospitalLabRequisitions])
 
   const filteredCatalog = LAB_CATALOG.filter((item) => {
     const matchesCat = selectedCategory === 'All' || item.category === selectedCategory
@@ -144,9 +209,11 @@ export default function LabOrders() {
 
       if (res.success) {
         setOrderRef(ref)
+        setSelectedTests([])
+        await loadHospitalLabRequisitions(activePatient.icNumber)
         toast({
           title: 'Laboratory Requisition Submitted',
-          description: `${ref} (${selectedTests.length} test(s)) logged to ${activePatient.fullName}'s timeline.`,
+          description: `${ref} logged to ${activePatient.fullName}'s timeline and queued for laboratory sign-off.`,
           variant: 'success',
         })
       } else {
@@ -162,6 +229,50 @@ export default function LabOrders() {
     }
   }
 
+  const handleSignOff = async (lab: HospitalLabRequisition) => {
+    if (!user?.hospitalId || !lab.id || signingOffId) return
+    const draft = signOffDrafts[lab.id]
+    if (!draft?.result.trim()) {
+      toast({
+        title: 'Quantitative / Qualitative Result Required',
+        description: `Enter a verified laboratory result before signing off ${lab.testName}.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSigningOffId(lab.id)
+    try {
+      const res = await hospitalApi.signOffLabReport(user.hospitalId, lab.recordId, lab.id, {
+        result: draft.result.trim(),
+        unit: draft.unit.trim(),
+        referenceRange: draft.referenceRange.trim(),
+        isAbnormal: draft.isAbnormal,
+        notes: draft.notes.trim(),
+      })
+      if (res.success && res.data?.labReport) {
+        setRequisitions((prev) =>
+          prev.map((r) => (r.id === lab.id ? { ...r, ...res.data!.labReport } : r))
+        )
+        toast({
+          title: 'Diagnostic Report Signed Off',
+          description: `${lab.testName} finalized (${res.data.labReport.result} ${res.data.labReport.unit}).`,
+          variant: 'success',
+        })
+      } else {
+        toast({
+          title: 'Sign-Off Rejected',
+          description: res.error || 'Unable to sign off diagnostic report.',
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setSigningOffId(null)
+    }
+  }
+
+  const pendingRequisitions = requisitions.filter((r) => isPendingLabValue(r.result))
+
   return (
     <div className="space-y-6">
       <ClinicalPatientBanner />
@@ -169,7 +280,7 @@ export default function LabOrders() {
       <WorkstationModuleHeader
         icon={FlaskConical}
         title={t.labOrders}
-        subtitle="Pathology panel ordering, specimen tube guidance & STAT turnaround flagging"
+        subtitle="Pathology panel ordering, specimen tube guidance & diagnostic result sign-off"
         actions={
           activePatient ? (
             <>
@@ -199,7 +310,7 @@ export default function LabOrders() {
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
               <span>
-                Pathology Requisition <code className="font-mono tabular-nums">{orderRef}</code> attached to patient clinical record.
+                Pathology Requisition <code className="font-mono tabular-nums">{orderRef}</code> attached to patient clinical record and queued below for laboratory result verification.
               </span>
             </div>
           )}
@@ -227,6 +338,8 @@ export default function LabOrders() {
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
+                  id="lab-catalog-search"
+                  aria-label="Search laboratory catalog"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search FBC, RFT, HbA1c, Dengue…"
@@ -255,7 +368,7 @@ export default function LabOrders() {
                           <span className="font-mono mr-1.5">{item.code}</span>
                           {item.name}
                         </p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-600">
                           {item.sampleType} • TAT {item.turnaround}
                           {item.fasting ? ' • Fasting' : ''}
                         </p>
@@ -270,8 +383,11 @@ export default function LabOrders() {
             {/* Selected Requisition */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700">Clinical Indication & Provisional Diagnosis</label>
+                <label htmlFor="lab-clinical-indication" className="text-xs font-bold text-slate-700">
+                  Clinical Indication & Provisional Diagnosis
+                </label>
                 <Input
+                  id="lab-clinical-indication"
                   value={clinicalInfo}
                   onChange={(e) => setClinicalInfo(e.target.value)}
                   placeholder="e.g., Rule out acute dengue vs bacterial sepsis; baseline renal profile…"
@@ -280,7 +396,7 @@ export default function LabOrders() {
               </div>
 
               {selectedTests.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
+                <div className="py-12 text-center text-xs text-slate-600 border border-dashed border-slate-200 rounded-xl">
                   Select laboratory tests from the catalog on the left to build this requisition.
                 </div>
               ) : (
@@ -331,6 +447,136 @@ export default function LabOrders() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Pending Hospital Requisitions & Diagnostic Result Sign-Off */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 px-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className={cn('w-4 h-4', theme.iconColor)} />
+                <h2 className="text-sm font-bold text-slate-900">
+                  {theme.shortName} Pending Diagnostic Requisitions ({pendingRequisitions.length})
+                </h2>
+              </div>
+              <span className="text-xs text-slate-600">
+                Finalized results become immutable (HTTP 409 on duplicate sign-off)
+              </span>
+            </div>
+
+            {pendingRequisitions.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-600">
+                No pending laboratory or imaging requisitions awaiting sign-off for {activePatient.fullName}.
+              </div>
+            ) : (
+              <div className="p-5 space-y-3">
+                {pendingRequisitions.map((lab) => {
+                  const lid = lab.id!
+                  const draft = signOffDrafts[lid] || {
+                    result: '',
+                    unit: lab.unit || '',
+                    referenceRange: lab.referenceRange || '',
+                    isAbnormal: false,
+                    notes: lab.notes || '',
+                  }
+                  return (
+                    <div
+                      key={lid}
+                      className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div>
+                          <p className="font-bold text-sm text-slate-900">{lab.testName}</p>
+                          <p className="text-xs text-slate-600 tabular-nums">
+                            {lab.testType} • Ordered {formatDate(lab.visitDate)}
+                          </p>
+                        </div>
+                        <StatusBadge tone="warning" label="Pending Sign-Off" />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 text-xs">
+                        <div>
+                          <label htmlFor={`so-res-${lid}`} className="font-semibold text-slate-700">
+                            Result *
+                          </label>
+                          <Input
+                            id={`so-res-${lid}`}
+                            placeholder="e.g., 5.4 or Negative"
+                            value={draft.result}
+                            onChange={(e) =>
+                              setSignOffDrafts((prev) => ({
+                                ...prev,
+                                [lid]: { ...draft, result: e.target.value },
+                              }))
+                            }
+                            className="h-9 text-xs bg-white mt-0.5 tabular-nums"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`so-unit-${lid}`} className="font-semibold text-slate-700">
+                            Unit
+                          </label>
+                          <Input
+                            id={`so-unit-${lid}`}
+                            placeholder="mmol/L, g/dL…"
+                            value={draft.unit}
+                            onChange={(e) =>
+                              setSignOffDrafts((prev) => ({
+                                ...prev,
+                                [lid]: { ...draft, unit: e.target.value },
+                              }))
+                            }
+                            className="h-9 text-xs bg-white mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`so-ref-${lid}`} className="font-semibold text-slate-700">
+                            Ref Range
+                          </label>
+                          <Input
+                            id={`so-ref-${lid}`}
+                            placeholder="3.9 - 5.5"
+                            value={draft.referenceRange}
+                            onChange={(e) =>
+                              setSignOffDrafts((prev) => ({
+                                ...prev,
+                                [lid]: { ...draft, referenceRange: e.target.value },
+                              }))
+                            }
+                            className="h-9 text-xs bg-white mt-0.5 tabular-nums"
+                          />
+                        </div>
+                        <div className="flex items-end justify-between gap-2">
+                          <label className="flex items-center gap-1.5 text-xs font-bold text-red-800 h-9 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={draft.isAbnormal}
+                              onChange={(e) =>
+                                setSignOffDrafts((prev) => ({
+                                  ...prev,
+                                  [lid]: { ...draft, isAbnormal: e.target.checked },
+                                }))
+                              }
+                            />
+                            Abnormal
+                          </label>
+                          <Button
+                            size="sm"
+                            disabled={signingOffId === lid}
+                            onClick={() => void handleSignOff(lab)}
+                            className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}
+                          >
+                            {signingOffId === lid && (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                            )}
+                            {t.signOffLabResult}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

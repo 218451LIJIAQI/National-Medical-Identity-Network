@@ -207,6 +207,12 @@ export default function NursingNotes() {
       if (res.success && res.data) {
         setChart(res.data)
         toast({ title: 'Fluid Balance Saved', description: '24-hour intake/output chart updated.', variant: 'success' })
+      } else {
+        toast({
+          title: 'Fluid Balance Rejected',
+          description: res.error || 'Unable to update fluid balance.',
+          variant: 'destructive',
+        })
       }
     } finally {
       setSavingAction(false)
@@ -322,7 +328,7 @@ export default function NursingNotes() {
           {activeTab === 'vitals' && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               {chart.vitalsHistory.length === 0 ? (
-                <div className="p-10 text-center text-xs text-slate-500">
+                <div className="p-10 text-center text-xs text-slate-600">
                   No nursing observations recorded for {activePatient.fullName} yet. Click "Record Vitals" to chart baseline parameters.
                 </div>
               ) : (
@@ -374,7 +380,7 @@ export default function NursingNotes() {
           {activeTab === 'notes' && (
             <div className="space-y-3">
               {chart.notes.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-xs text-slate-500">
+                <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-xs text-slate-600">
                   No nursing progress notes recorded for {activePatient.fullName}.
                 </div>
               ) : (
@@ -400,7 +406,7 @@ export default function NursingNotes() {
                             />
                           )}
                         </div>
-                        <span className="text-xs text-slate-500 tabular-nums">
+                        <span className="text-xs text-slate-600 tabular-nums">
                           {formatDateTime(n.timestamp)} • {n.nurse}
                         </span>
                       </div>
@@ -443,10 +449,14 @@ export default function NursingNotes() {
                   ] as const
                 ).map(([field, label]) => (
                   <div key={field} className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700">{label}</label>
+                    <label htmlFor={`io-${field}`} className="text-xs font-semibold text-slate-700">
+                      {label}
+                    </label>
                     <Input
+                      id={`io-${field}`}
                       type="number"
                       min={0}
+                      max={50000}
                       className="tabular-nums"
                       value={ioDraft[field]}
                       onChange={(e) =>
@@ -481,8 +491,11 @@ export default function NursingNotes() {
         <form onSubmit={handleAddVitals} className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">BP (sys/dia) *</label>
+              <label htmlFor="nv-bp" className="text-xs font-bold text-slate-700">
+                BP (sys/dia) *
+              </label>
               <Input
+                id="nv-bp"
                 required
                 value={newVitals.bp}
                 onChange={(e) => setNewVitals({ ...newVitals, bp: e.target.value })}
@@ -491,8 +504,11 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Pulse (bpm) *</label>
+              <label htmlFor="nv-pulse" className="text-xs font-bold text-slate-700">
+                Pulse (bpm) *
+              </label>
               <Input
+                id="nv-pulse"
                 type="number"
                 required
                 value={newVitals.pulse}
@@ -501,8 +517,11 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Temp (°C) *</label>
+              <label htmlFor="nv-temp" className="text-xs font-bold text-slate-700">
+                Temp (°C) *
+              </label>
               <Input
+                id="nv-temp"
                 type="number"
                 step="0.1"
                 required
@@ -512,8 +531,11 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">RR (/min) *</label>
+              <label htmlFor="nv-rr" className="text-xs font-bold text-slate-700">
+                RR (/min) *
+              </label>
               <Input
+                id="nv-rr"
                 type="number"
                 required
                 value={newVitals.rr}
@@ -522,8 +544,11 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">SpO2 (%) *</label>
+              <label htmlFor="nv-spo2" className="text-xs font-bold text-slate-700">
+                SpO2 (%) *
+              </label>
               <Input
+                id="nv-spo2"
                 type="number"
                 required
                 value={newVitals.spo2}
@@ -532,8 +557,11 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Pain (0-10)</label>
+              <label htmlFor="nv-pain" className="text-xs font-bold text-slate-700">
+                Pain (0-10)
+              </label>
               <Input
+                id="nv-pain"
                 type="number"
                 min={0}
                 max={10}
@@ -543,15 +571,21 @@ export default function NursingNotes() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">GCS</label>
+              <label htmlFor="nv-gcs" className="text-xs font-bold text-slate-700">
+                GCS
+              </label>
               <Input
+                id="nv-gcs"
                 value={newVitals.gcs}
                 onChange={(e) => setNewVitals({ ...newVitals, gcs: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Capillary BG (mmol/L)</label>
+              <label htmlFor="nv-bg" className="text-xs font-bold text-slate-700">
+                Capillary BG (mmol/L)
+              </label>
               <Input
+                id="nv-bg"
                 type="number"
                 step="0.1"
                 value={newVitals.bloodSugar}
@@ -582,8 +616,11 @@ export default function NursingNotes() {
         <form onSubmit={handleAddNote} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Note Category</label>
+              <label htmlFor="nn-type" className="text-xs font-bold text-slate-700">
+                Note Category
+              </label>
               <select
+                id="nn-type"
                 value={newNote.type}
                 onChange={(e) =>
                   setNewNote({ ...newNote, type: e.target.value as PatientNursingChartDto['notes'][number]['type'] })
@@ -597,8 +634,11 @@ export default function NursingNotes() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Priority</label>
+              <label htmlFor="nn-priority" className="text-xs font-bold text-slate-700">
+                Priority
+              </label>
               <select
+                id="nn-priority"
                 value={newNote.priority}
                 onChange={(e) =>
                   setNewNote({
@@ -615,14 +655,17 @@ export default function NursingNotes() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700">Observation & Care Details *</label>
+            <label htmlFor="nn-content" className="text-xs font-bold text-slate-700">
+              Observation & Care Details *
+            </label>
             <textarea
+              id="nn-content"
               required
               rows={4}
               value={newNote.content}
               onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
               placeholder="Document bedside assessment, medication response, wound care, or handover notes…"
-              className="w-full mt-1 p-3 border border-slate-300 rounded-xl text-sm"
+              className="w-full mt-1 p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
             />
           </div>
           <div className="flex justify-end gap-2">

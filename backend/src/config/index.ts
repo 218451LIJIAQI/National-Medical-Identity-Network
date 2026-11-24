@@ -91,7 +91,7 @@ export function getHospitalById(hospitalId?: string): HospitalConfig | undefined
   return HOSPITALS.find(h => h.id === hospitalId);
 }
 
-export function validateEnvironmentConfig(env: NodeJS.ProcessEnv = process.env): void {
+function validateEnvironmentConfig(env: NodeJS.ProcessEnv = process.env): void {
   const isProd = env.NODE_ENV === 'production';
   if (!isProd) return;
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
-export const CLINICAL_PATIENT_STORAGE_KEY = 'medlink-active-clinical-patient'
+const CLINICAL_PATIENT_STORAGE_KEY = 'medlink-active-clinical-patient'
 
 export interface ActiveClinicalPatient {
   icNumber: string

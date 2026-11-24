@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { DisplayAccessibilityControls, LanguageSwitcher } from '@/layouts/hospital/shared'
@@ -295,11 +296,15 @@ export default function EmergencyAccess() {
         setCachedCount(getCachedEntryCount())
         setPatientInfo(resolvedInfo)
       } else {
-        if (response.status === 0) {
+        if (response.status === 0 || response.nodesUnavailable || response.status === 503) {
           const cached = readOfflineCache(normalizedIc)
           if (cached) {
             setPatientInfo({ ...cached, fromOfflineCache: true })
-            setStatusError('Network unreachable — displaying locally cached emergency summary.')
+            setStatusError(
+              response.nodesUnavailable
+                ? `${t.allNodesUnavailableTitle} — displaying locally cached 24h emergency summary.`
+                : 'Network unreachable — displaying locally cached emergency summary.'
+            )
             return
           }
         }
@@ -311,7 +316,9 @@ export default function EmergencyAccess() {
         }
         setPatientInfo(null)
         setStatusError(
-          response.error || response.data?.message || 'Patient not found in National Medical Identity Network'
+          response.nodesUnavailable
+            ? `${t.allNodesUnavailableTitle}: ${response.error || t.allNodesUnavailableDesc}`
+            : response.error || response.data?.message || t.patientNotFoundDesc
         )
       }
     } catch {
@@ -401,12 +408,19 @@ export default function EmergencyAccess() {
               <span>Emergency Patient MyKad Lookup</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-5 space-y-2">
+            <Label htmlFor="emergency-ic-input" className="text-xs font-bold text-slate-700">
+              Patient 12-Digit MyKad IC Number *
+            </Label>
             <div className="flex items-center gap-3">
               <Input
+                id="emergency-ic-input"
                 placeholder="Enter Patient 12-Digit MyKad IC (e.g., 880101-14-5678)"
                 value={icNumber}
-                onChange={(e) => setIcNumber(e.target.value)}
+                onChange={(e) => {
+                  setIcNumber(e.target.value)
+                  if (statusError) setStatusError('')
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                 className="text-base h-12 px-4 font-mono tabular-nums"
               />
@@ -470,18 +484,18 @@ export default function EmergencyAccess() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <p className="text-[11px] text-slate-500 uppercase font-bold">Full Name</p>
+                    <p className="text-[11px] text-slate-600 uppercase font-bold">Full Name</p>
                     <p className="text-xl font-bold text-slate-900">{patientInfo.name}</p>
                   </div>
                   <div className="flex items-center justify-between gap-4 pt-1">
                     <div>
-                      <p className="text-[11px] text-slate-500 uppercase font-bold">Masked MyKad IC</p>
+                      <p className="text-[11px] text-slate-600 uppercase font-bold">Masked MyKad IC</p>
                       <p className="font-mono text-sm font-semibold bg-slate-100 border border-slate-200 px-3 py-1 rounded-lg mt-1 inline-block tabular-nums">
                         {patientInfo.icNumber}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[11px] text-slate-500 uppercase font-bold mb-1">ABO / Rh</p>
+                      <p className="text-[11px] text-slate-600 uppercase font-bold mb-1">ABO / Rh</p>
                       <Badge className="text-base px-4 py-1 bg-red-700 text-white font-extrabold rounded-xl">
                         {patientInfo.bloodType}
                       </Badge>
@@ -529,11 +543,11 @@ export default function EmergencyAccess() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <p className="text-[11px] text-slate-500 uppercase font-bold">Contact</p>
+                    <p className="text-[11px] text-slate-600 uppercase font-bold">Contact</p>
                     <p className="text-sm font-bold text-slate-900">{patientInfo.emergencyContact.name}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-slate-500 uppercase font-bold mb-1">Phone</p>
+                    <p className="text-[11px] text-slate-600 uppercase font-bold mb-1">Phone</p>
                     {patientInfo.emergencyContact.phone && patientInfo.emergencyContact.phone !== '—' ? (
                       <a
                         href={`tel:${patientInfo.emergencyContact.phone}`}
@@ -543,7 +557,7 @@ export default function EmergencyAccess() {
                         {patientInfo.emergencyContact.phone}
                       </a>
                     ) : (
-                      <span className="text-sm text-slate-500">Not recorded</span>
+                      <span className="text-sm text-slate-600">Not recorded</span>
                     )}
                   </div>
                 </CardContent>
@@ -565,7 +579,7 @@ export default function EmergencyAccess() {
                       <StatusBadge key={condition} tone="warning" label={condition} />
                     ))
                   ) : (
-                    <span className="text-xs text-slate-500">No chronic conditions recorded.</span>
+                    <span className="text-xs text-slate-600">No chronic conditions recorded.</span>
                   )}
                 </CardContent>
               </Card>
@@ -593,7 +607,7 @@ export default function EmergencyAccess() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">No recent hospital diagnoses recorded.</p>
+                    <p className="text-xs text-slate-600">No recent hospital diagnoses recorded.</p>
                   )}
                 </CardContent>
               </Card>
@@ -626,7 +640,7 @@ export default function EmergencyAccess() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-600">
                     No active prescriptions found across federated hospital records.
                   </p>
                 )}

@@ -59,6 +59,16 @@ interface ActiveMedicationItem {
   hospital: string
 }
 
+function isPendingLabValue(result: string): boolean {
+  const normalized = (result || '').trim().toLowerCase()
+  return (
+    !normalized ||
+    normalized.startsWith('pending') ||
+    normalized.startsWith('imaging scheduled') ||
+    normalized === 'ordered'
+  )
+}
+
 export default function PatientTimeline() {
   const { icNumber } = useParams<{ icNumber: string }>()
   const navigate = useNavigate()
@@ -73,6 +83,7 @@ export default function PatientTimeline() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [allergiesVerified, setAllergiesVerified] = useState(false)
   const [partialFailureWarning, setPartialFailureWarning] = useState<string | null>(null)
+  const [redactedSensitiveCount, setRedactedSensitiveCount] = useState(0)
   const [hospitalFilter, setHospitalFilter] = useState<string>('all')
   const [reloadNonce, setReloadNonce] = useState(0)
 
@@ -109,6 +120,7 @@ export default function PatientTimeline() {
       setLoadError(null)
       setAllergiesVerified(false)
       setPartialFailureWarning(null)
+      setRedactedSensitiveCount(0)
       setHospitalFilter('all')
 
       try {
@@ -135,12 +147,21 @@ export default function PatientTimeline() {
           return
         }
 
-        if (!queryRes.success && !patientRes.success) {
-          setLoadError(queryRes.error || patientRes.error || t.networkError)
+        if (
+          queryRes.data?.allNodesFailed ||
+          (patientRes.nodesUnavailable && !queryRes.success) ||
+          (!queryRes.success && !patientRes.success)
+        ) {
+          setLoadError(
+            queryRes.data?.allNodesFailed
+              ? `${t.allNodesUnavailableTitle}: ${queryRes.data.message || t.allNodesUnavailableDesc}`
+              : queryRes.error || patientRes.error || t.networkError
+          )
           return
         }
 
         if (queryRes.success && queryRes.data) {
+          setRedactedSensitiveCount(Number(queryRes.data.redactedSensitiveCount || 0))
           if (queryRes.data.partialFailure) {
             const hasTimeout = queryRes.data.hospitals.some((h) => h.status === 'timeout')
             const warningPrefix = hasTimeout
@@ -244,6 +265,8 @@ export default function PatientTimeline() {
     user?.doctorId,
     setActivePatient,
     clearActivePatient,
+    t.allNodesUnavailableDesc,
+    t.allNodesUnavailableTitle,
     t.invalidMyKadFormat,
     t.networkError,
     t.partialHospitalFailureWarning,
@@ -405,6 +428,15 @@ export default function PatientTimeline() {
         </div>
       )}
 
+      {redactedSensitiveCount > 0 && (
+        <div className="p-3.5 rounded-2xl bg-violet-50 border border-violet-200 text-violet-950 text-xs font-semibold flex items-center gap-2.5">
+          <Lock className="w-4 h-4 text-violet-700 shrink-0" />
+          <span>
+            {t.sensitiveRedactedNotice} ({redactedSensitiveCount} encounter(s) withheld)
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div
         className={cn(
@@ -496,21 +528,21 @@ export default function PatientTimeline() {
         <CardContent className="p-5 space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-              <p className="text-xs text-slate-500">Full Name</p>
+              <p className="text-xs text-slate-600">Full Name</p>
               <p className="font-bold text-slate-900 mt-0.5">{patient.fullName}</p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-              <p className="text-xs text-slate-500">Date of Birth</p>
+              <p className="text-xs text-slate-600">Date of Birth</p>
               <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
                 {formatDate(patient.dateOfBirth)}
               </p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-              <p className="text-xs text-slate-500">Gender</p>
+              <p className="text-xs text-slate-600">Gender</p>
               <p className="font-bold text-slate-900 capitalize mt-0.5">{patient.gender || '—'}</p>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-              <p className="text-xs text-slate-500">Blood Group</p>
+              <p className="text-xs text-slate-600">Blood Group</p>
               <p className="font-extrabold text-red-700 mt-0.5">{patient.bloodType || 'Unknown'}</p>
             </div>
           </div>
@@ -593,7 +625,7 @@ export default function PatientTimeline() {
 
         <CardContent className="p-5 space-y-4">
           {filteredRecords.length === 0 ? (
-            <div className="text-center py-10 text-slate-500 text-sm">
+            <div className="text-center py-10 text-slate-600 text-sm">
               <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
               <p>
                 {records.length === 0
@@ -647,7 +679,7 @@ export default function PatientTimeline() {
                       <h3 className="font-bold text-slate-900 text-base">
                         {record.diagnosis.join(', ') || 'General Consultation'}
                         {record.diagnosisCodes?.length ? (
-                          <span className="ml-2 text-xs font-mono text-slate-500">
+                          <span className="ml-2 text-xs font-mono text-slate-600">
                             [{record.diagnosisCodes.join(', ')}]
                           </span>
                         ) : null}
@@ -748,6 +780,7 @@ export default function PatientTimeline() {
                               <th className="py-2 px-3 text-left font-bold">Dosage</th>
                               <th className="py-2 px-3 text-left font-bold">Frequency</th>
                               <th className="py-2 px-3 text-left font-bold">Duration / Qty</th>
+                              <th className="py-2 px-3 text-left font-bold">Status</th>
                               <th className="py-2 px-3 text-left font-bold">Instructions</th>
                             </tr>
                           </thead>
@@ -761,6 +794,12 @@ export default function PatientTimeline() {
                                 <td className="py-2 px-3 text-slate-700">{rx.frequency}</td>
                                 <td className="py-2 px-3 text-slate-700 tabular-nums">
                                   {rx.duration || '—'} (Qty: {rx.quantity || 1})
+                                </td>
+                                <td className="py-2 px-3">
+                                  <StatusBadge
+                                    tone={rx.isActive !== false ? 'success' : 'neutral'}
+                                    label={rx.isActive !== false ? 'Active' : t.dispensedStatus}
+                                  />
                                 </td>
                                 <td className="py-2 px-3 text-slate-600">
                                   {rx.instructions || '—'}
@@ -786,30 +825,35 @@ export default function PatientTimeline() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {record.labReports.map((lab, idx) => (
-                              <tr
-                                key={lab.id || idx}
-                                className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
-                              >
-                                <td className="py-2 px-3 font-bold text-slate-900">
-                                  {lab.testName}
-                                </td>
-                                <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
-                                  {lab.result} {lab.unit}
-                                </td>
-                                <td className="py-2 px-3 text-slate-600 tabular-nums">
-                                  {lab.referenceRange || '—'}
-                                </td>
-                                <td className="py-2 px-3">
-                                  {lab.isAbnormal ? (
-                                    <StatusBadge tone="critical" label="Abnormal" />
-                                  ) : (
-                                    <StatusBadge tone="success" label="Normal" />
-                                  )}
-                                </td>
-                                <td className="py-2 px-3 text-slate-600">{lab.notes || '—'}</td>
-                              </tr>
-                            ))}
+                            {record.labReports.map((lab, idx) => {
+                              const pending = isPendingLabValue(lab.result)
+                              return (
+                                <tr
+                                  key={lab.id || idx}
+                                  className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
+                                >
+                                  <td className="py-2 px-3 font-bold text-slate-900">
+                                    {lab.testName}
+                                  </td>
+                                  <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
+                                    {lab.result} {lab.unit}
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-600 tabular-nums">
+                                    {lab.referenceRange || '—'}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    {pending ? (
+                                      <StatusBadge tone="warning" label="Pending" />
+                                    ) : lab.isAbnormal ? (
+                                      <StatusBadge tone="critical" label="Abnormal" />
+                                    ) : (
+                                      <StatusBadge tone="success" label="Normal" />
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-600">{lab.notes || '—'}</td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -833,7 +877,7 @@ export default function PatientTimeline() {
         </CardHeader>
         <CardContent className="p-5">
           {medications.length === 0 ? (
-            <p className="text-center py-4 text-slate-500 text-xs">No active prescriptions recorded.</p>
+            <p className="text-center py-4 text-slate-600 text-xs">No active prescriptions recorded.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {medications.map((med, i) => (

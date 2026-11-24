@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
+import { getHospitalDb, findPatientInHospitals, isPendingLabResult } from '../database/hospital-multi';
 import {
   updatePatientIndex,
   createAuditLog,
@@ -18,6 +18,7 @@ import { getHospitalById } from '../config';
 import {
   AuditAction,
   ClinicAppointment,
+  Doctor,
   HospitalDepartment,
   HospitalWard,
   InventorySku,
@@ -83,6 +84,23 @@ function ensureValidIc(rawIc: unknown, res: Response): string | null {
     return null;
   }
   return icNumber;
+}
+
+async function ensureActiveHospitalDoctor(
+  req: Request,
+  res: Response,
+  hospitalId: string
+): Promise<Doctor | null> {
+  const authDoctor = await getHospitalDb(hospitalId).getDoctorByIc(req.user!.icNumber);
+  if (!authDoctor || !authDoctor.isActive) {
+    res.status(403).json({
+      success: false,
+      licenseRevoked: true,
+      error: 'Authenticated user does not hold an active clinician license at this hospital',
+    });
+    return null;
+  }
+  return authDoctor;
 }
 
 function isValidIsoCalendarDate(raw: unknown): boolean {
@@ -311,6 +329,10 @@ function validateClinicalRecordPayload(payload: CreateOrUpdateRecordPayload): st
 function hasPatientFieldUpdates(payload: CreateOrUpdateRecordPayload): boolean {
   return Boolean(
     payload.replaceAllergiesAndConditions ||
+      (payload.patientName !== undefined && String(payload.patientName).trim() !== '') ||
+      (payload.dateOfBirth !== undefined && String(payload.dateOfBirth).trim() !== '') ||
+      payload.gender === 'male' ||
+      payload.gender === 'female' ||
       payload.bloodType !== undefined ||
       payload.phone !== undefined ||
       payload.email !== undefined ||
@@ -320,6 +342,24 @@ function hasPatientFieldUpdates(payload: CreateOrUpdateRecordPayload): boolean {
       (Array.isArray(payload.allergies) && payload.allergies.length > 0) ||
       (Array.isArray(payload.chronicConditions) && payload.chronicConditions.length > 0)
   );
+}
+
+function extractPatientFieldPatch(payload: CreateOrUpdateRecordPayload): Partial<Patient> {
+  return {
+    fullName: payload.patientName,
+    dateOfBirth: payload.dateOfBirth,
+    gender: payload.gender,
+    bloodType: payload.bloodType,
+    phone: payload.phone,
+    email: payload.email,
+    address: payload.address,
+    emergencyContact: payload.emergencyContact,
+    emergencyPhone: payload.emergencyPhone,
+    allergies: Array.isArray(payload.allergies) ? payload.allergies : undefined,
+    chronicConditions: Array.isArray(payload.chronicConditions)
+      ? payload.chronicConditions
+      : undefined,
+  };
 }
 
 router.get(
@@ -394,6 +434,14 @@ router.get(
         });
         return;
       }
+
+      res.status(503).json({
+        success: false,
+        nodesUnavailable: true,
+        error:
+          'Patient is indexed in the national network, but originating hospital nodes are currently unreachable or timed out',
+      });
+      return;
     }
 
     res.status(404).json({
@@ -458,16 +506,8 @@ router.post(
       return;
     }
 
-    const hospitalDb = getHospitalDb(hospitalId);
-    const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
-
-    if (!authDoctor || !authDoctor.isActive) {
-      res.status(403).json({
-        success: false,
-        error: 'Authenticated user does not hold an active clinician license at this hospital',
-      });
-      return;
-    }
+    const authDoctor = await ensureActiveHospitalDoctor(req, res, hospitalId);
+    if (!authDoctor) return;
 
     if (recordData.doctorId && recordData.doctorId !== authDoctor.id) {
       res.status(403).json({
@@ -479,6 +519,7 @@ router.post(
 
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'create'))) return;
 
+    const hospitalDb = getHospitalDb(hospitalId);
     const fingerprint = crypto
       .createHash('sha256')
       .update(
@@ -563,22 +604,9 @@ router.post(
           updatedAt: nowIso,
         });
       } else if (hasPatientFieldUpdates(recordData)) {
-        await hospitalDb.updatePatient(
-          icNumber,
-          {
-            bloodType: recordData.bloodType,
-            phone: recordData.phone,
-            email: recordData.email,
-            address: recordData.address,
-            emergencyContact: recordData.emergencyContact,
-            emergencyPhone: recordData.emergencyPhone,
-            allergies: Array.isArray(recordData.allergies) ? recordData.allergies : undefined,
-            chronicConditions: Array.isArray(recordData.chronicConditions)
-              ? recordData.chronicConditions
-              : undefined,
-          },
-          { replaceArrays: Boolean(recordData.replaceAllergiesAndConditions) }
-        );
+        await hospitalDb.updatePatient(icNumber, extractPatientFieldPatch(recordData), {
+          replaceArrays: Boolean(recordData.replaceAllergiesAndConditions),
+        });
       }
 
       const createdRecord = await hospitalDb.createRecord({
@@ -661,16 +689,10 @@ router.put(
       return;
     }
 
-    const hospitalDb = getHospitalDb(hospitalId);
-    const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
-    if (!authDoctor || !authDoctor.isActive) {
-      res.status(403).json({
-        success: false,
-        error: 'Authenticated user does not hold an active clinician license at this hospital',
-      });
-      return;
-    }
+    const authDoctor = await ensureActiveHospitalDoctor(req, res, hospitalId);
+    if (!authDoctor) return;
 
+    const hospitalDb = getHospitalDb(hospitalId);
     const existingRecord = await hospitalDb.getRecordById(recordId);
     if (!existingRecord) {
       res.status(404).json({
@@ -709,22 +731,9 @@ router.put(
     }
 
     if (hasPatientFieldUpdates(updates)) {
-      await hospitalDb.updatePatient(
-        existingRecord.icNumber,
-        {
-          bloodType: updates.bloodType,
-          phone: updates.phone,
-          email: updates.email,
-          address: updates.address,
-          emergencyContact: updates.emergencyContact,
-          emergencyPhone: updates.emergencyPhone,
-          allergies: Array.isArray(updates.allergies) ? updates.allergies : undefined,
-          chronicConditions: Array.isArray(updates.chronicConditions)
-            ? updates.chronicConditions
-            : undefined,
-        },
-        { replaceArrays: Boolean(updates.replaceAllergiesAndConditions) }
-      );
+      await hospitalDb.updatePatient(existingRecord.icNumber, extractPatientFieldPatch(updates), {
+        replaceArrays: Boolean(updates.replaceAllergiesAndConditions),
+      });
     }
 
     const updatedRecord = await hospitalDb.updateRecord(recordId, {
@@ -769,6 +778,137 @@ router.put(
   })
 );
 
+router.post(
+  '/:hospitalId/records/:recordId/prescriptions/:prescriptionId/dispense',
+  ...staffAuthChain,
+  authorize('doctor', 'hospital_admin'),
+  authorizeHospital,
+  withHospitalRoute('Dispense prescription error', 'Failed to dispense prescription', async (req, res, hospitalId) => {
+    const { recordId, prescriptionId } = req.params;
+    const hospitalDb = getHospitalDb(hospitalId);
+
+    let actorLabel = getHospitalById(hospitalId)?.adminName || `Pharmacy (${req.user!.icNumber})`;
+    if (req.user!.role === 'doctor') {
+      const authDoctor = await ensureActiveHospitalDoctor(req, res, hospitalId);
+      if (!authDoctor) return;
+      actorLabel = authDoctor.fullName;
+    }
+
+    const existingRecord = await hospitalDb.getRecordById(recordId);
+    if (!existingRecord) {
+      res.status(404).json({ success: false, error: 'Medical record not found in this hospital' });
+      return;
+    }
+
+    if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, existingRecord.icNumber, 'update'))) return;
+
+    const outcome = await hospitalDb.dispensePrescription(recordId, prescriptionId, actorLabel);
+    if (outcome.status === 'not_found') {
+      res.status(404).json({ success: false, error: 'Prescription item not found on this record' });
+      return;
+    }
+    if (outcome.status === 'already_dispensed') {
+      res.status(409).json({
+        success: false,
+        alreadyDispensed: true,
+        error: 'Prescription has already been dispensed or is no longer active',
+      });
+      return;
+    }
+
+    await createAuditLog({
+      timestamp: new Date().toISOString(),
+      action: 'update',
+      actorId: req.user!.userId,
+      actorType: req.user!.role as 'doctor' | 'hospital_admin',
+      actorHospitalId: hospitalId,
+      targetIcNumber: existingRecord.icNumber,
+      targetHospitalId: hospitalId,
+      details: `Dispensed prescription ${outcome.prescription.medicationName} (${outcome.prescription.dosage}) on record ${recordId}`,
+      ipAddress: req.ip || 'unknown',
+      success: true,
+    });
+
+    res.json({
+      success: true,
+      data: { record: outcome.record, prescription: outcome.prescription },
+      message: 'Prescription dispensed successfully',
+    });
+  })
+);
+
+router.put(
+  '/:hospitalId/records/:recordId/lab-reports/:labReportId/signoff',
+  ...staffAuthChain,
+  authorize('doctor'),
+  authorizeHospital,
+  withHospitalRoute('Sign off lab report error', 'Failed to sign off laboratory report', async (req, res, hospitalId) => {
+    const { recordId, labReportId } = req.params;
+    const authDoctor = await ensureActiveHospitalDoctor(req, res, hospitalId);
+    if (!authDoctor) return;
+
+    const body = req.body || {};
+    const cleanResult = String(body.result ?? '').trim();
+    if (!cleanResult || cleanResult.length > 200 || isPendingLabResult(cleanResult)) {
+      res.status(400).json({
+        success: false,
+        error: 'Finalized laboratory result value is required (cannot be empty or pending)',
+      });
+      return;
+    }
+
+    const hospitalDb = getHospitalDb(hospitalId);
+    const existingRecord = await hospitalDb.getRecordById(recordId);
+    if (!existingRecord) {
+      res.status(404).json({ success: false, error: 'Medical record not found in this hospital' });
+      return;
+    }
+
+    if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, existingRecord.icNumber, 'update'))) return;
+
+    const outcome = await hospitalDb.signOffLabReport(recordId, labReportId, {
+      result: cleanResult,
+      unit: body.unit !== undefined ? String(body.unit) : undefined,
+      referenceRange: body.referenceRange !== undefined ? String(body.referenceRange) : undefined,
+      isAbnormal: body.isAbnormal !== undefined ? Boolean(body.isAbnormal) : undefined,
+      notes: body.notes !== undefined ? String(body.notes) : undefined,
+      signedOffBy: authDoctor.fullName,
+    });
+
+    if (outcome.status === 'not_found') {
+      res.status(404).json({ success: false, error: 'Laboratory report item not found on this record' });
+      return;
+    }
+    if (outcome.status === 'already_finalized') {
+      res.status(409).json({
+        success: false,
+        alreadyFinalized: true,
+        error: 'Laboratory report has already been signed off and finalized',
+      });
+      return;
+    }
+
+    await createAuditLog({
+      timestamp: new Date().toISOString(),
+      action: 'update',
+      actorId: req.user!.userId,
+      actorType: 'doctor',
+      actorHospitalId: hospitalId,
+      targetIcNumber: existingRecord.icNumber,
+      targetHospitalId: hospitalId,
+      details: `Signed off lab report ${outcome.labReport.testName} (${outcome.labReport.result}) on record ${recordId}`,
+      ipAddress: req.ip || 'unknown',
+      success: true,
+    });
+
+    res.json({
+      success: true,
+      data: { record: outcome.record, labReport: outcome.labReport },
+      message: 'Laboratory report signed off successfully',
+    });
+  })
+);
+
 // -----------------------------------------------------------------------------
 // Outpatient Queue & Clinic Appointments (Hospital-Scoped, Privacy-Aware)
 // -----------------------------------------------------------------------------
@@ -795,8 +935,18 @@ router.post(
 
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'create'))) return;
 
+    const db = getHospitalDb(hospitalId);
+    const existingActive = db.findActiveQueueTicketByIc(icNumber);
+    if (existingActive) {
+      res.status(409).json({
+        success: false,
+        error: `Patient already holds active queue ticket ${existingActive.queueNo} (${existingActive.status})`,
+      });
+      return;
+    }
+
     const validCategory = category === 'Red' || category === 'Yellow' ? category : 'Green';
-    const ticket = getHospitalDb(hospitalId).enqueuePatient({
+    const ticket = db.enqueuePatient({
       name: String(name || '').trim(),
       icNumber,
       category: validCategory,
@@ -824,6 +974,14 @@ router.put(
       return;
     }
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, target.icNumber, 'update'))) return;
+
+    if (target.status === 'completed' && status !== 'completed') {
+      res.status(409).json({
+        success: false,
+        error: 'Completed queue encounters cannot be reopened; register a new ticket instead',
+      });
+      return;
+    }
 
     const updated = db.updateQueueTicket(req.params.queueNo, status);
     res.json({ success: true, data: updated });
@@ -880,13 +1038,25 @@ router.post(
 
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'create'))) return;
 
+    const cleanDate = String(date).trim();
+    const cleanTime = String(time).trim();
+    const db = getHospitalDb(hospitalId);
+    const slotConflict = db.findSlotAppointmentConflict(cleanDate, cleanTime);
+    if (slotConflict) {
+      res.status(409).json({
+        success: false,
+        error: `Clinic time slot ${cleanTime} on ${cleanDate} is already booked`,
+      });
+      return;
+    }
+
     const validType = ['follow-up', 'new', 'procedure', 'review'].includes(type) ? type : 'follow-up';
-    const created = getHospitalDb(hospitalId).createAppointment({
+    const created = db.createAppointment({
       patientName: String(patientName).trim(),
       icNumber,
       phone: String(phone || '').trim(),
-      date: String(date).trim(),
-      time: String(time).trim(),
+      date: cleanDate,
+      time: cleanTime,
       type: validType,
     });
     res.status(201).json({ success: true, data: created });
@@ -911,6 +1081,14 @@ router.put(
       return;
     }
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, target.icNumber, 'update'))) return;
+
+    if ((target.status === 'cancelled' || target.status === 'completed') && target.status !== status) {
+      res.status(409).json({
+        success: false,
+        error: `Cannot transition appointment from terminal status "${target.status}" to "${status}"`,
+      });
+      return;
+    }
 
     const updated = db.updateAppointmentStatus(req.params.appointmentId, status);
     res.json({ success: true, data: updated });
@@ -1027,7 +1205,22 @@ router.put(
     if (!icNumber) return;
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'update'))) return;
 
-    const chart = await getHospitalDb(hospitalId).updateFluidBalance(icNumber, req.body || {});
+    const body = req.body || {};
+    const ioFields = ['oralMl', 'ivFluidMl', 'bloodMl', 'urineMl', 'drainMl', 'vomitusMl'] as const;
+    for (const key of ioFields) {
+      const val = body[key];
+      if (val === undefined) continue;
+      const num = typeof val === 'number' ? val : val === '' || val === null ? NaN : Number(val);
+      if (!Number.isFinite(num) || num < 0 || num > 50_000) {
+        res.status(400).json({
+          success: false,
+          error: `Invalid fluid balance value for ${key} (must be 0 to 50,000 mL)`,
+        });
+        return;
+      }
+    }
+
+    const chart = await getHospitalDb(hospitalId).updateFluidBalance(icNumber, body);
     res.json({ success: true, data: chart });
   })
 );
@@ -1096,7 +1289,14 @@ router.delete(
     if (!icNumber) return;
     if (!(await enforcePatientPrivacyConsent(req, res, hospitalId, icNumber, 'update'))) return;
 
-    const account = await getHospitalDb(hospitalId).removeBillingItem(icNumber, req.params.itemId);
+    const { removed, account } = await getHospitalDb(hospitalId).removeBillingItem(
+      icNumber,
+      req.params.itemId
+    );
+    if (!removed) {
+      res.status(404).json({ success: false, error: 'Billing line item not found' });
+      return;
+    }
     res.json({ success: true, data: account });
   })
 );
@@ -1142,6 +1342,15 @@ router.post(
     const currentAccount = await db.getOrInitBillingAccount(icNumber);
     if (currentAccount.items.length === 0) {
       res.status(400).json({ success: false, error: 'Cannot settle an empty billing account' });
+      return;
+    }
+
+    if (currentAccount.receipt && currentAccount.receipt.paymentMethod === paymentMethod) {
+      res.status(409).json({
+        success: false,
+        alreadySettled: true,
+        error: `Billing account is already settled under payment method "${paymentMethod}"`,
+      });
       return;
     }
 
@@ -1678,7 +1887,8 @@ router.get(
   authorize('hospital_admin', 'central_admin'),
   authorizeHospital,
   withHospitalRoute('Get financial summary error', 'Failed to load financial summary', async (_req, res, hospitalId) => {
-    const summary = await getHospitalDb(hospitalId).getFinancialSummary();
+    const blockedIcs = await getBlockedPatientIcsForHospital(hospitalId);
+    const summary = await getHospitalDb(hospitalId).getFinancialSummary(blockedIcs);
     res.json({ success: true, data: summary });
   })
 );

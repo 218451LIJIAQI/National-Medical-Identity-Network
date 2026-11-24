@@ -176,6 +176,12 @@ export default function Appointments() {
     if (res.success && res.data) {
       setAppointments((prev) => prev.map((a) => (a.id === id ? res.data! : a)))
       toast({ title: 'Appointment Updated', description: `Status updated to ${status}.` })
+    } else {
+      toast({
+        title: 'Status Transition Rejected',
+        description: res.error || 'Unable to update appointment status.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -233,6 +239,8 @@ export default function Appointments() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <Input
+            id="apt-selected-date"
+            aria-label="Selected clinic date"
             type="date"
             value={selectedDate}
             onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
@@ -270,6 +278,8 @@ export default function Appointments() {
           <div className="relative w-56">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
+              id="apt-filter-search"
+              aria-label="Filter appointments by patient or IC"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter patient or IC…"
@@ -281,7 +291,7 @@ export default function Appointments() {
 
       {/* Time Slot Quick Grid */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
           Clinic Time Slots ({selectedDate}) — Click an open slot to schedule
         </h2>
         <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
@@ -298,7 +308,7 @@ export default function Appointments() {
                 className={cn(
                   'p-2.5 rounded-xl border text-left transition-colors tabular-nums',
                   booked
-                    ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                    ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed'
                     : 'bg-emerald-50/60 border-emerald-200 hover:bg-emerald-100/70 text-emerald-950'
                 )}
               >
@@ -430,8 +440,11 @@ export default function Appointments() {
         <form onSubmit={handleCreateAppointment} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Patient Full Name *</label>
+              <label htmlFor="apt-patient-name" className="text-xs font-bold text-slate-700">
+                Patient Full Name *
+              </label>
               <Input
+                id="apt-patient-name"
                 required
                 value={newBooking.patientName}
                 onChange={(e) => setNewBooking({ ...newBooking, patientName: e.target.value })}
@@ -439,8 +452,11 @@ export default function Appointments() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">MyKad IC Number *</label>
+              <label htmlFor="apt-patient-ic" className="text-xs font-bold text-slate-700">
+                MyKad IC Number *
+              </label>
               <Input
+                id="apt-patient-ic"
                 required
                 value={newBooking.icNumber}
                 onChange={(e) => setNewBooking({ ...newBooking, icNumber: e.target.value })}
@@ -451,8 +467,11 @@ export default function Appointments() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Time Slot</label>
+              <label htmlFor="apt-time-slot" className="text-xs font-bold text-slate-700">
+                Time Slot
+              </label>
               <select
+                id="apt-time-slot"
                 value={newBooking.time}
                 onChange={(e) => setNewBooking({ ...newBooking, time: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm tabular-nums"
@@ -465,8 +484,11 @@ export default function Appointments() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Visit Category</label>
+              <label htmlFor="apt-visit-type" className="text-xs font-bold text-slate-700">
+                Visit Category
+              </label>
               <select
+                id="apt-visit-type"
                 value={newBooking.type}
                 onChange={(e) =>
                   setNewBooking({ ...newBooking, type: e.target.value as ClinicAppointmentDto['type'] })
@@ -480,8 +502,11 @@ export default function Appointments() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Contact Phone</label>
+              <label htmlFor="apt-phone" className="text-xs font-bold text-slate-700">
+                Contact Phone
+              </label>
               <Input
+                id="apt-phone"
                 value={newBooking.phone}
                 onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
                 className="tabular-nums"
