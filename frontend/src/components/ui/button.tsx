@@ -4,21 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5",
-        destructive: "bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 hover:-translate-y-0.5",
-        outline: "border-2 border-gray-200 bg-white/80 backdrop-blur-sm hover:border-gray-300 hover:bg-gray-50/80 text-gray-700 shadow-sm hover:shadow-md hover:-translate-y-0.5",
-        secondary: "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 shadow-sm hover:shadow-md hover:-translate-y-0.5",
-        ghost: "hover:bg-gray-100/80 hover:text-gray-900 text-gray-600",
+        default: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
+        destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+        outline: "border border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 shadow-sm",
+        secondary: "bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200/80",
+        ghost: "hover:bg-slate-100 hover:text-slate-900 text-slate-700",
       },
       size: {
-        default: "h-11 px-5 py-2.5",
-        sm: "h-9 px-4 text-xs",
-        lg: "h-14 px-8 text-base",
-        icon: "h-11 w-11",
+        default: "h-10 px-4 py-2",
+        sm: "h-8 px-3 text-xs rounded-lg",
+        lg: "h-12 px-6 text-base",
+        icon: "h-10 w-10",
       },
     },
     defaultVariants: {

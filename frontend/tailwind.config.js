@@ -9,15 +9,15 @@ export default {
       center: true,
       padding: "2rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": "1440px",
       },
     },
     extend: {
       fontFamily: {
-        'inter': ['Inter', 'system-ui', 'sans-serif'],
-        'nunito': ['Nunito', 'system-ui', 'sans-serif'],
-        'poppins': ['Poppins', 'system-ui', 'sans-serif'],
-        'space': ['Space Grotesk', 'system-ui', 'sans-serif'],
+        inter: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        nunito: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+        poppins: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+        space: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

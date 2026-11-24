@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
@@ -13,7 +15,6 @@ import {
   Building2,
   FileText,
   Clock,
-  AlertCircle,
   CreditCard,
   MapPin,
   Stethoscope,
@@ -22,52 +23,66 @@ import {
   WifiOff,
   AlertTriangle,
   Plus,
+  Lock,
+  Database,
+  Network,
+  Download,
+  CheckCircle2,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { motion, AnimatePresence } from 'framer-motion'
-import { formatIC, getHospitalColor } from '@/lib/utils'
+import { cn, formatIC, getHospitalColor } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 
 function QueryNetworkVisualization({ step }: { step: number }) {
   const steps = [
-    { id: 1, label: 'Authenticating', icon: '🔐' },
-    { id: 2, label: 'Looking up index', icon: '🔍' },
-    { id: 3, label: 'Querying hospitals', icon: '📡' },
-    { id: 4, label: 'Collecting data', icon: '📥' },
-    { id: 5, label: 'Complete', icon: '✅' },
+    { id: 1, label: 'Verify Session', icon: Lock },
+    { id: 2, label: 'Central Index', icon: Database },
+    { id: 3, label: 'Hospital Nodes', icon: Network },
+    { id: 4, label: 'Aggregate Records', icon: Download },
+    { id: 5, label: 'Complete', icon: CheckCircle2 },
   ]
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6">
-      <div className="flex items-center justify-between mb-4">
-        {steps.map((s, i) => (
-          <div key={s.id} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-base transition-all ${
-                  step > s.id
-                    ? 'bg-emerald-100 text-emerald-700 font-bold'
-                    : step === s.id
-                      ? 'bg-blue-100 text-blue-700 ring-4 ring-blue-50'
-                      : 'bg-gray-100 text-gray-400'
-                }`}
-              >
-                {step > s.id ? '✓' : s.icon}
-              </div>
-              <span className={`text-xs mt-2 font-medium ${step >= s.id ? 'text-gray-900' : 'text-gray-400'}`}>
-                {s.label}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div className="flex-1 mx-2 h-0.5 bg-gray-200 relative overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        {steps.map((s, i) => {
+          const Icon = s.icon
+          const done = step > s.id
+          const active = step === s.id
+          return (
+            <div key={s.id} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center">
                 <div
-                  className="absolute inset-y-0 left-0 bg-emerald-500 transition-all duration-300"
-                  style={{ width: step > s.id ? '100%' : '0%' }}
-                />
+                  className={cn(
+                    'w-9 h-9 rounded-xl flex items-center justify-center transition-colors',
+                    done
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : active
+                        ? 'bg-blue-100 text-blue-800 ring-4 ring-blue-50 border border-blue-200'
+                        : 'bg-slate-100 text-slate-400 border border-slate-200'
+                  )}
+                >
+                  {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                </div>
+                <span
+                  className={cn(
+                    'text-xs mt-1.5 font-semibold whitespace-nowrap',
+                    step >= s.id ? 'text-slate-900' : 'text-slate-400'
+                  )}
+                >
+                  {s.label}
+                </span>
               </div>
-            )}
-          </div>
-        ))}
+              {i < steps.length - 1 && (
+                <div className="flex-1 mx-3 h-0.5 bg-slate-200 relative overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-emerald-600 transition-all duration-300"
+                    style={{ width: done ? '100%' : '0%' }}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -140,8 +155,22 @@ export default function PatientSearch() {
 
     const now = new Date().toISOString()
     setQuerySteps([
-      { step: 1, action: 'Initiating query', from: 'Doctor Portal', to: 'Central Hub', status: 'completed', timestamp: now },
-      { step: 2, action: 'Authenticating request', from: 'Central Hub', to: 'Auth & Privacy Policy', status: 'in_progress', timestamp: now },
+      {
+        step: 1,
+        action: 'Initiating query',
+        from: 'Doctor Portal',
+        to: 'Central Hub',
+        status: 'completed',
+        timestamp: now,
+      },
+      {
+        step: 2,
+        action: 'Checking consent policy',
+        from: 'Central Hub',
+        to: 'Privacy Guard',
+        status: 'in_progress',
+        timestamp: now,
+      },
     ])
 
     try {
@@ -152,8 +181,22 @@ export default function PatientSearch() {
           response.data.querySteps?.length
             ? response.data.querySteps
             : [
-                { step: 1, action: 'Authenticated & Policy Checked', from: 'Doctor Portal', to: 'Central Hub', status: 'completed', timestamp: now },
-                { step: 2, action: 'Federated Retrieval Complete', from: 'Central Hub', to: 'Hospital Nodes', status: 'completed', timestamp: now },
+                {
+                  step: 1,
+                  action: 'Authenticated & Policy Checked',
+                  from: 'Doctor Portal',
+                  to: 'Central Hub',
+                  status: 'completed',
+                  timestamp: now,
+                },
+                {
+                  step: 2,
+                  action: 'Federated Retrieval Complete',
+                  from: 'Central Hub',
+                  to: 'Hospital Nodes',
+                  status: 'completed',
+                  timestamp: now,
+                },
               ]
         )
         setHospitalResults(response.data.hospitals as HospitalResult[])
@@ -202,73 +245,76 @@ export default function PatientSearch() {
   }
 
   return (
-    <motion.div
-      className="space-y-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-    >
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.heroSoftGradient} border ${theme.borderColor} p-7 shadow-lg`}>
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 bg-gradient-to-br ${theme.buttonGradient} rounded-2xl flex items-center justify-center font-bold text-lg text-white shadow-md`}>
-              <Search className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-                <span>{theme.name}</span>
-                <span>•</span>
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{theme.city}</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{t.patientSearch}</h1>
-              <p className="text-slate-600 text-sm mt-0.5">
-                Federated patient record discovery with zero-trust privacy consent enforcement
-              </p>
-            </div>
+    <div className="space-y-6">
+      <div
+        className={cn(
+          'rounded-2xl bg-gradient-to-br border p-6 shadow-sm flex items-center justify-between gap-4 flex-wrap',
+          theme.heroSoftGradient,
+          theme.borderColor
+        )}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={cn(
+              'w-12 h-12 bg-gradient-to-br rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0',
+              theme.buttonGradient
+            )}
+          >
+            <Search className="w-6 h-6" />
           </div>
-          <Badge className={`${theme.badgeClass} border px-3.5 py-1.5`}>
-            <Stethoscope className="w-3.5 h-3.5 mr-1.5" />
-            Cross-Hospital Federated Query
-          </Badge>
+          <div>
+            <div className="flex items-center gap-2 text-xs text-slate-600 mb-0.5">
+              <span className="font-semibold">{theme.name}</span>
+              <span>•</span>
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{theme.city}</span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">{t.patientSearch}</h1>
+            <p className="text-slate-600 text-xs mt-0.5">
+              Federated cross-hospital discovery with zero-trust patient consent enforcement
+            </p>
+          </div>
         </div>
+        <Badge className={cn('border px-3 py-1', theme.badgeClass)}>
+          <Stethoscope className="w-3.5 h-3.5 mr-1.5" />
+          Read-Only Cross-Hospital Protocol
+        </Badge>
       </div>
 
       <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-        <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-        <CardHeader className={`bg-gradient-to-r ${theme.cardHeaderGradient} border-b border-slate-100 p-6`}>
-          <CardTitle className="flex items-center gap-3 text-lg text-slate-900">
-            <div className={`p-2 ${theme.bgMedium} rounded-xl`}>
-              <CreditCard className={`w-5 h-5 ${theme.iconColor}`} />
-            </div>
-            Enter Patient MyKad IC Number
+        <div className={cn('h-1 bg-gradient-to-r', theme.cardAccentGradient)} />
+        <CardHeader className={cn('bg-gradient-to-r border-b border-slate-100 p-5', theme.cardHeaderGradient)}>
+          <CardTitle className="flex items-center gap-2.5 text-base text-slate-900">
+            <CreditCard className={cn('w-4 h-4', theme.iconColor)} />
+            <span>Patient MyKad IC Lookup</span>
           </CardTitle>
-          <CardDescription className="text-sm text-slate-500">
-            Queries the Central Patient Index and retrieves read-only records from authorized hospitals
+          <CardDescription className="text-xs text-slate-600">
+            Queries the Central Patient Index and retrieves longitudinal records from authorized hospitals
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-6">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
+        <CardContent className="p-5">
+          <form onSubmit={handleSearch} className="flex items-center gap-3">
             <Input
               placeholder="e.g., 880101-14-5678"
               value={icNumber}
               onChange={(e) => setIcNumber(e.target.value)}
               disabled={isSearching}
-              className="text-lg h-12 px-4 rounded-xl font-mono flex-1"
+              className="text-base h-11 px-4 font-mono tabular-nums flex-1"
             />
             <Button
               type="submit"
-              disabled={isSearching}
+              disabled={isSearching || !icNumber.trim()}
               size="lg"
-              className={`h-12 px-7 rounded-xl bg-gradient-to-r ${theme.buttonGradient} text-white shadow-md font-semibold`}
+              className={cn('h-11 px-6 text-white font-bold bg-gradient-to-r', theme.buttonGradient)}
             >
               {isSearching ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Querying...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Querying…
                 </>
               ) : (
                 <>
-                  <Search className="mr-2 h-5 w-5" />
+                  <Search className="mr-2 h-4 w-4" />
                   Search Network
                 </>
               )}
@@ -277,21 +323,21 @@ export default function PatientSearch() {
         </CardContent>
       </Card>
 
-      {/* Distinct Semantic Error / Policy Banners */}
+      {/* Semantic Policy & Error Banners */}
       {errorState?.kind === 'privacy_denied' && (
-        <Card className="border-2 border-red-300 bg-red-50/90 rounded-2xl shadow-md">
+        <Card className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm">
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="p-3 bg-red-100 text-red-700 rounded-2xl shrink-0">
-              <ShieldAlert className="w-7 h-7" />
+            <div className="p-3 bg-red-100 text-red-700 rounded-xl border border-red-200 shrink-0">
+              <ShieldAlert className="w-6 h-6" />
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-red-900">{t.privacyRestrictedTitle}</h3>
-                <Badge variant="destructive">HTTP 403 • Audited</Badge>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold text-red-950">{t.privacyRestrictedTitle}</h2>
+                <StatusBadge tone="blocked" label="HTTP 403 • Consent Blocked & Audited" />
               </div>
-              <p className="text-sm text-red-800">{errorState.message}</p>
-              <p className="text-xs text-red-600 pt-1">
-                Patient IC <span className="font-mono font-semibold">{errorState.ic}</span> has explicitly blocked record access for <strong>{theme.name}</strong>. Use Emergency Break-Glass only in life-threatening emergencies.
+              <p className="text-sm text-red-900">{errorState.message}</p>
+              <p className="text-xs text-red-800 pt-0.5">
+                Patient IC <span className="font-mono font-bold tabular-nums">{errorState.ic}</span> has blocked record sharing with <strong>{theme.name}</strong>. Emergency Break-Glass is permitted only in incapacitated life-threatening emergencies.
               </p>
             </div>
           </CardContent>
@@ -299,21 +345,23 @@ export default function PatientSearch() {
       )}
 
       {errorState?.kind === 'not_found' && (
-        <Card className="border-2 border-amber-200 bg-amber-50/90 rounded-2xl shadow-sm">
-          <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <Card className="border-2 border-amber-300 bg-amber-50 rounded-2xl shadow-sm">
+          <CardContent className="p-6 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-amber-100 text-amber-700 rounded-2xl shrink-0">
-                <UserX className="w-7 h-7" />
+              <div className="p-3 bg-amber-100 text-amber-800 rounded-xl border border-amber-200 shrink-0">
+                <UserX className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-amber-950">{t.patientNotFoundTitle}</h3>
-                <p className="text-sm text-amber-800 mt-0.5">{errorState.message}</p>
-                <p className="text-xs text-amber-700 mt-1 font-mono">Queried IC: {errorState.ic}</p>
+                <h2 className="text-base font-bold text-amber-950">{t.patientNotFoundTitle}</h2>
+                <p className="text-sm text-amber-900 mt-0.5">{errorState.message}</p>
+                <p className="text-xs text-amber-800 mt-1 font-mono tabular-nums">
+                  Queried IC: {errorState.ic}
+                </p>
               </div>
             </div>
             <Button
               onClick={() => navigate(`/doctor/patient/${encodeURIComponent(errorState.ic)}/new-record`)}
-              className={`bg-gradient-to-r ${theme.buttonGradient} text-white rounded-xl shrink-0`}
+              className={cn('bg-gradient-to-r text-white shrink-0', theme.buttonGradient)}
             >
               <Plus className="w-4 h-4 mr-1.5" />
               Register & Create First Record
@@ -323,12 +371,12 @@ export default function PatientSearch() {
       )}
 
       {errorState?.kind === 'forbidden' && (
-        <Card className="border-2 border-orange-300 bg-orange-50 rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3 text-orange-900">
-            <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0" />
+        <Card className="border-2 border-amber-300 bg-amber-50 rounded-2xl">
+          <CardContent className="p-5 flex items-center gap-3 text-amber-950">
+            <AlertTriangle className="w-5 h-5 text-amber-800 shrink-0" />
             <div>
-              <p className="font-bold">{t.insufficientPermissions}</p>
-              <p className="text-sm text-orange-800">{errorState.message}</p>
+              <p className="font-bold text-sm">{t.insufficientPermissions}</p>
+              <p className="text-xs text-amber-900">{errorState.message}</p>
             </div>
           </CardContent>
         </Card>
@@ -336,158 +384,168 @@ export default function PatientSearch() {
 
       {errorState?.kind === 'network' && (
         <Card className="border-2 border-slate-300 bg-slate-50 rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3 text-slate-800">
-            <WifiOff className="w-6 h-6 text-slate-600 shrink-0" />
+          <CardContent className="p-5 flex items-center gap-3 text-slate-900">
+            <WifiOff className="w-5 h-5 text-slate-700 shrink-0" />
             <div>
-              <p className="font-bold">{t.networkError}</p>
-              <p className="text-sm text-slate-600">{errorState.message}</p>
+              <p className="font-bold text-sm">{t.networkError}</p>
+              <p className="text-xs text-slate-700">{errorState.message}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <AnimatePresence>
-        {querySteps.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-            <QueryNetworkVisualization step={showResults ? 5 : querySteps.length} />
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Clock className="h-4 w-4" />
-                  Federated Handshake Trace
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {querySteps.slice(0, 4).map((step) => (
+      {querySteps.length > 0 && (
+        <div className="space-y-4">
+          <QueryNetworkVisualization step={showResults ? 5 : querySteps.length} />
+          <Card className="border border-slate-200 shadow-sm rounded-2xl">
+            <CardHeader className="py-3 px-5 border-b border-slate-100">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-600">
+                <Clock className="h-3.5 w-3.5" />
+                Federated Handshake Trace
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-4 gap-2.5">
+                {querySteps.slice(0, 8).map((step) => {
+                  const isStepError = step.status === 'error' || step.status === 'failed'
+                  const isCompleted = step.status === 'completed'
+                  return (
                     <div
                       key={`${step.step}-${step.to}`}
-                      className={`p-3 rounded-lg text-center border text-xs ${
-                        step.status === 'completed'
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                          : step.status === 'failed'
-                            ? 'bg-red-50 border-red-200 text-red-900'
-                            : 'bg-blue-50 border-blue-200 text-blue-900'
-                      }`}
+                      className={cn(
+                        'p-3 rounded-xl border text-xs',
+                        isCompleted
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                          : isStepError
+                            ? 'bg-red-50 border-red-300 text-red-950'
+                            : 'bg-blue-50 border-blue-200 text-blue-950'
+                      )}
                     >
-                      <p className="font-semibold truncate">{step.action}</p>
-                      <p className="text-[11px] opacity-75 truncate">{step.to}</p>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-bold truncate">{step.to}</span>
+                        {isStepError ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-700 shrink-0" />
+                        ) : isCompleted ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                        ) : (
+                          <Loader2 className="w-3.5 h-3.5 text-blue-700 animate-spin shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[11px] opacity-85 truncate">{step.action}</p>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      <AnimatePresence>
-        {showResults && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            {partialFailure && (
-              <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-bold">{t.partialHospitalFailureWarning}</p>
-                  {failedHospitals.length > 0 && (
-                    <p className="text-xs text-amber-800 mt-0.5">
-                      Unreachable nodes: {failedHospitals.join(', ')}
-                    </p>
-                  )}
+      {showResults && (
+        <div className="space-y-4">
+          {partialFailure && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-bold text-sm">{t.partialHospitalFailureWarning}</p>
+                {failedHospitals.length > 0 && (
+                  <p className="text-amber-900 mt-0.5">
+                    Unreachable nodes: {failedHospitals.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <Card className="border border-emerald-200 bg-emerald-50/70 rounded-2xl shadow-sm">
+            <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 bg-emerald-700 rounded-xl flex items-center justify-center text-white">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Patient Found:{' '}
+                    <span className="font-mono tabular-nums">{searchedIc}</span>
+                  </h2>
+                  <p className="text-emerald-900 text-xs font-medium tabular-nums">
+                    {totalRecords} medical record(s) retrieved across{' '}
+                    {hospitalResults.filter((h) => h.recordCount > 0).length} hospital(s)
+                  </p>
                 </div>
               </div>
-            )}
-
-            <Card className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-sm overflow-hidden">
-              <CardContent className="p-6 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center text-white">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">
-                      Patient Found: <span className="font-mono">{searchedIc}</span>
-                    </h3>
-                    <p className="text-emerald-800 text-sm">
-                      {totalRecords} medical records retrieved across {hospitalResults.filter((h) => h.recordCount > 0).length} hospital(s)
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right px-3.5 py-2 bg-white rounded-xl border border-emerald-200">
+                  <p className="text-[11px] text-emerald-800 font-semibold">Round-Trip Latency</p>
+                  <p className="text-lg font-extrabold text-emerald-900 tabular-nums">{queryTime}ms</p>
                 </div>
-                <div className="text-right px-4 py-2.5 bg-white/80 rounded-xl border border-emerald-200">
-                  <p className="text-xs text-emerald-700 font-medium">Round-trip latency</p>
-                  <p className="text-2xl font-bold text-emerald-800">{queryTime}ms</p>
-                </div>
-              </CardContent>
-            </Card>
+                <Button
+                  onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}`)}
+                  className={cn('bg-gradient-to-r text-white font-bold', theme.buttonGradient)}
+                >
+                  View Unified Timeline
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}/new-record`)}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  {t.newRecord}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <CardHeader className={`bg-gradient-to-r ${theme.cardHeaderGradient} border-b border-slate-100 p-5`}>
-                <CardTitle className="flex items-center gap-2.5 text-slate-900 text-base">
-                  <Building2 className={`w-5 h-5 ${theme.iconColor}`} />
-                  Connected Hospital Node Responses
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-5">
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {hospitalResults.map((hospital) => {
-                    const color = getHospitalColor(hospital.hospitalId)
-                    const isError = hospital.status !== 'success'
-                    return (
-                      <div
-                        key={hospital.hospitalId}
-                        className={`p-4 rounded-xl border transition-all ${
-                          isError ? 'bg-red-50/50 border-red-200' : 'bg-slate-50/60 border-slate-200'
-                        }`}
-                        style={{ borderLeftColor: color, borderLeftWidth: 4 }}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-sm">{hospital.hospitalName}</h4>
-                            <div className="flex items-center gap-1.5 mt-1.5 text-sm text-slate-600">
-                              <FileText className="h-4 w-4 text-slate-400" />
-                              <span>{hospital.recordCount} record(s)</span>
-                            </div>
-                            <p className="text-xs text-slate-400 mt-1">
-                              {isError ? hospital.error || 'Node unreachable' : `Latency: ${hospital.responseTime}ms`}
-                            </p>
+          <Card className="border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <CardHeader className={cn('bg-gradient-to-r border-b border-slate-100 py-4 px-5', theme.cardHeaderGradient)}>
+              <CardTitle className="flex items-center gap-2 text-slate-900 text-sm">
+                <Building2 className={cn('w-4 h-4', theme.iconColor)} />
+                <span>Participating Hospital Node Responses</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="grid grid-cols-3 gap-4">
+                {hospitalResults.map((hospital) => {
+                  const color = getHospitalColor(hospital.hospitalId)
+                  const isError = hospital.status !== 'success'
+                  return (
+                    <div
+                      key={hospital.hospitalId}
+                      className={cn(
+                        'p-4 rounded-xl border',
+                        isError ? 'bg-red-50/60 border-red-200' : 'bg-slate-50/70 border-slate-200'
+                      )}
+                      style={{ borderLeftColor: color, borderLeftWidth: 4 }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-900 text-sm truncate">
+                            {hospital.hospitalName}
+                          </h3>
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-700 tabular-nums">
+                            <FileText className="h-3.5 w-3.5 text-slate-500" />
+                            <span>{hospital.recordCount} record(s)</span>
                           </div>
-                          {isError ? (
-                            <Badge variant="destructive" className="text-[10px]">Offline</Badge>
-                          ) : hospital.recordCount === 0 ? (
-                            <AlertCircle className="h-4 w-4 text-slate-300" />
-                          ) : (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">
-                              Synced
-                            </Badge>
-                          )}
+                          <p className="text-[11px] text-slate-500 mt-1 tabular-nums">
+                            {isError
+                              ? hospital.error || 'Node unreachable'
+                              : `Latency: ${hospital.responseTime}ms`}
+                          </p>
                         </div>
+                        {isError ? (
+                          <StatusBadge tone="critical" label="Offline" />
+                        ) : (
+                          <StatusBadge tone="success" label="Synced" />
+                        )}
                       </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex flex-wrap justify-center gap-4 pt-2 pb-6">
-              <Button
-                onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}`)}
-                size="lg"
-                className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} text-white shadow-md font-semibold`}
-              >
-                View Unified Timeline
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className={`h-12 px-6 rounded-xl ${theme.textColor} border-2 ${theme.borderColor} font-semibold`}
-                onClick={() => navigate(`/doctor/patient/${encodeURIComponent(searchedIc)}/new-record`)}
-              >
-                Create Consultation Record
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   )
 }

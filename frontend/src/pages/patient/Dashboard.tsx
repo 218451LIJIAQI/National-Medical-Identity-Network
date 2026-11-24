@@ -3,16 +3,26 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useAuthStore } from '@/store/auth'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { formatDate, formatTimeAgo, formatActorDisplayName } from '@/lib/utils'
+import { formatDate, formatTimeAgo, formatActorDisplayName, formatIC } from '@/lib/utils'
 import {
-  User, Heart, FileText, Building2,
-  Activity, AlertTriangle, Shield, ArrowRight,
-  CreditCard, Pill, Calendar, ShieldAlert
+  User,
+  Heart,
+  FileText,
+  Building2,
+  Activity,
+  AlertTriangle,
+  Shield,
+  ArrowRight,
+  CreditCard,
+  Pill,
+  Calendar,
+  Stethoscope,
+  Loader2,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 
 interface PatientData {
   hospitalsCount: number
@@ -46,7 +56,7 @@ export default function PatientDashboard() {
     hospitalsCount: 0,
     recordsCount: 0,
     activeMedicationsCount: 0,
-    lastVisit: '-',
+    lastVisit: '—',
     allergies: [],
     chronicConditions: [],
     bloodType: '',
@@ -72,7 +82,7 @@ export default function PatientDashboard() {
         let hospitalsCount = 0
         let recordsCount = 0
         let activeMedicationsCount = 0
-        let lastVisit = '-'
+        let lastVisit = '—'
         let partialFailure = false
 
         if (queryRes.success && queryRes.data) {
@@ -116,7 +126,9 @@ export default function PatientDashboard() {
           activeMedicationsCount,
           lastVisit,
           allergies: Array.isArray(p?.allergies) ? (p?.allergies as string[]) : [],
-          chronicConditions: Array.isArray(p?.chronicConditions) ? (p?.chronicConditions as string[]) : [],
+          chronicConditions: Array.isArray(p?.chronicConditions)
+            ? (p?.chronicConditions as string[])
+            : [],
           bloodType: (p?.bloodType as string) || '',
           fullName: (p?.fullName as string) || '',
           partialFailure,
@@ -127,7 +139,7 @@ export default function PatientDashboard() {
         setLoading(false)
       }
     }
-    loadPatientData()
+    void loadPatientData()
   }, [user?.icNumber])
 
   useEffect(() => {
@@ -143,279 +155,255 @@ export default function PatientDashboard() {
         setAccessLogsLoading(false)
       }
     }
-    loadAccessLogs()
+    void loadAccessLogs()
   }, [])
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 16 },
-    visible: { opacity: 1, y: 0 },
-  }
-
   return (
-    <motion.div
-      className="space-y-8"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      <motion.div
-        variants={itemVariants}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 p-8 text-white shadow-2xl shadow-emerald-500/25"
-      >
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-          <div className="relative w-24 h-24 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shadow-xl">
-            <User className="w-12 h-12 drop-shadow-lg" />
-          </div>
+    <div className="space-y-6">
+      {/* Patient Identity Banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 p-7 text-white shadow-md">
+        <div className="flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/15 rounded-2xl flex items-center justify-center border border-white/25 shrink-0">
+              <User className="w-8 h-8" />
+            </div>
 
-          <div className="flex-1">
-            <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">
-              {patientData.fullName || user?.fullName || 'Patient'}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
-                <CreditCard className="w-4 h-4" />
-                <span className="font-mono text-sm">{user?.icNumber || 'XXXXXX-XX-XXXX'}</span>
+            <div>
+              <h1 className="text-2xl xl:text-3xl font-bold mb-1.5">
+                {patientData.fullName || user?.fullName || 'Patient'}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="inline-flex items-center gap-1.5 bg-white/15 px-3 py-1 rounded-lg border border-white/20 text-xs font-mono tabular-nums">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>{user?.icNumber ? formatIC(user.icNumber) : '—'}</span>
+                </div>
+                {patientData.bloodType && (
+                  <Badge className="bg-white/20 text-white border border-white/30 text-xs font-bold">
+                    <Heart className="w-3.5 h-3.5 mr-1 text-red-200" />
+                    Blood: {patientData.bloodType}
+                  </Badge>
+                )}
+                {patientData.chronicConditions.map((condition) => (
+                  <Badge
+                    key={condition}
+                    className="bg-teal-950/40 text-teal-50 border border-white/20 text-xs"
+                  >
+                    {condition}
+                  </Badge>
+                ))}
               </div>
-              {patientData.bloodType && (
-                <Badge className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30 px-4 py-2 text-sm">
-                  <Heart className="w-4 h-4 mr-2 text-red-200" />
-                  Blood Type: {patientData.bloodType}
-                </Badge>
-              )}
-              {patientData.chronicConditions.map((condition) => (
-                <Badge
-                  key={condition}
-                  className="bg-teal-900/30 text-teal-50 border border-white/20 px-3 py-1.5 text-xs"
-                >
-                  {condition}
-                </Badge>
-              ))}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2.5">
             <Link to="/patient/records">
-              <Button variant="outline" className="bg-white text-emerald-600 hover:bg-emerald-50 border-emerald-200 gap-2 shadow-xl shadow-black/10 h-12 px-6 rounded-xl font-semibold">
-                <FileText className="w-5 h-5" />
+              <Button className="bg-white text-emerald-900 hover:bg-emerald-50 gap-2 font-bold">
+                <FileText className="w-4 h-4" />
                 {t.myRecords}
               </Button>
             </Link>
             <Link to="/patient/privacy">
-              <Button variant="ghost" className="border border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 gap-2 h-12 px-6 rounded-xl font-semibold">
-                <Shield className="w-5 h-5" />
+              <Button
+                variant="ghost"
+                className="border border-white/30 bg-white/10 text-white hover:bg-white/20 gap-2 font-semibold"
+              >
+                <Shield className="w-4 h-4" />
                 {t.privacySettings}
               </Button>
             </Link>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {patientData.partialFailure && (
-        <motion.div variants={itemVariants}>
-          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3.5 text-sm text-amber-900 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>{t.partialHospitalFailureWarning}</span>
-          </div>
-        </motion.div>
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3.5 text-xs font-semibold text-amber-950 flex items-center gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
+          <span>{t.partialHospitalFailureWarning}</span>
+        </div>
       )}
 
       {patientData.allergies.length > 0 && (
-        <motion.div variants={itemVariants}>
-          <Card className="border-0 shadow-lg bg-gradient-to-r from-red-50 to-orange-50 overflow-hidden">
-            <CardContent className="p-0">
-              <div className="flex items-stretch">
-                <div className="w-2 bg-gradient-to-b from-red-500 to-orange-500" />
-                <div className="flex-1 p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-red-100 rounded-xl">
-                        <AlertTriangle className="w-6 h-6 text-red-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-red-900">{t.allergiesOnFile}</p>
-                        <p className="text-red-700 text-sm mt-0.5">
-                          Inform attending clinicians about these documented drug or clinical allergies
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {patientData.allergies.map((allergy) => (
-                        <Badge key={allergy} variant="destructive" className="px-3 py-1">
-                          {allergy}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+        <Card className="border-2 border-red-300 bg-red-50/70 rounded-2xl shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-red-100 rounded-xl border border-red-200 text-red-700 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <div>
+                <p className="font-bold text-sm text-red-950">{t.allergiesOnFile}</p>
+                <p className="text-red-800 text-xs mt-0.5">
+                  Inform attending clinicians about these documented drug or food allergies
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {patientData.allergies.map((allergy) => (
+                <StatusBadge key={allergy} tone="critical" size="md" label={allergy} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
         {[
           {
             label: t.hospitalsVisited,
-            value: loading ? '-' : patientData.hospitalsCount,
+            value: loading ? '—' : patientData.hospitalsCount,
             icon: Building2,
-            gradient: 'from-blue-500 to-blue-600',
-            bgLight: 'bg-blue-50',
+            accent: 'border-t-blue-600',
+            iconWrap: 'bg-blue-50 text-blue-700',
           },
           {
             label: t.medicalRecordsCount,
-            value: loading ? '-' : patientData.recordsCount,
+            value: loading ? '—' : patientData.recordsCount,
             icon: FileText,
-            gradient: 'from-emerald-500 to-emerald-600',
-            bgLight: 'bg-emerald-50',
+            accent: 'border-t-emerald-600',
+            iconWrap: 'bg-emerald-50 text-emerald-700',
           },
           {
             label: t.activeMedications,
-            value: loading ? '-' : patientData.activeMedicationsCount,
+            value: loading ? '—' : patientData.activeMedicationsCount,
             icon: Pill,
-            gradient: 'from-violet-500 to-violet-600',
-            bgLight: 'bg-violet-50',
+            accent: 'border-t-violet-600',
+            iconWrap: 'bg-violet-50 text-violet-700',
           },
           {
             label: t.lastVisit,
-            value: loading ? '-' : patientData.lastVisit,
+            value: loading ? '—' : patientData.lastVisit,
             icon: Calendar,
-            gradient: 'from-amber-500 to-amber-600',
-            bgLight: 'bg-amber-50',
+            accent: 'border-t-amber-600',
+            iconWrap: 'bg-amber-50 text-amber-800',
           },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-            <div className={`h-1 bg-gradient-to-r ${stat.gradient}`} />
-            <CardContent className="pt-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                </div>
-                <div className={`p-3 ${stat.bgLight} rounded-xl`}>
-                  <stat.icon className="w-6 h-6 text-gray-700" />
-                </div>
+          <Card
+            key={stat.label}
+            className={`border border-slate-200 border-t-4 ${stat.accent} shadow-sm rounded-2xl`}
+          >
+            <CardContent className="p-5 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-1">{stat.label}</p>
+                <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+              </div>
+              <div className={`p-2.5 rounded-xl ${stat.iconWrap}`}>
+                <stat.icon className="w-5 h-5" />
               </div>
             </CardContent>
           </Card>
         ))}
-      </motion.div>
+      </div>
 
-      <motion.div variants={itemVariants}>
-        <div className="grid md:grid-cols-2 gap-4">
-          <Link to="/patient/records">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden group">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-lg">
-                    <FileText className="w-8 h-8 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                      {t.myRecords}
-                    </h3>
-                    <p className="text-gray-500 text-sm mt-1">
-                      Inspect diagnoses, prescriptions, lab reports, and export your nationwide medical timeline
-                    </p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+      {/* Portal Action Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <Link to="/patient/records">
+          <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow rounded-2xl group h-full">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3.5 bg-blue-600 rounded-xl text-white shrink-0">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-base text-slate-900 group-hover:text-blue-700 transition-colors">
+                  {t.myRecords}
+                </h2>
+                <p className="text-slate-600 text-xs mt-1 leading-relaxed">
+                  Inspect diagnoses, prescriptions, lab reports, and export your nationwide medical timeline
+                </p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
 
-          <Link to="/patient/privacy">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden group">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-4 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl shadow-lg">
-                    <Shield className="w-8 h-8 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-gray-900 group-hover:text-emerald-600 transition-colors">
-                      {t.privacySettings}
-                    </h3>
-                    <p className="text-gray-500 text-sm mt-1">
-                      Configure hospital-level sharing consent, inspect audit history, and download your archive
-                    </p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+        <Link to="/patient/privacy">
+          <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow rounded-2xl group h-full">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3.5 bg-emerald-600 rounded-xl text-white shrink-0">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-base text-slate-900 group-hover:text-emerald-700 transition-colors">
+                  {t.privacySettings}
+                </h2>
+                <p className="text-slate-600 text-xs mt-1 leading-relaxed">
+                  Configure hospital-level sharing consent, inspect audit history, and download your archive
+                </p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Recent Access Audit */}
+      <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-slate-100 bg-slate-50/70">
+          <h2 className="text-base font-bold text-slate-900">{t.recentAccessTitle}</h2>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Every clinical lookup, break-glass override, and blocked access attempt is recorded
+          </p>
         </div>
-      </motion.div>
+        <CardContent className="p-0">
+          <div className="divide-y divide-slate-100">
+            {accessLogsLoading ? (
+              <div className="p-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600 mx-auto" />
+                <p className="text-xs text-slate-500 mt-2">Loading access logs…</p>
+              </div>
+            ) : accessLogs.length === 0 ? (
+              <div className="p-8 text-center">
+                <Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No external access to your records yet</p>
+              </div>
+            ) : (
+              accessLogs.map((log) => {
+                const ActorIcon =
+                  log.actorType === 'doctor'
+                    ? Stethoscope
+                    : log.actorType === 'patient'
+                      ? User
+                      : Building2
+                const displayName = formatActorDisplayName(log.actorName, log.actorId, log.actorType)
 
-      <motion.div variants={itemVariants}>
-        <Card className="border-0 shadow-lg">
-          <div className="p-6 border-b bg-gradient-to-r from-gray-50 to-white">
-            <h2 className="text-lg font-semibold text-gray-900">{t.recentAccessTitle}</h2>
-            <p className="text-sm text-gray-500">Every clinical lookup and blocked access attempt is recorded</p>
-          </div>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {accessLogsLoading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
-                  <p className="text-gray-500 mt-2">Loading access logs...</p>
-                </div>
-              ) : accessLogs.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No recent access to your records</p>
-                </div>
-              ) : (
-                accessLogs.map((log) => {
-                  const avatar = log.actorType === 'doctor' ? '👨‍⚕️' : log.actorType === 'patient' ? '👤' : '🏥'
-                  const displayName = formatActorDisplayName(log.actorName, log.actorId, log.actorType)
-
-                  return (
-                    <div
-                      key={log.id}
-                      className={`p-4 transition-colors ${log.success ? 'hover:bg-gray-50' : 'bg-red-50/40 hover:bg-red-50/70'}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center text-2xl">
-                          {avatar}
+                return (
+                  <div
+                    key={log.id}
+                    className={`p-4 transition-colors ${
+                      log.success ? 'hover:bg-slate-50' : 'bg-red-50/40 hover:bg-red-50/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center shrink-0">
+                        <ActorIcon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-sm text-slate-900">{displayName}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {log.hospitalName}
+                          </Badge>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-gray-900">{displayName}</p>
-                            <Badge variant="outline" className="text-xs">{log.hospitalName}</Badge>
-                          </div>
-                          <p className="text-sm text-gray-500 truncate">{log.details || 'Viewed medical records'}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm text-gray-400">{formatTimeAgo(log.timestamp)}</p>
-                          <div className="flex items-center gap-1 justify-end mt-1">
-                            {log.success ? (
-                              <>
-                                <Activity className="w-3.5 h-3.5 text-emerald-500" />
-                                <span className="text-xs font-medium text-emerald-600">Authorized</span>
-                              </>
-                            ) : (
-                              <>
-                                <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
-                                <span className="text-xs font-medium text-red-600">Blocked</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                        <p className="text-xs text-slate-600 truncate mt-0.5">
+                          {log.details || 'Viewed medical records'}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0 space-y-1">
+                        <p className="text-xs text-slate-500 tabular-nums">
+                          {formatTimeAgo(log.timestamp)}
+                        </p>
+                        <StatusBadge
+                          tone={log.success ? 'success' : 'blocked'}
+                          label={log.success ? 'Authorized' : 'Blocked'}
+                        />
                       </div>
                     </div>
-                  )
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

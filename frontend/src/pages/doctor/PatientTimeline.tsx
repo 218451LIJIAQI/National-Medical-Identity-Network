@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi, type MedicalRecordDto } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
@@ -25,10 +26,17 @@ import {
   FlaskConical,
   Activity,
   Lock,
+  CheckCircle2,
 } from 'lucide-react'
-import { downloadJsonFile, formatDate, formatIC, printHtmlDocument } from '@/lib/utils'
+import {
+  cn,
+  downloadJsonFile,
+  escapeHtml,
+  formatDate,
+  formatIC,
+  printHtmlDocument,
+} from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { motion } from 'framer-motion'
 
 interface PatientInfo {
   fullName: string
@@ -74,12 +82,15 @@ export default function PatientTimeline() {
   const [medications, setMedications] = useState<ActiveMedicationItem[]>([])
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadPatientData() {
       if (!icNumber) return
       setLoading(true)
       setAccessDeniedError(null)
       setNotFoundError(null)
       setPartialFailureWarning(null)
+      setHospitalFilter('all')
 
       try {
         const formattedIc = formatIC(icNumber)
@@ -88,12 +99,17 @@ export default function PatientTimeline() {
           centralApi.getPatient(formattedIc),
         ])
 
+        if (cancelled) return
+
         if (queryRes.accessDenied || patientRes.accessDenied) {
           setAccessDeniedError(queryRes.error || patientRes.error || t.privacyRestrictedDesc)
           return
         }
 
-        if ((queryRes.notFound || queryRes.status === 404) && (patientRes.notFound || patientRes.status === 404)) {
+        if (
+          (queryRes.notFound || queryRes.status === 404) &&
+          (patientRes.notFound || patientRes.status === 404)
+        ) {
           setNotFoundError(queryRes.error || t.patientNotFoundDesc)
           return
         }
@@ -106,8 +122,6 @@ export default function PatientTimeline() {
           }
 
           const allRecords: MedicalRecordDto[] = []
-          const allMeds: ActiveMedicationItem[] = []
-
           queryRes.data.hospitals.forEach((hospital) => {
             hospital.records?.forEach((rec) => {
               const isLocalEditable =
@@ -118,23 +132,31 @@ export default function PatientTimeline() {
                 hospitalName: hospital.hospitalName,
                 isReadOnly: !isLocalEditable,
               })
-
-              rec.prescriptions?.forEach((rx) => {
-                if (rx.isActive) {
-                  allMeds.push({
-                    name: `${rx.medicationName} ${rx.dosage}`,
-                    frequency: rx.frequency,
-                    instructions: rx.instructions,
-                    hospital: hospital.hospitalName,
-                  })
-                }
-              })
             })
           })
 
-          allRecords.sort((a, b) => b.visitDate.localeCompare(a.visitDate))
+          allRecords.sort(
+            (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
+          )
+
+          const dedupMedMap = new Map<string, ActiveMedicationItem>()
+          for (const rec of allRecords) {
+            for (const rx of rec.prescriptions || []) {
+              if (!rx.isActive || !rx.medicationName) continue
+              const key = `${rx.medicationName.toLowerCase()}|${rx.dosage.toLowerCase()}`
+              if (!dedupMedMap.has(key)) {
+                dedupMedMap.set(key, {
+                  name: `${rx.medicationName} ${rx.dosage}`,
+                  frequency: rx.frequency,
+                  instructions: rx.instructions,
+                  hospital: rec.hospitalName || rec.hospitalId,
+                })
+              }
+            }
+          }
+
           setRecords(allRecords)
-          setMedications(allMeds)
+          setMedications(Array.from(dedupMedMap.values()))
         }
 
         if (patientRes.success && patientRes.data?.patient) {
@@ -146,7 +168,9 @@ export default function PatientTimeline() {
             gender: String(p.gender || ''),
             bloodType: String(p.bloodType || ''),
             allergies: Array.isArray(p.allergies) ? (p.allergies as string[]) : [],
-            chronicConditions: Array.isArray(p.chronicConditions) ? (p.chronicConditions as string[]) : [],
+            chronicConditions: Array.isArray(p.chronicConditions)
+              ? (p.chronicConditions as string[])
+              : [],
           }
           setPatient(info)
           setActivePatient({
@@ -157,39 +181,55 @@ export default function PatientTimeline() {
             bloodType: info.bloodType,
             allergies: info.allergies,
             chronicConditions: info.chronicConditions,
+            scopedHospitalId: user?.hospitalId,
+            scopedDoctorId: user?.doctorId,
           })
         }
       } catch (error) {
         console.error('Failed to load patient data:', error)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    loadPatientData()
-  }, [icNumber, user?.hospitalId, setActivePatient, t.partialHospitalFailureWarning, t.patientNotFoundDesc, t.privacyRestrictedDesc])
+
+    void loadPatientData()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    icNumber,
+    user?.hospitalId,
+    user?.doctorId,
+    setActivePatient,
+    t.partialHospitalFailureWarning,
+    t.patientNotFoundDesc,
+    t.privacyRestrictedDesc,
+  ])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className={`h-8 w-8 animate-spin ${theme.iconColor}`} />
+        <Loader2 className={cn('h-8 w-8 animate-spin', theme.iconColor)} />
       </div>
     )
   }
 
   if (accessDeniedError) {
     return (
-      <Card className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-lg max-w-2xl mx-auto mt-10">
+      <Card className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm max-w-2xl mx-auto mt-10">
         <CardContent className="p-8 space-y-4">
-          <div className="flex items-center gap-3 text-red-800">
-            <ShieldAlert className="w-8 h-8 text-red-600 shrink-0" />
+          <div className="flex items-center gap-3 text-red-900">
+            <ShieldAlert className="w-8 h-8 text-red-700 shrink-0" />
             <div>
               <h2 className="text-xl font-bold">{t.privacyRestrictedTitle}</h2>
-              <p className="text-xs font-mono text-red-700 mt-0.5">IC: {formatIC(icNumber || '')}</p>
+              <p className="text-xs font-mono text-red-800 mt-0.5 tabular-nums">
+                IC: {formatIC(icNumber || '')}
+              </p>
             </div>
           </div>
-          <p className="text-sm text-red-800 leading-relaxed">{accessDeniedError}</p>
+          <p className="text-sm text-red-900 leading-relaxed">{accessDeniedError}</p>
           <div className="pt-2">
-            <Button variant="outline" onClick={() => navigate('/doctor/search')} className="rounded-xl">
+            <Button variant="outline" onClick={() => navigate('/doctor/search')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Patient Search
             </Button>
@@ -201,18 +241,20 @@ export default function PatientTimeline() {
 
   if (notFoundError) {
     return (
-      <Card className="border-2 border-amber-200 bg-amber-50 rounded-2xl shadow-md max-w-2xl mx-auto mt-10">
+      <Card className="border-2 border-amber-300 bg-amber-50 rounded-2xl shadow-sm max-w-2xl mx-auto mt-10">
         <CardContent className="p-8 space-y-4">
           <h2 className="text-xl font-bold text-amber-950">{t.patientNotFoundTitle}</h2>
-          <p className="text-sm text-amber-800">{notFoundError}</p>
+          <p className="text-sm text-amber-900">{notFoundError}</p>
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={() => navigate('/doctor/search')} className="rounded-xl">
+            <Button variant="outline" onClick={() => navigate('/doctor/search')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
             <Button
-              onClick={() => navigate(`/doctor/patient/${encodeURIComponent(formatIC(icNumber || ''))}/new-record`)}
-              className={`bg-gradient-to-r ${theme.buttonGradient} text-white rounded-xl`}
+              onClick={() =>
+                navigate(`/doctor/patient/${encodeURIComponent(formatIC(icNumber || ''))}/new-record`)
+              }
+              className={cn('bg-gradient-to-r text-white', theme.buttonGradient)}
             >
               <Plus className="w-4 h-4 mr-1.5" />
               Register & Create First Record
@@ -233,11 +275,11 @@ export default function PatientTimeline() {
     const rowsHtml = filteredRecords
       .map(
         (r) => `<tr>
-          <td>${formatDate(r.visitDate)}</td>
-          <td>${r.hospitalName || r.hospitalId}</td>
-          <td>${r.doctorName || r.doctorId}</td>
-          <td>${r.diagnosis.join(', ')}</td>
-          <td>${r.notes || '-'}</td>
+          <td>${escapeHtml(formatDate(r.visitDate))}</td>
+          <td>${escapeHtml(r.hospitalName || r.hospitalId)}</td>
+          <td>${escapeHtml(r.doctorName || r.doctorId)}</td>
+          <td>${escapeHtml(r.diagnosis.join(', '))}</td>
+          <td>${escapeHtml(r.notes || '—')}</td>
         </tr>`
       )
       .join('')
@@ -246,15 +288,15 @@ export default function PatientTimeline() {
       `<div class="header">
         <div>
           <h1>MedLink MY Federated Clinical Summary</h1>
-          <p>${patient.fullName} (${patient.icNumber})</p>
+          <p>${escapeHtml(patient.fullName)} (${escapeHtml(patient.icNumber)})</p>
         </div>
-        <div>Generated by ${theme.name}</div>
+        <div>Generated by ${escapeHtml(theme.name)}</div>
       </div>
       <div class="meta">
-        <strong>DOB:</strong> ${formatDate(patient.dateOfBirth)} |
-        <strong>Gender:</strong> ${patient.gender} |
-        <strong>Blood Type:</strong> ${patient.bloodType || 'Unknown'}<br/>
-        <strong>Allergies:</strong> ${patient.allergies.join(', ') || 'None recorded'}
+        <strong>DOB:</strong> ${escapeHtml(formatDate(patient.dateOfBirth))} |
+        <strong>Gender:</strong> ${escapeHtml(patient.gender)} |
+        <strong>Blood Type:</strong> ${escapeHtml(patient.bloodType || 'Unknown')}<br/>
+        <strong>Allergies:</strong> ${escapeHtml(patient.allergies.join(', ') || 'None recorded')}
       </div>
       <table>
         <thead><tr><th>Date</th><th>Hospital</th><th>Attending Doctor</th><th>Diagnosis</th><th>Notes</th></tr></thead>
@@ -273,144 +315,159 @@ export default function PatientTimeline() {
   }
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <div className="space-y-6">
       {partialFailureWarning && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm flex items-center gap-2.5">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex items-center gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{partialFailureWarning}</span>
         </div>
       )}
 
       {/* Header */}
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${theme.headerGradient} p-7 text-white shadow-xl`}>
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link to="/doctor/search">
-              <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/30 text-white rounded-xl">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div className="p-3 bg-white/20 rounded-2xl border border-white/30">
-              <User className="w-7 h-7" />
-            </div>
-            <div>
-              <Badge className="bg-white/20 text-white border-0 mb-1">
-                <Shield className="w-3 h-3 mr-1" /> Federated Clinical Timeline
-              </Badge>
-              <h1 className="text-2xl sm:text-3xl font-bold">{patient.fullName}</h1>
-              <p className="text-white/85 font-mono text-sm">{formatIC(patient.icNumber)}</p>
-            </div>
+      <div
+        className={cn(
+          'rounded-2xl bg-gradient-to-r p-6 text-white shadow-md flex items-center justify-between gap-4 flex-wrap',
+          theme.headerGradient
+        )}
+      >
+        <div className="flex items-center gap-4">
+          <Link to="/doctor/search">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back to patient search"
+              className="bg-white/20 hover:bg-white/30 text-white"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div className="p-2.5 bg-white/20 rounded-xl border border-white/25">
+            <User className="w-6 h-6" />
           </div>
+          <div>
+            <Badge className="bg-white/20 text-white border-0 mb-1">
+              <Shield className="w-3 h-3 mr-1" /> Federated Clinical Timeline
+            </Badge>
+            <h1 className="text-2xl font-bold">{patient.fullName}</h1>
+            <p className="text-white/85 font-mono text-xs tabular-nums">
+              {formatIC(patient.icNumber)}
+            </p>
+          </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handlePrintSummary}
-              className="bg-white/15 hover:bg-white/25 text-white rounded-xl"
-            >
-              <Printer className="w-4 h-4 mr-1.5" />
-              {t.printSummary}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handlePrintSummary}
+            className="bg-white/15 hover:bg-white/25 text-white"
+          >
+            <Printer className="w-4 h-4 mr-1.5" />
+            {t.printSummary}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleExportJson}
+            className="bg-white/15 hover:bg-white/25 text-white"
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            {t.exportJson}
+          </Button>
+          <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
+            <Button className="bg-white text-slate-900 hover:bg-slate-100 gap-1.5 font-bold shadow-sm">
+              <Plus className="h-4 w-4" />
+              {t.newRecord}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleExportJson}
-              className="bg-white/15 hover:bg-white/25 text-white rounded-xl"
-            >
-              <Download className="w-4 h-4 mr-1.5" />
-              {t.exportJson}
-            </Button>
-            <Link to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/new-record`}>
-              <Button className="bg-white text-slate-900 hover:bg-slate-100 gap-2 h-11 px-5 rounded-xl font-bold shadow">
-                <Plus className="h-4 w-4" />
-                {t.newRecord}
-              </Button>
-            </Link>
-          </div>
+          </Link>
         </div>
       </div>
 
       {/* Patient Demographics & Clinical Alerts */}
       <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-        <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <User className="h-5 w-5 text-slate-600" />
-              Patient Demographics & Clinical Alerts
+        <div className={cn('h-1 bg-gradient-to-r', theme.cardAccentGradient)} />
+        <CardHeader className="py-4 px-5 border-b border-slate-100">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <User className="h-4 w-4 text-slate-600" />
+              <span>Patient Demographics & Clinical Safety Profile</span>
             </CardTitle>
             <div className="flex flex-wrap gap-2">
               <Link to="/doctor/prescription">
-                <Button variant="outline" size="sm" className="rounded-xl text-xs">
+                <Button variant="outline" size="sm">
                   <Pill className="w-3.5 h-3.5 mr-1" /> Issue e-Rx
                 </Button>
               </Link>
               <Link to="/doctor/lab">
-                <Button variant="outline" size="sm" className="rounded-xl text-xs">
+                <Button variant="outline" size="sm">
                   <FlaskConical className="w-3.5 h-3.5 mr-1" /> Order Lab
                 </Button>
               </Link>
               <Link to="/doctor/mc">
-                <Button variant="outline" size="sm" className="rounded-xl text-xs">
+                <Button variant="outline" size="sm">
                   <FileText className="w-3.5 h-3.5 mr-1" /> Issue MC
                 </Button>
               </Link>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-            <div className="p-3 rounded-xl bg-slate-50">
+        <CardContent className="p-5 space-y-4">
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <p className="text-xs text-slate-500">Full Name</p>
-              <p className="font-semibold text-slate-900 mt-0.5">{patient.fullName}</p>
+              <p className="font-bold text-slate-900 mt-0.5">{patient.fullName}</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <p className="text-xs text-slate-500">Date of Birth</p>
-              <p className="font-semibold text-slate-900 mt-0.5">{formatDate(patient.dateOfBirth)}</p>
+              <p className="font-bold text-slate-900 mt-0.5 tabular-nums">
+                {formatDate(patient.dateOfBirth)}
+              </p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <p className="text-xs text-slate-500">Gender</p>
-              <p className="font-semibold text-slate-900 capitalize mt-0.5">{patient.gender || '-'}</p>
+              <p className="font-bold text-slate-900 capitalize mt-0.5">{patient.gender || '—'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50">
-              <p className="text-xs text-slate-500">Blood Type</p>
-              <p className="font-bold text-red-600 mt-0.5">{patient.bloodType || 'Unknown'}</p>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+              <p className="text-xs text-slate-500">Blood Group</p>
+              <p className="font-extrabold text-red-700 mt-0.5">{patient.bloodType || 'Unknown'}</p>
             </div>
           </div>
 
-          {patient.allergies.length > 0 && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 flex-wrap">
-              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-              <span className="text-sm font-bold text-red-800">Known Allergies:</span>
-              {patient.allergies.map((allergy) => (
-                <Badge key={allergy} variant="destructive">
-                  {allergy}
-                </Badge>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {patient.allergies.length > 0 ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-red-900">
+                  {t.allergiesOnFile}:
+                </span>
+                {patient.allergies.map((allergy) => (
+                  <StatusBadge key={allergy} tone="critical" label={allergy} />
+                ))}
+              </div>
+            ) : (
+              <StatusBadge tone="success" icon={CheckCircle2} label={t.nkdaVerified} />
+            )}
 
-          {patient.chronicConditions.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Chronic Conditions:</span>
-              {patient.chronicConditions.map((condition) => (
-                <Badge key={condition} variant="secondary">
-                  {condition}
-                </Badge>
-              ))}
-            </div>
-          )}
+            {patient.chronicConditions.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap ml-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  {t.chronicConditionsOnFile}:
+                </span>
+                {patient.chronicConditions.map((condition) => (
+                  <StatusBadge key={condition} tone="warning" label={condition} />
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Medical Records Timeline */}
       <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-        <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-        <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2.5 text-lg">
-            <FileText className={`h-5 w-5 ${theme.iconColor}`} />
-            Federated Consultations ({filteredRecords.length})
+        <div className={cn('h-1 bg-gradient-to-r', theme.cardAccentGradient)} />
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 py-4 px-5 flex flex-row items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className={cn('h-4 w-4', theme.iconColor)} />
+            <span>Federated Consultations ({filteredRecords.length})</span>
           </CardTitle>
 
           {uniqueHospitals.length > 1 && (
@@ -418,9 +475,12 @@ export default function PatientTimeline() {
               <button
                 type="button"
                 onClick={() => setHospitalFilter('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                  hospitalFilter === 'all' ? `${theme.iconBg} text-white` : 'bg-white border text-slate-600'
-                }`}
+                className={cn(
+                  'px-3 py-1 rounded-lg text-xs font-semibold transition-colors',
+                  hospitalFilter === 'all'
+                    ? `${theme.iconBg} text-white`
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                )}
               >
                 All Hospitals ({records.length})
               </button>
@@ -429,9 +489,12 @@ export default function PatientTimeline() {
                   key={hId}
                   type="button"
                   onClick={() => setHospitalFilter(hId)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                    hospitalFilter === hId ? `${theme.iconBg} text-white` : 'bg-white border text-slate-600'
-                  }`}
+                  className={cn(
+                    'px-3 py-1 rounded-lg text-xs font-semibold transition-colors',
+                    hospitalFilter === hId
+                      ? `${theme.iconBg} text-white`
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  )}
                 >
                   {hName}
                 </button>
@@ -440,11 +503,11 @@ export default function PatientTimeline() {
           )}
         </CardHeader>
 
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-5 space-y-4">
           {filteredRecords.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p>No consultation records match the selected filter.</p>
+            <div className="text-center py-10 text-slate-500 text-sm">
+              <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+              <p>No consultation records match the selected hospital filter.</p>
             </div>
           ) : (
             filteredRecords.map((record) => {
@@ -453,50 +516,65 @@ export default function PatientTimeline() {
               return (
                 <div
                   key={record.id}
-                  className={`p-5 rounded-2xl border transition-all ${
+                  className={cn(
+                    'p-5 rounded-2xl border transition-colors',
                     canEdit ? `bg-white ${theme.borderColor} shadow-sm` : 'bg-slate-50/70 border-slate-200'
-                  }`}
+                  )}
                   style={{ borderLeftWidth: 4, borderLeftColor: recordTheme.primaryColor }}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-3 py-0.5 rounded-full text-xs font-semibold border ${recordTheme.badgeClass}`}>
-                          <Building2 className="w-3 h-3 inline mr-1" />
+                        <span
+                          className={cn(
+                            'px-2.5 py-0.5 rounded-full text-xs font-bold border inline-flex items-center gap-1',
+                            recordTheme.badgeClass
+                          )}
+                        >
+                          <Building2 className="w-3 h-3" />
                           {record.hospitalName || recordTheme.name}
                         </span>
                         <Badge variant="outline" className="capitalize text-xs">
                           {record.visitType}
                         </Badge>
                         {record.isReadOnly ? (
-                          <Badge variant="outline" className="text-xs bg-slate-100 text-slate-600 gap-1">
-                            <Lock className="w-3 h-3" /> Read-Only (External Hospital)
-                          </Badge>
+                          <StatusBadge
+                            tone="neutral"
+                            icon={Lock}
+                            label="Read-Only (External Hospital)"
+                          />
                         ) : (
-                          <Badge className="text-xs bg-emerald-100 text-emerald-800 border-emerald-200">
-                            Local Editable Record
-                          </Badge>
+                          <StatusBadge
+                            tone="success"
+                            icon={CheckCircle2}
+                            label="Local Editable Record"
+                          />
                         )}
                       </div>
 
-                      <h4 className="font-bold text-slate-900 text-lg">
+                      <h3 className="font-bold text-slate-900 text-base">
                         {record.diagnosis.join(', ') || 'General Consultation'}
-                      </h4>
-                      <p className="text-xs text-slate-500">
+                        {record.diagnosisCodes?.length ? (
+                          <span className="ml-2 text-xs font-mono text-slate-500">
+                            [{record.diagnosisCodes.join(', ')}]
+                          </span>
+                        ) : null}
+                      </h3>
+                      <p className="text-xs text-slate-600">
                         Attending Clinician: <strong>{record.doctorName || record.doctorId}</strong>
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl">
-                        <Calendar className="h-3.5 w-3.5" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl tabular-nums">
+                        <Calendar className="h-3.5 w-3.5 text-slate-500" />
                         {formatDate(record.visitDate)}
                       </span>
                       {canEdit && (
                         <Link
                           to={`/doctor/patient/${encodeURIComponent(patient.icNumber)}/records/${encodeURIComponent(record.id)}/edit`}
                         >
-                          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs">
+                          <Button variant="outline" size="sm" className="gap-1.5">
                             <Edit3 className="w-3.5 h-3.5" />
                             {t.editRecord}
                           </Button>
@@ -506,34 +584,39 @@ export default function PatientTimeline() {
                   </div>
 
                   {/* Clinical Body */}
-                  <div className="mt-4 pt-3 border-t border-slate-200/70 space-y-3 text-sm">
+                  <div className="mt-4 pt-3 border-t border-slate-200/80 space-y-3 text-xs">
                     {record.chiefComplaint && (
-                      <p className="text-slate-700">
-                        <span className="font-semibold text-slate-900">Chief Complaint:</span> {record.chiefComplaint}
+                      <p className="text-slate-700 text-sm">
+                        <span className="font-bold text-slate-900">Chief Complaint:</span>{' '}
+                        {record.chiefComplaint}
                       </p>
                     )}
 
                     {record.symptoms && record.symptoms.length > 0 && (
                       <p className="text-slate-700">
-                        <span className="font-semibold text-slate-900">Symptoms:</span> {record.symptoms.join(', ')}
+                        <span className="font-bold text-slate-900">Symptoms:</span>{' '}
+                        {record.symptoms.join(', ')}
                       </p>
                     )}
 
                     {record.vitalSigns && Object.keys(record.vitalSigns).length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-semibold text-slate-600 flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-2 tabular-nums">
+                        <span className="font-bold text-slate-700 flex items-center gap-1">
                           <Activity className="w-3.5 h-3.5" /> Vitals:
                         </span>
                         {record.vitalSigns.bloodPressureSystolic && (
                           <Badge variant="outline">
-                            BP {record.vitalSigns.bloodPressureSystolic}/{record.vitalSigns.bloodPressureDiastolic} mmHg
+                            BP {record.vitalSigns.bloodPressureSystolic}/
+                            {record.vitalSigns.bloodPressureDiastolic} mmHg
                           </Badge>
                         )}
                         {record.vitalSigns.heartRate && (
                           <Badge variant="outline">HR {record.vitalSigns.heartRate} bpm</Badge>
                         )}
                         {record.vitalSigns.temperature && (
-                          <Badge variant="outline">Temp {Number(record.vitalSigns.temperature).toFixed(1)} °C</Badge>
+                          <Badge variant="outline">
+                            Temp {Number(record.vitalSigns.temperature).toFixed(1)} °C
+                          </Badge>
                         )}
                         {record.vitalSigns.oxygenSaturation && (
                           <Badge variant="outline">SpO2 {record.vitalSigns.oxygenSaturation}%</Badge>
@@ -545,66 +628,85 @@ export default function PatientTimeline() {
                     )}
 
                     {record.notes && (
-                      <p className="text-slate-600 bg-white/80 p-3 rounded-xl border border-slate-100">
+                      <p className="text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
                         {record.notes}
                       </p>
                     )}
 
-                    {/* Prescriptions Subtable */}
+                    {/* Structured Prescriptions Table */}
                     {record.prescriptions && record.prescriptions.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
-                          <Pill className="w-3.5 h-3.5" /> Prescriptions ({record.prescriptions.length})
-                        </p>
-                        <div className="grid sm:grid-cols-2 gap-2">
-                          {record.prescriptions.map((rx, idx) => (
-                            <div
-                              key={rx.id || idx}
-                              className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs"
-                            >
-                              <p className="font-bold text-emerald-950">
-                                {rx.medicationName} ({rx.dosage})
-                              </p>
-                              <p className="text-emerald-800">
-                                {rx.frequency} • {rx.duration} (Qty: {rx.quantity})
-                              </p>
-                              {rx.instructions && <p className="text-emerald-700 mt-0.5">{rx.instructions}</p>}
-                            </div>
-                          ))}
-                        </div>
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table className="w-full text-xs">
+                          <thead className="bg-emerald-50/80 text-emerald-950 border-b border-slate-200">
+                            <tr>
+                              <th className="py-2 px-3 text-left font-bold">Medication</th>
+                              <th className="py-2 px-3 text-left font-bold">Dosage</th>
+                              <th className="py-2 px-3 text-left font-bold">Frequency</th>
+                              <th className="py-2 px-3 text-left font-bold">Duration / Qty</th>
+                              <th className="py-2 px-3 text-left font-bold">Instructions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {record.prescriptions.map((rx, idx) => (
+                              <tr key={rx.id || idx}>
+                                <td className="py-2 px-3 font-bold text-slate-900">
+                                  {rx.medicationName}
+                                </td>
+                                <td className="py-2 px-3 text-slate-700">{rx.dosage}</td>
+                                <td className="py-2 px-3 text-slate-700">{rx.frequency}</td>
+                                <td className="py-2 px-3 text-slate-700 tabular-nums">
+                                  {rx.duration || '—'} (Qty: {rx.quantity || 1})
+                                </td>
+                                <td className="py-2 px-3 text-slate-600">
+                                  {rx.instructions || '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
 
-                    {/* Lab Reports Subtable */}
+                    {/* Structured Lab Results Table */}
                     {record.labReports && record.labReports.length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
-                          <FlaskConical className="w-3.5 h-3.5" /> Lab Results ({record.labReports.length})
-                        </p>
-                        <div className="grid sm:grid-cols-2 gap-2">
-                          {record.labReports.map((lab, idx) => (
-                            <div
-                              key={lab.id || idx}
-                              className={`p-2.5 rounded-xl border text-xs ${
-                                lab.isAbnormal
-                                  ? 'bg-red-50/80 border-red-200 text-red-950'
-                                  : 'bg-indigo-50/60 border-indigo-100 text-indigo-950'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold">{lab.testName}</span>
-                                {lab.isAbnormal && (
-                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                    Abnormal
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="mt-0.5">
-                                Result: <strong>{lab.result} {lab.unit}</strong> (Ref: {lab.referenceRange || '-'})
-                              </p>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table className="w-full text-xs">
+                          <thead className="bg-indigo-50/80 text-indigo-950 border-b border-slate-200">
+                            <tr>
+                              <th className="py-2 px-3 text-left font-bold">Test</th>
+                              <th className="py-2 px-3 text-left font-bold">Result</th>
+                              <th className="py-2 px-3 text-left font-bold">Ref Range</th>
+                              <th className="py-2 px-3 text-left font-bold">Status</th>
+                              <th className="py-2 px-3 text-left font-bold">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {record.labReports.map((lab, idx) => (
+                              <tr
+                                key={lab.id || idx}
+                                className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
+                              >
+                                <td className="py-2 px-3 font-bold text-slate-900">
+                                  {lab.testName}
+                                </td>
+                                <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
+                                  {lab.result} {lab.unit}
+                                </td>
+                                <td className="py-2 px-3 text-slate-600 tabular-nums">
+                                  {lab.referenceRange || '—'}
+                                </td>
+                                <td className="py-2 px-3">
+                                  {lab.isAbnormal ? (
+                                    <StatusBadge tone="critical" label="Abnormal" />
+                                  ) : (
+                                    <StatusBadge tone="success" label="Normal" />
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-slate-600">{lab.notes || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
@@ -617,28 +719,28 @@ export default function PatientTimeline() {
 
       {/* Active Medications Summary */}
       <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-        <CardHeader className="bg-emerald-50/40 border-b border-slate-100">
-          <CardTitle className="flex items-center gap-2.5 text-lg">
-            <Pill className="h-5 w-5 text-emerald-600" />
-            Active Medications Across Hospitals ({medications.length})
+        <div className="h-1 bg-gradient-to-r from-emerald-600 to-teal-600" />
+        <CardHeader className="bg-emerald-50/40 border-b border-slate-100 py-4 px-5">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Pill className="h-4 w-4 text-emerald-700" />
+            <span>Active Medications Across Hospitals ({medications.length})</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-5">
           {medications.length === 0 ? (
-            <p className="text-center py-6 text-slate-500 text-sm">No active prescriptions recorded.</p>
+            <p className="text-center py-4 text-slate-500 text-xs">No active prescriptions recorded.</p>
           ) : (
-            <div className="grid md:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-2 gap-3">
               {medications.map((med, i) => (
                 <div
                   key={`${med.name}-${i}`}
-                  className="flex items-center justify-between p-4 bg-emerald-50/60 rounded-xl border border-emerald-200"
+                  className="flex items-center justify-between gap-3 p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200"
                 >
                   <div>
                     <p className="font-bold text-slate-900 text-sm">{med.name}</p>
-                    <p className="text-xs text-emerald-700 font-medium">{med.frequency}</p>
+                    <p className="text-xs text-emerald-800 font-semibold">{med.frequency}</p>
                   </div>
-                  <Badge className="bg-white text-emerald-800 border border-emerald-200 text-xs">
+                  <Badge className="bg-white text-emerald-900 border border-emerald-200 text-xs shrink-0">
                     {med.hospital}
                   </Badge>
                 </div>
@@ -647,6 +749,6 @@ export default function PatientTimeline() {
           )}
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

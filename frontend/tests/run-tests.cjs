@@ -132,10 +132,30 @@ function resolveImportCaseSensitive(fromFile, specifier) {
   return { external: false, resolved: null, attempted: baseTarget };
 }
 
+function createZustandShim() {
+  function createImpl(initializer) {
+    let state;
+    const setState = (partial) => {
+      const next = typeof partial === 'function' ? partial(state) : partial;
+      state = Object.assign({}, state, next);
+    };
+    const getState = () => state;
+    const api = { setState, getState, subscribe: () => () => {} };
+    state = initializer(setState, getState, api);
+    const useStore = (selector) => (typeof selector === 'function' ? selector(state) : state);
+    Object.assign(useStore, api);
+    return useStore;
+  }
+  const create = (arg) => (typeof arg === 'function' ? createImpl(arg) : createImpl);
+  return { create, default: create };
+}
+
 const originalResolveFilename = Module._resolveFilename;
 Module._resolveFilename = function patchedFrontendResolve(request, parent, isMain, options) {
   if (request === 'clsx') return '__fe_shim__:clsx';
   if (request === 'tailwind-merge') return '__fe_shim__:tailwind-merge';
+  if (request === 'zustand') return '__fe_shim__:zustand';
+  if (request === 'zustand/middleware') return '__fe_shim__:zustand_mw';
   if (request === '@/store/settings') return '__fe_shim__:settings';
   if (request.startsWith('@/') || (request.startsWith('.') && parent?.filename?.startsWith(SRC_ROOT))) {
     const res = resolveImportCaseSensitive(parent.filename, request);
@@ -153,6 +173,15 @@ Module._load = function patchedFrontendLoad(request, parent, isMain) {
   }
   if (resolved === '__fe_shim__:tailwind-merge') {
     return { twMerge: (s) => s };
+  }
+  if (resolved === '__fe_shim__:zustand') {
+    return createZustandShim();
+  }
+  if (resolved === '__fe_shim__:zustand_mw') {
+    return {
+      persist: (config) => config,
+      createJSONStorage: () => ({}),
+    };
   }
   if (resolved === '__fe_shim__:settings') {
     return {
@@ -179,9 +208,9 @@ const allFrontendTsFiles = collectFiles(
   (f) => f.endsWith('.ts') || f.endsWith('.tsx')
 );
 
-test('1. Transpiles 100% of frontend TypeScript & TSX files cleanly', () => {
-  assert.equal(allSrcFiles.length, 71, `Expected 71 src TS/TSX files, found ${allSrcFiles.length}`);
-  assert.equal(allFrontendTsFiles.length, 72, `Expected 72 total frontend TS/TSX files, found ${allFrontendTsFiles.length}`);
+test('1. Transpiles 100% of frontend TypeScript & TSX files cleanly (debloated architecture)', () => {
+  assert.equal(allSrcFiles.length, 62, `Expected 62 src TS/TSX files, found ${allSrcFiles.length}`);
+  assert.equal(allFrontendTsFiles.length, 63, `Expected 63 total frontend TS/TSX files, found ${allFrontendTsFiles.length}`);
 
   for (const file of allFrontendTsFiles) {
     const raw = fs.readFileSync(file, 'utf8').replace(/import\.meta\.env/g, '({})');
@@ -228,14 +257,18 @@ test('2. Verifies case-sensitive Linux import resolution across all @/ and relat
     existsCaseSensitive(path.join(SRC_ROOT, 'components/ui/skeleton.tsx')),
     'components/ui/skeleton.tsx must exist on case-sensitive filesystems'
   );
+  assert.ok(
+    existsCaseSensitive(path.join(SRC_ROOT, 'components/ui/modal-dialog.tsx')),
+    'components/ui/modal-dialog.tsx must exist'
+  );
 });
 
-test('3. Prevents broken dynamic Tailwind class interpolation & invalid default utilities', () => {
+test('3. Prevents broken dynamic Tailwind class interpolation, external font links & invalid utilities', () => {
   const forbiddenPatterns = [
     { name: 'dynamic Tailwind color interpolation', regex: /\b(?:bg|text|border|ring|from|to|via)-\$\{/ },
     { name: 'opacity modifier appended to full class token', regex: /\$\{theme\.(?:shadowColor|bgLight|borderColor|textColor)\}\/\d+/ },
     { name: 'invalid border-l-3 utility', regex: /\bborder-l-3\b/ },
-    { name: 'invalid h-13 utility', regex: /\bh-13\b/ },
+    { name: 'invalid h-13/w-13 utility', regex: /\b[hw]-13\b/ },
   ];
 
   const violations = [];
@@ -249,6 +282,11 @@ test('3. Prevents broken dynamic Tailwind class interpolation & invalid default 
   }
 
   assert.deepEqual(violations, [], `Tailwind class violations:\n${violations.join('\n')}`);
+
+  const indexHtml = fs.readFileSync(path.join(FRONTEND_ROOT, 'index.html'), 'utf8');
+  const indexCss = fs.readFileSync(path.join(SRC_ROOT, 'index.css'), 'utf8');
+  assert.ok(!indexHtml.includes('fonts.googleapis.com'), 'index.html must not depend on external Google Fonts');
+  assert.ok(!indexCss.includes('fonts.googleapis.com'), 'index.css must not depend on external Google Fonts');
 });
 
 test('4. Validates trilingual (en / ms / zh) dictionary key parity & template t.<key> references', () => {
@@ -286,7 +324,7 @@ test('4. Validates trilingual (en / ms / zh) dictionary key parity & template t.
   assert.deepEqual(missingRefs, [], `Missing translation keys referenced in TSX:\n${missingRefs.join('\n')}`);
 });
 
-test('5. Verifies shared hospital themes, MyKad/routing utilities & App route guards', () => {
+test('5. Verifies shared hospital themes, XSS/CSV/date utilities & App route guards', () => {
   const { hospitalThemes, getHospitalTheme } = require(path.join(SRC_ROOT, 'lib/hospital-themes.ts'));
   const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
 
@@ -303,10 +341,23 @@ test('5. Verifies shared hospital themes, MyKad/routing utilities & App route gu
     assert.ok(theme.bgLight.startsWith('bg-'));
     assert.ok(theme.buttonGradient.includes('from-'));
     assert.ok(theme.activeNavClass.length > 0);
+    assert.ok(theme.shellVariant && theme.code && theme.badgeLabel, `Missing shell config on ${id}`);
   }
 
   assert.equal(utils.formatIC('850505105111'), '850505-10-5111');
   assert.equal(utils.maskIC('850505-10-5111'), '850505-10-****');
+  assert.equal(utils.toDateInputValue('2026-05-18T10:30:00.000Z'), '2026-05-18');
+  assert.equal(utils.toDateInputValue('2026-05-18'), '2026-05-18');
+  assert.equal(utils.toDateInputValue('invalid-date'), '');
+
+  // XSS escaping & CSV formula neutralization
+  assert.equal(
+    utils.escapeHtml('<img src=x onerror="alert(1)">'),
+    '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;'
+  );
+  assert.equal(utils.sanitizeCsvCell('=CMD|"/C calc"!A0'), '\'=CMD|""/C calc""!A0"'.startsWith("'") ? '"\'=CMD|""/C calc""!A0"' : '');
+  assert.equal(utils.sanitizeCsvCell('+6012-3456789'), '+6012-3456789');
+  assert.equal(utils.sanitizeCsvCell('@malicious'), "'@malicious");
 
   const maleParsed = utils.parseMyKadDemographics('850505-10-5111');
   assert.deepEqual(maleParsed, { dateOfBirth: '1985-05-05', gender: 'male' });
@@ -314,7 +365,6 @@ test('5. Verifies shared hospital themes, MyKad/routing utilities & App route gu
   const femaleParsed = utils.parseMyKadDemographics('900202-07-5222');
   assert.deepEqual(femaleParsed, { dateOfBirth: '1990-02-02', gender: 'female' });
 
-  // Hospital staff must be routed to /verify when isHospitalVerified === false
   assert.equal(utils.getRoleHomePath('doctor', false), '/verify');
   assert.equal(utils.getRoleHomePath('hospital_admin', false), '/verify');
   assert.equal(utils.getRoleHomePath('doctor', true), '/doctor');
@@ -329,4 +379,39 @@ test('5. Verifies shared hospital themes, MyKad/routing utilities & App route gu
     /\/doctor\/patient\/:icNumber\/records\/:recordId\/edit/,
     'App.tsx must register local medical record edit route'
   );
+});
+
+test('6. Enforces clinical workstation context purge upon role switch, unverification & logout', () => {
+  const { useClinicalStore } = require(path.join(SRC_ROOT, 'store/clinical.ts'));
+  const { useAuthStore } = require(path.join(SRC_ROOT, 'store/auth.ts'));
+
+  useClinicalStore.getState().setActivePatient({
+    icNumber: '850505-10-5111',
+    fullName: 'Tan Wei Ming',
+    allergies: ['Aspirin'],
+    chronicConditions: ['Type 2 Diabetes'],
+    scopedHospitalId: 'hospital-kl',
+    scopedDoctorId: 'doc-kl-1',
+  });
+  assert.equal(useClinicalStore.getState().activePatient?.icNumber, '850505-10-5111');
+
+  // Switching role to patient must immediately purge clinical patient context
+  useAuthStore.getState().setSession('tok-pat', {
+    id: 'user-pat-dual',
+    icNumber: '800101-14-5001',
+    role: 'patient',
+    hospitalVerified: true,
+  });
+  assert.equal(useClinicalStore.getState().activePatient, null);
+
+  // Re-bind as doctor, then verify logout also purges clinical patient context
+  useClinicalStore.getState().setActivePatient({
+    icNumber: '900202-07-5222',
+    fullName: 'Aisyah Binti Ismail',
+    allergies: ['Penicillin'],
+    chronicConditions: [],
+    scopedHospitalId: 'hospital-kl',
+  });
+  useAuthStore.getState().logout();
+  assert.equal(useClinicalStore.getState().activePatient, null);
 });

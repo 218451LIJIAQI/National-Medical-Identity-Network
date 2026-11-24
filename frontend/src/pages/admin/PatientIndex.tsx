@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi } from '@/lib/api'
-import { downloadCsvFile, getHospitalColor } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
+import { downloadCsvFile, formatDate, formatIC, getHospitalColor } from '@/lib/utils'
 import {
   Database,
   Search,
@@ -15,11 +17,8 @@ import {
   RefreshCw,
   FileText,
   Download,
-  X,
   MapPin,
-  AlertTriangle,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 interface PatientIndex {
   icNumber: string
@@ -35,6 +34,7 @@ interface Hospital {
 }
 
 export default function PatientIndexPage() {
+  const { t } = useTranslation()
   const [patientIndexes, setPatientIndexes] = useState<PatientIndex[]>([])
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,7 +42,11 @@ export default function PatientIndexPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [inspectingIc, setInspectingIc] = useState<string | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [indexDetail, setIndexDetail] = useState<Awaited<ReturnType<typeof centralApi.searchPatientIndex>>['data'] | null>(null)
+  const [indexDetail, setIndexDetail] = useState<
+    Awaited<ReturnType<typeof centralApi.searchPatientIndex>>['data'] | null
+  >(null)
+
+  const inspectReqSeq = useRef(0)
 
   const loadData = async () => {
     try {
@@ -66,26 +70,36 @@ export default function PatientIndexPage() {
   }
 
   useEffect(() => {
-    loadData()
+    void loadData()
   }, [])
 
   const handleRefresh = () => {
     setRefreshing(true)
-    loadData()
+    void loadData()
   }
 
   const handleInspectPatient = async (icNumber: string) => {
+    const seq = ++inspectReqSeq.current
     setInspectingIc(icNumber)
     setDetailLoading(true)
     setIndexDetail(null)
     try {
       const res = await centralApi.searchPatientIndex(icNumber)
+      if (seq !== inspectReqSeq.current) return
       if (res.success && res.data) {
         setIndexDetail(res.data)
       }
     } finally {
-      setDetailLoading(false)
+      if (seq === inspectReqSeq.current) {
+        setDetailLoading(false)
+      }
     }
+  }
+
+  const closeInspection = () => {
+    inspectReqSeq.current++
+    setInspectingIc(null)
+    setDetailLoading(false)
   }
 
   const filteredIndexes = patientIndexes.filter((idx) =>
@@ -125,84 +139,109 @@ export default function PatientIndexPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-10 w-10 animate-spin text-violet-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
       </div>
     )
   }
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg">
-            <Database className="w-8 h-8 text-white" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-violet-600 to-purple-700 rounded-2xl shadow-sm text-white">
+            <Database className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Patient Master Index</h1>
-            <p className="text-gray-500 text-sm">National pointer directory mapping MyKad ICs to federated hospital nodes</p>
+            <h1 className="text-2xl font-bold text-slate-900">{t.patientIndex}</h1>
+            <p className="text-slate-600 text-xs">
+              National pointer directory mapping MyKad ICs to federated hospital nodes
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2.5">
-          <Button variant="outline" className="gap-2 h-11 px-4 rounded-xl" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button
             onClick={handleExportCsv}
-            className="gap-2 h-11 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white"
+            className="bg-violet-700 hover:bg-violet-800 text-white gap-1.5"
           >
             <Download className="w-4 h-4" />
-            Export Index CSV
+            {t.exportCsv}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Indexed Patients', value: patientIndexes.length, icon: Users, bgClass: 'bg-violet-100', iconClass: 'text-violet-600' },
-          { label: 'Connected Hospitals', value: hospitals.length, icon: Building2, bgClass: 'bg-blue-100', iconClass: 'text-blue-600' },
-          { label: 'Multi-Hospital Patients', value: multiHospitalPatients, icon: TrendingUp, bgClass: 'bg-emerald-100', iconClass: 'text-emerald-600' },
-          { label: 'Avg Hospitals / Patient', value: avgHospitalsPerPatient, icon: FileText, bgClass: 'bg-amber-100', iconClass: 'text-amber-600' },
+          {
+            label: 'Indexed Patients',
+            value: patientIndexes.length,
+            icon: Users,
+            bgClass: 'bg-violet-50',
+            iconClass: 'text-violet-700',
+          },
+          {
+            label: t.connectedHospitals,
+            value: hospitals.length,
+            icon: Building2,
+            bgClass: 'bg-blue-50',
+            iconClass: 'text-blue-700',
+          },
+          {
+            label: 'Multi-Hospital Patients',
+            value: multiHospitalPatients,
+            icon: TrendingUp,
+            bgClass: 'bg-emerald-50',
+            iconClass: 'text-emerald-700',
+          },
+          {
+            label: 'Avg Hospitals / Patient',
+            value: avgHospitalsPerPatient,
+            icon: FileText,
+            bgClass: 'bg-amber-50',
+            iconClass: 'text-amber-800',
+          },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-md">
-            <CardContent className="pt-5 flex items-center justify-between">
+          <Card key={stat.label} className="border border-slate-200 shadow-sm rounded-2xl">
+            <CardContent className="p-5 flex items-center justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+                <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+                <p className="text-xs font-semibold text-slate-600 mt-1">{stat.label}</p>
               </div>
-              <div className={`p-3 ${stat.bgClass} rounded-xl`}>
-                <stat.icon className={`w-6 h-6 ${stat.iconClass}`} />
+              <div className={`p-2.5 ${stat.bgClass} rounded-xl`}>
+                <stat.icon className={`w-5 h-5 ${stat.iconClass}`} />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="border-0 shadow-md">
-        <div className="p-5 border-b bg-gradient-to-r from-blue-50 to-cyan-50">
-          <h2 className="text-base font-bold text-gray-900">Patient Distribution by Hospital Node</h2>
+      <Card className="border border-slate-200 shadow-sm rounded-2xl">
+        <div className="p-4 px-5 border-b border-slate-100 bg-slate-50/70">
+          <h2 className="text-sm font-bold text-slate-900">
+            Patient Pointer Distribution by Hospital Node
+          </h2>
         </div>
-        <CardContent className="p-5 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <CardContent className="p-5 grid grid-cols-5 gap-3.5">
           {hospitalCounts.map((hospital) => {
             const color = getHospitalColor(hospital.id)
             const percentage =
-              patientIndexes.length > 0 ? Math.round((hospital.count / patientIndexes.length) * 100) : 0
+              patientIndexes.length > 0
+                ? Math.round((hospital.count / patientIndexes.length) * 100)
+                : 0
             return (
-              <div key={hospital.id} className="p-4 rounded-xl border-2" style={{ borderColor: `${color}40` }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}20` }}>
-                    <Building2 className="w-5 h-5" style={{ color }} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-sm truncate">{hospital.name}</h3>
-                    <p className="text-xs text-gray-500">{hospital.city}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold" style={{ color }}>
-                    {hospital.count}
-                  </span>
-                  <Badge variant="outline" style={{ borderColor: color, color }}>
+              <div
+                key={hospital.id}
+                className="p-3.5 rounded-xl border border-slate-200 bg-white"
+                style={{ borderTopWidth: 4, borderTopColor: color }}
+              >
+                <h3 className="font-bold text-slate-900 text-xs truncate">{hospital.name}</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">{hospital.city}</p>
+                <div className="flex items-center justify-between mt-3 tabular-nums">
+                  <span className="text-xl font-extrabold text-slate-900">{hospital.count}</span>
+                  <Badge variant="outline" className="text-[11px]">
                     {percentage}%
                   </Badge>
                 </div>
@@ -212,56 +251,69 @@ export default function PatientIndexPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-md">
-        <div className="p-5 border-b bg-violet-50/70 flex items-center justify-between">
+      <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Master Patient Pointer Table</h2>
-            <p className="text-xs text-gray-500">Click any row to inspect federated hospital distribution & record counts</p>
+            <h2 className="text-sm font-bold text-slate-900">Master Patient Pointer Table</h2>
+            <p className="text-xs text-slate-600">
+              Click any row to inspect federated hospital distribution & record counts
+            </p>
           </div>
-          <Badge variant="secondary">{filteredIndexes.length} patients</Badge>
+          <Badge variant="secondary" className="tabular-nums">
+            {filteredIndexes.length} patients
+          </Badge>
         </div>
         <CardContent className="p-5 space-y-4">
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
-              placeholder="Filter by MyKad IC number..."
+              placeholder="Filter by MyKad IC number…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-11 rounded-xl font-mono"
+              className="pl-10 h-10 font-mono tabular-nums"
             />
           </div>
 
-          <div className="border rounded-xl overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b grid grid-cols-12 gap-4 text-xs font-semibold uppercase text-gray-500">
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 grid grid-cols-12 gap-4 text-xs font-bold uppercase text-slate-600">
               <div className="col-span-4">MyKad IC Number</div>
               <div className="col-span-5">Indexed Hospitals</div>
               <div className="col-span-3 text-right">Last Synced</div>
             </div>
-            <div className="max-h-[480px] overflow-y-auto divide-y">
+            <div className="max-h-[440px] overflow-y-auto divide-y divide-slate-100">
               {filteredIndexes.length === 0 ? (
-                <div className="p-10 text-center text-gray-500 text-sm">No matching IC numbers found.</div>
+                <div className="p-10 text-center text-slate-500 text-xs">
+                  No matching IC numbers found.
+                </div>
               ) : (
                 filteredIndexes.slice(0, 100).map((idx) => (
                   <button
                     key={idx.icNumber}
                     type="button"
                     onClick={() => handleInspectPatient(idx.icNumber)}
-                    className="w-full text-left px-4 py-3 grid grid-cols-12 gap-4 items-center text-sm hover:bg-violet-50/80 transition-colors"
+                    className="w-full text-left px-4 py-3 grid grid-cols-12 gap-4 items-center text-xs hover:bg-violet-50/60 transition-colors"
                   >
-                    <div className="col-span-4 font-mono font-semibold text-gray-900">{idx.icNumber}</div>
+                    <div className="col-span-4 font-mono font-bold text-slate-900 tabular-nums">
+                      {formatIC(idx.icNumber)}
+                    </div>
                     <div className="col-span-5 flex flex-wrap gap-1.5">
                       {idx.hospitals.map((hId) => {
                         const h = hospitals.find((hosp) => hosp.id === hId)
                         const color = getHospitalColor(hId)
                         return (
-                          <Badge key={hId} variant="outline" className="text-xs" style={{ borderColor: color, color }}>
+                          <Badge
+                            key={hId}
+                            variant="outline"
+                            className="text-[11px]"
+                            style={{ borderColor: color, color }}
+                          >
                             {h?.shortName || hId}
                           </Badge>
                         )
                       })}
                     </div>
-                    <div className="col-span-3 text-right text-xs text-gray-500">
-                      {new Date(idx.lastUpdated).toLocaleDateString('en-MY')}
+                    <div className="col-span-3 text-right text-slate-600 tabular-nums">
+                      {formatDate(idx.lastUpdated)}
                     </div>
                   </button>
                 ))
@@ -272,85 +324,80 @@ export default function PatientIndexPage() {
       </Card>
 
       {/* Patient Index Distribution Modal */}
-      <AnimatePresence>
-        {inspectingIc && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setInspectingIc(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-lg">Federated Index Inspection</h3>
-                  <p className="text-xs font-mono text-violet-100">{inspectingIc}</p>
-                </div>
-                <button type="button" onClick={() => setInspectingIc(null)} className="p-1 hover:bg-white/20 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                {detailLoading ? (
-                  <div className="py-8 flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-violet-600" />
+      <ModalDialog
+        open={Boolean(inspectingIc)}
+        onClose={closeInspection}
+        title="Federated Index Inspection"
+        description={inspectingIc ? `MyKad IC: ${formatIC(inspectingIc)}` : undefined}
+        icon={
+          <div className="p-2 rounded-xl bg-violet-100 text-violet-800 border border-violet-200">
+            <Database className="w-5 h-5" />
+          </div>
+        }
+        maxWidthClassName="max-w-lg"
+        footer={
+          <Button variant="outline" onClick={closeInspection}>
+            Close
+          </Button>
+        }
+      >
+        {detailLoading ? (
+          <div className="py-8 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-violet-600" />
+          </div>
+        ) : indexDetail ? (
+          <div className="space-y-4">
+            {indexDetail.patient && (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-900 text-base">{indexDetail.patient.fullName}</p>
+                <p className="text-xs text-slate-600 capitalize tabular-nums">
+                  {indexDetail.patient.gender} • Blood Type:{' '}
+                  <strong>{indexDetail.patient.bloodType || 'Unknown'}</strong> • DOB:{' '}
+                  {indexDetail.patient.dateOfBirth}
+                </p>
+                {indexDetail.patient.allergies?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {indexDetail.patient.allergies.map((alg) => (
+                      <StatusBadge key={alg} tone="critical" label={`Allergy: ${alg}`} />
+                    ))}
                   </div>
-                ) : indexDetail ? (
-                  <>
-                    {indexDetail.patient && (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                        <p className="font-bold text-gray-900 text-base">{indexDetail.patient.fullName}</p>
-                        <p className="text-xs text-gray-600 capitalize">
-                          {indexDetail.patient.gender} • Blood Type: <strong>{indexDetail.patient.bloodType || 'Unknown'}</strong> • DOB: {indexDetail.patient.dateOfBirth}
-                        </p>
-                        {indexDetail.patient.allergies?.length > 0 && (
-                          <p className="text-xs text-red-700 flex items-center gap-1 font-medium pt-1">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            Allergies: {indexDetail.patient.allergies.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold uppercase text-gray-500">
-                        Indexed Hospital Nodes ({indexDetail.totalHospitals}) • Total Records: {indexDetail.totalRecords}
-                      </p>
-                      {indexDetail.hospitals.map((h) => (
-                        <div key={h.hospitalId} className="p-3 rounded-xl border border-gray-200 flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900 text-sm">{h.hospitalName}</p>
-                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {h.city}
-                            </p>
-                          </div>
-                          <Badge variant="secondary">{h.recordCount} record(s)</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500">Unable to load index details.</p>
                 )}
-
-                <div className="flex justify-end pt-2">
-                  <Button variant="outline" onClick={() => setInspectingIc(null)}>
-                    Close
-                  </Button>
-                </div>
               </div>
-            </motion.div>
-          </motion.div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase text-slate-600 tabular-nums">
+                Indexed Hospital Nodes ({indexDetail.totalHospitals}) • Total Records:{' '}
+                {indexDetail.totalRecords}
+              </p>
+              {indexDetail.hospitals.map((h) => (
+                <div
+                  key={h.hospitalId}
+                  className="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm">{h.hospitalName}</p>
+                    <p className="text-xs text-slate-600 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> {h.city}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      tone={h.isActive ? 'success' : 'critical'}
+                      label={h.isActive ? 'Online' : 'Offline'}
+                    />
+                    <Badge variant="secondary" className="tabular-nums">
+                      {h.recordCount} record(s)
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">Unable to load index details.</p>
         )}
-      </AnimatePresence>
-    </motion.div>
+      </ModalDialog>
+    </div>
   )
 }

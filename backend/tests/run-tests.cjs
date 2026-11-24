@@ -384,7 +384,7 @@ createExpressApp.json = () => (req, res, next) => {
     try {
       req.body = JSON.parse(raw);
       next();
-    } catch (err) {
+    } catch {
       res.status(400).json({ success: false, error: 'Invalid JSON payload' });
     }
   });
@@ -466,6 +466,7 @@ const multiDbManager = require('../src/database/multi-db-manager');
 const hospitalMultiMod = require('../src/database/hospital-multi');
 const authMiddleware = require('../src/middleware/auth');
 const centralRouteMod = require('../src/routes/central');
+const hospitalRouteMod = require('../src/routes/hospital');
 const { createApp } = require('../src/index');
 
 function createMockCentralPrisma(seed) {
@@ -595,6 +596,7 @@ function createMockCentralPrisma(seed) {
       async findMany({ where } = {}) {
         return state.privacySettings.filter((s) => {
           if (where?.icNumber && s.icNumber !== where.icNumber) return false;
+          if (where?.hospitalId && s.hospitalId !== where.hospitalId) return false;
           if (where?.isBlocked !== undefined && s.isBlocked !== where.isBlocked) return false;
           return true;
         });
@@ -1148,6 +1150,9 @@ function buildSeededTestFixture() {
 
   authMiddleware.clearRevokedTokensForTesting();
   centralRouteMod.clearEmergencyRateLimitsForTesting();
+  if (typeof hospitalRouteMod.clearRecordSubmissionGuardForTesting === 'function') {
+    hospitalRouteMod.clearRecordSubmissionGuardForTesting();
+  }
   multiDbManager.setDbClientsForTesting(central, hospitals);
   hospitalMultiMod.resetHospitalDbInstances();
 
@@ -1303,14 +1308,12 @@ test('2. Production environment configuration fail-fast validation', () => {
 test('3. Multi-role MyKad login discovery, hospital secondary verification, switch-role & token revocation', async () => {
   buildSeededTestFixture();
 
-  // Wrong password on dual-role IC must NOT leak availableRoles
   const badLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '800101145001', password: 'wrong-password' },
   });
   assert.equal(badLogin.status, 401);
   assert.equal(badLogin.body.data, undefined);
 
-  // Correct password without role returns requiresRoleSelection + availableRoles
   const rolePrompt = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '800101145001', password: 'demo123' },
   });
@@ -1318,7 +1321,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   assert.equal(rolePrompt.body.data.requiresRoleSelection, true);
   assert.deepEqual(rolePrompt.body.data.availableRoles.sort(), ['doctor', 'patient']);
 
-  // Login as doctor -> hospitalVerified must be false initially
   const docLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '800101-14-5001', password: 'demo123', role: 'doctor' },
   });
@@ -1326,7 +1328,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   assert.equal(docLogin.body.data.user.hospitalVerified, false);
   const preToken = docLogin.body.data.token;
 
-  // Unverified doctor blocked from clinical & hospital routes (403 verificationRequired)
   const blockedQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
     token: preToken,
   });
@@ -1339,7 +1340,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   assert.equal(blockedHosp.status, 403);
   assert.equal(blockedHosp.body.verificationRequired, true);
 
-  // Verify hospital rejects wrong IC chip or wrong password
   const wrongChip = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
     token: preToken,
     body: { method: 'ic_chip', icNumber: '999999-14-9999' },
@@ -1352,7 +1352,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   });
   assert.equal(wrongCreds.status, 401);
 
-  // Verify hospital succeeds with MMC license + password and revokes preToken
   const verifiedRes = await requestJson(baseUrl, 'POST', '/api/auth/verify-hospital', {
     token: preToken,
     body: { method: 'credentials', username: 'MMC-40112', password: 'demo123' },
@@ -1364,7 +1363,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   const oldPreTokenCheck = await requestJson(baseUrl, 'GET', '/api/auth/me', { token: preToken });
   assert.equal(oldPreTokenCheck.status, 401);
 
-  // Switch role from doctor -> patient (patient does not require hospital verification)
   const switchToPatient = await requestJson(baseUrl, 'POST', '/api/auth/switch-role', {
     token: verifiedToken,
     body: { role: 'patient' },
@@ -1374,14 +1372,18 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   assert.equal(switchToPatient.body.data.user.hospitalVerified, true);
   const patientToken = switchToPatient.body.data.token;
 
-  // Reject switching to unassigned role central_admin
+  // Previous verified doctor token must be revoked upon switch-role
+  const staleDocTokenCheck = await requestJson(baseUrl, 'GET', '/api/auth/me', {
+    token: verifiedToken,
+  });
+  assert.equal(staleDocTokenCheck.status, 401);
+
   const illegalSwitch = await requestJson(baseUrl, 'POST', '/api/auth/switch-role', {
     token: patientToken,
     body: { role: 'central_admin' },
   });
   assert.equal(illegalSwitch.status, 403);
 
-  // Switch back patient -> doctor resets hospitalVerified to false
   const switchToDoctor = await requestJson(baseUrl, 'POST', '/api/auth/switch-role', {
     token: patientToken,
     body: { role: 'doctor' },
@@ -1389,7 +1391,6 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
   assert.equal(switchToDoctor.status, 200);
   assert.equal(switchToDoctor.body.data.user.hospitalVerified, false);
 
-  // Logout revokes token immediately
   const logoutRes = await requestJson(baseUrl, 'POST', '/api/auth/logout', {
     token: switchToDoctor.body.data.token,
   });
@@ -1404,25 +1405,21 @@ test('3. Multi-role MyKad login discovery, hospital secondary verification, swit
 test('4. Zero-trust RBAC, IDOR prevention & unified patient hospital privacy blacklist (403 + audit log)', async () => {
   buildSeededTestFixture();
 
-  // Unauthenticated access to stats & hospital endpoints must return 401
   assert.equal((await requestJson(baseUrl, 'GET', '/api/central/stats')).status, 401);
   assert.equal((await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl')).status, 401);
   assert.equal((await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/stats')).status, 401);
 
-  // Patient login
   const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '850505-10-5111', password: 'demo123' },
   });
   const patToken = patLogin.body.data.token;
 
-  // Patient self query succeeds
   const selfQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505105111', {
     token: patToken,
   });
   assert.equal(selfQuery.status, 200);
   assert.equal(selfQuery.body.data.totalRecords, 2);
 
-  // Patient cross-IC query & profile lookup blocked (IDOR 403)
   const idorQuery = await requestJson(baseUrl, 'GET', '/api/central/query/900202-07-5222', {
     token: patToken,
   });
@@ -1433,14 +1430,12 @@ test('4. Zero-trust RBAC, IDOR prevention & unified patient hospital privacy bla
   });
   assert.equal(idorProfile.status, 403);
 
-  // Patient blocks hospital-kl
   const blockRes = await requestJson(baseUrl, 'POST', '/api/central/privacy-settings/hospital-access', {
     token: patToken,
     body: { hospitalId: 'hospital-kl', isBlocked: true },
   });
   assert.equal(blockRes.status, 200);
 
-  // Verified KL doctor is now blocked across ALL central & hospital endpoints with 403 + accessDenied: true
   const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
 
   const deniedCentralQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
@@ -1473,7 +1468,16 @@ test('4. Zero-trust RBAC, IDOR prevention & unified patient hospital privacy bla
   assert.equal(deniedCreateRecord.status, 403);
   assert.equal(deniedCreateRecord.body.accessDenied, true);
 
-  // Patient access logs record the denied access attempts (success: false)
+  // Blocked patient's records must also be excluded from hospital /stats recentRecords
+  const klStatsAfterBlock = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/stats', {
+    token: klDocToken,
+  });
+  assert.equal(klStatsAfterBlock.status, 200);
+  assert.ok(
+    klStatsAfterBlock.body.data.recentRecords.every((r) => r.icNumber !== '850505-10-5111'),
+    'Blocked patient must not appear in hospital /stats recentRecords'
+  );
+
   const myAccessLogs = await requestJson(baseUrl, 'GET', '/api/central/my-access-logs', {
     token: patToken,
   });
@@ -1483,7 +1487,6 @@ test('4. Zero-trust RBAC, IDOR prevention & unified patient hospital privacy bla
     'Expected denied KL doctor access attempt in patient access logs'
   );
 
-  // Verified Penang doctor (not blocked) can still query 850505-10-5111, with KL records read-only & Penang editable
   const { verifiedToken: pgDocToken } = await loginAndVerifyDoctor(baseUrl, '790303-07-5002');
   const pgQuery = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
     token: pgDocToken,
@@ -1494,7 +1497,6 @@ test('4. Zero-trust RBAC, IDOR prevention & unified patient hospital privacy bla
   assert.equal(klNode.records[0].isReadOnly, true);
   assert.equal(pgNode.records[0].isReadOnly, false);
 
-  // Unindexed IC returns 404 (notFound: true)
   const unknownIcRes = await requestJson(baseUrl, 'GET', '/api/central/query/991231-14-9999', {
     token: pgDocToken,
   });
@@ -1506,7 +1508,6 @@ test('5. Partial hospital offline resilience, hospital_admin audit isolation & i
   const { hospitals } = buildSeededTestFixture();
   const { verifiedToken: pgDocToken } = await loginAndVerifyDoctor(baseUrl, '790303-07-5002');
 
-  // Simulate KL database going offline during federated lookup
   hospitals['hospital-kl']._state.offline = true;
   const partialRes = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
     token: pgDocToken,
@@ -1517,7 +1518,6 @@ test('5. Partial hospital offline resilience, hospital_admin audit isolation & i
   assert.equal(partialRes.body.data.totalRecords, 1);
   hospitals['hospital-kl']._state.offline = false;
 
-  // Hospital admin login + step-up verification at KL General
   const adminLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '750101-14-6001', password: 'demo123' },
   });
@@ -1527,8 +1527,6 @@ test('5. Partial hospital offline resilience, hospital_admin audit isolation & i
   });
   const klAdminToken = adminVerify.body.data.token;
 
-  // Even if KL admin passes ?hospitalId=hospital-penang, results are strictly isolated to hospital-kl
-  // AND endDate=2026-05-15 includes 2026-05-15T18:45:00.000Z!
   const klAuditRes = await requestJson(
     baseUrl,
     'GET',
@@ -1544,7 +1542,33 @@ test('5. Partial hospital offline resilience, hospital_admin audit isolation & i
     'Hospital admin must never see unrelated hospital audit logs'
   );
 
-  // Central admin sees both KL and Penang logs
+  // Calendar rollover dates (e.g. 2026-02-31) and inverted date ranges (startDate > endDate) must return 400
+  const rolloverDateRes = await requestJson(
+    baseUrl,
+    'GET',
+    '/api/central/audit-logs?startDate=2026-02-31',
+    { token: klAdminToken }
+  );
+  assert.equal(rolloverDateRes.status, 400);
+
+  const invertedRangeRes = await requestJson(
+    baseUrl,
+    'GET',
+    '/api/central/audit-logs?startDate=2026-06-10&endDate=2026-05-01',
+    { token: klAdminToken }
+  );
+  assert.equal(invertedRangeRes.status, 400);
+
+  // Hospital admin calling /stats receives redacted clinical details (no notes, prescriptions, labReports)
+  const adminStatsRes = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/stats', {
+    token: klAdminToken,
+  });
+  assert.equal(adminStatsRes.status, 200);
+  assert.equal(adminStatsRes.body.data.recentRecords.length, 1);
+  assert.equal(adminStatsRes.body.data.recentRecords[0].notes, '');
+  assert.deepEqual(adminStatsRes.body.data.recentRecords[0].prescriptions, []);
+  assert.deepEqual(adminStatsRes.body.data.recentRecords[0].labReports, []);
+
   const centralLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
     body: { icNumber: '700101-14-7001', password: 'demo123' },
   });
@@ -1562,14 +1586,12 @@ test('6. Prescriptions & labReports persistence, record update, anti-spoofing & 
   buildSeededTestFixture();
   const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
 
-  // Cross-hospital access to Penang hospital API rejected (403)
   const crossHospPost = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-penang/records', {
     token: klDocToken,
     body: { icNumber: '900202-07-5222', diagnosis: ['Test'] },
   });
   assert.equal(crossHospPost.status, 403);
 
-  // Spoofing another KL doctor's ID (doc-kl-2) rejected (403)
   const spoofedDocPost = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
     token: klDocToken,
     body: {
@@ -1580,7 +1602,6 @@ test('6. Prescriptions & labReports persistence, record update, anti-spoofing & 
   });
   assert.equal(spoofedDocPost.status, 403);
 
-  // First visit at hospital-kl for Penang patient 900202-07-5222 (female, 1990-02-02, B+, Penicillin/Shellfish allergies)
   const createRes = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
     token: klDocToken,
     body: {
@@ -1626,7 +1647,6 @@ test('6. Prescriptions & labReports persistence, record update, anti-spoofing & 
   assert.equal(createdRecord.labReports.length, 1);
   assert.equal(createdRecord.labReports[0].testName, 'Eosinophil Count');
 
-  // Verify local patient at hospital-kl inherited Penang demographics & allergies (NOT '1990-01-01' / 'male'!)
   const localPatRes = await requestJson(
     baseUrl,
     'GET',
@@ -1641,7 +1661,6 @@ test('6. Prescriptions & labReports persistence, record update, anti-spoofing & 
   assert.equal(localPatRes.body.data.patient.bloodType, 'B+');
   assert.deepEqual(localPatRes.body.data.patient.allergies.sort(), ['Penicillin', 'Shellfish']);
 
-  // Edit local record (PUT /api/hospitals/hospital-kl/records/:recordId) updates diagnosis, Rx, and Labs
   const updateRes = await requestJson(
     baseUrl,
     'PUT',
@@ -1679,7 +1698,6 @@ test('6. Prescriptions & labReports persistence, record update, anti-spoofing & 
   assert.equal(updateRes.body.data.record.prescriptions.length, 2);
   assert.equal(updateRes.body.data.record.labReports.length, 1);
 
-  // Attempting to edit Penang's record from KL hospital returns 404 (cross-hospital records are read-only)
   const editForeignRecord = await requestJson(
     baseUrl,
     'PUT',
@@ -1696,13 +1714,11 @@ test('7. Emergency break-glass clinical aggregation & non-blocking typo rate-lim
   buildSeededTestFixture();
   const erIp = '203.0.113.55';
 
-  // Step 1: ER staff mistypes an IC -> returns 404 and MUST NOT lock out the ER IP!
   const typoRes = await requestJson(baseUrl, 'GET', '/api/central/emergency/000101-14-0000', {
     ip: erIp,
   });
   assert.equal(typoRes.status, 404);
 
-  // Step 2: Immediate lookup of real patient from the SAME ER IP succeeds (200) with aggregated medications & allergies
   const validErRes = await requestJson(baseUrl, 'GET', '/api/central/emergency/900202-07-5222', {
     ip: erIp,
   });
@@ -1718,7 +1734,6 @@ test('7. Emergency break-glass clinical aggregation & non-blocking typo rate-lim
     'Expected recent diagnosis in emergency summary'
   );
 
-  // Step 3: Repeating the SAME patient IC within 60s from the same IP hits per-(IP+IC) cooldown (429)
   const repeatSamePatient = await requestJson(baseUrl, 'GET', '/api/central/emergency/900202-07-5222', {
     ip: erIp,
   });
@@ -1726,15 +1741,25 @@ test('7. Emergency break-glass clinical aggregation & non-blocking typo rate-lim
   assert.equal(repeatSamePatient.body.rateLimited, true);
   assert.ok(repeatSamePatient.body.retryAfter > 0);
 
-  // Step 4: Different patient arriving at the SAME ER terminal IP still succeeds immediately (200)!
+  // Verify chronological sorting across multiple hospital nodes (2026-05-10 KL must precede 2026-02-10 Penang)
   const secondErPatient = await requestJson(baseUrl, 'GET', '/api/central/emergency/850505-10-5111', {
     ip: erIp,
   });
   assert.equal(secondErPatient.status, 200);
   assert.equal(secondErPatient.body.data.fullName, 'Tan Wei Ming');
   assert.equal(secondErPatient.body.data.currentMedications.length, 2);
+  assert.equal(
+    secondErPatient.body.data.recentDiagnoses[0].diagnosis,
+    'Type 2 Diabetes Mellitus',
+    'Most recent cross-hospital diagnosis must be sorted first'
+  );
 
-  // Step 5: Anti-enumeration cap triggers 429 after 15 attempts/min from a single IP
+  // Verify immutable emergency_access audit entry was recorded in central audit logs
+  const centralLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', { body: { icNumber: '700101-14-7001', password: 'demo123' } });
+  const auditRes = await requestJson(baseUrl, 'GET', '/api/central/audit-logs?targetIcNumber=850505-10-5111', { token: centralLogin.body.data.token });
+  assert.equal(auditRes.status, 200);
+  assert.ok(auditRes.body.data.some((l) => l.action === 'emergency_access' && l.ipAddress === erIp));
+
   const scannerIp = '198.51.100.99';
   for (let i = 0; i < 15; i++) {
     const r = await requestJson(baseUrl, 'GET', `/api/central/emergency/990101-14-${String(1000 + i)}`, {
@@ -1747,4 +1772,63 @@ test('7. Emergency break-glass clinical aggregation & non-blocking typo rate-lim
   });
   assert.equal(cappedRes.status, 429);
   assert.equal(cappedRes.body.rateLimited, true);
+});
+
+test('8. Clinical payload validation, duplicate-submission 409 guard & affiliation mismatch revocation', async () => {
+  const { central } = buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  // Out-of-bounds physiological vitalSigns rejected with 400
+  const invalidVitalsRes = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      visitDate: '2026-05-22',
+      visitType: 'outpatient',
+      diagnosis: ['Hypertension Check'],
+      vitalSigns: { oxygenSaturation: 145 },
+    },
+  });
+  assert.equal(invalidVitalsRes.status, 400);
+
+  // Incomplete prescription sub-table row rejected with 400
+  const invalidRxRes = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      visitDate: '2026-05-22',
+      visitType: 'outpatient',
+      diagnosis: ['URI'],
+      prescriptions: [{ medicationName: 'Paracetamol', dosage: '', frequency: 'TDS' }],
+    },
+  });
+  assert.equal(invalidRxRes.status, 400);
+
+  // Duplicate identical POST within 2s window rejected with 409 Conflict
+  const validPayload = {
+    icNumber: '850505-10-5111',
+    visitDate: '2026-05-22',
+    visitType: 'outpatient',
+    chiefComplaint: 'Annual diabetic foot screening',
+    diagnosis: ['Type 2 Diabetes Mellitus'],
+  };
+  const firstPost = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: validPayload,
+  });
+  assert.equal(firstPost.status, 201);
+
+  const duplicatePost = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: validPayload,
+  });
+  assert.equal(duplicatePost.status, 409);
+
+  // If central admin reassigns the doctor's hospitalId mid-session, old JWT is rejected with 401
+  const docUser = central._state.users.find((u) => u.id === 'user-doc-kl');
+  docUser.hospitalId = 'hospital-penang';
+  const staleAffiliationRes = await requestJson(baseUrl, 'GET', '/api/hospitals/hospital-kl/stats', {
+    token: klDocToken,
+  });
+  assert.equal(staleAffiliationRes.status, 401);
 });

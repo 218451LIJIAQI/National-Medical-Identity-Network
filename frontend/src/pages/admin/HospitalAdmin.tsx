@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi, centralApi } from '@/lib/api'
-import { deduplicateByWindow, formatTimeAgo } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
+import { cn, deduplicateByWindow, formatTimeAgo } from '@/lib/utils'
 import {
   Users,
   FileText,
@@ -15,7 +17,6 @@ import {
   Shield,
   TrendingUp,
   Clock,
-  CheckCircle,
   Server,
   Database,
   Wifi,
@@ -24,7 +25,6 @@ import {
   Package,
   DollarSign,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 
 interface HospitalStats {
@@ -60,6 +60,7 @@ interface AuditLogEntry {
 
 export default function HospitalAdminDashboard() {
   const { user } = useAuthStore()
+  const { t } = useTranslation()
   const [stats, setStats] = useState<HospitalStats>({
     totalPatients: 0,
     totalRecords: 0,
@@ -110,7 +111,8 @@ export default function HospitalAdminDashboard() {
           const activities = deduplicatedLogs.slice(0, 6).map((log) => {
             let actionDesc = log.details || 'Hospital system event'
             if (log.action === 'login') actionDesc = `${log.actorName || 'Staff'} signed in`
-            else if (log.action === 'verify') actionDesc = `${log.actorName || 'Staff'} completed hospital verification`
+            else if (log.action === 'verify')
+              actionDesc = `${log.actorName || 'Staff'} completed hospital verification`
             else if (log.action === 'logout') actionDesc = `${log.actorName || 'Staff'} signed out`
             return {
               action: actionDesc,
@@ -127,66 +129,99 @@ export default function HospitalAdminDashboard() {
         setLoading(false)
       }
     }
-    loadData()
+    void loadData()
   }, [user?.hospitalId])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+        <Loader2 className={cn('h-8 w-8 animate-spin', theme.iconColor)} />
       </div>
     )
   }
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${theme.headerGradient} p-8 text-white shadow-xl`}>
-        <div className="relative z-10">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3.5 bg-white/20 rounded-2xl border border-white/30">
-              <Building2 className="w-8 h-8" />
+    <div className="space-y-6">
+      <div
+        className={cn(
+          'rounded-2xl bg-gradient-to-r p-7 text-white shadow-md flex items-center justify-between gap-6 flex-wrap',
+          theme.headerGradient
+        )}
+      >
+        <div className="space-y-2">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-white/15 rounded-2xl border border-white/25">
+              <Building2 className="w-7 h-7" />
             </div>
             <div>
-              <Badge className="bg-white/20 text-white border-0 mb-1">Hospital Administrator</Badge>
-              <h1 className="text-3xl font-bold">{hospitalInfo?.name || theme.name}</h1>
+              <Badge className="bg-white/20 text-white border-0 mb-1">{t.adminPortal}</Badge>
+              <h1 className="text-2xl xl:text-3xl font-bold">{hospitalInfo?.name || theme.name}</h1>
             </div>
           </div>
-          <p className="text-white/85 max-w-xl mb-6 text-sm">
-            Monitor local clinical operations, active medical staff, ward capacity, and inbound/outbound federated record audits.
+          <p className="text-white/85 max-w-2xl text-xs leading-relaxed">
+            Monitor hospital-scoped clinical operations, verified medical staff, ward capacity, and inbound/outbound federated record audits.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Link to="/admin/audit">
-              <Button className="bg-white text-slate-900 hover:bg-slate-100 gap-2 font-semibold rounded-xl">
-                <Shield className="w-4 h-4" />
-                Hospital Scoped Audit Logs
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </div>
         </div>
+
+        <Link to="/admin/audit">
+          <Button className="bg-white text-slate-900 hover:bg-slate-100 gap-2 font-bold">
+            <Shield className="w-4 h-4" />
+            <span>{t.auditLogs}</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Row */}
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Local Patients', value: stats.totalPatients.toLocaleString(), icon: Users, gradient: 'from-blue-500 to-blue-600', note: 'Registered locally' },
-          { label: 'Clinical Records', value: stats.totalRecords.toLocaleString(), icon: FileText, gradient: 'from-emerald-500 to-emerald-600', note: 'Stored in hospital DB' },
-          { label: 'Visits Today', value: stats.todayVisits || 0, icon: Activity, gradient: 'from-violet-500 to-violet-600', note: 'Recorded today' },
-          { label: 'Active Doctors', value: stats.totalDoctors, icon: Users, gradient: 'from-amber-500 to-amber-600', note: 'Verified roster' },
+          {
+            label: 'Local Registered Patients',
+            value: stats.totalPatients.toLocaleString(),
+            icon: Users,
+            accent: 'border-t-blue-600',
+            iconWrap: 'bg-blue-50 text-blue-700',
+            note: 'Hospital patient registry',
+          },
+          {
+            label: 'Stored Clinical Records',
+            value: stats.totalRecords.toLocaleString(),
+            icon: FileText,
+            accent: 'border-t-emerald-600',
+            iconWrap: 'bg-emerald-50 text-emerald-700',
+            note: 'Sovereign hospital DB',
+          },
+          {
+            label: 'Visits Today',
+            value: stats.todayVisits || 0,
+            icon: Activity,
+            accent: 'border-t-violet-600',
+            iconWrap: 'bg-violet-50 text-violet-700',
+            note: 'Recorded encounters',
+          },
+          {
+            label: 'Active Clinicians',
+            value: stats.totalDoctors,
+            icon: Users,
+            accent: 'border-t-amber-600',
+            iconWrap: 'bg-amber-50 text-amber-800',
+            note: 'Verified MMC roster',
+          },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-md overflow-hidden">
-            <div className={`h-1 bg-gradient-to-r ${stat.gradient}`} />
-            <CardContent className="pt-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-                  <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" /> {stat.note}
-                  </p>
-                </div>
-                <div className={`p-3 bg-gradient-to-br ${stat.gradient} rounded-xl text-white`}>
-                  <stat.icon className="w-5 h-5" />
-                </div>
+          <Card
+            key={stat.label}
+            className={`border border-slate-200 border-t-4 ${stat.accent} shadow-sm rounded-2xl`}
+          >
+            <CardContent className="p-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-1">{stat.label}</p>
+                <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+                <p className="text-xs text-emerald-700 mt-1 flex items-center gap-1 font-medium">
+                  <TrendingUp className="w-3 h-3" /> {stat.note}
+                </p>
+              </div>
+              <div className={`p-2.5 rounded-xl ${stat.iconWrap}`}>
+                <stat.icon className="w-5 h-5" />
               </div>
             </CardContent>
           </Card>
@@ -194,88 +229,115 @@ export default function HospitalAdminDashboard() {
       </div>
 
       {/* Operations Shortcuts */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-5 gap-3.5">
         {[
-          { label: 'Staff Roster', path: '/admin/staff', icon: Users },
-          { label: 'Departments', path: '/admin/departments', icon: Building2 },
-          { label: 'Bed Capacity', path: '/admin/beds', icon: Bed },
-          { label: 'Inventory', path: '/admin/inventory', icon: Package },
-          { label: 'Financials', path: '/admin/finance', icon: DollarSign },
+          { label: t.staffManagement, path: '/admin/staff', icon: Users },
+          { label: t.departments, path: '/admin/departments', icon: Building2 },
+          { label: t.bedManagement, path: '/admin/beds', icon: Bed },
+          { label: t.inventory, path: '/admin/inventory', icon: Package },
+          { label: t.financialReports, path: '/admin/finance', icon: DollarSign },
         ].map((item) => (
           <Link
             key={item.path}
             to={item.path}
-            className="p-4 bg-white rounded-2xl border border-slate-200 hover:shadow-md transition-all flex items-center gap-2.5"
+            className="p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all flex items-center gap-2.5"
           >
-            <item.icon className={`w-5 h-5 ${theme.textColor}`} />
-            <span className="font-semibold text-sm text-slate-800">{item.label}</span>
+            <item.icon className={cn('w-4 h-4 shrink-0', theme.textColor)} />
+            <span className="font-bold text-xs text-slate-800 truncate">{item.label}</span>
           </Link>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-md">
-          <div className="p-5 border-b flex items-center justify-between">
+      <div className="grid grid-cols-2 gap-6">
+        <Card className="border border-slate-200 shadow-sm rounded-2xl">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Hospital Node Telemetry</h2>
-              <p className="text-xs text-gray-500">Isolated hospital database & federated gateway health</p>
+              <h2 className="text-sm font-bold text-slate-900">Hospital Node Telemetry</h2>
+              <p className="text-xs text-slate-600">
+                Isolated hospital database & federated gateway health
+              </p>
             </div>
-            <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-              All Healthy
-            </span>
+            <StatusBadge tone="success" label="All Healthy" />
           </div>
           <CardContent className="p-4 space-y-2.5">
             {[
               { name: 'Central Index Handshake', status: 'Connected', icon: Wifi, latency: '18ms' },
-              { name: `${theme.shortName} PostgreSQL Instance`, status: 'Healthy', icon: Database, latency: '4ms' },
-              { name: 'Federated Read-Only Gateway', status: 'Online', icon: Server, latency: '11ms' },
-              { name: 'Zero-Trust RBAC & Consent Guard', status: 'Enforced', icon: Shield, latency: '-' },
+              {
+                name: `${theme.code} Sovereign PostgreSQL Node`,
+                status: 'Healthy',
+                icon: Database,
+                latency: '4ms',
+              },
+              {
+                name: 'Federated Read-Only Gateway',
+                status: 'Online',
+                icon: Server,
+                latency: '11ms',
+              },
+              {
+                name: 'Zero-Trust RBAC & Consent Guard',
+                status: 'Enforced',
+                icon: Shield,
+                latency: '—',
+              },
             ].map((item) => (
               <div
                 key={item.name}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100"
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
               >
                 <div className="flex items-center gap-3">
-                  <item.icon className="w-4 h-4 text-emerald-600" />
-                  <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                  <item.icon className="w-4 h-4 text-emerald-700" />
+                  <span className="text-xs font-bold text-slate-900">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                  {item.latency !== '-' && <span className="text-gray-500">{item.latency}</span>}
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span className="text-emerald-700 font-semibold">{item.status}</span>
+                  {item.latency !== '—' && (
+                    <span className="text-slate-500 tabular-nums">{item.latency}</span>
+                  )}
+                  <StatusBadge tone="success" label={item.status} />
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-md">
-          <div className="p-5 border-b flex items-center justify-between">
+        <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Inbound & Outbound Hospital Audit Feed</h2>
-              <p className="text-xs text-gray-500">Scoped strictly to {hospitalInfo?.name || theme.name}</p>
+              <h2 className="text-sm font-bold text-slate-900">
+                Inbound & Outbound Hospital Audit Feed
+              </h2>
+              <p className="text-xs text-slate-600">
+                Scoped strictly to {hospitalInfo?.name || theme.name}
+              </p>
             </div>
-            <Clock className="w-4 h-4 text-gray-400" />
+            <Clock className="w-4 h-4 text-slate-400" />
           </div>
           <CardContent className="p-0">
-            <div className="divide-y">
+            <div className="divide-y divide-slate-100">
               {recentActivity.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 text-sm">No recent hospital audit events.</div>
+                <div className="p-8 text-center text-slate-500 text-xs">
+                  No recent hospital audit events.
+                </div>
               ) : (
                 recentActivity.map((activity, i) => (
-                  <div key={i} className="p-4 flex items-center gap-3">
+                  <div key={i} className="p-3.5 flex items-center gap-3 hover:bg-slate-50">
                     <div
-                      className={`p-2 rounded-lg ${
-                        activity.type === 'query' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600'
-                      }`}
+                      className={cn(
+                        'p-2 rounded-lg shrink-0',
+                        activity.type === 'query'
+                          ? 'bg-violet-50 text-violet-700'
+                          : 'bg-blue-50 text-blue-700'
+                      )}
                     >
                       <Activity className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{activity.action}</p>
-                      <p className="text-xs text-gray-500">{activity.user}</p>
+                      <p className="text-xs font-bold text-slate-900 truncate">{activity.action}</p>
+                      <p className="text-xs text-slate-600">{activity.user}</p>
                     </div>
-                    <span className="text-xs text-gray-400 shrink-0">{activity.time}</span>
+                    <span className="text-xs text-slate-500 shrink-0 tabular-nums">
+                      {activity.time}
+                    </span>
                   </div>
                 ))
               )}
@@ -283,6 +345,6 @@ export default function HospitalAdminDashboard() {
           </CardContent>
         </Card>
       </div>
-    </motion.div>
+    </div>
   )
 }

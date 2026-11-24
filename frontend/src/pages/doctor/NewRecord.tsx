@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
@@ -27,10 +29,8 @@ import {
   Trash2,
   ShieldAlert,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { motion } from 'framer-motion'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { formatIC, parseMyKadDemographics } from '@/lib/utils'
+import { cn, formatIC, parseMyKadDemographics, toDateInputValue } from '@/lib/utils'
 
 const EMPTY_PRESCRIPTION: PrescriptionDto = {
   medicationName: '',
@@ -53,6 +53,15 @@ const EMPTY_LAB_REPORT: LabReportDto = {
   notes: '',
 }
 
+const VITAL_FIELD_LIMITS = [
+  { key: 'bloodPressureSystolic', min: 30, max: 300, label: 'Systolic BP (30–300 mmHg)' },
+  { key: 'bloodPressureDiastolic', min: 15, max: 220, label: 'Diastolic BP (15–220 mmHg)' },
+  { key: 'heartRate', min: 15, max: 300, label: 'Heart Rate (15–300 bpm)' },
+  { key: 'temperature', min: 25, max: 45, label: 'Temperature (25–45 °C)' },
+  { key: 'oxygenSaturation', min: 30, max: 100, label: 'SpO2 (30–100 %)' },
+  { key: 'weight', min: 0.3, max: 500, label: 'Weight (0.3–500 kg)' },
+] as const
+
 export default function NewRecord() {
   const { icNumber, recordId } = useParams<{ icNumber: string; recordId?: string }>()
   const isEditMode = Boolean(recordId)
@@ -65,6 +74,7 @@ export default function NewRecord() {
   const { setActivePatient } = useClinicalStore()
   const theme = getHospitalTheme(user?.hospitalId)
 
+  const submittingRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [blockingError, setBlockingError] = useState<string | null>(null)
@@ -132,6 +142,7 @@ export default function NewRecord() {
           const p = patientRes.data.patient
           const fullName = String(p.fullName || '')
           const genderVal = p.gender === 'female' ? 'female' : 'male'
+          const dobStr = toDateInputValue(String(p.dateOfBirth || ''))
           const allergiesArr = Array.isArray(p.allergies) ? (p.allergies as string[]) : []
           const conditionsArr = Array.isArray(p.chronicConditions) ? (p.chronicConditions as string[]) : []
 
@@ -139,7 +150,7 @@ export default function NewRecord() {
           setIsFederatedFirstVisit(!patientRes.data.isLocal)
           setPatientInfo({
             fullName,
-            dateOfBirth: String(p.dateOfBirth || ''),
+            dateOfBirth: dobStr,
             gender: genderVal,
             bloodType: String(p.bloodType || ''),
             allergies: allergiesArr,
@@ -148,23 +159,29 @@ export default function NewRecord() {
           setActivePatient({
             icNumber: formattedIc,
             fullName,
-            dateOfBirth: String(p.dateOfBirth || ''),
+            dateOfBirth: dobStr,
             gender: genderVal,
             bloodType: String(p.bloodType || ''),
             allergies: allergiesArr,
             chronicConditions: conditionsArr,
+            scopedHospitalId: user.hospitalId,
+            scopedDoctorId: user.doctorId,
           })
           setFormData((prev) => ({
             ...prev,
             patientName: fullName,
-            dateOfBirth: String(p.dateOfBirth || prev.dateOfBirth),
+            dateOfBirth: dobStr || prev.dateOfBirth,
             gender: genderVal,
             bloodType: String(p.bloodType || ''),
             allergiesInput: allergiesArr.join(', '),
             chronicConditionsInput: conditionsArr.join(', '),
           }))
-        } else {
+        } else if (patientRes.notFound || patientRes.status === 404) {
           setPatientExists(false)
+        } else {
+          setBlockingError(patientRes.error || t.networkError)
+          setLoadingInitial(false)
+          return
         }
 
         if (isEditMode && recordId) {
@@ -184,16 +201,18 @@ export default function NewRecord() {
             return
           }
 
+          const normalizedVisitDate = toDateInputValue(rec.visitDate) || new Date().toISOString().split('T')[0]
+
           setFormData((prev) => ({
             ...prev,
-            visitDate: rec.visitDate || prev.visitDate,
+            visitDate: normalizedVisitDate,
             visitType: rec.visitType || 'outpatient',
             chiefComplaint: rec.chiefComplaint || '',
             diagnosis: (rec.diagnosis || []).join(', '),
             diagnosisCodes: (rec.diagnosisCodes || []).join(', '),
             symptoms: (rec.symptoms || []).join(', '),
             notes: rec.notes || '',
-            followUpDate: rec.followUpDate || '',
+            followUpDate: toDateInputValue(rec.followUpDate),
             bloodPressureSystolic: rec.vitalSigns?.bloodPressureSystolic
               ? String(rec.vitalSigns.bloodPressureSystolic)
               : '',
@@ -209,7 +228,12 @@ export default function NewRecord() {
             height: rec.vitalSigns?.height ? String(rec.vitalSigns.height) : '',
           }))
           setPrescriptions(rec.prescriptions || [])
-          setLabReports(rec.labReports || [])
+          setLabReports(
+            (rec.labReports || []).map((l) => ({
+              ...l,
+              reportDate: toDateInputValue(l.reportDate) || normalizedVisitDate,
+            }))
+          )
         }
       } catch {
         setBlockingError('Unable to load clinical record context.')
@@ -218,19 +242,24 @@ export default function NewRecord() {
       }
     }
 
-    initializeForm()
-  }, [formattedIc, isEditMode, recordId, user?.hospitalId, setActivePatient, t.privacyRestrictedDesc])
+    void initializeForm()
+  }, [formattedIc, isEditMode, recordId, user?.hospitalId, user?.doctorId, setActivePatient, t.privacyRestrictedDesc, t.networkError])
 
-  const knownAllergies = (
-    patientInfo?.allergies?.length
-      ? patientInfo.allergies
-      : formData.allergiesInput.split(',').map((a) => a.trim()).filter(Boolean)
-  ).map((a) => a.toLowerCase())
+  const mergedKnownAllergies = Array.from(
+    new Set([
+      ...(patientInfo?.allergies || []),
+      ...formData.allergiesInput
+        .split(',')
+        .map((a) => a.trim())
+        .filter(Boolean),
+    ])
+  )
+  const knownAllergiesLower = mergedKnownAllergies.map((a) => a.toLowerCase())
 
   const conflictingMeds = prescriptions.filter((rx) => {
     const medLower = rx.medicationName.trim().toLowerCase()
     if (!medLower) return false
-    return knownAllergies.some((alg) => medLower.includes(alg) || alg.includes(medLower))
+    return knownAllergiesLower.some((alg) => medLower.includes(alg) || alg.includes(medLower))
   })
 
   const addPrescription = () => {
@@ -259,6 +288,7 @@ export default function NewRecord() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submittingRef.current) return
 
     const diagnoses = formData.diagnosis
       .split(',')
@@ -267,7 +297,7 @@ export default function NewRecord() {
     if (diagnoses.length === 0) {
       toast({
         title: 'Validation Error',
-        description: 'At least one clinical diagnosis is required',
+        description: 'At least one clinical diagnosis is required.',
         variant: 'destructive',
       })
       return
@@ -282,45 +312,75 @@ export default function NewRecord() {
       return
     }
 
-    const cleanedPrescriptions = prescriptions
-      .filter((rx) => rx.medicationName.trim().length > 0)
-      .map((rx) => ({
+    // Validate physiological vital bounds
+    const vitalSigns: Record<string, unknown> = {}
+    for (const rule of VITAL_FIELD_LIMITS) {
+      const rawVal = formData[rule.key].trim()
+      if (!rawVal) continue
+      const num = Number(rawVal)
+      if (Number.isNaN(num) || num < rule.min || num > rule.max) {
+        toast({
+          title: 'Vital Sign Out of Bounds',
+          description: `Please check ${rule.label}.`,
+          variant: 'destructive',
+        })
+        return
+      }
+      vitalSigns[rule.key] = num
+    }
+
+    // Validate prescription rows (do not silently drop half-filled medications)
+    const cleanedPrescriptions: PrescriptionDto[] = []
+    for (let i = 0; i < prescriptions.length; i++) {
+      const rx = prescriptions[i]
+      const med = rx.medicationName.trim()
+      const dose = rx.dosage.trim()
+      const freq = rx.frequency.trim()
+      if (!med && !dose) continue
+      if (!med || !dose || !freq) {
+        toast({
+          title: `Incomplete Prescription (#${i + 1})`,
+          description: 'Medication name, dosage, and frequency are all required.',
+          variant: 'destructive',
+        })
+        return
+      }
+      cleanedPrescriptions.push({
         ...rx,
-        medicationName: rx.medicationName.trim(),
-        dosage: rx.dosage.trim() || 'Standard',
-        quantity: Number(rx.quantity) || 1,
-      }))
+        medicationName: med,
+        dosage: dose,
+        frequency: freq,
+        quantity: Math.max(1, Math.trunc(Number(rx.quantity) || 1)),
+      })
+    }
 
-    const cleanedLabReports = labReports
-      .filter((lab) => lab.testName.trim().length > 0 && lab.result.trim().length > 0)
-      .map((lab) => ({
+    // Validate lab report rows
+    const cleanedLabReports: LabReportDto[] = []
+    for (let i = 0; i < labReports.length; i++) {
+      const lab = labReports[i]
+      const name = lab.testName.trim()
+      const resVal = lab.result.trim()
+      const hasAux = Boolean(lab.unit.trim() || lab.referenceRange.trim() || lab.notes.trim())
+      if (!name && !resVal && !hasAux) continue
+      if (!name || !resVal) {
+        toast({
+          title: `Incomplete Lab Result (#${i + 1})`,
+          description: 'Both Test Name and Result are required for laboratory entries.',
+          variant: 'destructive',
+        })
+        return
+      }
+      cleanedLabReports.push({
         ...lab,
-        testName: lab.testName.trim(),
-        result: lab.result.trim(),
-        reportDate: lab.reportDate || formData.visitDate,
-      }))
+        testName: name,
+        result: resVal,
+        reportDate: toDateInputValue(lab.reportDate) || formData.visitDate,
+      })
+    }
 
+    submittingRef.current = true
     setSaving(true)
     try {
-      const vitalSigns: Record<string, unknown> = {}
-      const numericFields = [
-        'bloodPressureSystolic',
-        'bloodPressureDiastolic',
-        'heartRate',
-        'temperature',
-        'oxygenSaturation',
-        'weight',
-        'height',
-      ] as const
-      for (const field of numericFields) {
-        if (formData[field] !== '') {
-          const parsed = Number(formData[field])
-          if (!Number.isNaN(parsed)) {
-            vitalSigns[field] = parsed
-          }
-        }
-      }
-
       const payload = {
         icNumber: formattedIc,
         visitDate: formData.visitDate,
@@ -361,8 +421,9 @@ export default function NewRecord() {
 
       if (response.success) {
         toast({
-          title: isEditMode ? 'Record Updated' : 'Medical Record Created',
-          description: `Saved consultation with ${cleanedPrescriptions.length} prescription(s) and ${cleanedLabReports.length} lab report(s).`,
+          title: isEditMode ? 'Medical Record Updated' : 'Medical Record Created',
+          description: `Saved encounter with ${cleanedPrescriptions.length} prescription(s) and ${cleanedLabReports.length} lab report(s).`,
+          variant: 'success',
         })
         navigate(`/doctor/patient/${encodeURIComponent(formattedIc)}`)
       } else {
@@ -373,6 +434,7 @@ export default function NewRecord() {
         })
       }
     } finally {
+      submittingRef.current = false
       setSaving(false)
     }
   }
@@ -380,7 +442,7 @@ export default function NewRecord() {
   if (loadingInitial) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className={`w-8 h-8 animate-spin ${theme.iconColor}`} />
+        <Loader2 className={cn('w-8 h-8 animate-spin', theme.iconColor)} />
       </div>
     )
   }
@@ -389,12 +451,12 @@ export default function NewRecord() {
     return (
       <Card className="border-2 border-red-300 bg-red-50 rounded-2xl max-w-2xl mx-auto mt-10">
         <CardContent className="p-8 space-y-4">
-          <div className="flex items-center gap-3 text-red-800">
-            <ShieldAlert className="w-7 h-7 text-red-600 shrink-0" />
+          <div className="flex items-center gap-3 text-red-900">
+            <ShieldAlert className="w-7 h-7 text-red-700 shrink-0" />
             <h2 className="text-xl font-bold">Action Blocked</h2>
           </div>
-          <p className="text-sm text-red-800">{blockingError}</p>
-          <Button variant="outline" onClick={() => navigate(-1)} className="rounded-xl">
+          <p className="text-sm text-red-900">{blockingError}</p>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Go Back
           </Button>
@@ -404,64 +466,70 @@ export default function NewRecord() {
   }
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <div className="space-y-6">
       {/* Header */}
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${theme.headerGradient} p-7 text-white shadow-xl`}>
-        <div className="relative z-10 flex items-center gap-4">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="bg-white/20 hover:bg-white/30 text-white rounded-xl"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="p-3 bg-white/20 rounded-2xl border border-white/30">
-            <FileText className="w-7 h-7" />
-          </div>
-          <div>
-            <Badge className="bg-white/20 text-white border-0 mb-1">
-              <Stethoscope className="w-3 h-3 mr-1" />
-              {isEditMode ? t.editRecord : t.newRecord} • {theme.shortName}
-            </Badge>
-            <h1 className="text-2xl sm:text-3xl font-bold">
-              {isEditMode ? 'Edit Local Medical Record' : 'New Clinical Consultation Record'}
-            </h1>
-            <p className="text-white/85 text-sm">
-              Patient MyKad IC: <span className="font-mono font-semibold">{formattedIc}</span>
-            </p>
-          </div>
+      <div
+        className={cn(
+          'rounded-2xl bg-gradient-to-r p-6 text-white shadow-md flex items-center gap-4',
+          theme.headerGradient
+        )}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Go back"
+          onClick={() => navigate(-1)}
+          className="bg-white/20 hover:bg-white/30 text-white"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="p-2.5 bg-white/20 rounded-xl border border-white/25">
+          <FileText className="w-6 h-6" />
+        </div>
+        <div>
+          <Badge className="bg-white/20 text-white border-0 mb-1">
+            <Stethoscope className="w-3 h-3 mr-1" />
+            {isEditMode ? t.editRecord : t.newRecord} • {theme.name}
+          </Badge>
+          <h1 className="text-2xl font-bold">
+            {isEditMode ? 'Edit Local Medical Record' : 'New Clinical Consultation Record'}
+          </h1>
+          <p className="text-white/85 text-xs mt-0.5">
+            Patient MyKad IC: <span className="font-mono font-bold tabular-nums">{formattedIc}</span>
+          </p>
         </div>
       </div>
 
       {/* Patient Banner */}
       {patientExists && patientInfo ? (
         <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-          <CardContent className="p-5 flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className={`p-3 ${theme.bgLight} rounded-xl`}>
-                <User className={`w-6 h-6 ${theme.iconColor}`} />
+          <div className={cn('h-1 bg-gradient-to-r', theme.cardAccentGradient)} />
+          <CardContent className="p-5 flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-3.5">
+              <div className={cn('p-2.5 rounded-xl', theme.bgLight)}>
+                <User className={cn('w-5 h-5', theme.iconColor)} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-lg text-slate-900">{patientInfo.fullName}</h3>
+                  <h2 className="font-bold text-base text-slate-900">{patientInfo.fullName}</h2>
                   {isFederatedFirstVisit && (
-                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
-                      Cross-Hospital First Visit • Federated Profile Inherited
-                    </Badge>
+                    <StatusBadge
+                      tone="info"
+                      label="Cross-Hospital First Visit • Federated Profile Inherited"
+                    />
                   )}
                 </div>
-                <p className="text-slate-600 text-sm mt-0.5 capitalize">
-                  {patientInfo.gender} • Blood: <strong>{patientInfo.bloodType || 'Unknown'}</strong> • DOB: {patientInfo.dateOfBirth}
+                <p className="text-slate-600 text-xs mt-0.5 capitalize tabular-nums">
+                  {patientInfo.gender} • Blood: <strong>{patientInfo.bloodType || 'Unknown'}</strong> • DOB:{' '}
+                  {patientInfo.dateOfBirth || '—'}
                 </p>
-                {patientInfo.allergies.length > 0 && (
-                  <div className="mt-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg inline-flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-600" />
-                    <span className="text-red-800 text-xs font-bold">
-                      Allergies: {patientInfo.allergies.join(', ')}
-                    </span>
+                {mergedKnownAllergies.length > 0 && (
+                  <div className="mt-2">
+                    <StatusBadge
+                      tone="critical"
+                      label={`Recorded Allergies: ${mergedKnownAllergies.join(', ')}`}
+                    />
                   </div>
                 )}
               </div>
@@ -469,13 +537,13 @@ export default function NewRecord() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-amber-200 bg-amber-50 rounded-2xl">
+        <Card className="border-amber-300 bg-amber-50 rounded-2xl">
           <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div className="text-sm">
-              <p className="font-bold text-amber-900">New Network Patient Registration</p>
-              <p className="text-amber-800 text-xs">
-                Date of birth and gender have been pre-parsed from MyKad IC ({formattedIc}). Complete patient profile below.
+            <AlertTriangle className="w-5 h-5 text-amber-800 shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold text-sm text-amber-950">New Network Patient Registration</p>
+              <p className="text-amber-900">
+                Date of birth and gender have been pre-parsed from MyKad IC ({formattedIc}). Complete patient demographics and verify allergies below.
               </p>
             </div>
           </CardContent>
@@ -483,96 +551,125 @@ export default function NewRecord() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* New Patient Demographics Section */}
-        {!patientExists && (
-          <Card className="border border-slate-200 shadow-sm rounded-2xl">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <User className={`w-5 h-5 ${theme.iconColor}`} />
-                New Patient Demographics & Baseline Allergies
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 grid md:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="patientName">Patient Full Name *</Label>
-                <Input
-                  id="patientName"
-                  required
-                  placeholder="e.g., Muhammad Faiz bin Ismail"
-                  value={formData.patientName}
-                  onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="dob">Date of Birth</Label>
-                <Input
-                  id="dob"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="gender">Gender</Label>
-                <select
-                  id="gender"
-                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm"
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'male' | 'female' })}
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bloodType">Blood Type</Label>
-                <select
-                  id="bloodType"
-                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm"
-                  value={formData.bloodType}
-                  onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
-                >
-                  <option value="">Unknown</option>
-                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bt) => (
-                    <option key={bt} value={bt}>{bt}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="allergiesInput">Known Allergies (comma-separated)</Label>
-                <Input
-                  id="allergiesInput"
-                  placeholder="e.g., Penicillin, Aspirin"
-                  value={formData.allergiesInput}
-                  onChange={(e) => setFormData({ ...formData, allergiesInput: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="chronicInput">Chronic Conditions (comma-separated)</Label>
-                <Input
-                  id="chronicInput"
-                  placeholder="e.g., Asthma, Hypertension"
-                  value={formData.chronicConditionsInput}
-                  onChange={(e) => setFormData({ ...formData, chronicConditionsInput: e.target.value })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Patient Demographics & Allergy / Condition Updates */}
+        <Card className="border border-slate-200 shadow-sm rounded-2xl">
+          <CardHeader className="border-b border-slate-100 py-4 px-5">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <User className={cn('w-4 h-4', theme.iconColor)} />
+              <span>
+                {patientExists
+                  ? 'Baseline Allergies, Blood Type & Chronic Condition Updates'
+                  : 'New Patient Demographics & Baseline Allergies'}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-5 grid grid-cols-3 gap-4">
+            {!patientExists && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="patientName" className="text-xs font-bold">
+                    Patient Full Name *
+                  </Label>
+                  <Input
+                    id="patientName"
+                    required
+                    placeholder="e.g., Muhammad Faiz bin Ismail"
+                    value={formData.patientName}
+                    onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dob" className="text-xs font-bold">
+                    Date of Birth
+                  </Label>
+                  <Input
+                    id="dob"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="gender" className="text-xs font-bold">
+                    Gender
+                  </Label>
+                  <select
+                    id="gender"
+                    className="w-full h-10 px-3 border border-slate-300 rounded-xl bg-white text-sm"
+                    value={formData.gender}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gender: e.target.value as 'male' | 'female' })
+                    }
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="bloodType" className="text-xs font-bold">
+                Blood Type
+              </Label>
+              <select
+                id="bloodType"
+                className="w-full h-10 px-3 border border-slate-300 rounded-xl bg-white text-sm"
+                value={formData.bloodType}
+                onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+              >
+                <option value="">Unknown</option>
+                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bt) => (
+                  <option key={bt} value={bt}>
+                    {bt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="allergiesInput" className="text-xs font-bold">
+                Known Drug / Food Allergies (comma-separated)
+              </Label>
+              <Input
+                id="allergiesInput"
+                placeholder="e.g., Penicillin, Aspirin"
+                value={formData.allergiesInput}
+                onChange={(e) => setFormData({ ...formData, allergiesInput: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="chronicInput" className="text-xs font-bold">
+                Chronic Conditions (comma-separated)
+              </Label>
+              <Input
+                id="chronicInput"
+                placeholder="e.g., Asthma, Hypertension"
+                value={formData.chronicConditionsInput}
+                onChange={(e) =>
+                  setFormData({ ...formData, chronicConditionsInput: e.target.value })
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Consultation & Vitals */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <div className={`h-1 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-          <CardHeader className="bg-slate-50/70 border-b border-slate-100 pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className={`w-5 h-5 ${theme.iconColor}`} />
-              Encounter Details & Vital Signs
+          <div className={cn('h-1 bg-gradient-to-r', theme.cardAccentGradient)} />
+          <CardHeader className="bg-slate-50/70 border-b border-slate-100 py-4 px-5">
+            <CardTitle className="flex items-center gap-2 text-sm font-bold">
+              <Calendar className={cn('w-4 h-4', theme.iconColor)} />
+              <span>Encounter Details & Vital Signs</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-5">
-            <div className="grid md:grid-cols-3 gap-4">
+          <CardContent className="p-5 space-y-5">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="visitDate">Visit Date</Label>
+                <Label htmlFor="visitDate" className="text-xs font-bold">
+                  Visit Date
+                </Label>
                 <Input
                   id="visitDate"
                   type="date"
@@ -581,11 +678,13 @@ export default function NewRecord() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="visitType">Visit Type</Label>
+                <Label htmlFor="visitType" className="text-xs font-bold">
+                  Visit Type
+                </Label>
                 <select
                   id="visitType"
                   title="Visit Type"
-                  className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-sm font-medium"
+                  className="w-full h-10 px-3 border border-slate-300 rounded-xl bg-white text-sm font-medium"
                   value={formData.visitType}
                   onChange={(e) => setFormData({ ...formData, visitType: e.target.value })}
                 >
@@ -595,7 +694,9 @@ export default function NewRecord() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="followUpDate">Follow-Up Date (Optional)</Label>
+                <Label htmlFor="followUpDate" className="text-xs font-bold">
+                  Follow-Up Date (Optional)
+                </Label>
                 <Input
                   id="followUpDate"
                   type="date"
@@ -607,58 +708,86 @@ export default function NewRecord() {
 
             {/* Vital Signs */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5 text-slate-700">
-                <Activity className="w-4 h-4 text-slate-500" />
-                Vital Signs
+              <Label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <Activity className="w-3.5 h-3.5 text-slate-500" />
+                Vital Signs (Tabular Clinical Metrics)
               </Label>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-6 gap-3">
                 <div>
-                  <Label className="text-xs text-slate-500 flex items-center gap-1">
+                  <Label htmlFor="v-sys" className="text-[11px] text-slate-600 flex items-center gap-1 mb-1">
                     <Heart className="w-3 h-3" /> Systolic BP
                   </Label>
                   <Input
+                    id="v-sys"
+                    type="number"
                     placeholder="120"
                     value={formData.bloodPressureSystolic}
-                    onChange={(e) => setFormData({ ...formData, bloodPressureSystolic: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, bloodPressureSystolic: e.target.value })
+                    }
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-500">Diastolic BP</Label>
+                  <Label htmlFor="v-dia" className="text-[11px] text-slate-600 mb-1 block">
+                    Diastolic BP
+                  </Label>
                   <Input
+                    id="v-dia"
+                    type="number"
                     placeholder="80"
                     value={formData.bloodPressureDiastolic}
-                    onChange={(e) => setFormData({ ...formData, bloodPressureDiastolic: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, bloodPressureDiastolic: e.target.value })
+                    }
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-500">Heart Rate (bpm)</Label>
+                  <Label htmlFor="v-hr" className="text-[11px] text-slate-600 mb-1 block">
+                    Heart Rate (bpm)
+                  </Label>
                   <Input
+                    id="v-hr"
+                    type="number"
                     placeholder="72"
                     value={formData.heartRate}
                     onChange={(e) => setFormData({ ...formData, heartRate: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-500 flex items-center gap-1">
+                  <Label htmlFor="v-temp" className="text-[11px] text-slate-600 flex items-center gap-1 mb-1">
                     <Thermometer className="w-3 h-3" /> Temp (°C)
                   </Label>
                   <Input
+                    id="v-temp"
+                    type="number"
+                    step="0.1"
                     placeholder="36.6"
                     value={formData.temperature}
                     onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-500">SpO2 (%)</Label>
+                  <Label htmlFor="v-spo2" className="text-[11px] text-slate-600 mb-1 block">
+                    SpO2 (%)
+                  </Label>
                   <Input
+                    id="v-spo2"
+                    type="number"
                     placeholder="98"
                     value={formData.oxygenSaturation}
-                    onChange={(e) => setFormData({ ...formData, oxygenSaturation: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, oxygenSaturation: e.target.value })
+                    }
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-500">Weight (kg)</Label>
+                  <Label htmlFor="v-wt" className="text-[11px] text-slate-600 mb-1 block">
+                    Weight (kg)
+                  </Label>
                   <Input
+                    id="v-wt"
+                    type="number"
+                    step="0.1"
                     placeholder="70"
                     value={formData.weight}
                     onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
@@ -667,18 +796,23 @@ export default function NewRecord() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="chiefComplaint">Chief Complaint</Label>
+                <Label htmlFor="chiefComplaint" className="text-xs font-bold">
+                  Chief Complaint
+                </Label>
                 <Input
                   id="chiefComplaint"
-                  placeholder="Patient's primary reason for consultation..."
+                  maxLength={500}
+                  placeholder="Patient's primary reason for consultation…"
                   value={formData.chiefComplaint}
                   onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="symptoms">Presenting Symptoms (comma-separated)</Label>
+                <Label htmlFor="symptoms" className="text-xs font-bold">
+                  Presenting Symptoms (comma-separated)
+                </Label>
                 <Input
                   id="symptoms"
                   placeholder="e.g., Fever, Headache, Cough"
@@ -688,9 +822,11 @@ export default function NewRecord() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="md:col-span-2 space-y-1.5">
-                <Label htmlFor="diagnosis">Clinical Diagnosis * (comma-separated)</Label>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="diagnosis" className="text-xs font-bold">
+                  Clinical Diagnosis * (comma-separated)
+                </Label>
                 <Input
                   id="diagnosis"
                   required
@@ -700,10 +836,13 @@ export default function NewRecord() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="diagnosisCodes">ICD-10 Codes (comma-separated)</Label>
+                <Label htmlFor="diagnosisCodes" className="text-xs font-bold">
+                  ICD-10 Codes (comma-separated)
+                </Label>
                 <Input
                   id="diagnosisCodes"
                   placeholder="e.g., I10, E11.9"
+                  className="font-mono"
                   value={formData.diagnosisCodes}
                   onChange={(e) => setFormData({ ...formData, diagnosisCodes: e.target.value })}
                 />
@@ -711,12 +850,15 @@ export default function NewRecord() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="notes">Clinical Assessment & Plan</Label>
+              <Label htmlFor="notes" className="text-xs font-bold">
+                Clinical Assessment & Management Plan
+              </Label>
               <textarea
                 id="notes"
                 rows={3}
-                className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                placeholder="Examination findings, assessment, and management plan..."
+                maxLength={10000}
+                className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                placeholder="Examination findings, clinical assessment, and management plan…"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
@@ -726,35 +868,40 @@ export default function NewRecord() {
 
         {/* Prescriptions Editor */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-emerald-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2 text-emerald-950">
-              <Pill className="w-5 h-5 text-emerald-600" />
-              Prescriptions ({prescriptions.length})
+          <CardHeader className="bg-emerald-50/50 border-b border-slate-100 py-3.5 px-5 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-950">
+              <Pill className="w-4 h-4 text-emerald-700" />
+              <span>Prescriptions ({prescriptions.length})</span>
             </CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addPrescription} className="rounded-xl gap-1">
-              <Plus className="w-4 h-4" /> Add Medication
+            <Button type="button" variant="outline" size="sm" onClick={addPrescription} className="gap-1">
+              <Plus className="w-3.5 h-3.5" /> Add Medication
             </Button>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             {conflictingMeds.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-red-50 border-2 border-red-300 text-red-900 text-sm flex items-center gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+              <div
+                role="alert"
+                className="p-3.5 rounded-xl bg-red-50 border-2 border-red-300 text-red-950 text-xs flex items-center gap-2.5"
+              >
+                <AlertTriangle className="w-5 h-5 text-red-700 shrink-0" />
                 <span>
-                  <strong>Drug Allergy Alert:</strong> {conflictingMeds.map((m) => m.medicationName).join(', ')} matches recorded patient allergies ({patientInfo?.allergies.join(', ') || formData.allergiesInput})!
+                  <strong>Drug Allergy Contraindication Alert:</strong>{' '}
+                  {conflictingMeds.map((m) => m.medicationName).join(', ')} matches recorded patient allergies (
+                  {mergedKnownAllergies.join(', ')})!
                 </span>
               </div>
             )}
 
             {prescriptions.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-3">
+              <p className="text-xs text-slate-500 text-center py-2">
                 No prescriptions attached to this encounter. Click "Add Medication" to prescribe.
               </p>
             ) : (
               prescriptions.map((rx, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="grid sm:grid-cols-2 md:grid-cols-6 gap-3">
-                    <div className="md:col-span-2">
-                      <Label className="text-xs">Medication Name *</Label>
+                  <div className="grid grid-cols-6 gap-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs font-semibold">Medication Name *</Label>
                       <Input
                         placeholder="e.g., Metformin"
                         value={rx.medicationName}
@@ -762,7 +909,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Dosage</Label>
+                      <Label className="text-xs font-semibold">Dosage *</Label>
                       <Input
                         placeholder="500mg"
                         value={rx.dosage}
@@ -770,7 +917,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Frequency</Label>
+                      <Label className="text-xs font-semibold">Frequency *</Label>
                       <Input
                         placeholder="Twice daily"
                         value={rx.frequency}
@@ -778,7 +925,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Duration</Label>
+                      <Label className="text-xs font-semibold">Duration</Label>
                       <Input
                         placeholder="30 days"
                         value={rx.duration}
@@ -786,23 +933,25 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Qty</Label>
+                      <Label className="text-xs font-semibold">Qty</Label>
                       <Input
                         type="number"
                         min={1}
                         value={rx.quantity}
-                        onChange={(e) => updatePrescriptionRow(idx, { quantity: Number(e.target.value) || 1 })}
+                        onChange={(e) =>
+                          updatePrescriptionRow(idx, { quantity: Number(e.target.value) || 1 })
+                        }
                       />
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <Input
-                      placeholder="Instructions (e.g. Take after meals)"
+                      placeholder="Administration instructions (e.g. Take after meals)"
                       value={rx.instructions}
                       onChange={(e) => updatePrescriptionRow(idx, { instructions: e.target.value })}
-                      className="flex-1 min-w-[200px]"
+                      className="flex-1"
                     />
-                    <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 shrink-0">
                       <input
                         type="checkbox"
                         checked={rx.isActive}
@@ -814,8 +963,9 @@ export default function NewRecord() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      aria-label={`Remove prescription ${idx + 1}`}
                       onClick={() => removePrescriptionRow(idx)}
-                      className="text-red-600 hover:bg-red-50"
+                      className="text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -828,26 +978,26 @@ export default function NewRecord() {
 
         {/* Lab Reports Editor */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-indigo-50/50 border-b border-slate-100 py-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2 text-indigo-950">
-              <FlaskConical className="w-5 h-5 text-indigo-600" />
-              Laboratory Reports ({labReports.length})
+          <CardHeader className="bg-indigo-50/50 border-b border-slate-100 py-3.5 px-5 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-bold flex items-center gap-2 text-indigo-950">
+              <FlaskConical className="w-4 h-4 text-indigo-700" />
+              <span>Laboratory Reports ({labReports.length})</span>
             </CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addLabReport} className="rounded-xl gap-1">
-              <Plus className="w-4 h-4" /> Add Lab Result
+            <Button type="button" variant="outline" size="sm" onClick={addLabReport} className="gap-1">
+              <Plus className="w-3.5 h-3.5" /> Add Lab Result
             </Button>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             {labReports.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-3">
+              <p className="text-xs text-slate-500 text-center py-2">
                 No laboratory results attached to this encounter. Click "Add Lab Result" to record findings.
               </p>
             ) : (
               labReports.map((lab, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-5 gap-3">
                     <div>
-                      <Label className="text-xs">Category</Label>
+                      <Label className="text-xs font-semibold">Category</Label>
                       <Input
                         placeholder="Blood Chemistry"
                         value={lab.testType}
@@ -855,7 +1005,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Test Name *</Label>
+                      <Label className="text-xs font-semibold">Test Name *</Label>
                       <Input
                         placeholder="HbA1c"
                         value={lab.testName}
@@ -863,7 +1013,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Result *</Label>
+                      <Label className="text-xs font-semibold">Result *</Label>
                       <Input
                         placeholder="6.8"
                         value={lab.result}
@@ -871,7 +1021,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Unit</Label>
+                      <Label className="text-xs font-semibold">Unit</Label>
                       <Input
                         placeholder="%"
                         value={lab.unit}
@@ -879,7 +1029,7 @@ export default function NewRecord() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Ref Range</Label>
+                      <Label className="text-xs font-semibold">Ref Range</Label>
                       <Input
                         placeholder="4.0 - 5.6"
                         value={lab.referenceRange}
@@ -887,14 +1037,14 @@ export default function NewRecord() {
                       />
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <Input
-                      placeholder="Lab notes..."
+                      placeholder="Pathology notes…"
                       value={lab.notes}
                       onChange={(e) => updateLabReportRow(idx, { notes: e.target.value })}
-                      className="flex-1 min-w-[200px]"
+                      className="flex-1"
                     />
-                    <label className="flex items-center gap-2 text-xs font-medium text-red-700">
+                    <label className="flex items-center gap-2 text-xs font-bold text-red-800 shrink-0">
                       <input
                         type="checkbox"
                         checked={lab.isAbnormal}
@@ -906,8 +1056,9 @@ export default function NewRecord() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      aria-label={`Remove lab report ${idx + 1}`}
                       onClick={() => removeLabReportRow(idx)}
-                      className="text-red-600 hover:bg-red-50"
+                      className="text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -919,35 +1070,38 @@ export default function NewRecord() {
         </Card>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-2 pb-8">
+        <div className="flex justify-end gap-3 pt-2 pb-6">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate(-1)}
             disabled={saving}
-            className="h-12 px-6 rounded-xl font-semibold"
+            className="h-11 px-6"
           >
-            Cancel
+            {t.cancel}
           </Button>
           <Button
             type="submit"
             disabled={saving}
-            className={`h-12 px-8 rounded-xl bg-gradient-to-r ${theme.buttonGradient} text-white shadow-lg font-semibold`}
+            className={cn(
+              'h-11 px-7 bg-gradient-to-r text-white font-bold shadow-sm',
+              theme.buttonGradient
+            )}
           >
             {saving ? (
               <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Saving...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving…
               </>
             ) : (
               <>
-                <Save className="mr-2 h-5 w-5" />
+                <Save className="mr-2 h-4 w-4" />
                 {isEditMode ? 'Update Medical Record' : 'Save Medical Record'}
               </>
             )}
           </Button>
         </div>
       </form>
-    </motion.div>
+    </div>
   )
 }

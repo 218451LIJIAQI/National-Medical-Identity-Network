@@ -2,9 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/store/auth'
+import { useClinicalStore, resetClinicalSessionContext } from '@/store/clinical'
+import { useSettingsStore } from '@/store/settings'
 import { getRoleHomePath } from '@/lib/utils'
-import { motion } from 'framer-motion'
-import { Building2 } from 'lucide-react'
+import { Building2, Loader2 } from 'lucide-react'
 
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
@@ -56,40 +57,44 @@ function ScrollToTop() {
   return null
 }
 
-function PremiumLoader() {
+function GlobalSessionAndAccessibilitySync() {
+  const { language, fontSize, highContrast } = useSettingsStore()
+  const { isAuthenticated, user, isHospitalVerified } = useAuthStore()
+  const activePatient = useClinicalStore((s) => s.activePatient)
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.lang = language === 'ms' ? 'ms-MY' : language === 'zh' ? 'zh-CN' : 'en-MY'
+    root.dataset.fontScale = fontSize
+    root.classList.toggle('high-contrast', highContrast)
+  }, [language, fontSize, highContrast])
+
+  useEffect(() => {
+    if (!activePatient) return
+    if (!isAuthenticated || !user || user.role !== 'doctor' || !isHospitalVerified) {
+      resetClinicalSessionContext()
+      return
+    }
+    if (activePatient.scopedHospitalId && activePatient.scopedHospitalId !== user.hospitalId) {
+      resetClinicalSessionContext()
+    }
+  }, [isAuthenticated, user, isHospitalVerified, activePatient])
+
+  return null
+}
+
+function SessionHydrationLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-      <motion.div
-        className="flex flex-col items-center gap-6"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
-        <motion.div
-          className="relative w-20 h-20 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/30"
-          animate={{
-            rotate: [0, 10, -10, 0],
-            scale: [1, 1.05, 1],
-          }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <Building2 className="w-10 h-10 text-white drop-shadow-lg" />
-          <motion.div
-            className="absolute inset-0 rounded-3xl border-4 border-white/30"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          />
-        </motion.div>
-        <div className="text-center">
-          <motion.p
-            className="text-gray-600 font-medium"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            Loading...
-          </motion.p>
-          <p className="text-gray-400 text-sm mt-1">MedLink MY</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white px-8 py-7 shadow-sm">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center text-white shadow-sm">
+          <Building2 className="w-6 h-6" />
         </div>
-      </motion.div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+          <span>Initializing MedLink MY Session…</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -104,7 +109,7 @@ function ProtectedRoute({
   const { isAuthenticated, isHospitalVerified, user, _hasHydrated } = useAuthStore()
 
   if (!_hasHydrated) {
-    return <PremiumLoader />
+    return <SessionHydrationLoader />
   }
 
   if (!isAuthenticated || !user) {
@@ -123,7 +128,7 @@ function ProtectedRoute({
   return <>{children}</>
 }
 
-const HOSPITAL_SHARED_MODULES: Array<{ path: string; Component: React.ComponentType }> = [
+const DOCTOR_CLINICAL_MODULES: Array<{ path: string; Component: React.ComponentType }> = [
   { path: '/doctor/queue', Component: QueueManagement },
   { path: '/doctor/prescription', Component: EPrescription },
   { path: '/doctor/lab', Component: LabOrders },
@@ -148,6 +153,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <GlobalSessionAndAccessibilitySync />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
@@ -186,12 +192,12 @@ function App() {
           <Route path="/doctor/patient/:icNumber/records/:recordId/edit" element={<ProtectedRoute allowedRoles={['doctor']}><NewRecord /></ProtectedRoute>} />
           <Route path="/doctor/patient/:icNumber" element={<ProtectedRoute allowedRoles={['doctor']}><PatientTimeline /></ProtectedRoute>} />
 
-          {HOSPITAL_SHARED_MODULES.map(({ path, Component }) => (
+          {DOCTOR_CLINICAL_MODULES.map(({ path, Component }) => (
             <Route
               key={path}
               path={path}
               element={
-                <ProtectedRoute allowedRoles={['doctor', 'hospital_admin']}>
+                <ProtectedRoute allowedRoles={['doctor']}>
                   <Component />
                 </ProtectedRoute>
               }
@@ -201,7 +207,7 @@ function App() {
           <Route
             path="/admin/audit"
             element={
-              <ProtectedRoute allowedRoles={['hospital_admin', 'central_admin']}>
+              <ProtectedRoute allowedRoles={['hospital_admin']}>
                 <AuditLogs />
               </ProtectedRoute>
             }

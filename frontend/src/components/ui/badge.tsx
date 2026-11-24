@@ -3,16 +3,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
-        secondary: "border-gray-200/80 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 hover:from-gray-100 hover:to-gray-200",
-        destructive: "border-transparent bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm shadow-red-500/20",
-        outline: "border-gray-200 text-gray-700 bg-white/80 backdrop-blur-sm hover:bg-gray-50",
-        success: "border-emerald-200/50 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700",
-        info: "border-blue-200/50 bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700",
-        glass: "border-white/20 bg-white/20 backdrop-blur-md text-white",
+        secondary: "border-slate-200 bg-slate-100 text-slate-800",
+        destructive: "border-red-700/20 bg-red-600 text-white shadow-sm",
+        outline: "border-slate-300 text-slate-700 bg-white",
+        success: "border-emerald-300 bg-emerald-50 text-emerald-800",
+        warning: "border-amber-300 bg-amber-50 text-amber-900",
+        info: "border-blue-200 bg-blue-50 text-blue-800",
+        glass: "border-white/30 bg-white/20 backdrop-blur-md text-white",
       },
     },
     defaultVariants: {

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Calendar,
   Clock,
@@ -14,8 +13,12 @@ import {
   Filter,
   Plus,
   Download,
+  CheckCircle2,
+  AlertCircle,
+  Ban,
 } from 'lucide-react'
 import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
+import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
 import { useClinicalStore } from '@/store/clinical'
 import { downloadCsvFile, formatIC } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
@@ -57,18 +60,21 @@ const timeSlots = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ]
 
-const STATUS_BADGE_CLASS: Record<Appointment['status'], string> = {
-  confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  pending: 'bg-amber-100 text-amber-700 border-amber-200',
-  cancelled: 'bg-red-100 text-red-700 border-red-200',
-  completed: 'bg-gray-100 text-gray-600 border-gray-200',
+const APPOINTMENT_STATUS_META: Record<
+  Appointment['status'],
+  { tone: StatusTone; label: string; icon: typeof CheckCircle2 }
+> = {
+  confirmed: { tone: 'success', label: 'Confirmed', icon: CheckCircle2 },
+  pending: { tone: 'warning', label: 'Pending', icon: AlertCircle },
+  cancelled: { tone: 'blocked', label: 'Cancelled', icon: Ban },
+  completed: { tone: 'neutral', label: 'Completed', icon: Check },
 }
 
 const TYPE_BADGE_CLASS: Record<Appointment['type'], string> = {
-  new: 'bg-blue-100 text-blue-700',
-  'follow-up': 'bg-purple-100 text-purple-700',
-  procedure: 'bg-orange-100 text-orange-700',
-  review: 'bg-cyan-100 text-cyan-700',
+  new: 'bg-blue-100 text-blue-800 border-blue-200',
+  'follow-up': 'bg-purple-100 text-purple-800 border-purple-200',
+  procedure: 'bg-amber-100 text-amber-900 border-amber-200',
+  review: 'bg-cyan-100 text-cyan-900 border-cyan-200',
 }
 
 export default function Appointments() {
@@ -118,8 +124,23 @@ export default function Appointments() {
     toast({ title: 'Appointment Updated', description: `Status changed to ${status}.` })
   }
 
-  const openSlotBooking = (slot: string) => {
-    setBookingSlot(slot)
+  const openSlotBooking = (slot?: string) => {
+    const chosenSlot =
+      slot ||
+      timeSlots.find(
+        (candidate) => !dayAppointments.some((apt) => apt.time === candidate && apt.status !== 'cancelled')
+      )
+
+    if (!chosenSlot) {
+      toast({
+        title: 'All Slots Occupied',
+        description: `No open slots remain for ${selectedDateKey}. Navigate to the next clinic day.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setBookingSlot(chosenSlot)
     setNewBooking({
       patientName: activePatient?.fullName || '',
       icNumber: activePatient?.icNumber || '',
@@ -131,6 +152,19 @@ export default function Appointments() {
   const confirmSlotBooking = (e: React.FormEvent) => {
     e.preventDefault()
     if (!bookingSlot || !newBooking.patientName.trim() || !newBooking.icNumber.trim()) return
+
+    const alreadyBooked = dayAppointments.some(
+      (apt) => apt.time === bookingSlot && apt.status !== 'cancelled'
+    )
+    if (alreadyBooked) {
+      toast({
+        title: 'Slot Already Booked',
+        description: `The ${bookingSlot} slot is already assigned. Please choose another open time.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
     const created: Appointment = {
       id: `apt-${Date.now()}`,
       patientName: newBooking.patientName.trim(),
@@ -146,6 +180,7 @@ export default function Appointments() {
     toast({
       title: 'Appointment Booked',
       description: `${created.patientName} scheduled for ${selectedDateKey} at ${created.time}.`,
+      variant: 'success',
     })
   }
 
@@ -170,8 +205,8 @@ export default function Appointments() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Appointments</h2>
-          <p className="text-gray-500 text-sm">Outpatient clinic schedule & slot booking</p>
+          <h2 className="text-2xl font-bold text-slate-900">Appointments</h2>
+          <p className="text-slate-600 text-sm">Outpatient clinic schedule & slot booking</p>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={handleExportCsv} className="rounded-xl gap-1.5">
@@ -179,7 +214,7 @@ export default function Appointments() {
           </Button>
           <Button
             type="button"
-            onClick={() => openSlotBooking('11:30')}
+            onClick={() => openSlotBooking()}
             className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
           >
             <Plus className="w-4 h-4" /> Book Appointment
@@ -187,51 +222,55 @@ export default function Appointments() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
         <button
           type="button"
           onClick={() => navigateDate('prev')}
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="p-2 hover:bg-slate-100 rounded-lg"
+          aria-label="Previous day"
           title="Previous day"
         >
-          <ChevronLeft className="w-5 h-5 text-gray-600" />
+          <ChevronLeft className="w-5 h-5 text-slate-600" />
         </button>
 
         <div className="flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-teal-600" />
+          <Calendar className="w-5 h-5 text-teal-700" />
           <div className="text-center">
-            <p className="text-lg font-bold text-gray-800">{displayDate}</p>
-            <p className="text-xs text-gray-500">{stats.total} scheduled appointment(s)</p>
+            <p className="text-lg font-bold text-slate-900">{displayDate}</p>
+            <p className="text-xs text-slate-500 tabular-nums">
+              {stats.total} scheduled appointment(s)
+            </p>
           </div>
         </div>
 
         <button
           type="button"
           onClick={() => navigateDate('next')}
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="p-2 hover:bg-slate-100 rounded-lg"
+          aria-label="Next day"
           title="Next day"
         >
-          <ChevronRight className="w-5 h-5 text-gray-600" />
+          <ChevronRight className="w-5 h-5 text-slate-600" />
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: stats.total, cardClass: 'bg-blue-50 border-blue-100', valueClass: 'text-blue-700' },
-          { label: 'Confirmed', value: stats.confirmed, cardClass: 'bg-emerald-50 border-emerald-100', valueClass: 'text-emerald-700' },
-          { label: 'Pending', value: stats.pending, cardClass: 'bg-amber-50 border-amber-100', valueClass: 'text-amber-700' },
-          { label: 'Completed', value: stats.completed, cardClass: 'bg-gray-50 border-gray-200', valueClass: 'text-gray-700' },
+          { label: 'Total', value: stats.total, cardClass: 'bg-blue-50/80 border-blue-200', valueClass: 'text-blue-800' },
+          { label: 'Confirmed', value: stats.confirmed, cardClass: 'bg-emerald-50/80 border-emerald-200', valueClass: 'text-emerald-800' },
+          { label: 'Pending', value: stats.pending, cardClass: 'bg-amber-50/80 border-amber-200', valueClass: 'text-amber-900' },
+          { label: 'Completed', value: stats.completed, cardClass: 'bg-slate-50 border-slate-200', valueClass: 'text-slate-800' },
         ].map((stat) => (
           <div key={stat.label} className={`p-4 ${stat.cardClass} rounded-xl border`}>
-            <p className={`text-2xl font-bold ${stat.valueClass}`}>{stat.value}</p>
-            <p className="text-xs font-medium text-gray-600">{stat.label}</p>
+            <p className={`text-2xl font-bold tabular-nums ${stat.valueClass}`}>{stat.value}</p>
+            <p className="text-xs font-semibold text-slate-600">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
             placeholder="Search patient name or MyKad IC..."
             value={searchQuery}
@@ -240,14 +279,16 @@ export default function Appointments() {
           />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <Filter className="w-4 h-4 text-gray-400 mr-1" />
+          <Filter className="w-4 h-4 text-slate-400 mr-1" />
           {['all', 'confirmed', 'pending', 'completed', 'cancelled'].map((status) => (
             <button
               key={status}
               type="button"
               onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${
-                filterStatus === status ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                filterStatus === status
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {status}
@@ -256,9 +297,9 @@ export default function Appointments() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+          <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-600">
             <tr>
               <th className="p-4 text-left">Time</th>
               <th className="p-4 text-left">Patient</th>
@@ -268,193 +309,214 @@ export default function Appointments() {
               <th className="p-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredAppointments.map((apt) => (
-              <tr key={apt.id} className={apt.status === 'cancelled' ? 'opacity-50' : 'hover:bg-gray-50'}>
-                <td className="p-4 font-semibold text-gray-800">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-teal-600" /> {apt.time}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-teal-700" />
+          <tbody className="divide-y divide-slate-100">
+            {filteredAppointments.map((apt) => {
+              const statusMeta = APPOINTMENT_STATUS_META[apt.status]
+              return (
+                <tr
+                  key={apt.id}
+                  className={apt.status === 'cancelled' ? 'opacity-60 bg-slate-50/50' : 'hover:bg-slate-50'}
+                >
+                  <td className="p-4 font-semibold text-slate-900 tabular-nums">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-teal-700" /> {apt.time}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-teal-800" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">{apt.patientName}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1 tabular-nums">
+                          <Phone className="w-3 h-3" /> {apt.phone}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-900">{apt.patientName}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {apt.phone}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4 font-mono text-xs text-gray-600">{apt.icNumber}</td>
-                <td className="p-4">
-                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full capitalize ${TYPE_BADGE_CLASS[apt.type]}`}>
-                    {apt.type}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border capitalize ${STATUS_BADGE_CLASS[apt.status]}`}>
-                    {apt.status}
-                  </span>
-                </td>
-                <td className="p-4 text-right">
-                  <div className="inline-flex items-center gap-1.5">
-                    {apt.status === 'pending' && (
-                      <>
+                  </td>
+                  <td className="p-4 font-mono text-xs text-slate-700 tabular-nums">{apt.icNumber}</td>
+                  <td className="p-4">
+                    <span
+                      className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border capitalize ${TYPE_BADGE_CLASS[apt.type]}`}
+                    >
+                      {apt.type}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <StatusBadge
+                      tone={statusMeta.tone}
+                      icon={statusMeta.icon}
+                      label={statusMeta.label}
+                    />
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="inline-flex items-center gap-1.5">
+                      {apt.status === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(apt.id, 'confirmed')}
+                            className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200"
+                            title="Confirm appointment"
+                            aria-label="Confirm appointment"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(apt.id, 'cancelled')}
+                            className="p-1.5 bg-red-100 text-red-800 rounded-lg hover:bg-red-200"
+                            title="Cancel appointment"
+                            aria-label="Cancel appointment"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {apt.status === 'confirmed' && (
                         <button
                           type="button"
-                          onClick={() => updateStatus(apt.id, 'confirmed')}
-                          className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200"
-                          title="Confirm"
+                          onClick={() => updateStatus(apt.id, 'completed')}
+                          className="px-2.5 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700"
                         >
-                          <Check className="w-4 h-4" />
+                          Complete
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => updateStatus(apt.id, 'cancelled')}
-                          className="p-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                          title="Cancel"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    {apt.status === 'confirmed' && (
+                      )}
                       <button
                         type="button"
-                        onClick={() => updateStatus(apt.id, 'completed')}
-                        className="px-2.5 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700"
+                        onClick={() =>
+                          toast({
+                            title: 'SMS Reminder Queued',
+                            description: `Sent appointment reminder to ${apt.patientName} (${apt.phone}).`,
+                          })
+                        }
+                        className="p-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+                        title="Send SMS reminder"
+                        aria-label={`Send SMS reminder to ${apt.patientName}`}
                       >
-                        Complete
+                        <Bell className="w-4 h-4" />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toast({
-                          title: 'SMS Reminder Queued',
-                          description: `Sent appointment reminder to ${apt.patientName} (${apt.phone}).`,
-                        })
-                      }
-                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
-                      title="Send SMS reminder"
-                    >
-                      <Bell className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
         {filteredAppointments.length === 0 && (
-          <div className="p-10 text-center text-gray-500">
-            <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm">No appointments scheduled for this date/filter. Click an open time slot below to book.</p>
+          <div className="p-10 text-center text-slate-500">
+            <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm">
+              No appointments scheduled for this date/filter. Click an open time slot below to book.
+            </p>
           </div>
         )}
       </div>
 
       {/* Interactive Time Slots */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h3 className="font-semibold text-gray-800 mb-3 text-sm">
-          Time Slots for {selectedDateKey} (Click any green slot to book)
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-semibold text-slate-900 mb-3 text-sm tabular-nums">
+          Time Slots for {selectedDateKey} (Select any available slot to book)
         </h3>
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2.5">
+        <div className="grid grid-cols-7 gap-2.5">
           {timeSlots.map((slot) => {
-            const isBooked = dayAppointments.some((apt) => apt.time === slot && apt.status !== 'cancelled')
+            const isBooked = dayAppointments.some(
+              (apt) => apt.time === slot && apt.status !== 'cancelled'
+            )
             return (
               <button
                 key={slot}
                 type="button"
                 disabled={isBooked}
                 onClick={() => openSlotBooking(slot)}
-                className={`p-2.5 rounded-lg text-center text-xs font-semibold border transition-all ${
+                className={`p-2.5 rounded-lg text-center text-xs font-semibold border transition-colors tabular-nums ${
                   isBooked
-                    ? 'bg-red-50 text-red-400 border-red-200 cursor-not-allowed'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                 }`}
               >
-                {slot}
-                <span className="block text-[10px] font-normal">{isBooked ? 'Booked' : 'Available'}</span>
+                <span>{slot}</span>
+                <span className="block text-[10px] font-medium mt-0.5">
+                  {isBooked ? 'Booked' : 'Available'}
+                </span>
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* Booking Modal */}
-      <AnimatePresence>
-        {bookingSlot && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setBookingSlot(null)}
-          >
-            <motion.form
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              onSubmit={confirmSlotBooking}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Book Clinic Slot</h3>
-                  <p className="text-xs text-teal-700 font-medium">{selectedDateKey} at {bookingSlot}</p>
-                </div>
-                <button type="button" onClick={() => setBookingSlot(null)}>
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <Input
-                  required
-                  placeholder="Patient Full Name *"
-                  value={newBooking.patientName}
-                  onChange={(e) => setNewBooking({ ...newBooking, patientName: e.target.value })}
-                />
-                <Input
-                  required
-                  placeholder="MyKad IC Number *"
-                  value={newBooking.icNumber}
-                  onChange={(e) => setNewBooking({ ...newBooking, icNumber: e.target.value })}
-                />
-                <Input
-                  placeholder="Contact Phone"
-                  value={newBooking.phone}
-                  onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
-                />
-                <select
-                  className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
-                  value={newBooking.type}
-                  onChange={(e) => setNewBooking({ ...newBooking, type: e.target.value as Appointment['type'] })}
-                >
-                  <option value="follow-up">Follow-up Consultation</option>
-                  <option value="new">New Consultation</option>
-                  <option value="review">Lab / Imaging Review</option>
-                  <option value="procedure">Minor Procedure</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setBookingSlot(null)}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white">
-                  Confirm Booking
-                </Button>
-              </div>
-            </motion.form>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ModalDialog
+        open={Boolean(bookingSlot)}
+        onClose={() => setBookingSlot(null)}
+        title="Book Clinic Slot"
+        description={bookingSlot ? `${selectedDateKey} at ${bookingSlot}` : undefined}
+        maxWidthClassName="max-w-md"
+      >
+        <form onSubmit={confirmSlotBooking} className="space-y-4">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Patient Full Name *
+              </label>
+              <Input
+                required
+                placeholder="Patient Full Name"
+                value={newBooking.patientName}
+                onChange={(e) => setNewBooking({ ...newBooking, patientName: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                MyKad IC Number *
+              </label>
+              <Input
+                required
+                placeholder="e.g. 880101-14-5678"
+                className="font-mono"
+                value={newBooking.icNumber}
+                onChange={(e) => setNewBooking({ ...newBooking, icNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Contact Phone
+              </label>
+              <Input
+                placeholder="+6012-3456789"
+                value={newBooking.phone}
+                onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Consultation Type
+              </label>
+              <select
+                className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
+                value={newBooking.type}
+                onChange={(e) =>
+                  setNewBooking({ ...newBooking, type: e.target.value as Appointment['type'] })
+                }
+              >
+                <option value="follow-up">Follow-up Consultation</option>
+                <option value="new">New Consultation</option>
+                <option value="review">Lab / Imaging Review</option>
+                <option value="procedure">Minor Procedure</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setBookingSlot(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white">
+              Confirm Booking
+            </Button>
+          </div>
+        </form>
+      </ModalDialog>
     </div>
   )
 }

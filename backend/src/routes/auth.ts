@@ -10,7 +10,7 @@ import {
   authenticate,
   authorize,
   generateToken,
-  revokeToken,
+  revokeRequestSession,
   verifyPassword,
 } from '../middleware/auth';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
@@ -251,7 +251,8 @@ router.post(
           return;
         }
       } else {
-        const providedId = normalizeIcNumber(String(username || staffId || '').trim());
+        const rawStaffId = String(username || staffId || '').trim();
+        const providedId = normalizeIcNumber(rawStaffId);
         const providedPassword = String(password || '');
 
         if (!providedId || !providedPassword) {
@@ -268,7 +269,7 @@ router.post(
           validStaffIdentifiers.add(doctorRecord.id);
         }
 
-        const idMatches = validStaffIdentifiers.has(providedId) || validStaffIdentifiers.has(String(username || staffId || '').trim());
+        const idMatches = validStaffIdentifiers.has(providedId) || validStaffIdentifiers.has(rawStaffId);
         const pwdMatches = verifyPassword(providedPassword, dbUser.passwordHash);
 
         if (!idMatches || !pwdMatches) {
@@ -291,8 +292,7 @@ router.post(
         }
       }
 
-      if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
-      if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+      revokeRequestSession(req.rawToken, currentUser);
 
       const allSameIcUsers = await getUsersByIc(dbUser.icNumber);
       const availableRoles = Array.from(new Set(allSameIcUsers.map(u => u.role)));
@@ -377,8 +377,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
       throw err;
     }
 
-    if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
-    if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+    revokeRequestSession(req.rawToken, currentUser);
 
     await updateUserLastLogin(targetUser.id);
 
@@ -420,8 +419,7 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
     const currentUser = req.user!;
-    if (req.rawToken) revokeToken(req.rawToken, currentUser.exp);
-    if (currentUser.jti) revokeToken(currentUser.jti, currentUser.exp);
+    revokeRequestSession(req.rawToken, currentUser);
 
     await createAuditLog({
       timestamp: new Date().toISOString(),

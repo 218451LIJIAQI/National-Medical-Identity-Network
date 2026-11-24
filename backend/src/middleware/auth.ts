@@ -32,6 +32,11 @@ export function revokeToken(tokenOrJti?: string, expSeconds?: number): void {
   revokedTokens.set(tokenOrJti, expiresAt);
 }
 
+export function revokeRequestSession(rawToken?: string, user?: Pick<JwtPayload, 'jti' | 'exp'>): void {
+  if (rawToken) revokeToken(rawToken, user?.exp);
+  if (user?.jti) revokeToken(user.jti, user.exp);
+}
+
 export function isTokenRevoked(token: string, jti?: string): boolean {
   const now = Date.now();
   const tokenExp = revokedTokens.get(token);
@@ -108,10 +113,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    if (user.role !== payload.role || user.icNumber !== payload.icNumber) {
+    if (
+      user.role !== payload.role ||
+      user.icNumber !== payload.icNumber ||
+      (user.hospitalId || undefined) !== (payload.hospitalId || undefined)
+    ) {
       res.status(401).json({
         success: false,
-        error: 'Session role mismatch. Please sign in again.',
+        error: 'Session role or hospital affiliation mismatch. Please sign in again.',
       });
       return;
     }

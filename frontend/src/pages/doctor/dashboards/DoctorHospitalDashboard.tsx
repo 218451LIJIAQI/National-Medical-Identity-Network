@@ -22,9 +22,10 @@ import {
   Stethoscope,
   type LucideIcon,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { formatStaffDisplayName, LiveClock, LiveDate } from '@/layouts/hospital/shared'
+import { useTranslation } from '@/lib/i18n'
 import { useDoctorDashboard } from './useDoctorDashboard'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { cn } from '@/lib/utils'
 
 export interface DoctorHospitalDashboardProps {
@@ -37,23 +38,24 @@ export function DoctorHospitalDashboard({
   badgeLabel = 'Federated Clinical Node',
 }: DoctorHospitalDashboardProps) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user, theme, stats, recentActivity, loading } = useDoctorDashboard(6)
 
   const kpiCards = [
     {
-      label: 'Connected Hospitals',
+      label: t.connectedHospitals,
       value: loading ? '—' : stats.activeHospitals,
-      sub: `${stats.localDoctors || 2} active doctors locally`,
+      sub: `${stats.localDoctors || 2} active clinicians locally`,
       icon: Globe,
     },
     {
-      label: 'Queries Today',
+      label: 'Federated Queries Today',
       value: loading ? '—' : stats.todayQueries,
-      sub: `${stats.todayVisits} visits recorded today`,
+      sub: `${stats.todayVisits} encounters recorded today`,
       icon: Activity,
     },
     {
-      label: 'Indexed Patients',
+      label: 'National Indexed Patients',
       value: loading ? '—' : stats.totalPatients.toLocaleString(),
       sub: `${stats.localPatients} registered at ${theme.shortName}`,
       icon: Users,
@@ -67,257 +69,328 @@ export function DoctorHospitalDashboard({
   ]
 
   const quickClinicalLinks = [
-    { label: 'Patient Queue', path: '/doctor/queue', icon: Users },
-    { label: 'e-Prescription', path: '/doctor/prescription', icon: Pill },
-    { label: 'Lab Orders', path: '/doctor/lab', icon: FlaskConical },
-    { label: 'Appointments', path: '/doctor/appointments', icon: Calendar },
+    { label: t.queue, path: '/doctor/queue', icon: Users },
+    { label: t.ePrescription, path: '/doctor/prescription', icon: Pill },
+    { label: t.labOrders, path: '/doctor/lab', icon: FlaskConical },
+    { label: t.appointments, path: '/doctor/appointments', icon: Calendar },
   ]
 
   return (
     <div className={cn('space-y-6', theme.fontClass)}>
       {/* Hospital Hero Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className={cn(
-          'relative overflow-hidden rounded-3xl bg-gradient-to-br border p-7 lg:p-8 shadow-lg',
+          'relative overflow-hidden rounded-2xl bg-gradient-to-br border p-6 xl:p-7 shadow-sm',
           theme.heroSoftGradient,
           theme.borderColor
         )}
       >
-        <div
-          className={cn(
-            'absolute top-0 right-0 w-80 h-80 bg-gradient-to-br rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none',
-            theme.orbPrimaryClass
-          )}
-        />
-        <div
-          className={cn(
-            'absolute bottom-0 left-1/4 w-48 h-48 bg-gradient-to-tr rounded-full blur-2xl translate-y-1/3 pointer-events-none',
-            theme.orbSecondaryClass
-          )}
-        />
-
-        <div className="relative z-10">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className={cn('flex items-center gap-2 px-3.5 py-1.5 bg-white/80 rounded-xl border text-sm font-medium text-slate-700', theme.borderColor)}>
-                <Calendar className={cn('w-4 h-4', theme.textColor)} />
+        <div className="relative z-10 space-y-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1 bg-white/90 rounded-xl border text-xs font-semibold text-slate-700',
+                  theme.borderColor
+                )}
+              >
+                <Calendar className={cn('w-3.5 h-3.5', theme.textColor)} />
                 <LiveDate />
               </div>
-              <div className={cn('flex items-center gap-2 px-3.5 py-1.5 bg-white/80 rounded-xl border text-sm font-medium text-slate-700', theme.borderColor)}>
-                <Clock className={cn('w-4 h-4', theme.textColor)} />
-                <LiveClock className="tabular-nums" />
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1 bg-white/90 rounded-xl border text-xs font-semibold text-slate-700',
+                  theme.borderColor
+                )}
+              >
+                <Clock className={cn('w-3.5 h-3.5', theme.textColor)} />
+                <LiveClock />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-xs font-semibold text-emerald-700">{badgeLabel}</span>
-            </div>
+            <StatusBadge tone="success" label={badgeLabel} />
           </div>
 
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center justify-between gap-6 flex-wrap">
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <div className={cn('w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg', theme.buttonGradient)}>
-                  <HeroIcon className="w-8 h-8" />
+                <div
+                  className={cn(
+                    'w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-md shrink-0',
+                    theme.buttonGradient
+                  )}
+                >
+                  <HeroIcon className="w-7 h-7" />
                 </div>
                 <div>
-                  <p className={cn('text-sm font-semibold', theme.textColor)}>Welcome back,</p>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                  <p className={cn('text-xs font-bold uppercase tracking-wider', theme.textColor)}>
+                    Verified Clinician Session
+                  </p>
+                  <h1 className="text-2xl xl:text-3xl font-bold text-slate-900">
                     {formatStaffDisplayName(user, 'full')}
                   </h1>
-                  <p className="text-sm text-slate-600 mt-0.5">{theme.tagline}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{theme.tagline}</p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 pt-1">
+              <div className="flex flex-wrap gap-2.5">
                 <Link
                   to="/doctor/search"
                   className={cn(
-                    'inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-white bg-gradient-to-r shadow-md hover:opacity-95 transition-all',
+                    'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r shadow-sm hover:opacity-95 transition-opacity',
                     theme.buttonGradient
                   )}
                 >
                   <Search className="w-4 h-4" />
-                  <span>Search Federated Records</span>
+                  <span>{t.patientSearch}</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link
                   to="/doctor/new-record"
                   className={cn(
-                    'inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-white border-2 hover:bg-slate-50 transition-all',
+                    'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white border hover:bg-slate-50 transition-colors',
                     theme.textColor,
                     theme.borderColor
                   )}
                 >
                   <Plus className="w-4 h-4" />
-                  <span>New Medical Record</span>
+                  <span>{t.newRecord}</span>
                 </Link>
                 <Link
                   to="/doctor/workstation"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors"
                 >
                   <Stethoscope className="w-4 h-4" />
-                  <span>Clinical Workstation</span>
+                  <span>{t.workstationView}</span>
                 </Link>
               </div>
             </div>
 
-            <div className={cn('p-5 bg-white/85 backdrop-blur-sm rounded-2xl border shadow-sm min-w-[240px]', theme.borderColor)}>
+            <div
+              className={cn(
+                'p-4 bg-white/90 backdrop-blur-sm rounded-2xl border shadow-sm min-w-[250px]',
+                theme.borderColor
+              )}
+            >
               <div className="flex items-center gap-3 mb-3">
-                <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center font-bold border', theme.badgeClass)}>
-                  {theme.shortName}
+                <div
+                  className={cn(
+                    'px-2.5 py-1.5 rounded-xl flex items-center justify-center font-extrabold text-xs border shrink-0',
+                    theme.badgeClass
+                  )}
+                >
+                  {theme.code}
                 </div>
-                <div>
-                  <p className="font-bold text-slate-900 text-sm">{theme.name}</p>
-                  <p className="text-xs text-slate-500 flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {theme.city}
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900 text-sm truncate">{theme.name}</p>
+                  <p className="text-xs text-slate-600 flex items-center gap-1 truncate">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span>{theme.city}</span>
                   </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className={cn('p-2.5 rounded-xl', theme.bgLight)}>
-                  <p className="text-lg font-bold text-slate-900">{theme.departments}</p>
-                  <p className={cn('text-xs font-medium', theme.textColor)}>Departments</p>
+                <div className={cn('p-2 rounded-xl', theme.bgLight)}>
+                  <p className="text-base font-bold text-slate-900 tabular-nums">{theme.departments}</p>
+                  <p className={cn('text-[11px] font-semibold', theme.textColor)}>{t.departments}</p>
                 </div>
-                <div className={cn('p-2.5 rounded-xl', theme.bgLight)}>
-                  <p className="text-lg font-bold text-slate-900">{theme.bedCount}</p>
-                  <p className={cn('text-xs font-medium', theme.textColor)}>Total Beds</p>
+                <div className={cn('p-2 rounded-xl', theme.bgLight)}>
+                  <p className="text-base font-bold text-slate-900 tabular-nums">
+                    {theme.bedCount.toLocaleString()}
+                  </p>
+                  <p className={cn('text-[11px] font-semibold', theme.textColor)}>Beds</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* KPI Row */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {kpiCards.map((stat) => (
           <div
             key={stat.label}
-            className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow"
+            className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm"
           >
             <div className="flex items-center justify-between mb-3">
-              <div className={cn('w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-sm', theme.buttonGradient)}>
+              <div
+                className={cn(
+                  'w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-sm',
+                  theme.buttonGradient
+                )}
+              >
                 <stat.icon className="w-5 h-5" />
               </div>
               <TrendingUp className={cn('w-4 h-4', theme.textColor)} />
             </div>
-            <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
-            <p className="text-sm font-semibold text-slate-700 mt-0.5">{stat.label}</p>
-            <p className="text-xs text-slate-500 mt-1">{stat.sub}</p>
+            <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+            <p className="text-xs font-bold text-slate-800 mt-0.5">{stat.label}</p>
+            <p className="text-xs text-slate-600 mt-1 tabular-nums">{stat.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Quick Clinical Shortcuts */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-4 gap-3.5">
         {quickClinicalLinks.map((item) => (
           <Link
             key={item.path}
             to={item.path}
-            className={cn(
-              'flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200/80 hover:shadow-md transition-all group'
-            )}
+            className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all group"
           >
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', theme.bgMedium, theme.textColor)}>
-              <item.icon className="w-5 h-5" />
+            <div
+              className={cn(
+                'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                theme.bgMedium,
+                theme.textColor
+              )}
+            >
+              <item.icon className="w-4 h-4" />
             </div>
-            <span className="font-semibold text-sm text-slate-800 group-hover:text-slate-950">{item.label}</span>
-            <ChevronRight className="w-4 h-4 text-slate-400 ml-auto" />
+            <span className="font-bold text-xs text-slate-800 group-hover:text-slate-950 truncate">
+              {item.label}
+            </span>
+            <ChevronRight className="w-4 h-4 text-slate-400 ml-auto shrink-0" />
           </Link>
         ))}
       </div>
 
       {/* Recent Activity & Specialties */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className={cn('p-5 border-b border-slate-100 bg-gradient-to-r flex items-center justify-between', theme.cardHeaderGradient)}>
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div
+            className={cn(
+              'p-5 border-b border-slate-100 bg-gradient-to-r flex items-center justify-between',
+              theme.cardHeaderGradient
+            )}
+          >
             <div className="flex items-center gap-3">
-              <div className={cn('w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white', theme.buttonGradient)}>
-                <FileText className="w-5 h-5" />
+              <div
+                className={cn(
+                  'w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center text-white',
+                  theme.buttonGradient
+                )}
+              >
+                <FileText className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">Recent Clinical Activity</h2>
-                <p className="text-xs text-slate-500">Your audited record queries and clinical entries</p>
+                <h2 className="text-sm font-bold text-slate-900">Recent Clinical Activity</h2>
+                <p className="text-xs text-slate-600">Your audited record queries and clinical entries</p>
               </div>
             </div>
-            <Link to="/doctor/search" className={cn('text-sm font-semibold flex items-center gap-1', theme.textColor)}>
-              Search Network <ChevronRight className="w-4 h-4" />
+            <Link
+              to="/doctor/search"
+              className={cn('text-xs font-bold flex items-center gap-1', theme.textColor)}
+            >
+              {t.patientSearch} <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
 
           <div className="p-5">
             {recentActivity.length === 0 ? (
-              <div className="text-center py-10">
-                <div className={cn('w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center', theme.bgLight, theme.textColor)}>
-                  <Sparkles className="w-7 h-7" />
+              <div className="text-center py-8">
+                <div
+                  className={cn(
+                    'w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center',
+                    theme.bgLight,
+                    theme.textColor
+                  )}
+                >
+                  <Sparkles className="w-6 h-6" />
                 </div>
-                <p className="text-slate-700 font-medium">No recent patient queries yet</p>
-                <p className="text-xs text-slate-400 mt-1">Query a MyKad IC number to view federated records</p>
+                <p className="text-slate-700 font-semibold text-sm">No recent patient queries yet</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Query a MyKad IC number to open federated timelines
+                </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {recentActivity.map((activity, index) => (
-                  <div
+                  <button
                     key={`${activity.ic}-${index}`}
+                    type="button"
+                    disabled={!activity.rawIc}
                     onClick={() => {
                       if (activity.rawIc) {
                         navigate(`/doctor/patient/${encodeURIComponent(activity.rawIc)}`)
                       }
                     }}
                     className={cn(
-                      'flex items-center gap-4 p-3.5 rounded-xl border border-slate-100 hover:border-slate-300 transition-all',
-                      activity.rawIc && 'cursor-pointer hover:bg-slate-50'
+                      'w-full text-left flex items-center gap-3.5 p-3 rounded-xl border border-slate-200/80 transition-colors',
+                      activity.rawIc && 'hover:border-slate-300 hover:bg-slate-50'
                     )}
                   >
                     <div
                       className={cn(
-                        'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                        activity.type === 'view' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                        'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                        activity.type === 'view'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-emerald-50 text-emerald-700'
                       )}
                     >
-                      {activity.type === 'view' ? <FileText className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
+                      {activity.type === 'view' ? (
+                        <FileText className="w-4 h-4" />
+                      ) : (
+                        <Heart className="w-4 h-4" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm truncate">{activity.patient}</p>
-                      <p className="text-xs text-slate-500 truncate">{activity.action}</p>
+                      <p className="font-bold text-slate-900 text-sm truncate">{activity.patient}</p>
+                      <p className="text-xs text-slate-600 truncate">{activity.action}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs text-slate-400">{activity.time}</p>
-                      <code className={cn('text-[11px] px-2 py-0.5 rounded mt-1 inline-block', theme.bgLight, theme.textColor)}>
+                      <p className="text-xs text-slate-500 tabular-nums">{activity.time}</p>
+                      <code
+                        className={cn(
+                          'text-[11px] px-2 py-0.5 rounded mt-0.5 inline-block tabular-nums font-semibold',
+                          theme.bgLight,
+                          theme.textColor
+                        )}
+                      >
                         {activity.ic}
                       </code>
                     </div>
-                    {activity.rawIc && <ChevronRight className="w-4 h-4 text-slate-300" />}
-                  </div>
+                    {activity.rawIc && <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                  </button>
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className={cn('p-5 border-b border-slate-100 bg-gradient-to-r flex items-center gap-3', theme.cardHeaderGradient)}>
-            <div className={cn('w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white', theme.buttonGradient)}>
-              <Shield className="w-5 h-5" />
+        <div className="col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div
+            className={cn(
+              'p-5 border-b border-slate-100 bg-gradient-to-r flex items-center gap-3',
+              theme.cardHeaderGradient
+            )}
+          >
+            <div
+              className={cn(
+                'w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center text-white',
+                theme.buttonGradient
+              )}
+            >
+              <Shield className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Hospital Specialties</h2>
-              <p className="text-xs text-slate-500">{theme.shortName} Centers of Excellence</p>
+              <h2 className="text-sm font-bold text-slate-900">Centers of Excellence</h2>
+              <p className="text-xs text-slate-600">{theme.name}</p>
             </div>
           </div>
-          <div className="p-5 space-y-2.5">
+          <div className="p-5 space-y-2">
             {theme.specialties.map((specialty) => (
               <div
                 key={specialty}
-                className={cn('flex items-center gap-3 p-3 rounded-xl border', theme.bgLight, theme.borderColor)}
+                className={cn(
+                  'flex items-center gap-3 p-3 rounded-xl border',
+                  theme.bgLight,
+                  theme.borderColor
+                )}
               >
-                <div className={cn('w-2 h-2 rounded-full', theme.iconBg)} />
-                <span className="text-sm font-medium text-slate-800">{specialty}</span>
+                <div className={cn('w-2 h-2 rounded-full shrink-0', theme.iconBg)} />
+                <span className="text-xs font-bold text-slate-800">{specialty}</span>
               </div>
             ))}
           </div>

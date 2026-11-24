@@ -1,7 +1,7 @@
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, Building2, FileText, Siren, User, X } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
+import { formatDateTime, formatIC } from '@/lib/utils'
+import { AlertTriangle, Building2, FileText, Siren, User } from 'lucide-react'
 
 export interface EmergencyReportData {
   id: string
@@ -21,122 +21,90 @@ interface EmergencyReportModalProps {
 
 export function EmergencyReportModal({ report, onClose }: EmergencyReportModalProps) {
   return (
-    <AnimatePresence>
+    <ModalDialog
+      open={Boolean(report)}
+      onClose={onClose}
+      title="Emergency Break-Glass Access Report"
+      description="Immutable audit record for critical emergency override"
+      icon={
+        <div className="p-2 bg-red-100 text-red-700 rounded-xl border border-red-200">
+          <Siren className="w-5 h-5" />
+        </div>
+      }
+      maxWidthClassName="max-w-lg"
+      footer={
+        <Button onClick={onClose} className="bg-slate-900 hover:bg-slate-800 text-white">
+          Close Report
+        </Button>
+      }
+    >
       {report && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 bg-gradient-to-r from-orange-500 to-red-600 text-white">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-xl animate-pulse">
-                    <Siren className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Emergency Access Report</h2>
-                    <p className="text-white/80 text-sm">Detailed critical patient data access event</p>
-                  </div>
-                </div>
-                <button
-                  onClick={onClose}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  title="Close"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <div className="space-y-4">
+          <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm mb-1">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Emergency Break-Glass Protocol Invoked</span>
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Standard hospital consent filters were bypassed under emergency clinical protocol. Full source IP and timestamp telemetry are permanently recorded.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <p className="text-xs font-medium text-slate-500 mb-1">Patient MyKad IC</p>
+              <p className="font-mono font-bold text-sm text-slate-900 tabular-nums">
+                {report.targetIcNumber ? formatIC(report.targetIcNumber) : 'N/A'}
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <p className="text-xs font-medium text-slate-500 mb-1">Timestamp</p>
+              <p className="font-semibold text-sm text-slate-900 tabular-nums">
+                {formatDateTime(report.timestamp)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+            <div className="flex items-start gap-3">
+              <User className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-500">Responder Identity</p>
+                <p className="text-sm font-semibold text-slate-900">{report.actorRole}</p>
+                <p className="text-xs text-slate-600 font-mono truncate">{report.actorId}</p>
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                <div className="flex items-center gap-2 text-orange-700 font-medium mb-2">
-                  <AlertTriangle className="w-5 h-5" />
-                  Emergency Protocol Activated
-                </div>
-                <p className="text-sm text-orange-600">
-                  This access bypassed standard consent requirements due to an emergency medical situation.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Patient IC</p>
-                  <p className="font-mono font-semibold text-gray-900">
-                    {report.targetIcNumber || 'N/A'}
-                  </p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Access Time</p>
-                  <p className="font-semibold text-gray-900">
-                    {new Date(report.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <User className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500">Accessed By</p>
-                    <p className="text-gray-900">{report.actorRole}</p>
-                    <p className="text-xs text-gray-500 font-mono">{report.actorId}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500">Source Location</p>
-                    <p className="text-gray-900">{report.sourceLocation}</p>
-                  </div>
-                </div>
-
-                {report.details && (
-                  <div className="flex items-start gap-3">
-                    <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Details</p>
-                      <p className="text-gray-900">{report.details}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <Badge className={report.granted ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
-                    {report.granted ? 'Access Granted' : 'Access Denied'}
-                  </Badge>
-                  <span className="text-xs text-gray-500">
-                    Log ID: {report.id.slice(0, 8)}...
-                  </span>
-                </div>
+            <div className="flex items-start gap-3">
+              <Building2 className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-500">Terminal / Source Node</p>
+                <p className="text-sm font-semibold text-slate-900">{report.sourceLocation}</p>
               </div>
             </div>
 
-            <div className="px-6 pb-6">
-              <Button
-                className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700"
-                onClick={onClose}
-              >
-                Close Report
-              </Button>
-            </div>
-          </motion.div>
-        </motion.div>
+            {report.details && (
+              <div className="flex items-start gap-3">
+                <FileText className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-500">Audit Details</p>
+                  <p className="text-xs text-slate-800 leading-relaxed">{report.details}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <StatusBadge
+              tone={report.granted ? 'success' : 'blocked'}
+              label={report.granted ? 'Break-Glass Granted' : 'Break-Glass Rejected'}
+            />
+            <span className="text-xs font-mono text-slate-500 tabular-nums">
+              Audit ID: {report.id.slice(0, 12)}
+            </span>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </ModalDialog>
   )
 }

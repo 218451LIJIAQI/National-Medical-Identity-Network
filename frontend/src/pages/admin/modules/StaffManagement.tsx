@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
 import {
   Users,
   Search,
@@ -18,9 +19,10 @@ import {
   Edit,
   Trash2,
   Download,
-  X,
+  CheckCircle2,
+  Clock,
+  Ban,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi } from '@/lib/api'
 import { downloadCsvFile, formatIC } from '@/lib/utils'
@@ -47,18 +49,24 @@ const baselineSupportStaff: Staff[] = [
   { id: 'staff-t1', name: 'En. Muthu a/l Rajan', icNumber: '880920-05-1234', role: 'technician', department: 'Radiology', email: 'muthu@medlink.gov.my', phone: '018-9012345', status: 'active', joinDate: '2021-02-28' },
 ]
 
-const roleConfig = {
-  doctor: { labelMY: 'Doktor', icon: Stethoscope, color: 'bg-blue-100 text-blue-700' },
-  nurse: { labelMY: 'Jururawat', icon: Syringe, color: 'bg-pink-100 text-pink-700' },
-  admin: { labelMY: 'Pentadbir', icon: ClipboardList, color: 'bg-gray-100 text-gray-700' },
-  pharmacist: { labelMY: 'Ahli Farmasi', icon: Building2, color: 'bg-green-100 text-green-700' },
-  technician: { labelMY: 'Juruteknik', icon: Building2, color: 'bg-purple-100 text-purple-700' },
+const roleConfig: Record<
+  Staff['role'],
+  { label: string; icon: typeof Stethoscope; color: string }
+> = {
+  doctor: { label: 'Doctor', icon: Stethoscope, color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  nurse: { label: 'Nurse', icon: Syringe, color: 'bg-pink-100 text-pink-800 border-pink-200' },
+  admin: { label: 'Administrator', icon: ClipboardList, color: 'bg-slate-100 text-slate-800 border-slate-200' },
+  pharmacist: { label: 'Pharmacist', icon: Building2, color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  technician: { label: 'Technician', icon: Building2, color: 'bg-purple-100 text-purple-800 border-purple-200' },
 }
 
-const statusConfig = {
-  active: { labelMY: 'Aktif', color: 'bg-green-100 text-green-700' },
-  on_leave: { labelMY: 'Cuti', color: 'bg-yellow-100 text-yellow-700' },
-  inactive: { labelMY: 'Tidak Aktif', color: 'bg-red-100 text-red-700' },
+const statusConfig: Record<
+  Staff['status'],
+  { label: string; tone: StatusTone; icon: typeof CheckCircle2 }
+> = {
+  active: { label: 'Active', tone: 'success', icon: CheckCircle2 },
+  on_leave: { label: 'On Leave', tone: 'warning', icon: Clock },
+  inactive: { label: 'Inactive', tone: 'blocked', icon: Ban },
 }
 
 export default function StaffManagement() {
@@ -82,8 +90,10 @@ export default function StaffManagement() {
   })
 
   useEffect(() => {
+    let cancelled = false
     const hospitalId = user?.hospitalId || 'hospital-kl'
     hospitalApi.getDoctors(hospitalId).then((res) => {
+      if (cancelled) return
       if (res.success && res.data) {
         const dbDoctors: Staff[] = res.data.map((doc) => ({
           id: doc.id,
@@ -100,6 +110,9 @@ export default function StaffManagement() {
         setStaffList([...dbDoctors, ...baselineSupportStaff])
       }
     })
+    return () => {
+      cancelled = true
+    }
   }, [user?.hospitalId])
 
   const filteredStaff = staffList.filter((staff) => {
@@ -165,7 +178,11 @@ export default function StaffManagement() {
             : s
         )
       )
-      toast({ title: 'Staff Updated', description: `${formState.name} roster record updated.` })
+      toast({
+        title: 'Staff Updated',
+        description: `${formState.name} roster record updated.`,
+        variant: 'success',
+      })
     } else {
       const created: Staff = {
         id: `staff-${Date.now()}`,
@@ -180,7 +197,11 @@ export default function StaffManagement() {
         specialization: formState.specialization.trim() || undefined,
       }
       setStaffList((prev) => [created, ...prev])
-      toast({ title: 'Staff Added', description: `${created.name} added to hospital roster.` })
+      toast({
+        title: 'Staff Added',
+        description: `${created.name} added to hospital roster.`,
+        variant: 'success',
+      })
     }
     setShowModal(false)
   }
@@ -219,8 +240,10 @@ export default function StaffManagement() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-          <p className="text-gray-500 text-sm">Synced with hospital clinical roster & support personnel</p>
+          <h1 className="text-2xl font-bold text-slate-900">Staff Management</h1>
+          <p className="text-slate-600 text-sm">
+            Synced with hospital clinical roster & support personnel
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportCsv} className="gap-2">
@@ -232,18 +255,58 @@ export default function StaffManagement() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="bg-blue-50 border-blue-200"><CardContent className="p-4 flex items-center gap-3"><Users className="w-6 h-6 text-blue-600" /><div><p className="text-2xl font-bold text-blue-700">{stats.total}</p><p className="text-xs text-blue-600">Total Staff</p></div></CardContent></Card>
-        <Card className="bg-green-50 border-green-200"><CardContent className="p-4 flex items-center gap-3"><UserCheck className="w-6 h-6 text-green-600" /><div><p className="text-2xl font-bold text-green-700">{stats.active}</p><p className="text-xs text-green-600">Active</p></div></CardContent></Card>
-        <Card className="bg-yellow-50 border-yellow-200"><CardContent className="p-4 flex items-center gap-3"><Calendar className="w-6 h-6 text-yellow-600" /><div><p className="text-2xl font-bold text-yellow-700">{stats.onLeave}</p><p className="text-xs text-yellow-600">On Leave</p></div></CardContent></Card>
-        <Card className="bg-indigo-50 border-indigo-200"><CardContent className="p-4 flex items-center gap-3"><Stethoscope className="w-6 h-6 text-indigo-600" /><div><p className="text-2xl font-bold text-indigo-700">{stats.doctors}</p><p className="text-xs text-indigo-600">Doctors</p></div></CardContent></Card>
-        <Card className="bg-pink-50 border-pink-200"><CardContent className="p-4 flex items-center gap-3"><Syringe className="w-6 h-6 text-pink-600" /><div><p className="text-2xl font-bold text-pink-700">{stats.nurses}</p><p className="text-xs text-pink-600">Nurses</p></div></CardContent></Card>
+      <div className="grid grid-cols-5 gap-4 tabular-nums">
+        <Card className="bg-blue-50/80 border-blue-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Users className="w-6 h-6 text-blue-700" />
+            <div>
+              <p className="text-2xl font-bold text-blue-900">{stats.total}</p>
+              <p className="text-xs font-medium text-blue-700">Total Staff</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-emerald-50/80 border-emerald-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <UserCheck className="w-6 h-6 text-emerald-700" />
+            <div>
+              <p className="text-2xl font-bold text-emerald-900">{stats.active}</p>
+              <p className="text-xs font-medium text-emerald-700">Active</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-amber-50/80 border-amber-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-amber-700" />
+            <div>
+              <p className="text-2xl font-bold text-amber-900">{stats.onLeave}</p>
+              <p className="text-xs font-medium text-amber-800">On Leave</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-indigo-50/80 border-indigo-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Stethoscope className="w-6 h-6 text-indigo-700" />
+            <div>
+              <p className="text-2xl font-bold text-indigo-900">{stats.doctors}</p>
+              <p className="text-xs font-medium text-indigo-700">Doctors</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-pink-50/80 border-pink-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Syringe className="w-6 h-6 text-pink-700" />
+            <div>
+              <p className="text-2xl font-bold text-pink-900">{stats.nurses}</p>
+              <p className="text-xs font-medium text-pink-700">Nurses</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardContent className="p-4 flex flex-col md:flex-row gap-3">
+      <Card className="border-slate-200">
+        <CardContent className="p-4 flex items-center gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               placeholder="Search by name, MyKad IC, or department..."
               value={searchTerm}
@@ -255,20 +318,20 @@ export default function StaffManagement() {
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
               title="Filter by Role"
             >
               <option value="all">All Roles</option>
               <option value="doctor">Doctors</option>
               <option value="nurse">Nurses</option>
-              <option value="admin">Admin</option>
+              <option value="admin">Administrators</option>
               <option value="pharmacist">Pharmacists</option>
               <option value="technician">Technicians</option>
             </select>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
               title="Filter by Status"
             >
               <option value="all">All Status</option>
@@ -280,17 +343,17 @@ export default function StaffManagement() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-slate-200">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Users className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-lg tabular-nums">
+            <Users className="w-5 h-5 text-blue-700" />
             Hospital Staff Directory ({filteredStaff.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50 text-xs uppercase text-gray-500">
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-600">
                 <th className="text-left p-3">Name</th>
                 <th className="text-left p-3">MyKad IC</th>
                 <th className="text-left p-3">Role</th>
@@ -300,37 +363,49 @@ export default function StaffManagement() {
                 <th className="text-right p-3">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {filteredStaff.map((staff) => {
                 const roleInfo = roleConfig[staff.role]
                 const statusInfo = statusConfig[staff.status]
                 const RoleIcon = roleInfo.icon
                 return (
-                  <tr key={staff.id} className="border-b hover:bg-gray-50">
+                  <tr key={staff.id} className="hover:bg-slate-50">
                     <td className="p-3">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center ${roleInfo.color}`}>
+                        <div
+                          className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border ${roleInfo.color}`}
+                        >
                           <RoleIcon className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{staff.name}</p>
+                          <p className="font-semibold text-slate-900">{staff.name}</p>
                           {staff.specialization && (
-                            <p className="text-xs text-gray-500">{staff.specialization}</p>
+                            <p className="text-xs text-slate-500">{staff.specialization}</p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 font-mono text-xs text-gray-600">{staff.icNumber}</td>
-                    <td className="p-3">
-                      <Badge className={roleInfo.color}>{roleInfo.labelMY}</Badge>
-                    </td>
-                    <td className="p-3 text-gray-700">{staff.department}</td>
-                    <td className="p-3 text-xs text-gray-500 space-y-0.5">
-                      <div className="flex items-center gap-1"><Phone className="w-3 h-3" /> {staff.phone}</div>
-                      <div className="flex items-center gap-1"><Mail className="w-3 h-3" /> {staff.email}</div>
+                    <td className="p-3 font-mono text-xs text-slate-700 tabular-nums">
+                      {staff.icNumber}
                     </td>
                     <td className="p-3">
-                      <Badge className={statusInfo.color}>{statusInfo.labelMY}</Badge>
+                      <Badge className={roleInfo.color}>{roleInfo.label}</Badge>
+                    </td>
+                    <td className="p-3 text-slate-700">{staff.department}</td>
+                    <td className="p-3 text-xs text-slate-600 space-y-0.5 tabular-nums">
+                      <div className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" /> {staff.phone}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> {staff.email}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <StatusBadge
+                        tone={statusInfo.tone}
+                        icon={statusInfo.icon}
+                        label={statusInfo.label}
+                      />
                     </td>
                     <td className="p-3 text-right">
                       <div className="inline-flex items-center gap-1">
@@ -341,8 +416,9 @@ export default function StaffManagement() {
                           onClick={() => openEditModal(staff)}
                           className="h-8 w-8 p-0"
                           title="Edit staff"
+                          aria-label={`Edit ${staff.name}`}
                         >
-                          <Edit className="w-4 h-4 text-blue-600" />
+                          <Edit className="w-4 h-4 text-blue-700" />
                         </Button>
                         <Button
                           type="button"
@@ -351,6 +427,7 @@ export default function StaffManagement() {
                           onClick={() => handleRemoveStaff(staff)}
                           className="h-8 w-8 p-0"
                           title="Remove staff"
+                          aria-label={`Remove ${staff.name}`}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
@@ -364,105 +441,119 @@ export default function StaffManagement() {
         </CardContent>
       </Card>
 
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowModal(false)}
-          >
-            <motion.form
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              onSubmit={handleSaveStaff}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900">
-                  {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
-                </h3>
-                <button type="button" onClick={() => setShowModal(false)}>
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
+      <ModalDialog
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+        description="Maintain up-to-date clinical and administrative hospital roster details."
+        maxWidthClassName="max-w-md"
+      >
+        <form onSubmit={handleSaveStaff} className="space-y-4">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
+              <Input
+                required
+                placeholder="Full Name"
+                value={formState.name}
+                onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                MyKad IC Number *
+              </label>
+              <Input
+                required
+                placeholder="e.g. 850612-08-1234"
+                className="font-mono"
+                value={formState.icNumber}
+                onChange={(e) => setFormState({ ...formState, icNumber: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
+                <select
+                  className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
+                  value={formState.role}
+                  onChange={(e) =>
+                    setFormState({ ...formState, role: e.target.value as Staff['role'] })
+                  }
+                >
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="pharmacist">Pharmacist</option>
+                  <option value="technician">Technician</option>
+                  <option value="admin">Administrator</option>
+                </select>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                <select
+                  className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
+                  value={formState.status}
+                  onChange={(e) =>
+                    setFormState({ ...formState, status: e.target.value as Staff['status'] })
+                  }
+                >
+                  <option value="active">Active</option>
+                  <option value="on_leave">On Leave</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
+              <Input
+                placeholder="Department"
+                value={formState.department}
+                onChange={(e) => setFormState({ ...formState, department: e.target.value })}
+              />
+            </div>
+            {formState.role === 'doctor' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Specialization
+                </label>
+                <Input
+                  placeholder="Specialization"
+                  value={formState.specialization}
+                  onChange={(e) => setFormState({ ...formState, specialization: e.target.value })}
+                />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
+                <Input
+                  placeholder="Phone"
+                  value={formState.phone}
+                  onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  value={formState.email}
+                  onChange={(e) => setFormState({ ...formState, email: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
 
-              <div className="space-y-3">
-                <Input
-                  required
-                  placeholder="Full Name *"
-                  value={formState.name}
-                  onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                />
-                <Input
-                  required
-                  placeholder="MyKad IC Number *"
-                  value={formState.icNumber}
-                  onChange={(e) => setFormState({ ...formState, icNumber: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    className="h-10 px-3 border rounded-md text-sm bg-white"
-                    value={formState.role}
-                    onChange={(e) => setFormState({ ...formState, role: e.target.value as Staff['role'] })}
-                  >
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="pharmacist">Pharmacist</option>
-                    <option value="technician">Technician</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  <select
-                    className="h-10 px-3 border rounded-md text-sm bg-white"
-                    value={formState.status}
-                    onChange={(e) => setFormState({ ...formState, status: e.target.value as Staff['status'] })}
-                  >
-                    <option value="active">Active</option>
-                    <option value="on_leave">On Leave</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <Input
-                  placeholder="Department"
-                  value={formState.department}
-                  onChange={(e) => setFormState({ ...formState, department: e.target.value })}
-                />
-                {formState.role === 'doctor' && (
-                  <Input
-                    placeholder="Specialization"
-                    value={formState.specialization}
-                    onChange={(e) => setFormState({ ...formState, specialization: e.target.value })}
-                  />
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Phone"
-                    value={formState.phone}
-                    onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Email"
-                    value={formState.email}
-                    onChange={(e) => setFormState({ ...formState, email: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                  {editingStaff ? 'Update' : 'Add Staff'}
-                </Button>
-              </div>
-            </motion.form>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+              {editingStaff ? 'Update' : 'Add Staff'}
+            </Button>
+          </div>
+        </form>
+      </ModalDialog>
     </div>
   )
 }

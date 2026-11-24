@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ScanLine,
@@ -9,6 +9,7 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Printer,
   Scan,
   Monitor,
@@ -18,11 +19,12 @@ import {
   Loader2,
 } from 'lucide-react'
 import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useClinicalStore } from '@/store/clinical'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { printHtmlDocument } from '@/lib/utils'
+import { escapeHtml, printHtmlDocument } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
 interface RadiologyOrder {
@@ -54,16 +56,24 @@ const radiologyCatalog = [
 
 const modalities = ['All', 'X-Ray', 'Ultrasound', 'CT Scan', 'MRI', 'Special']
 
-const MODALITY_CONFIG: Record<string, { icon: typeof ScanLine; iconBgClass: string; iconTextClass: string; codeBadgeClass: string }> = {
-  'X-Ray': { icon: Bone, iconBgClass: 'bg-blue-100', iconTextClass: 'text-blue-600', codeBadgeClass: 'text-blue-700 bg-blue-100' },
-  Ultrasound: { icon: ScanLine, iconBgClass: 'bg-teal-100', iconTextClass: 'text-teal-600', codeBadgeClass: 'text-teal-700 bg-teal-100' },
-  'CT Scan': { icon: Scan, iconBgClass: 'bg-purple-100', iconTextClass: 'text-purple-600', codeBadgeClass: 'text-purple-700 bg-purple-100' },
-  MRI: { icon: Brain, iconBgClass: 'bg-indigo-100', iconTextClass: 'text-indigo-600', codeBadgeClass: 'text-indigo-700 bg-indigo-100' },
-  Mammography: { icon: CircleDot, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' },
-  Fluoroscopy: { icon: Monitor, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' },
+const MODALITY_CONFIG: Record<
+  string,
+  { icon: typeof ScanLine; iconBgClass: string; iconTextClass: string; codeBadgeClass: string }
+> = {
+  'X-Ray': { icon: Bone, iconBgClass: 'bg-blue-100', iconTextClass: 'text-blue-700', codeBadgeClass: 'text-blue-800 bg-blue-100' },
+  Ultrasound: { icon: ScanLine, iconBgClass: 'bg-teal-100', iconTextClass: 'text-teal-700', codeBadgeClass: 'text-teal-800 bg-teal-100' },
+  'CT Scan': { icon: Scan, iconBgClass: 'bg-purple-100', iconTextClass: 'text-purple-700', codeBadgeClass: 'text-purple-800 bg-purple-100' },
+  MRI: { icon: Brain, iconBgClass: 'bg-indigo-100', iconTextClass: 'text-indigo-700', codeBadgeClass: 'text-indigo-800 bg-indigo-100' },
+  Mammography: { icon: CircleDot, iconBgClass: 'bg-slate-100', iconTextClass: 'text-slate-700', codeBadgeClass: 'text-slate-800 bg-slate-100' },
+  Fluoroscopy: { icon: Monitor, iconBgClass: 'bg-slate-100', iconTextClass: 'text-slate-700', codeBadgeClass: 'text-slate-800 bg-slate-100' },
 }
 
-const DEFAULT_MODALITY_STYLE = { icon: ScanLine, iconBgClass: 'bg-gray-100', iconTextClass: 'text-gray-600', codeBadgeClass: 'text-gray-700 bg-gray-100' }
+const DEFAULT_MODALITY_STYLE = {
+  icon: ScanLine,
+  iconBgClass: 'bg-slate-100',
+  iconTextClass: 'text-slate-700',
+  codeBadgeClass: 'text-slate-800 bg-slate-100',
+}
 
 interface RadiologyProps {
   patientName?: string
@@ -86,6 +96,7 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
   const [clinicalInfo, setClinicalInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [radRef, setRadRef] = useState<string | null>(null)
+  const submitLockRef = useRef(false)
 
   const filteredExams = radiologyCatalog.filter((exam) => {
     const matchesSearch =
@@ -100,7 +111,10 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
 
   const addOrder = (exam: (typeof radiologyCatalog)[0]) => {
     if (!selectedOrders.some((o) => o.code === exam.code)) {
-      setSelectedOrders([...selectedOrders, { id: `rad-${Date.now()}-${exam.code}`, ...exam, urgent: false }])
+      setSelectedOrders([
+        ...selectedOrders,
+        { id: `rad-${Date.now()}-${exam.code}`, ...exam, urgent: false },
+      ])
     }
   }
 
@@ -117,10 +131,10 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
     const rows = selectedOrders
       .map(
         (o) => `<tr>
-          <td>${o.code}</td>
-          <td>${o.name}</td>
-          <td>${o.modality}</td>
-          <td>${o.preparation}</td>
+          <td>${escapeHtml(o.code)}</td>
+          <td>${escapeHtml(o.name)}</td>
+          <td>${escapeHtml(o.modality)}</td>
+          <td>${escapeHtml(o.preparation)}</td>
           <td>${o.urgent ? 'STAT' : 'Routine'}</td>
         </tr>`
       )
@@ -128,12 +142,12 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
     printHtmlDocument(
       `Radiology Request - ${resolvedName}`,
       `<div class="header">
-        <div><h1>${theme.name}</h1><p>Diagnostic Imaging Requisition (${radRef || 'DRAFT'})</p></div>
-        <div>${new Date().toLocaleDateString('en-MY')}</div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>Diagnostic Imaging Requisition (${escapeHtml(radRef || 'DRAFT')})</p></div>
+        <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
-        <strong>Patient:</strong> ${resolvedName} (${resolvedIc || 'N/A'})<br/>
-        <strong>Clinical Indication:</strong> ${clinicalInfo || 'Diagnostic imaging'}
+        <strong>Patient:</strong> ${escapeHtml(resolvedName)} (${escapeHtml(resolvedIc || 'N/A')})<br/>
+        <strong>Clinical Indication:</strong> ${escapeHtml(clinicalInfo || 'Diagnostic imaging')}
       </div>
       <table>
         <thead><tr><th>Code</th><th>Examination</th><th>Modality</th><th>Prep</th><th>Priority</th></tr></thead>
@@ -143,7 +157,7 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
   }
 
   const handleSubmit = async () => {
-    if (selectedOrders.length === 0) return
+    if (selectedOrders.length === 0 || submitLockRef.current) return
     onSubmit?.(selectedOrders)
 
     if (!resolvedIc) {
@@ -155,6 +169,7 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
       return
     }
 
+    submitLockRef.current = true
     setSubmitting(true)
     try {
       const ref = `RAD-${Date.now().toString().slice(-6)}`
@@ -184,8 +199,10 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
       toast({
         title: 'Radiology Order Transmitted',
         description: `Imaging order ${ref} (${selectedOrders.length} study) queued at ${theme.shortName} PACS/RIS.`,
+        variant: 'success',
       })
     } finally {
+      submitLockRef.current = false
       setSubmitting(false)
     }
   }
@@ -196,24 +213,24 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Radiology Request</h2>
-          <p className="text-gray-500 text-sm">PACS / RIS diagnostic imaging requisition</p>
+          <h2 className="text-2xl font-bold text-slate-900">Radiology Request</h2>
+          <p className="text-slate-600 text-sm">PACS / RIS diagnostic imaging requisition</p>
         </div>
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={handlePrint}
             disabled={selectedOrders.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
             Print
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={selectedOrders.length === 0 || submitting}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold shadow-sm hover:bg-indigo-700 disabled:opacity-50"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
             Submit Imaging Order
@@ -224,19 +241,27 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
       {radRef && (
         <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm font-medium flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-          <span>RIS Requisition <code>{radRef}</code> registered and logged in patient history.</span>
+          <span>
+            RIS Requisition <code className="font-mono tabular-nums">{radRef}</code> registered and
+            logged in patient history.
+          </span>
         </div>
       )}
 
       {contrastCount > 0 && (
         <div
+          role="alert"
           className={`p-4 rounded-xl border flex items-start gap-3 ${
             hasContrastAllergyRisk
               ? 'bg-red-50 border-red-300 text-red-900'
               : 'bg-amber-50 border-amber-200 text-amber-900'
           }`}
         >
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          {hasContrastAllergyRisk ? (
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-700" />
+          )}
           <div className="text-sm">
             <p className="font-bold">
               {hasContrastAllergyRisk
@@ -252,30 +277,31 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
         </div>
       )}
 
-      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+      <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
           Clinical History & Imaging Indication
         </label>
         <textarea
+          maxLength={500}
           value={clinicalInfo}
           onChange={(e) => setClinicalInfo(e.target.value)}
           placeholder="Specify anatomical site, trauma history, or suspected pathology..."
-          className="w-full p-3 border border-gray-200 rounded-lg text-sm resize-none h-20"
+          className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none h-20"
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-semibold text-gray-800 mb-3">Imaging Modality Catalog</h3>
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50">
+            <h3 className="font-semibold text-slate-900 mb-3">Imaging Modality Catalog</h3>
             <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search study..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm"
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-white"
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -284,10 +310,10 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
                   key={mod}
                   type="button"
                   onClick={() => setSelectedModality(mod)}
-                  className={`px-3 py-1 text-xs rounded-full font-medium ${
+                  className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors ${
                     selectedModality === mod
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   {mod}
@@ -307,29 +333,35 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
                   type="button"
                   onClick={() => !isSelected && addOrder(exam)}
                   disabled={isSelected}
-                  className={`w-full p-3.5 text-left border-b border-gray-50 flex items-center gap-3.5 ${
-                    isSelected ? 'bg-indigo-50 opacity-60' : 'hover:bg-gray-50'
+                  className={`w-full p-3.5 text-left border-b border-slate-100 flex items-center gap-3.5 transition-colors ${
+                    isSelected ? 'bg-indigo-50 opacity-65' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${modalityStyle.iconBgClass}`}>
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${modalityStyle.iconBgClass}`}
+                  >
                     <Icon className={`w-4 h-4 ${modalityStyle.iconTextClass}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <code className={`text-xs font-bold ${modalityStyle.codeBadgeClass} px-1.5 py-0.5 rounded`}>
+                      <code
+                        className={`text-xs font-bold ${modalityStyle.codeBadgeClass} px-1.5 py-0.5 rounded`}
+                      >
                         {exam.code}
                       </code>
                       {exam.contrast && (
-                        <span className="text-[11px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Contrast</span>
+                        <StatusBadge tone="warning" icon={AlertCircle} label="Contrast" />
                       )}
                     </div>
-                    <p className="font-medium text-gray-900 text-sm mt-0.5 truncate">{exam.name}</p>
-                    <p className="text-xs text-gray-500">{exam.modality} • {exam.turnaround}</p>
+                    <p className="font-medium text-slate-900 text-sm mt-0.5 truncate">{exam.name}</p>
+                    <p className="text-xs text-slate-500 tabular-nums">
+                      {exam.modality} • {exam.turnaround}
+                    </p>
                   </div>
                   {isSelected ? (
                     <CheckCircle2 className="w-5 h-5 text-indigo-600" />
                   ) : (
-                    <Plus className="w-4 h-4 text-gray-400" />
+                    <Plus className="w-4 h-4 text-slate-400" />
                   )}
                 </button>
               )
@@ -337,18 +369,18 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">Selected Studies</h3>
-            <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900">Selected Studies</h3>
+            <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded-full tabular-nums">
               {selectedOrders.length} study
             </span>
           </div>
 
-          <div className="p-4 space-y-3">
+          <div className="p-4 flex-1 space-y-3">
             <AnimatePresence>
               {selectedOrders.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
+                <div className="text-center py-12 text-slate-400">
                   <ScanLine className="w-10 h-10 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">Select imaging examinations from catalog</p>
                 </div>
@@ -360,23 +392,21 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
                     className={`p-3.5 rounded-xl border ${
-                      order.urgent ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                      order.urgent ? 'border-red-300 bg-red-50/70' : 'border-slate-200 bg-slate-50/70'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <code className="text-xs font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
+                          <code className="text-xs font-bold text-indigo-800 bg-indigo-100 px-1.5 py-0.5 rounded">
                             {order.code}
                           </code>
                           {order.urgent && (
-                            <span className="text-[11px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                              URGENT
-                            </span>
+                            <StatusBadge tone="critical" icon={AlertTriangle} label="STAT" />
                           )}
                         </div>
-                        <p className="font-semibold text-gray-900 text-sm mt-1">{order.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                        <p className="font-semibold text-slate-900 text-sm mt-1">{order.name}</p>
+                        <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5 tabular-nums">
                           <Clock className="w-3 h-3" /> {order.turnaround} • Prep: {order.preparation}
                         </p>
                       </div>
@@ -385,15 +415,18 @@ export default function Radiology({ patientName, patientIC, onSubmit }: Radiolog
                           type="button"
                           onClick={() => toggleUrgent(order.id)}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${
-                            order.urgent ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'
+                            order.urgent
+                              ? 'bg-red-600 text-white'
+                              : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
                           }`}
                         >
-                          {order.urgent ? 'Urgent' : 'Routine'}
+                          {order.urgent ? 'STAT' : 'Routine'}
                         </button>
                         <button
                           type="button"
                           onClick={() => removeOrder(order.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg"
+                          aria-label={`Remove ${order.name}`}
+                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

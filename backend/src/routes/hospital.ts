@@ -6,6 +6,7 @@ import {
   createAuditLog,
   getPatientIndex,
   getBlockedHospitals,
+  getBlockedPatientIcsForHospital,
 } from '../database/central-multi';
 import {
   authenticate,
@@ -18,11 +19,28 @@ import {
   AuditAction,
   MedicalRecord,
   Patient,
+  VitalSigns,
   inferDemographicsFromMyKad,
   normalizeIcNumber,
 } from '../types';
 
 const router = Router();
+
+const DUPLICATE_SUBMISSION_WINDOW_MS = 2000;
+const recentRecordFingerprints = new Map<string, number>();
+
+export function clearRecordSubmissionGuardForTesting(): void {
+  recentRecordFingerprints.clear();
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ts] of recentRecordFingerprints.entries()) {
+    if (now - ts > DUPLICATE_SUBMISSION_WINDOW_MS * 2) {
+      recentRecordFingerprints.delete(key);
+    }
+  }
+}, 120_000).unref();
 
 async function enforcePatientPrivacyConsent(
   req: Request,
@@ -56,6 +74,135 @@ async function enforcePatientPrivacyConsent(
   return true;
 }
 
+async function loadScopedHospitalStats(hospitalId: string, callerRole?: string) {
+  const blockedIcs = await getBlockedPatientIcsForHospital(hospitalId);
+  return getHospitalDb(hospitalId).getStats({
+    blockedIcs,
+    redactClinicalDetails: callerRole !== 'doctor',
+  });
+}
+
+type CreateOrUpdateRecordPayload = Partial<MedicalRecord> & {
+  patientName?: string;
+  dateOfBirth?: string;
+  gender?: 'male' | 'female';
+  bloodType?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+};
+
+const VITAL_BOUNDS: Array<[keyof VitalSigns, number, number, string]> = [
+  ['bloodPressureSystolic', 30, 300, 'Systolic blood pressure (30-300 mmHg)'],
+  ['bloodPressureDiastolic', 15, 220, 'Diastolic blood pressure (15-220 mmHg)'],
+  ['heartRate', 15, 300, 'Heart rate (15-300 bpm)'],
+  ['temperature', 25, 45, 'Body temperature (25-45 °C)'],
+  ['oxygenSaturation', 30, 100, 'Oxygen saturation SpO2 (30-100 %)'],
+  ['weight', 0.3, 500, 'Weight (0.3-500 kg)'],
+  ['height', 20, 260, 'Height (20-260 cm)'],
+];
+
+function validateClinicalRecordPayload(payload: CreateOrUpdateRecordPayload): string | null {
+  if (payload.chiefComplaint !== undefined && String(payload.chiefComplaint).length > 500) {
+    return 'Chief complaint exceeds maximum length of 500 characters';
+  }
+  if (payload.notes !== undefined && String(payload.notes).length > 10_000) {
+    return 'Clinical notes exceed maximum length of 10,000 characters';
+  }
+  if (payload.patientName !== undefined && String(payload.patientName).length > 150) {
+    return 'Patient full name exceeds maximum length of 150 characters';
+  }
+
+  if (payload.visitDate !== undefined && payload.visitDate !== '') {
+    const parsedVisit = new Date(payload.visitDate);
+    if (Number.isNaN(parsedVisit.getTime())) {
+      return 'Invalid visitDate format';
+    }
+  }
+
+  if (payload.followUpDate !== undefined && payload.followUpDate !== null && payload.followUpDate !== '') {
+    const parsedFollowUp = new Date(payload.followUpDate);
+    if (Number.isNaN(parsedFollowUp.getTime())) {
+      return 'Invalid followUpDate format';
+    }
+  }
+
+  if (Array.isArray(payload.diagnosis)) {
+    if (payload.diagnosis.length > 30) {
+      return 'Maximum of 30 diagnosis entries per record exceeded';
+    }
+    if (payload.diagnosis.some(d => String(d).length > 300)) {
+      return 'Individual diagnosis entry exceeds maximum length of 300 characters';
+    }
+  }
+
+  if (payload.vitalSigns && typeof payload.vitalSigns === 'object') {
+    for (const [key, min, max, label] of VITAL_BOUNDS) {
+      const val = payload.vitalSigns[key];
+      if (val === undefined || val === null || (val as unknown) === '') continue;
+      const num = Number(val);
+      if (Number.isNaN(num) || num < min || num > max) {
+        return `Vital sign out of physiological bounds: ${label}`;
+      }
+    }
+  }
+
+  if (Array.isArray(payload.prescriptions)) {
+    if (payload.prescriptions.length > 50) {
+      return 'Maximum of 50 prescriptions per record exceeded';
+    }
+    for (const rx of payload.prescriptions) {
+      const med = String(rx?.medicationName || '').trim();
+      const dose = String(rx?.dosage || '').trim();
+      const freq = String(rx?.frequency || '').trim();
+      const instr = String(rx?.instructions || '').trim();
+      const dur = String(rx?.duration || '').trim();
+      const isCompletelyBlank = !med && !dose && !freq && !instr && !dur;
+      if (isCompletelyBlank) continue;
+      if (!med || !dose || !freq) {
+        return 'Incomplete prescription item: medicationName, dosage, and frequency are all required';
+      }
+      if (med.length > 200 || dose.length > 100 || freq.length > 100 || instr.length > 500) {
+        return 'Prescription field exceeds maximum allowed length';
+      }
+    }
+  }
+
+  if (Array.isArray(payload.labReports)) {
+    if (payload.labReports.length > 50) {
+      return 'Maximum of 50 lab report items per record exceeded';
+    }
+    for (const lab of payload.labReports) {
+      const name = String(lab?.testName || '').trim();
+      const result = String(lab?.result || '').trim();
+      const unit = String(lab?.unit || '').trim();
+      const refRange = String(lab?.referenceRange || '').trim();
+      const notes = String(lab?.notes || '').trim();
+      const hasAuxiliaryInput = Boolean(
+        (result && result.toLowerCase() !== 'pending') || unit || refRange || notes
+      );
+      if (!name && hasAuxiliaryInput) {
+        return 'Incomplete lab report item: testName is required when result or reference values are provided';
+      }
+      if (name.length > 200 || result.length > 200 || notes.length > 1000) {
+        return 'Lab report field exceeds maximum allowed length';
+      }
+      if (lab?.reportDate) {
+        const parsedLabDate = new Date(lab.reportDate);
+        if (Number.isNaN(parsedLabDate.getTime())) {
+          return 'Invalid lab reportDate format';
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 router.get(
   '/:hospitalId',
   authenticate,
@@ -75,7 +222,7 @@ router.get(
         return;
       }
 
-      const stats = await getHospitalDb(hospitalId).getStats();
+      const stats = await loadScopedHospitalStats(hospitalId, req.user?.role);
 
       res.json({
         success: true,
@@ -112,7 +259,7 @@ router.get(
         return;
       }
 
-      const stats = await getHospitalDb(hospitalId).getStats();
+      const stats = await loadScopedHospitalStats(hospitalId, req.user?.role);
 
       res.json({
         success: true,
@@ -265,20 +412,6 @@ router.get(
   }
 );
 
-type CreateOrUpdateRecordPayload = Partial<MedicalRecord> & {
-  patientName?: string;
-  dateOfBirth?: string;
-  gender?: 'male' | 'female';
-  bloodType?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  emergencyContact?: string;
-  emergencyPhone?: string;
-  allergies?: string[];
-  chronicConditions?: string[];
-};
-
 router.post(
   '/:hospitalId/records',
   authenticate,
@@ -318,6 +451,15 @@ router.post(
         return;
       }
 
+      const validationError = validateClinicalRecordPayload(recordData);
+      if (validationError) {
+        res.status(400).json({
+          success: false,
+          error: validationError,
+        });
+        return;
+      }
+
       const hospitalDb = getHospitalDb(hospitalId);
       const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
 
@@ -345,6 +487,33 @@ router.post(
         'create'
       );
       if (!consentAllowed) return;
+
+      const fingerprint = crypto
+        .createHash('sha256')
+        .update(
+          JSON.stringify({
+            hospitalId,
+            doctorId: authDoctor.id,
+            icNumber,
+            visitType: recordData.visitType || 'outpatient',
+            chiefComplaint: String(recordData.chiefComplaint || '').trim(),
+            diagnosis: diagnosisList,
+            notes: String(recordData.notes || '').trim(),
+          })
+        )
+        .digest('hex');
+
+      const lastSubmitAt = recentRecordFingerprints.get(fingerprint);
+      const nowMs = Date.now();
+      if (lastSubmitAt && nowMs - lastSubmitAt < DUPLICATE_SUBMISSION_WINDOW_MS) {
+        res.status(409).json({
+          success: false,
+          duplicateSubmission: true,
+          error: 'Duplicate record submission detected. Please wait a moment before submitting an identical clinical entry.',
+        });
+        return;
+      }
+      recentRecordFingerprints.set(fingerprint, nowMs);
 
       const existingPatient = await hospitalDb.getPatient(icNumber);
       const nowIso = new Date().toISOString();
@@ -502,6 +671,15 @@ router.put(
         return;
       }
 
+      const validationError = validateClinicalRecordPayload(updates);
+      if (validationError) {
+        res.status(400).json({
+          success: false,
+          error: validationError,
+        });
+        return;
+      }
+
       const hospitalDb = getHospitalDb(hospitalId);
       const authDoctor = await hospitalDb.getDoctorByIc(req.user!.icNumber);
       if (!authDoctor || !authDoctor.isActive) {
@@ -554,6 +732,20 @@ router.put(
           return;
         }
         updates.diagnosis = cleanDiagnosis;
+      }
+
+      if (
+        updates.bloodType ||
+        (Array.isArray(updates.allergies) && updates.allergies.length > 0) ||
+        (Array.isArray(updates.chronicConditions) && updates.chronicConditions.length > 0)
+      ) {
+        await hospitalDb.updatePatient(existingRecord.icNumber, {
+          bloodType: updates.bloodType?.trim(),
+          allergies: Array.isArray(updates.allergies) ? updates.allergies : undefined,
+          chronicConditions: Array.isArray(updates.chronicConditions)
+            ? updates.chronicConditions
+            : undefined,
+        });
       }
 
       const updatedRecord = await hospitalDb.updateRecord(recordId, {

@@ -5,11 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
-import { ArrowLeft, FileText, Search, UserPlus, Loader2, ShieldAlert } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { ArrowLeft, FileText, Search, UserPlus, Loader2, ShieldAlert, WifiOff } from 'lucide-react'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { centralApi } from '@/lib/api'
-import { formatIC } from '@/lib/utils'
+import { cn, formatIC } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 
 export default function NewRecordSearch() {
@@ -21,17 +20,20 @@ export default function NewRecordSearch() {
 
   const [icNumber, setIcNumber] = useState('')
   const [isChecking, setIsChecking] = useState(false)
-  const [privacyBlockedMessage, setPrivacyBlockedMessage] = useState<string | null>(null)
+  const [blockingBanner, setBlockingBanner] = useState<{
+    kind: 'privacy' | 'network'
+    message: string
+  } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setPrivacyBlockedMessage(null)
+    setBlockingBanner(null)
 
     const formattedIC = formatIC(icNumber.trim())
     if (!formattedIC) {
       toast({
         title: 'Validation Error',
-        description: 'Please enter a patient MyKad IC number',
+        description: 'Please enter a valid patient MyKad IC number',
         variant: 'destructive',
       })
       return
@@ -42,10 +44,11 @@ export default function NewRecordSearch() {
       const response = await centralApi.getPatient(formattedIC)
 
       if (response.accessDenied) {
-        setPrivacyBlockedMessage(response.error || t.privacyRestrictedDesc)
+        const msg = response.error || t.privacyRestrictedDesc
+        setBlockingBanner({ kind: 'privacy', message: msg })
         toast({
           title: t.privacyRestrictedTitle,
-          description: response.error || t.privacyRestrictedDesc,
+          description: msg,
           variant: 'destructive',
         })
         return
@@ -53,91 +56,124 @@ export default function NewRecordSearch() {
 
       if (response.success && response.data?.hospitals && response.data.hospitals.length > 0) {
         toast({
-          title: 'Patient Profile Found',
-          description: 'Demographics and allergies will be automatically inherited.',
+          title: 'Patient Profile Verified',
+          description: 'Demographics and recorded allergies will be automatically inherited.',
+          variant: 'success',
         })
-      } else {
+        navigate(`/doctor/patient/${encodeURIComponent(formattedIC)}/new-record`)
+        return
+      }
+
+      if (response.notFound || response.status === 404) {
         toast({
           title: 'First-Time Network Patient',
-          description: 'Demographics will be initialized from MyKad IC.',
+          description: 'Demographics will be initialized from MyKad IC. Please verify allergies.',
         })
+        navigate(`/doctor/patient/${encodeURIComponent(formattedIC)}/new-record`)
+        return
       }
-      navigate(`/doctor/patient/${encodeURIComponent(formattedIC)}/new-record`)
+
+      const netMsg = response.error || t.networkError
+      setBlockingBanner({ kind: 'network', message: netMsg })
+      toast({
+        title: 'Verification Unavailable',
+        description: netMsg,
+        variant: 'destructive',
+      })
     } finally {
       setIsChecking(false)
     }
   }
 
   return (
-    <motion.div
-      className="min-h-[75vh] flex items-center justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-    >
+    <div className="py-10 flex items-center justify-center">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
-          <div className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${theme.buttonGradient} mb-4 shadow-lg`}>
-            <FileText className="w-9 h-9 text-white" />
+        <div className="text-center mb-6">
+          <div
+            className={cn(
+              'inline-flex p-3.5 rounded-2xl bg-gradient-to-br mb-3 shadow-md text-white',
+              theme.buttonGradient
+            )}
+          >
+            <FileText className="w-7 h-7" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t.newRecord}</h1>
-          <p className="text-gray-500 mt-1.5 text-sm">Enter patient MyKad IC number to start consultation</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t.newRecord}</h1>
+          <p className="text-slate-600 mt-1 text-xs">
+            Enter patient MyKad IC number to verify consent policy and start clinical consultation
+          </p>
         </div>
 
-        <Card className="border border-slate-200 shadow-xl overflow-hidden">
-          <div className={`h-1.5 bg-gradient-to-r ${theme.cardAccentGradient}`} />
-          <CardContent className="p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2.5">
-                <label className="text-sm font-semibold text-gray-700">Patient MyKad IC Number</label>
+        <Card className="border border-slate-200 shadow-md overflow-hidden bg-white">
+          <div className={cn('h-1.5 bg-gradient-to-r', theme.cardAccentGradient)} />
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <label htmlFor="new-rec-ic" className="text-xs font-bold text-slate-700">
+                  Patient MyKad IC Number
+                </label>
                 <div className="relative">
                   <Input
+                    id="new-rec-ic"
                     placeholder="e.g., 880101-14-5678"
                     value={icNumber}
                     onChange={(e) => {
                       setIcNumber(e.target.value)
-                      setPrivacyBlockedMessage(null)
+                      setBlockingBanner(null)
                     }}
                     disabled={isChecking}
-                    className="text-lg h-14 px-4 pr-12 rounded-xl font-mono"
+                    className="text-base h-12 px-4 pr-11 font-mono tabular-nums"
                     autoFocus
                   />
-                  <Search className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2" />
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-slate-500">
                   Existing federated patients inherit verified demographics and allergies automatically.
                 </p>
               </div>
 
-              {privacyBlockedMessage && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-2.5">
-                  <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              {blockingBanner?.kind === 'privacy' && (
+                <div className="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold">{t.privacyRestrictedTitle}</p>
-                    <p className="text-xs mt-0.5">{privacyBlockedMessage}</p>
+                    <p className="mt-0.5">{blockingBanner.message}</p>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-3 pt-2">
+              {blockingBanner?.kind === 'network' && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5">
+                  <WifiOff className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Unable to Verify Consent & Allergies</p>
+                    <p className="mt-0.5">{blockingBanner.message}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate(-1)}
                   disabled={isChecking}
-                  className="flex-1 h-12 rounded-xl font-semibold"
+                  className="flex-1 h-11"
                 >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  <ArrowLeft className="w-4 h-4 mr-1.5" />
                   Back
                 </Button>
                 <Button
                   type="submit"
                   disabled={isChecking || !icNumber.trim()}
-                  className={`flex-[2] h-12 rounded-xl bg-gradient-to-r ${theme.buttonGradient} text-white shadow-md font-semibold`}
+                  className={cn(
+                    'flex-[2] h-11 bg-gradient-to-r text-white font-bold',
+                    theme.buttonGradient
+                  )}
                 >
                   {isChecking ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Verifying Policy...
+                      Verifying Policy…
                     </>
                   ) : (
                     <>
@@ -151,6 +187,6 @@ export default function NewRecordSearch() {
           </CardContent>
         </Card>
       </div>
-    </motion.div>
+    </div>
   )
 }

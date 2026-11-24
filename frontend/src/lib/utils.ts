@@ -6,14 +6,48 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function escapeHtml(value: unknown): string {
+  const str = value === null || value === undefined ? '' : String(value)
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+export function toDateInputValue(isoOrDate?: string | null): string {
+  if (!isoOrDate) return ''
+  const trimmed = String(isoOrDate).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return trimmed.slice(0, 10)
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString().slice(0, 10)
+}
+
 export function formatDate(dateString?: string): string {
-  if (!dateString) return '-'
+  if (!dateString) return '—'
   const date = new Date(dateString)
   if (Number.isNaN(date.getTime())) return dateString
   return date.toLocaleDateString('en-MY', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+  })
+}
+
+export function formatDateTime(dateString?: string): string {
+  if (!dateString) return '—'
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return dateString
+  return date.toLocaleString('en-MY', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   })
 }
 
@@ -67,7 +101,7 @@ export function maskIC(ic?: string): string {
 
 export function formatTimeAgo(timestamp: string): string {
   const time = new Date(timestamp).getTime()
-  if (Number.isNaN(time)) return '-'
+  if (Number.isNaN(time)) return '—'
   const diffMs = Date.now() - time
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
@@ -149,22 +183,23 @@ export function downloadJsonFile(filename: string, payload: unknown): void {
   URL.revokeObjectURL(url)
 }
 
+export function sanitizeCsvCell(val: string | number | boolean | null | undefined): string {
+  const raw = val === null || val === undefined ? '' : String(val)
+  const safe = /^[=@\t\r]|^[+-](?![0-9])/.test(raw) ? `'${raw}` : raw
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`
+  }
+  return safe
+}
+
 export function downloadCsvFile(
   filename: string,
   headers: string[],
   rows: Array<Array<string | number | boolean | null | undefined>>
 ): void {
-  const escapeCsv = (val: string | number | boolean | null | undefined): string => {
-    const str = val === null || val === undefined ? '' : String(val)
-    if (/[",\n\r]/.test(str)) {
-      return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
-  }
-
   const lines = [
-    headers.map(escapeCsv).join(','),
-    ...rows.map(row => row.map(escapeCsv).join(',')),
+    headers.map(sanitizeCsvCell).join(','),
+    ...rows.map(row => row.map(sanitizeCsvCell).join(',')),
   ]
   const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -178,26 +213,27 @@ export function downloadCsvFile(
 }
 
 export function printHtmlDocument(title: string, bodyHtml: string): void {
-  const printWindow = window.open('', '_blank', 'width=900,height=700')
+  const printWindow = window.open('', '_blank', 'width=940,height=740')
   if (!printWindow) {
     window.print()
     return
   }
+  const safeTitle = escapeHtml(title)
   printWindow.document.open()
   printWindow.document.write(`<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; color: #111827; padding: 32px; line-height: 1.5; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: #0f172a; padding: 32px; line-height: 1.55; font-variant-numeric: tabular-nums; }
     h1, h2, h3 { margin: 0 0 8px 0; color: #0f172a; }
-    .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-    .meta { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
+    .header { border-bottom: 2px solid #1d4ed8; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .meta { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 20px; }
-    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 13px; }
-    th { background: #f1f5f9; font-weight: 600; }
-    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 13px; vertical-align: top; }
+    th { background: #f1f5f9; font-weight: 600; color: #1e293b; }
+    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #cbd5e1; font-size: 12px; color: #475569; }
   </style>
 </head>
 <body>

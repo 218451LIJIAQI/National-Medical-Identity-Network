@@ -19,6 +19,7 @@ import {
   CrossHospitalQueryResult,
   QueryFlowStep,
   HospitalQueryResult,
+  MedicalRecord,
   User,
   normalizeIcNumber,
 } from '../types';
@@ -71,14 +72,15 @@ async function enrichAuditLogsWithActors(logs: AuditLog[], mode: 'admin' | 'pati
 
   return Promise.all(
     logs.map(async log => {
-      const hospital = getHospitalById(log.actorHospitalId);
+      const hospitalRefId = log.actorHospitalId || log.targetHospitalId;
+      const hospital = getHospitalById(hospitalRefId);
       const defaultHospital =
         log.actorType === 'emergency'
           ? 'Emergency Terminal'
           : mode === 'admin'
             ? 'Central Hub'
             : 'External Network';
-      const hospitalName = hospital?.name || log.actorHospitalId || defaultHospital;
+      const hospitalName = hospital?.name || hospitalRefId || defaultHospital;
       let actorName =
         log.actorType === 'emergency'
           ? 'Emergency Responder'
@@ -279,6 +281,26 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
       return;
     }
 
+    const allHospitalRecords: Array<{ hospitalName: string; rec: MedicalRecord }> = [];
+    let respondingHospitals = 0;
+    let failedHospitals = 0;
+
+    for (const outcome of recordsPerHospital) {
+      if (outcome.status !== 'fulfilled') {
+        failedHospitals++;
+        continue;
+      }
+      respondingHospitals++;
+      const { hospitalName, records } = outcome.value;
+      for (const rec of records) {
+        allHospitalRecords.push({ hospitalName, rec });
+      }
+    }
+
+    allHospitalRecords.sort(
+      (a, b) => new Date(b.rec.visitDate).getTime() - new Date(a.rec.visitDate).getTime()
+    );
+
     const activeMedicationMap = new Map<
       string,
       {
@@ -292,41 +314,31 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
     >();
     const diagnosisSet = new Set<string>();
     const recentDiagnoses: Array<{ diagnosis: string; hospitalName: string; visitDate: string }> = [];
-    let respondingHospitals = 0;
-    let failedHospitals = 0;
 
-    for (const outcome of recordsPerHospital) {
-      if (outcome.status !== 'fulfilled') {
-        failedHospitals++;
-        continue;
-      }
-      respondingHospitals++;
-      const { hospitalName, records } = outcome.value;
-      for (const rec of records) {
-        for (const diag of rec.diagnosis || []) {
-          const cleanDiag = diag.trim();
-          if (cleanDiag && !diagnosisSet.has(cleanDiag.toLowerCase())) {
-            diagnosisSet.add(cleanDiag.toLowerCase());
-            recentDiagnoses.push({
-              diagnosis: cleanDiag,
-              hospitalName,
-              visitDate: rec.visitDate,
-            });
-          }
+    for (const { hospitalName, rec } of allHospitalRecords) {
+      for (const diag of rec.diagnosis || []) {
+        const cleanDiag = diag.trim();
+        if (cleanDiag && !diagnosisSet.has(cleanDiag.toLowerCase())) {
+          diagnosisSet.add(cleanDiag.toLowerCase());
+          recentDiagnoses.push({
+            diagnosis: cleanDiag,
+            hospitalName,
+            visitDate: rec.visitDate,
+          });
         }
-        for (const rx of rec.prescriptions || []) {
-          if (!rx.isActive || !rx.medicationName) continue;
-          const dedupKey = `${rx.medicationName.toLowerCase()}|${rx.dosage.toLowerCase()}`;
-          if (!activeMedicationMap.has(dedupKey)) {
-            activeMedicationMap.set(dedupKey, {
-              name: rx.medicationName,
-              dosage: rx.dosage,
-              frequency: rx.frequency,
-              instructions: rx.instructions || '',
-              hospitalName,
-              visitDate: rec.visitDate,
-            });
-          }
+      }
+      for (const rx of rec.prescriptions || []) {
+        if (!rx.isActive || !rx.medicationName) continue;
+        const dedupKey = `${rx.medicationName.toLowerCase()}|${rx.dosage.toLowerCase()}`;
+        if (!activeMedicationMap.has(dedupKey)) {
+          activeMedicationMap.set(dedupKey, {
+            name: rx.medicationName,
+            dosage: rx.dosage,
+            frequency: rx.frequency,
+            instructions: rx.instructions || '',
+            hospitalName,
+            visitDate: rec.visitDate,
+          });
         }
       }
     }

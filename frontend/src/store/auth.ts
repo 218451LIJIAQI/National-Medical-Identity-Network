@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { resetClinicalSessionContext } from './clinical'
 
 export type UserRole = 'patient' | 'doctor' | 'hospital_admin' | 'central_admin'
 
@@ -39,7 +40,7 @@ function resolveHospitalVerified(user: User): boolean {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       user: null,
       isAuthenticated: false,
@@ -47,6 +48,7 @@ export const useAuthStore = create<AuthState>()(
       _hasHydrated: false,
 
       login: (token: string, user: User) => {
+        resetClinicalSessionContext()
         set({
           token,
           user,
@@ -56,6 +58,15 @@ export const useAuthStore = create<AuthState>()(
       },
 
       completeHospitalVerification: (token: string, user: User) => {
+        const prev = get().user
+        if (
+          !prev ||
+          prev.icNumber !== user.icNumber ||
+          prev.role !== user.role ||
+          prev.hospitalId !== user.hospitalId
+        ) {
+          resetClinicalSessionContext()
+        }
         set({
           token,
           user: { ...user, hospitalVerified: true },
@@ -65,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setSession: (token: string, user: User) => {
+        resetClinicalSessionContext()
         set({
           token,
           user,
@@ -74,6 +86,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       markHospitalUnverified: () => {
+        resetClinicalSessionContext()
         set((state) => ({
           isHospitalVerified: false,
           user: state.user ? { ...state.user, hospitalVerified: false } : null,
@@ -81,13 +94,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        try {
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.removeItem('medlink-active-clinical-patient')
-          }
-        } catch {
-          // Ignore storage errors in non-browser contexts
-        }
+        resetClinicalSessionContext()
         set({
           token: null,
           user: null,
@@ -104,6 +111,9 @@ export const useAuthStore = create<AuthState>()(
       name: 'medlink-auth',
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
+        if (state && state.user?.role !== 'doctor') {
+          resetClinicalSessionContext()
+        }
         state?.setHasHydrated(true)
       },
     }

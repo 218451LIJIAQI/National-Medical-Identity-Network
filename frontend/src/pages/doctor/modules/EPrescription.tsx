@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Pill,
@@ -6,6 +6,7 @@ import {
   Trash2,
   Search,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Printer,
   Send,
@@ -13,11 +14,12 @@ import {
   Loader2,
 } from 'lucide-react'
 import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useClinicalStore } from '@/store/clinical'
 import { useAuthStore } from '@/store/auth'
 import { hospitalApi } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { printHtmlDocument } from '@/lib/utils'
+import { escapeHtml, printHtmlDocument } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
 interface Medication {
@@ -70,7 +72,6 @@ const durationOptions = ['3 days', '5 days', '7 days', '14 days', '30 days', '90
 interface EPrescriptionProps {
   patientName?: string
   patientIC?: string
-  existingMedications?: string[]
   onSubmit?: (medications: Medication[]) => void
 }
 
@@ -94,6 +95,7 @@ export default function EPrescription({
   const [showSearch, setShowSearch] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [lastOrderRef, setLastOrderRef] = useState<string | null>(null)
+  const submitLockRef = useRef(false)
 
   const filteredMedications = medicationDatabase.filter(
     (med) =>
@@ -105,7 +107,10 @@ export default function EPrescription({
     const warnings: DrugInteraction[] = []
     const names = list.map((m) => m.name)
 
-    if (names.some((n) => n.includes('Aspirin')) && names.some((n) => n.includes('Ibuprofen') || n.includes('Diclofenac'))) {
+    if (
+      names.some((n) => n.includes('Aspirin')) &&
+      names.some((n) => n.includes('Ibuprofen') || n.includes('Diclofenac'))
+    ) {
       warnings.push({
         severity: 'high',
         drug1: 'Aspirin',
@@ -170,24 +175,25 @@ export default function EPrescription({
     const rows = medications
       .map(
         (m) => `<tr>
-          <td>${m.name} (${m.genericName})</td>
-          <td>${m.dosage}</td>
-          <td>${m.frequency}</td>
-          <td>${m.duration}</td>
-          <td>${m.quantity}</td>
-          <td>${m.instructions}</td>
+          <td>${escapeHtml(m.name)} (${escapeHtml(m.genericName)})</td>
+          <td>${escapeHtml(m.dosage)}</td>
+          <td>${escapeHtml(m.frequency)}</td>
+          <td>${escapeHtml(m.duration)}</td>
+          <td>${escapeHtml(m.quantity)}</td>
+          <td>${escapeHtml(m.instructions)}</td>
         </tr>`
       )
       .join('')
     printHtmlDocument(
       `e-Prescription - ${resolvedName}`,
       `<div class="header">
-        <div><h1>${theme.name}</h1><p>Electronic Prescription (${lastOrderRef || 'DRAFT'})</p></div>
-        <div>Date: ${new Date().toLocaleDateString('en-MY')}</div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>Electronic Prescription (${escapeHtml(lastOrderRef || 'DRAFT')})</p></div>
+        <div>Date: ${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
-        <strong>Patient:</strong> ${resolvedName} | <strong>IC:</strong> ${resolvedIc || 'N/A'}<br/>
-        <strong>Prescribing Doctor:</strong> ${user?.fullName || 'Medical Officer'}
+        <strong>Patient:</strong> ${escapeHtml(resolvedName)} | <strong>IC:</strong> ${escapeHtml(resolvedIc || 'N/A')}<br/>
+        <strong>Indication:</strong> ${escapeHtml(diagnosisNote || 'Medication Prescription')}<br/>
+        <strong>Prescribing Doctor:</strong> ${escapeHtml(user?.fullName || 'Medical Officer')}
       </div>
       <table>
         <thead><tr><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Qty</th><th>Instructions</th></tr></thead>
@@ -197,7 +203,20 @@ export default function EPrescription({
   }
 
   const handleSubmit = async () => {
-    if (medications.length === 0) return
+    if (medications.length === 0 || submitLockRef.current) return
+
+    const invalidMed = medications.find(
+      (m) => !m.dosage.trim() || !m.frequency.trim() || !m.duration.trim() || m.quantity < 1
+    )
+    if (invalidMed) {
+      toast({
+        title: 'Incomplete Medication Details',
+        description: `Please provide valid dosage, frequency, duration, and quantity (>= 1) for ${invalidMed.name}.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
     onSubmit?.(medications)
 
     if (!resolvedIc) {
@@ -209,6 +228,7 @@ export default function EPrescription({
       return
     }
 
+    submitLockRef.current = true
     setSubmitting(true)
     try {
       const refCode = `RX-${Date.now().toString().slice(-6)}`
@@ -223,11 +243,11 @@ export default function EPrescription({
           patientName: activePatient?.fullName,
           prescriptions: medications.map((m) => ({
             medicationName: m.name,
-            dosage: m.dosage,
-            frequency: m.frequency,
-            duration: m.duration,
-            quantity: Number(m.quantity) || 1,
-            instructions: m.instructions,
+            dosage: m.dosage.trim(),
+            frequency: m.frequency.trim(),
+            duration: m.duration.trim(),
+            quantity: Math.max(1, Number(m.quantity) || 1),
+            instructions: m.instructions.trim(),
             isActive: true,
           })),
         })
@@ -246,8 +266,10 @@ export default function EPrescription({
       toast({
         title: 'Prescription Dispatched to Pharmacy',
         description: `Order ${refCode} (${medications.length} item(s)) saved to ${resolvedName}'s record.`,
+        variant: 'success',
       })
     } finally {
+      submitLockRef.current = false
       setSubmitting(false)
     }
   }
@@ -258,24 +280,26 @@ export default function EPrescription({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">e-Prescription</h2>
-          <p className="text-gray-500 text-sm">Digital medication ordering with real-time allergy & interaction screening</p>
+          <h2 className="text-2xl font-bold text-slate-900">e-Prescription</h2>
+          <p className="text-slate-600 text-sm">
+            Digital medication ordering with real-time allergy & interaction screening
+          </p>
         </div>
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={handlePrint}
             disabled={medications.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
             Print Rx
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={medications.length === 0 || submitting}
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold shadow-md hover:bg-emerald-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold shadow-sm hover:bg-emerald-700 disabled:opacity-50"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Send to Pharmacy & Save
@@ -287,23 +311,25 @@ export default function EPrescription({
         <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-sm text-emerald-900">
           <span className="flex items-center gap-2 font-semibold">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            Dispatched to {theme.shortName} Pharmacy Queue • Reference: <code>{lastOrderRef}</code>
+            Dispatched to {theme.shortName} Pharmacy Queue • Reference:{' '}
+            <code className="font-mono tabular-nums">{lastOrderRef}</code>
           </span>
-          <span className="text-xs text-emerald-700 flex items-center gap-1">
+          <span className="text-xs text-emerald-800 flex items-center gap-1 tabular-nums">
             <Clock className="w-3.5 h-3.5" /> Est. dispensing: 15 mins
           </span>
         </div>
       )}
 
-      <div className="bg-white p-4 rounded-xl border border-gray-200">
-        <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">
+      <div className="bg-white p-4 rounded-xl border border-slate-200">
+        <label className="block text-xs font-semibold uppercase text-slate-600 mb-1.5">
           Primary Indication / Diagnosis
         </label>
         <input
           type="text"
+          maxLength={300}
           value={diagnosisNote}
           onChange={(e) => setDiagnosisNote(e.target.value)}
-          className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm"
+          className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm"
           placeholder="Enter clinical indication for prescription..."
         />
       </div>
@@ -314,19 +340,30 @@ export default function EPrescription({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-4 bg-red-50 rounded-xl border-2 border-red-200 space-y-2"
+            role="alert"
+            className="p-4 bg-red-50 rounded-xl border-2 border-red-200 space-y-2.5"
           >
-            <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+            <div className="flex items-center gap-2 text-red-900 font-bold text-sm">
               <AlertTriangle className="w-5 h-5 text-red-600" />
               <span>Clinical Safety Alert ({interactions.length})</span>
             </div>
             {interactions.map((interaction, idx) => (
-              <div key={idx} className="p-3 rounded-lg bg-white border border-red-200 text-sm">
-                <span className="px-2 py-0.5 text-xs font-bold rounded bg-red-600 text-white mr-2">
-                  {interaction.severity.toUpperCase()}
-                </span>
-                <strong className="text-gray-900">{interaction.drug1} + {interaction.drug2}:</strong>{' '}
-                <span className="text-gray-700">{interaction.description}</span>
+              <div
+                key={`${interaction.drug1}-${interaction.drug2}-${idx}`}
+                className="p-3 rounded-lg bg-white border border-red-200 text-sm flex items-start gap-2.5"
+              >
+                <StatusBadge
+                  tone={interaction.severity === 'high' ? 'critical' : 'warning'}
+                  icon={interaction.severity === 'high' ? AlertTriangle : AlertCircle}
+                  label={interaction.severity.toUpperCase()}
+                  className="shrink-0"
+                />
+                <div>
+                  <strong className="text-slate-900">
+                    {interaction.drug1} + {interaction.drug2}:
+                  </strong>{' '}
+                  <span className="text-slate-700">{interaction.description}</span>
+                </div>
               </div>
             ))}
           </motion.div>
@@ -337,7 +374,7 @@ export default function EPrescription({
         <button
           type="button"
           onClick={() => setShowSearch(!showSearch)}
-          className="w-full p-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 font-semibold hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
+          className="w-full p-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-700 font-semibold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
         >
           <Plus className="w-5 h-5" />
           Add Medication from Hospital Formulary
@@ -349,17 +386,17 @@ export default function EPrescription({
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-gray-200 shadow-xl z-40 overflow-hidden"
+              className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-slate-200 shadow-xl z-40 overflow-hidden"
             >
-              <div className="p-3 border-b border-gray-100">
+              <div className="p-3 border-b border-slate-100">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search drug or generic name..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm"
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm"
                     autoFocus
                   />
                 </div>
@@ -370,11 +407,13 @@ export default function EPrescription({
                     key={med.name}
                     type="button"
                     onClick={() => addMedication(med)}
-                    className="w-full p-3 text-left hover:bg-blue-50 flex items-center justify-between border-b border-gray-50"
+                    className="w-full p-3 text-left hover:bg-blue-50 flex items-center justify-between border-b border-slate-50"
                   >
                     <div>
-                      <p className="font-semibold text-gray-800 text-sm">{med.name}</p>
-                      <p className="text-xs text-gray-500">{med.genericName} • {med.category}</p>
+                      <p className="font-semibold text-slate-900 text-sm">{med.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {med.genericName} • {med.category}
+                      </p>
                     </div>
                     <Plus className="w-4 h-4 text-blue-600" />
                   </button>
@@ -387,89 +426,102 @@ export default function EPrescription({
 
       <div className="space-y-4">
         {medications.map((med) => (
-          <div key={med.id} className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div key={med.id} className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <Pill className="w-5 h-5 text-emerald-600" />
+                  <Pill className="w-5 h-5 text-emerald-700" />
                 </div>
                 <div>
-                  <p className="font-bold text-gray-900">{med.name}</p>
-                  <p className="text-xs text-gray-500">{med.genericName}</p>
+                  <p className="font-bold text-slate-900">{med.name}</p>
+                  <p className="text-xs text-slate-500">{med.genericName}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => removeMedication(med.id)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                aria-label={`Remove ${med.name}`}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Dosage</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
                 <input
                   type="text"
                   value={med.dosage}
                   onChange={(e) => updateMedication(med.id, 'dosage', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm tabular-nums"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Frequency</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
                 <select
                   value={med.frequency}
                   onChange={(e) => updateMedication(med.id, 'frequency', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 >
                   {frequencyOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Duration</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Duration</label>
                 <select
                   value={med.duration}
                   onChange={(e) => updateMedication(med.id, 'duration', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white tabular-nums"
                 >
                   {durationOptions.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Quantity</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Quantity</label>
                 <input
                   type="number"
                   min={1}
+                  max={1000}
                   value={med.quantity}
-                  onChange={(e) => updateMedication(med.id, 'quantity', parseInt(e.target.value, 10) || 1)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  onChange={(e) =>
+                    updateMedication(med.id, 'quantity', Math.max(1, parseInt(e.target.value, 10) || 1))
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm tabular-nums"
                 />
               </div>
             </div>
 
             <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Administration Instructions</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Administration Instructions
+              </label>
               <input
                 type="text"
+                maxLength={250}
                 value={med.instructions}
                 onChange={(e) => updateMedication(med.id, 'instructions', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               />
             </div>
           </div>
         ))}
 
         {medications.length === 0 && (
-          <div className="p-10 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-            <Pill className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-600 font-medium text-sm">No medications added yet</p>
-            <p className="text-xs text-gray-400 mt-1">Select a formulary item above to compose an e-Prescription</p>
+          <div className="p-10 text-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+            <Pill className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-600 font-medium text-sm">No medications added yet</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Select a formulary item above to compose an e-Prescription
+            </p>
           </div>
         )}
       </div>

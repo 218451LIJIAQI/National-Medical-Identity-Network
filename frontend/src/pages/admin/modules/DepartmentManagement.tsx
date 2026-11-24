@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
 import {
   Building2,
   Users,
@@ -14,9 +15,10 @@ import {
   MapPin,
   Edit,
   Settings,
-  X,
+  CheckCircle2,
+  AlertCircle,
+  Ban,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useToast } from '@/components/ui/use-toast'
 
 interface Department {
@@ -44,10 +46,13 @@ const initialDepartments: Department[] = [
   { id: '6', name: 'Radiology Department', nameMY: 'Jabatan Radiologi', head: 'Dr. Rajan Kumar', headTitle: 'Chief Radiologist', staffCount: 20, doctorCount: 5, nurseCount: 8, location: 'Ground Floor, Block B', extension: '1501', operatingHours: '8:00 AM - 6:00 PM', status: 'active', specialties: ['X-Ray', 'CT Scan', 'MRI', 'Ultrasound'] },
 ]
 
-const statusConfig = {
-  active: { labelMY: 'Aktif', color: 'bg-green-100 text-green-700' },
-  limited: { labelMY: 'Terhad', color: 'bg-yellow-100 text-yellow-700' },
-  closed: { labelMY: 'Ditutup', color: 'bg-red-100 text-red-700' },
+const statusConfig: Record<
+  Department['status'],
+  { label: string; tone: StatusTone; icon: typeof CheckCircle2 }
+> = {
+  active: { label: 'Active', tone: 'success', icon: CheckCircle2 },
+  limited: { label: 'Limited Capacity', tone: 'warning', icon: AlertCircle },
+  closed: { label: 'Closed', tone: 'blocked', icon: Ban },
 }
 
 export default function DepartmentManagement() {
@@ -109,7 +114,10 @@ export default function DepartmentManagement() {
     const order: Department['status'][] = ['active', 'limited', 'closed']
     const next = order[(order.indexOf(dept.status) + 1) % order.length]
     setDepartments((prev) => prev.map((d) => (d.id === dept.id ? { ...d, status: next } : d)))
-    toast({ title: 'Department Status Updated', description: `${dept.name} set to ${next.toUpperCase()}.` })
+    toast({
+      title: 'Department Status Updated',
+      description: `${dept.name} set to ${statusConfig[next].label}.`,
+    })
   }
 
   const handleSave = (e: React.FormEvent) => {
@@ -144,7 +152,11 @@ export default function DepartmentManagement() {
             : d
         )
       )
-      toast({ title: 'Department Updated', description: `${formState.name} configuration saved.` })
+      toast({
+        title: 'Department Updated',
+        description: `${formState.name} configuration saved.`,
+        variant: 'success',
+      })
     } else {
       const created: Department = {
         id: `dept-${Date.now()}`,
@@ -162,7 +174,11 @@ export default function DepartmentManagement() {
         specialties: specs.length ? specs : ['General Care'],
       }
       setDepartments((prev) => [created, ...prev])
-      toast({ title: 'Department Added', description: `${created.name} added to hospital directory.` })
+      toast({
+        title: 'Department Added',
+        description: `${created.name} added to hospital directory.`,
+        variant: 'success',
+      })
     }
     setShowModal(false)
   }
@@ -178,69 +194,136 @@ export default function DepartmentManagement() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
-          <p className="text-gray-500 text-sm">Clinical specialty units, operating hours & unit heads</p>
+          <h1 className="text-2xl font-bold text-slate-900">Department Management</h1>
+          <p className="text-slate-600 text-sm">
+            Clinical specialty units, operating hours & unit heads
+          </p>
         </div>
         <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
           <Plus className="w-4 h-4" /> Add Department
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-blue-50 border-blue-200"><CardContent className="p-4 flex items-center gap-3"><Building2 className="w-6 h-6 text-blue-600" /><div><p className="text-2xl font-bold text-blue-700">{totalStats.departments}</p><p className="text-xs text-blue-600">Departments</p></div></CardContent></Card>
-        <Card className="bg-green-50 border-green-200"><CardContent className="p-4 flex items-center gap-3"><Users className="w-6 h-6 text-green-600" /><div><p className="text-2xl font-bold text-green-700">{totalStats.totalStaff}</p><p className="text-xs text-green-600">Total Personnel</p></div></CardContent></Card>
-        <Card className="bg-indigo-50 border-indigo-200"><CardContent className="p-4 flex items-center gap-3"><Stethoscope className="w-6 h-6 text-indigo-600" /><div><p className="text-2xl font-bold text-indigo-700">{totalStats.totalDoctors}</p><p className="text-xs text-indigo-600">Specialists / MO</p></div></CardContent></Card>
-        <Card className="bg-pink-50 border-pink-200"><CardContent className="p-4 flex items-center gap-3"><Activity className="w-6 h-6 text-pink-600" /><div><p className="text-2xl font-bold text-pink-700">{totalStats.totalNurses}</p><p className="text-xs text-pink-600">Nursing Staff</p></div></CardContent></Card>
+      <div className="grid grid-cols-4 gap-4 tabular-nums">
+        <Card className="bg-blue-50/80 border-blue-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Building2 className="w-6 h-6 text-blue-700" />
+            <div>
+              <p className="text-2xl font-bold text-blue-900">{totalStats.departments}</p>
+              <p className="text-xs font-medium text-blue-700">Departments</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-emerald-50/80 border-emerald-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Users className="w-6 h-6 text-emerald-700" />
+            <div>
+              <p className="text-2xl font-bold text-emerald-900">{totalStats.totalStaff}</p>
+              <p className="text-xs font-medium text-emerald-700">Total Personnel</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-indigo-50/80 border-indigo-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Stethoscope className="w-6 h-6 text-indigo-700" />
+            <div>
+              <p className="text-2xl font-bold text-indigo-900">{totalStats.totalDoctors}</p>
+              <p className="text-xs font-medium text-indigo-700">Specialists / MO</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-pink-50/80 border-pink-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Activity className="w-6 h-6 text-pink-700" />
+            <div>
+              <p className="text-2xl font-bold text-pink-900">{totalStats.totalNurses}</p>
+              <p className="text-xs font-medium text-pink-700">Nursing Staff</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {departments.map((dept) => {
           const statusInfo = statusConfig[dept.status]
           return (
-            <Card key={dept.id} className="hover:shadow-md transition-all">
+            <Card key={dept.id} className="border-slate-200 hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div>
-                    <CardTitle className="text-lg">{dept.name}</CardTitle>
-                    <p className="text-xs text-gray-500">{dept.nameMY}</p>
+                    <CardTitle className="text-lg text-slate-900">{dept.name}</CardTitle>
+                    <p className="text-xs text-slate-500">{dept.nameMY}</p>
                   </div>
-                  <Badge className={statusInfo.color}>{statusInfo.labelMY}</Badge>
+                  <StatusBadge
+                    tone={statusInfo.tone}
+                    icon={statusInfo.icon}
+                    label={statusInfo.label}
+                  />
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Stethoscope className="w-4 h-4 text-blue-600" />
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                    <Stethoscope className="w-4 h-4 text-blue-700" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm">{dept.head}</p>
-                    <p className="text-xs text-gray-500">{dept.headTitle}</p>
+                    <p className="font-semibold text-sm text-slate-900">{dept.head}</p>
+                    <p className="text-xs text-slate-500">{dept.headTitle}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-2 bg-blue-50 rounded-lg"><p className="text-base font-bold text-blue-700">{dept.staffCount}</p><p className="text-[11px] text-gray-500">Staff</p></div>
-                  <div className="p-2 bg-green-50 rounded-lg"><p className="text-base font-bold text-green-700">{dept.doctorCount}</p><p className="text-[11px] text-gray-500">Doctors</p></div>
-                  <div className="p-2 bg-pink-50 rounded-lg"><p className="text-base font-bold text-pink-700">{dept.nurseCount}</p><p className="text-[11px] text-gray-500">Nurses</p></div>
+                <div className="grid grid-cols-3 gap-2 text-center tabular-nums">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <p className="text-base font-bold text-blue-800">{dept.staffCount}</p>
+                    <p className="text-[11px] text-slate-600">Staff</p>
+                  </div>
+                  <div className="p-2 bg-emerald-50 rounded-lg">
+                    <p className="text-base font-bold text-emerald-800">{dept.doctorCount}</p>
+                    <p className="text-[11px] text-slate-600">Doctors</p>
+                  </div>
+                  <div className="p-2 bg-pink-50 rounded-lg">
+                    <p className="text-base font-bold text-pink-800">{dept.nurseCount}</p>
+                    <p className="text-[11px] text-slate-600">Nurses</p>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5 text-xs text-gray-600">
-                  <div className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-gray-400" /> {dept.location}</div>
-                  <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-gray-400" /> Ext: {dept.extension}</div>
-                  <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-gray-400" /> {dept.operatingHours}</div>
+                <div className="space-y-1.5 text-xs text-slate-600 tabular-nums">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" /> {dept.location}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" /> Ext: {dept.extension}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" /> {dept.operatingHours}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
                   {dept.specialties.map((s) => (
-                    <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                    <Badge key={s} variant="outline" className="text-xs">
+                      {s}
+                    </Badge>
                   ))}
                 </div>
 
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button type="button" size="sm" variant="outline" onClick={() => openEdit(dept)} className="flex-1 gap-1">
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(dept)}
+                    className="flex-1 gap-1"
+                  >
                     <Edit className="w-3.5 h-3.5" /> Edit
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => cycleStatus(dept)} className="flex-1 gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => cycleStatus(dept)}
+                    className="flex-1 gap-1"
+                  >
                     <Settings className="w-3.5 h-3.5" /> Toggle Status
                   </Button>
                 </div>
@@ -250,92 +333,107 @@ export default function DepartmentManagement() {
         })}
       </div>
 
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowModal(false)}
-          >
-            <motion.form
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              onSubmit={handleSave}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900">
-                  {editingDept ? 'Edit Department' : 'Add Department'}
-                </h3>
-                <button type="button" onClick={() => setShowModal(false)}>
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-              <div className="space-y-3">
+      <ModalDialog
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingDept ? 'Edit Department' : 'Add Department'}
+        description="Configure clinical specialty unit staffing, location, and operating schedule."
+        maxWidthClassName="max-w-md"
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Department Name *
+              </label>
+              <Input
+                required
+                placeholder="Department Name"
+                value={formState.name}
+                onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Malay Name (Jabatan ...)
+              </label>
+              <Input
+                placeholder="Jabatan ..."
+                value={formState.nameMY}
+                onChange={(e) => setFormState({ ...formState, nameMY: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Head of Department
+              </label>
+              <Input
+                placeholder="Dr. ..."
+                value={formState.head}
+                onChange={(e) => setFormState({ ...formState, head: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 tabular-nums">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Doctors</label>
                 <Input
-                  required
-                  placeholder="Department Name *"
-                  value={formState.name}
-                  onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                />
-                <Input
-                  placeholder="Malay Name (Jabatan ...)"
-                  value={formState.nameMY}
-                  onChange={(e) => setFormState({ ...formState, nameMY: e.target.value })}
-                />
-                <Input
-                  placeholder="Head of Department"
-                  value={formState.head}
-                  onChange={(e) => setFormState({ ...formState, head: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Doctors"
-                    value={formState.doctorCount}
-                    onChange={(e) => setFormState({ ...formState, doctorCount: e.target.value })}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Nurses"
-                    value={formState.nurseCount}
-                    onChange={(e) => setFormState({ ...formState, nurseCount: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Location"
-                    value={formState.location}
-                    onChange={(e) => setFormState({ ...formState, location: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Operating Hours"
-                    value={formState.operatingHours}
-                    onChange={(e) => setFormState({ ...formState, operatingHours: e.target.value })}
-                  />
-                </div>
-                <Input
-                  placeholder="Specialties (comma-separated)"
-                  value={formState.specialties}
-                  onChange={(e) => setFormState({ ...formState, specialties: e.target.value })}
+                  type="number"
+                  min={0}
+                  value={formState.doctorCount}
+                  onChange={(e) => setFormState({ ...formState, doctorCount: e.target.value })}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-                  Save Department
-                </Button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nurses</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={formState.nurseCount}
+                  onChange={(e) => setFormState({ ...formState, nurseCount: e.target.value })}
+                />
               </div>
-            </motion.form>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Location</label>
+                <Input
+                  placeholder="Location"
+                  value={formState.location}
+                  onChange={(e) => setFormState({ ...formState, location: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Operating Hours
+                </label>
+                <Input
+                  placeholder="8:00 AM - 5:00 PM"
+                  value={formState.operatingHours}
+                  onChange={(e) => setFormState({ ...formState, operatingHours: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Specialties (comma-separated)
+              </label>
+              <Input
+                placeholder="e.g. Cardiology, Nephrology"
+                value={formState.specialties}
+                onChange={(e) => setFormState({ ...formState, specialties: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+              Save Department
+            </Button>
+          </div>
+        </form>
+      </ModalDialog>
     </div>
   )
 }

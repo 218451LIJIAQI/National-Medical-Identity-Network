@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+export const CLINICAL_PATIENT_STORAGE_KEY = 'medlink-active-clinical-patient'
+
 export interface ActiveClinicalPatient {
   icNumber: string
   fullName: string
@@ -8,8 +10,11 @@ export interface ActiveClinicalPatient {
   gender?: string
   bloodType?: string
   allergies: string[]
+  allergiesUnverified?: boolean
   chronicConditions: string[]
   phone?: string
+  scopedHospitalId?: string
+  scopedDoctorId?: string
 }
 
 interface ClinicalState {
@@ -26,8 +31,19 @@ export const useClinicalStore = create<ClinicalState>()(
       clearActivePatient: () => set({ activePatient: null }),
     }),
     {
-      name: 'medlink-active-clinical-patient',
+      name: CLINICAL_PATIENT_STORAGE_KEY,
       storage: createJSONStorage(() => sessionStorage),
     }
   )
 )
+
+export function resetClinicalSessionContext(): void {
+  useClinicalStore.setState({ activePatient: null })
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(CLINICAL_PATIENT_STORAGE_KEY)
+    }
+  } catch {
+    // Ignore storage errors in non-browser test contexts
+  }
+}

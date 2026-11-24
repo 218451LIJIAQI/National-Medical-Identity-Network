@@ -12,20 +12,26 @@ function parseJson<T>(str: string | null, defaultValue: T): T {
   }
 }
 
+function parseOptionalDate(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function normalizePrescriptionInput(p: Partial<Prescription>) {
   return {
     medicationName: String(p.medicationName || '').trim(),
     dosage: String(p.dosage || '').trim(),
     frequency: String(p.frequency || '').trim(),
     duration: p.duration ? String(p.duration).trim() : null,
-    quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? Math.max(0, Math.trunc(p.quantity)) : null,
+    quantity: typeof p.quantity === 'number' && !Number.isNaN(p.quantity) ? Math.max(1, Math.trunc(p.quantity)) : null,
     instructions: p.instructions ? String(p.instructions).trim() : null,
     isActive: p.isActive !== false,
   };
 }
 
 function normalizeLabReportInput(l: Partial<LabReport>, fallbackDate: Date) {
-  const parsedDate = l.reportDate ? new Date(l.reportDate) : fallbackDate;
+  const parsedDate = parseOptionalDate(l.reportDate);
   return {
     testType: String(l.testType || 'General Lab').trim(),
     testName: String(l.testName || '').trim(),
@@ -33,7 +39,7 @@ function normalizeLabReportInput(l: Partial<LabReport>, fallbackDate: Date) {
     unit: l.unit ? String(l.unit).trim() : null,
     referenceRange: l.referenceRange ? String(l.referenceRange).trim() : null,
     isAbnormal: Boolean(l.isAbnormal),
-    reportDate: Number.isNaN(parsedDate.getTime()) ? fallbackDate : parsedDate,
+    reportDate: parsedDate || fallbackDate,
     notes: l.notes ? String(l.notes).trim() : null,
   };
 }
@@ -75,8 +81,7 @@ export class HospitalDatabaseMulti {
 
   async createPatient(patient: Patient): Promise<Patient> {
     const icNumber = normalizeIcNumber(patient.icNumber);
-    const dob = new Date(patient.dateOfBirth);
-    const safeDob = Number.isNaN(dob.getTime()) ? new Date('1990-01-01T00:00:00.000Z') : dob;
+    const safeDob = parseOptionalDate(patient.dateOfBirth) || new Date('1990-01-01T00:00:00.000Z');
 
     const created = await this.prisma.patient.create({
       data: {
@@ -116,8 +121,7 @@ export class HospitalDatabaseMulti {
       ? Array.from(new Set([...existing.chronicConditions, ...updates.chronicConditions].filter(Boolean)))
       : existing.chronicConditions;
 
-    const nextDob = updates.dateOfBirth ? new Date(updates.dateOfBirth) : new Date(existing.dateOfBirth);
-    const safeDob = Number.isNaN(nextDob.getTime()) ? new Date(existing.dateOfBirth) : nextDob;
+    const safeDob = parseOptionalDate(updates.dateOfBirth) || new Date(existing.dateOfBirth);
 
     const updated = await this.prisma.patient.update({
       where: { icNumber },
@@ -188,8 +192,8 @@ export class HospitalDatabaseMulti {
   }
 
   async createRecord(record: MedicalRecord): Promise<MedicalRecord> {
-    const visitDate = new Date(record.visitDate);
-    const safeVisitDate = Number.isNaN(visitDate.getTime()) ? new Date() : visitDate;
+    const safeVisitDate = parseOptionalDate(record.visitDate) || new Date();
+    const safeFollowUpDate = parseOptionalDate(record.followUpDate);
     const validPrescriptions = (record.prescriptions || [])
       .map(normalizePrescriptionInput)
       .filter(p => p.medicationName && p.dosage && p.frequency);
@@ -210,7 +214,7 @@ export class HospitalDatabaseMulti {
         symptoms: JSON.stringify(record.symptoms || []),
         notes: record.notes || '',
         vitalSigns: record.vitalSigns ? JSON.stringify(record.vitalSigns) : null,
-        followUpDate: record.followUpDate ? new Date(record.followUpDate) : null,
+        followUpDate: safeFollowUpDate,
         ...(validPrescriptions.length > 0
           ? { prescriptions: { create: validPrescriptions } }
           : {}),
@@ -236,8 +240,11 @@ export class HospitalDatabaseMulti {
 
     if (!existing) return null;
 
-    const visitDate = updates.visitDate ? new Date(updates.visitDate) : existing.visitDate;
-    const safeVisitDate = Number.isNaN(visitDate.getTime()) ? existing.visitDate : visitDate;
+    const safeVisitDate = parseOptionalDate(updates.visitDate) || existing.visitDate;
+    const safeFollowUpDate =
+      updates.followUpDate !== undefined
+        ? parseOptionalDate(updates.followUpDate)
+        : existing.followUpDate;
 
     const data: Record<string, unknown> = {
       visitDate: safeVisitDate,
@@ -253,12 +260,7 @@ export class HospitalDatabaseMulti {
             ? JSON.stringify(updates.vitalSigns)
             : null
           : existing.vitalSigns,
-      followUpDate:
-        updates.followUpDate !== undefined
-          ? updates.followUpDate
-            ? new Date(updates.followUpDate)
-            : null
-          : existing.followUpDate,
+      followUpDate: safeFollowUpDate,
     };
 
     if (updates.prescriptions !== undefined) {
@@ -403,11 +405,6 @@ export class HospitalDatabaseMulti {
     };
   }
 
-  async getDoctor(id: string): Promise<Doctor | null> {
-    const doctor = await this.prisma.doctor.findUnique({ where: { id } });
-    return doctor ? this.mapDoctor(doctor) : null;
-  }
-
   async getDoctorByIc(rawIcNumber: string): Promise<Doctor | null> {
     const icNumber = normalizeIcNumber(rawIcNumber);
     const doctor = await this.prisma.doctor.findFirst({ where: { icNumber } });
@@ -421,7 +418,7 @@ export class HospitalDatabaseMulti {
     return doctors.map(d => this.mapDoctor(d));
   }
 
-  async getStats() {
+  async getStats(options?: { blockedIcs?: Set<string>; redactClinicalDetails?: boolean }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -433,16 +430,33 @@ export class HospitalDatabaseMulti {
       this.prisma.medicalRecord.findMany({
         include: { doctor: true, prescriptions: true, labReports: true },
         orderBy: { visitDate: 'desc' },
-        take: 10,
+        take: 15,
       }),
     ]);
+
+    const blockedSet = options?.blockedIcs;
+    const filteredRecords = recentRecords
+      .filter(r => !blockedSet || !blockedSet.has(normalizeIcNumber(r.icNumber)))
+      .slice(0, 10)
+      .map(r => {
+        const formatted = this.formatRecord(r);
+        if (options?.redactClinicalDetails) {
+          return {
+            ...formatted,
+            notes: '',
+            prescriptions: [],
+            labReports: [],
+          };
+        }
+        return formatted;
+      });
 
     return {
       totalPatients,
       totalRecords,
       totalDoctors,
       todayVisits,
-      recentRecords: recentRecords.map(r => this.formatRecord(r)),
+      recentRecords: filteredRecords,
     };
   }
 }

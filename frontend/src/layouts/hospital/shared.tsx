@@ -21,8 +21,6 @@ import {
   Heart,
   LogOut,
   User as UserIcon,
-  Menu,
-  X,
   Bell,
   ChevronDown,
   MapPin,
@@ -34,86 +32,90 @@ import {
   Globe,
   ChevronLeft,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Eye,
+  Type,
   type LucideIcon,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore, type User, type UserRole } from '@/store/auth'
+import { useSettingsStore } from '@/store/settings'
 import { authApi } from '@/lib/api'
 import { useTranslation, type Language, type TranslationKey } from '@/lib/i18n'
-import { getHospitalTheme } from '@/lib/hospital-themes'
+import { getHospitalTheme, type HospitalShellVariant } from '@/lib/hospital-themes'
 import { cn, formatIC, getRoleHomePath } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ModalDialog } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
+
+export type { HospitalShellVariant }
 
 export interface HospitalNavItem {
   icon: LucideIcon
   labelKey: TranslationKey
-  label: string
   shortLabel: string
-  labelMY: string
-  desc: string
   path: string
 }
 
 export interface HospitalNavSection {
-  title: string
+  titleKey: TranslationKey
   sectionIcon: LucideIcon
   items: HospitalNavItem[]
 }
 
 const DOCTOR_NAV_SECTIONS: HospitalNavSection[] = [
   {
-    title: 'Main',
+    titleKey: 'navMainSection',
     sectionIcon: Leaf,
     items: [
-      { icon: Home, labelKey: 'dashboard', label: 'Dashboard', shortLabel: 'Home', labelMY: 'Papan Pemuka', desc: 'Overview', path: '/doctor' },
-      { icon: Search, labelKey: 'patientSearch', label: 'Patient Search', shortLabel: 'Search', labelMY: 'Cari Rekod Kebangsaan', desc: 'Find Records', path: '/doctor/search' },
-      { icon: FileText, labelKey: 'newRecord', label: 'New Record', shortLabel: 'Record', labelMY: 'Rekod Baru', desc: 'Create Entry', path: '/doctor/new-record' },
+      { icon: Home, labelKey: 'dashboard', shortLabel: 'Home', path: '/doctor' },
+      { icon: Search, labelKey: 'patientSearch', shortLabel: 'Search', path: '/doctor/search' },
+      { icon: FileText, labelKey: 'newRecord', shortLabel: 'Record', path: '/doctor/new-record' },
     ],
   },
   {
-    title: 'Clinical',
+    titleKey: 'clinicalModules',
     sectionIcon: Heart,
     items: [
-      { icon: Users, labelKey: 'queue', label: 'Queue', shortLabel: 'Queue', labelMY: 'Giliran Pesakit', desc: 'Giliran', path: '/doctor/queue' },
-      { icon: Pill, labelKey: 'ePrescription', label: 'e-Prescription', shortLabel: 'Rx', labelMY: 'e-Preskripsi', desc: 'e-Preskripsi', path: '/doctor/prescription' },
-      { icon: FlaskConical, labelKey: 'labOrders', label: 'Lab Orders', shortLabel: 'Lab', labelMY: 'Ujian Makmal', desc: 'Ujian Makmal', path: '/doctor/lab' },
-      { icon: ScanLine, labelKey: 'radiology', label: 'Radiology', shortLabel: 'Imaging', labelMY: 'Radiologi', desc: 'Radiologi', path: '/doctor/radiology' },
-      { icon: FileText, labelKey: 'medicalCert', label: 'Medical Cert', shortLabel: 'MC', labelMY: 'Sijil MC', desc: 'Sijil MC', path: '/doctor/mc' },
+      { icon: Users, labelKey: 'queue', shortLabel: 'Queue', path: '/doctor/queue' },
+      { icon: Pill, labelKey: 'ePrescription', shortLabel: 'Rx', path: '/doctor/prescription' },
+      { icon: FlaskConical, labelKey: 'labOrders', shortLabel: 'Lab', path: '/doctor/lab' },
+      { icon: ScanLine, labelKey: 'radiology', shortLabel: 'Imaging', path: '/doctor/radiology' },
+      { icon: FileText, labelKey: 'medicalCert', shortLabel: 'MC', path: '/doctor/mc' },
     ],
   },
   {
-    title: 'Management',
+    titleKey: 'managementModules',
     sectionIcon: Calendar,
     items: [
-      { icon: ArrowRightLeft, labelKey: 'referral', label: 'Referral', shortLabel: 'Refer', labelMY: 'Rujukan', desc: 'Rujukan', path: '/doctor/referral' },
-      { icon: Calendar, labelKey: 'appointments', label: 'Appointments', shortLabel: 'Appt', labelMY: 'Temujanji', desc: 'Temujanji', path: '/doctor/appointments' },
-      { icon: Stethoscope, labelKey: 'nursingNotes', label: 'Nursing', shortLabel: 'Nurse', labelMY: 'Kejururawatan', desc: 'Kejururawatan', path: '/doctor/nursing' },
-      { icon: Receipt, labelKey: 'billing', label: 'Billing', shortLabel: 'Bill', labelMY: 'Bil & Subsidi', desc: 'Bil & Subsidi', path: '/doctor/billing' },
+      { icon: ArrowRightLeft, labelKey: 'referral', shortLabel: 'Refer', path: '/doctor/referral' },
+      { icon: Calendar, labelKey: 'appointments', shortLabel: 'Appt', path: '/doctor/appointments' },
+      { icon: Stethoscope, labelKey: 'nursingNotes', shortLabel: 'Nurse', path: '/doctor/nursing' },
+      { icon: Receipt, labelKey: 'billing', shortLabel: 'Bill', path: '/doctor/billing' },
     ],
   },
 ]
 
 const ADMIN_NAV_SECTIONS: HospitalNavSection[] = [
   {
-    title: 'Main',
+    titleKey: 'navMainSection',
     sectionIcon: Home,
     items: [
-      { icon: Home, labelKey: 'dashboard', label: 'Dashboard', shortLabel: 'Home', labelMY: 'Papan Pemuka', desc: 'Overview', path: '/admin/hospital' },
-      { icon: Activity, labelKey: 'auditLogs', label: 'Audit Logs', shortLabel: 'Audit', labelMY: 'Log Audit', desc: 'Activity', path: '/admin/audit' },
+      { icon: Home, labelKey: 'dashboard', shortLabel: 'Home', path: '/admin/hospital' },
+      { icon: Activity, labelKey: 'auditLogs', shortLabel: 'Audit', path: '/admin/audit' },
     ],
   },
   {
-    title: 'Hospital Management',
+    titleKey: 'hospitalAdminModules',
     sectionIcon: Building2,
     items: [
-      { icon: Users, labelKey: 'staffManagement', label: 'Staff', shortLabel: 'Staff', labelMY: 'Kakitangan', desc: 'Kakitangan', path: '/admin/staff' },
-      { icon: Building2, labelKey: 'departments', label: 'Departments', shortLabel: 'Dept', labelMY: 'Jabatan', desc: 'Jabatan', path: '/admin/departments' },
-      { icon: Bed, labelKey: 'bedManagement', label: 'Beds', shortLabel: 'Beds', labelMY: 'Katil', desc: 'Katil', path: '/admin/beds' },
-      { icon: Package, labelKey: 'inventory', label: 'Inventory', shortLabel: 'Stock', labelMY: 'Inventori', desc: 'Inventori', path: '/admin/inventory' },
-      { icon: DollarSign, labelKey: 'financialReports', label: 'Finance', shortLabel: 'Finance', labelMY: 'Kewangan', desc: 'Kewangan', path: '/admin/finance' },
+      { icon: Users, labelKey: 'staffManagement', shortLabel: 'Staff', path: '/admin/staff' },
+      { icon: Building2, labelKey: 'departments', shortLabel: 'Dept', path: '/admin/departments' },
+      { icon: Bed, labelKey: 'bedManagement', shortLabel: 'Beds', path: '/admin/beds' },
+      { icon: Package, labelKey: 'inventory', shortLabel: 'Stock', path: '/admin/inventory' },
+      { icon: DollarSign, labelKey: 'financialReports', shortLabel: 'Finance', path: '/admin/finance' },
     ],
   },
 ]
@@ -141,7 +143,7 @@ export function formatStaffSubtitle(user?: User | null): string {
 
 export function LiveClock({
   showSeconds = false,
-  hour12 = true,
+  hour12 = false,
   className,
 }: {
   showSeconds?: boolean
@@ -151,23 +153,23 @@ export function LiveClock({
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), showSeconds ? 1000 : 60000)
+    const timer = setInterval(() => setNow(new Date()), showSeconds ? 1000 : 30000)
     return () => clearInterval(timer)
   }, [showSeconds])
 
-  const formatted = now.toLocaleTimeString('en-US', {
+  const formatted = now.toLocaleTimeString('en-MY', {
     hour: '2-digit',
     minute: '2-digit',
     ...(showSeconds ? { second: '2-digit' } : {}),
     hour12,
   })
 
-  return <span className={className}>{formatted}</span>
+  return <span className={cn('tabular-nums', className)}>{formatted}</span>
 }
 
 export function LiveDate({
-  options = { weekday: 'short', month: 'short', day: 'numeric' },
-  locale = 'en-US',
+  options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' },
+  locale = 'en-MY',
   className,
 }: {
   options?: Intl.DateTimeFormatOptions
@@ -181,10 +183,8 @@ export function LiveDate({
     return () => clearInterval(timer)
   }, [])
 
-  return <span className={className}>{now.toLocaleDateString(locale, options)}</span>
+  return <span className={cn('tabular-nums', className)}>{now.toLocaleDateString(locale, options)}</span>
 }
-
-export type HospitalShellVariant = 'sidebar' | 'hover-rail' | 'bottom-dock' | 'glass-sidebar' | 'royal-top'
 
 export interface HospitalPortalShellProps {
   hospitalId: string
@@ -206,6 +206,7 @@ export function HospitalPortalShell({
   brandSubtitle,
 }: HospitalPortalShellProps) {
   const { user, logout, setSession } = useAuthStore()
+  const { fontSize, setFontSize, highContrast, toggleHighContrast } = useSettingsStore()
   const { t, language, setLanguage } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -216,13 +217,13 @@ export function HospitalPortalShell({
   const BrandIcon = VARIANT_ICONS[variant]
 
   const [sidebarOpen, setSidebarOpen] = useState(variant !== 'hover-rail')
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showQuickSearch, setShowQuickSearch] = useState(false)
   const [quickIc, setQuickIc] = useState('')
   const [switchingRole, setSwitchingRole] = useState(false)
   const dockScrollRef = useRef<HTMLDivElement>(null)
+  const toolbarMenuRef = useRef<HTMLDivElement>(null)
 
   const alternateRoles = (user?.availableRoles || []).filter((r) => r !== user?.role)
 
@@ -231,11 +232,29 @@ export function HospitalPortalShell({
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setShowQuickSearch((prev) => !prev)
+      } else if (e.key === 'Escape') {
+        setShowNotifications(false)
+        setShowProfileMenu(false)
+      }
+    }
+    const onMouseDown = (e: MouseEvent) => {
+      if (toolbarMenuRef.current && !toolbarMenuRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
+        setShowProfileMenu(false)
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('mousedown', onMouseDown)
+    }
   }, [])
+
+  useEffect(() => {
+    setShowNotifications(false)
+    setShowProfileMenu(false)
+  }, [location.pathname])
 
   const handleLogout = async () => {
     setShowProfileMenu(false)
@@ -287,27 +306,32 @@ export function HospitalPortalShell({
   }
 
   const scrollDock = (dir: 'left' | 'right') => {
-    dockScrollRef.current?.scrollBy({ left: dir === 'left' ? -220 : 220, behavior: 'smooth' })
+    dockScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' })
   }
 
+  const hasLeftSidebar =
+    variant === 'sidebar' || variant === 'hover-rail' || variant === 'glass-sidebar'
+
   const renderToolbarActions = (inverted = false) => (
-    <div className="flex items-center gap-2 sm:gap-3">
+    <div ref={toolbarMenuRef} className="flex items-center gap-2.5 shrink-0">
       <Button
         type="button"
         variant="ghost"
         size="sm"
         onClick={() => setShowQuickSearch(true)}
         className={cn(
-          'hidden md:inline-flex items-center gap-2 rounded-xl',
-          inverted ? 'text-white/90 hover:bg-white/15 hover:text-white' : 'text-slate-600 hover:bg-slate-100'
+          'inline-flex items-center gap-2 rounded-xl border',
+          inverted
+            ? 'text-white border-white/25 bg-white/10 hover:bg-white/20 hover:text-white'
+            : 'text-slate-700 border-slate-200 bg-slate-50/80 hover:bg-slate-100'
         )}
       >
-        <Search className="w-4 h-4" />
-        <span>{t.patientSearch}</span>
+        <Search className="w-3.5 h-3.5" />
+        <span className="text-xs font-semibold">{t.patientSearch}</span>
         <kbd
           className={cn(
-            'ml-1 px-1.5 py-0.5 rounded text-[11px]',
-            inverted ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            'ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono',
+            inverted ? 'bg-white/20 text-white' : 'bg-white border border-slate-200 text-slate-600'
           )}
         >
           ⌘K
@@ -316,11 +340,13 @@ export function HospitalPortalShell({
 
       <div
         className={cn(
-          'hidden sm:flex items-center gap-1 p-1 rounded-xl border',
+          'flex items-center gap-0.5 p-1 rounded-xl border',
           inverted ? 'bg-white/10 border-white/20' : 'bg-slate-50 border-slate-200'
         )}
+        role="group"
+        aria-label="Language Switcher"
       >
-        <Globe className={cn('w-3.5 h-3.5 ml-1', inverted ? 'text-white/80' : 'text-slate-400')} />
+        <Globe className={cn('w-3.5 h-3.5 mx-1', inverted ? 'text-white/85' : 'text-slate-500')} />
         {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
           <button
             key={lang}
@@ -333,8 +359,8 @@ export function HospitalPortalShell({
                   ? 'bg-white text-slate-900'
                   : `${theme.iconBg} text-white`
                 : inverted
-                  ? 'text-white/80 hover:bg-white/10'
-                  : 'text-slate-600 hover:bg-slate-200/70'
+                  ? 'text-white/85 hover:bg-white/15'
+                  : 'text-slate-700 hover:bg-slate-200/70'
             )}
           >
             {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
@@ -342,6 +368,7 @@ export function HospitalPortalShell({
         ))}
       </div>
 
+      {/* Node Telemetry Popover */}
       <div className="relative">
         <button
           type="button"
@@ -351,38 +378,33 @@ export function HospitalPortalShell({
           }}
           className={cn(
             'relative p-2 rounded-xl transition-colors',
-            inverted ? 'text-white hover:bg-white/15' : 'text-slate-600 hover:bg-slate-100'
+            inverted ? 'text-white hover:bg-white/15' : 'text-slate-700 hover:bg-slate-100'
           )}
-          aria-label="Notifications"
+          aria-label="Node telemetry notifications"
+          aria-expanded={showNotifications}
         >
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full" />
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white" />
         </button>
 
-        <AnimatePresence>
-          {showNotifications && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 text-left"
-            >
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                Node Telemetry
-              </p>
-              <div className="space-y-2.5 text-xs text-slate-600">
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800">
-                  <strong>{theme.shortName}</strong> federated node verified & active
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  Cross-hospital records strictly enforced as read-only
-                </div>
+        {showNotifications && (
+          <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 text-left">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+              Federated Node Status
+            </p>
+            <div className="space-y-2 text-xs text-slate-700">
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+                <strong>{theme.name} ({theme.code})</strong> secondary staff verification active
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                Cross-hospital records are enforced read-only; all queries write to central audit log
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Staff Profile & Role Switcher Menu */}
       <div className="relative">
         <button
           type="button"
@@ -390,133 +412,163 @@ export function HospitalPortalShell({
             setShowProfileMenu(!showProfileMenu)
             setShowNotifications(false)
           }}
+          aria-expanded={showProfileMenu}
           className={cn(
-            'flex items-center gap-2 p-1.5 rounded-xl transition-colors',
+            'flex items-center gap-2 p-1.5 pr-2.5 rounded-xl transition-colors',
             inverted ? 'hover:bg-white/15 text-white' : 'hover:bg-slate-100 text-slate-900'
           )}
         >
           <div
             className={cn(
-              'w-9 h-9 rounded-xl flex items-center justify-center',
+              'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
               inverted ? 'bg-white/20 text-white' : `${theme.bgMedium} ${theme.textColor}`
             )}
           >
             <UserIcon className="w-4 h-4" />
           </div>
-          <div className="hidden md:block text-left">
-            <p className="text-sm font-semibold leading-tight">{formatStaffDisplayName(user)}</p>
-            <p className={cn('text-xs leading-tight', inverted ? 'text-white/75' : 'text-slate-500')}>
+          <div className="text-left">
+            <p className="text-xs font-bold leading-tight">{formatStaffDisplayName(user)}</p>
+            <p className={cn('text-[11px] leading-tight', inverted ? 'text-white/80' : 'text-slate-600')}>
               {formatStaffSubtitle(user)}
             </p>
           </div>
-          <ChevronDown className={cn('w-4 h-4', inverted ? 'text-white/70' : 'text-slate-400')} />
+          <ChevronDown className={cn('w-3.5 h-3.5', inverted ? 'text-white/80' : 'text-slate-500')} />
         </button>
 
-        <AnimatePresence>
-          {showProfileMenu && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-slate-800"
-            >
-              <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-bold text-slate-900">{user?.fullName}</p>
-                <p className="text-xs font-mono text-slate-500 mt-0.5">{user?.icNumber}</p>
-                <Badge className={cn('mt-2 text-xs border', theme.badgeClass)}>
-                  {theme.shortName} • {user?.role === 'doctor' ? t.doctorPortal : t.adminPortal}
-                </Badge>
+        {showProfileMenu && (
+          <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-slate-800">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <p className="text-sm font-bold text-slate-900">{user?.fullName}</p>
+              <p className="text-xs font-mono text-slate-600 mt-0.5">
+                {user?.icNumber ? formatIC(user.icNumber) : ''}
+                {user?.licenseNumber ? ` • ${user.licenseNumber}` : ''}
+              </p>
+              <Badge className={cn('mt-2 text-xs border', theme.badgeClass)}>
+                {theme.code} • {user?.role === 'doctor' ? t.doctorPortal : t.adminPortal}
+              </Badge>
+            </div>
+
+            {/* Display & Accessibility Quick Controls */}
+            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/60">
+              <div className="flex items-center gap-1" role="group" aria-label={t.fontScaleLabel}>
+                <Type className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
+                {(
+                  [
+                    ['normal', 'A'],
+                    ['large', 'A+'],
+                    ['xlarge', 'A++'],
+                  ] as const
+                ).map(([scale, label]) => (
+                  <button
+                    key={scale}
+                    type="button"
+                    onClick={() => setFontSize(scale)}
+                    className={cn(
+                      'px-1.5 py-0.5 text-[11px] font-bold rounded transition-colors',
+                      fontSize === scale
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-700 hover:bg-slate-200/70'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-
-              {alternateRoles.length > 0 && (
-                <div className="px-2 py-2 border-b border-slate-100">
-                  {alternateRoles.map((altRole) => (
-                    <button
-                      key={altRole}
-                      type="button"
-                      disabled={switchingRole}
-                      onClick={() => handleSwitchRole(altRole)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 rounded-xl transition-colors"
-                    >
-                      <ArrowRightLeft className="w-4 h-4" />
-                      <span>
-                        {t.switchRole}: <strong className="capitalize">{altRole.replace('_', ' ')}</strong>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {user?.role === 'doctor' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowProfileMenu(false)
-                    navigate('/doctor/workstation')
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <Stethoscope className="w-4 h-4 text-slate-500" />
-                  <span>Full Workstation View</span>
-                </button>
-              )}
-
               <button
                 type="button"
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                onClick={toggleHighContrast}
+                aria-pressed={highContrast}
+                className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors',
+                  highContrast
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                )}
               >
-                <LogOut className="w-4 h-4" />
-                <span>{t.logout}</span>
+                <Eye className="w-3 h-3" />
+                <span>{t.highContrastLabel}</span>
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+
+            {alternateRoles.length > 0 && (
+              <div className="px-2 py-1.5 border-b border-slate-100">
+                {alternateRoles.map((altRole) => (
+                  <button
+                    key={altRole}
+                    type="button"
+                    disabled={switchingRole}
+                    onClick={() => handleSwitchRole(altRole)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50 rounded-xl transition-colors"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {t.switchRole}: <strong className="capitalize">{altRole.replace('_', ' ')}</strong>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {user?.role === 'doctor' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false)
+                  navigate('/doctor/workstation')
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Stethoscope className="w-4 h-4 text-slate-500" />
+                <span>{t.workstationView}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>{t.logout}</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
 
-  const renderItemLabel = (item: HospitalNavItem) => t[item.labelKey] || item.label
-
   return (
     <div className={cn('min-h-screen bg-gradient-to-br', theme.heroSoftGradient)}>
-      {/* Top Bar */}
+      {/* Top Institutional Header */}
       <header
         className={cn(
           'sticky top-0 z-40 border-b transition-colors',
           variant === 'royal-top'
-            ? `bg-gradient-to-r ${theme.headerGradient} text-white border-white/15 shadow-xl`
-            : 'bg-white/95 backdrop-blur-xl border-slate-200/80 shadow-sm'
+            ? `bg-gradient-to-r ${theme.headerGradient} text-white border-white/15 shadow-md`
+            : 'bg-white/95 backdrop-blur-xl border-slate-200 shadow-sm'
         )}
       >
-        <div className="max-w-[1600px] mx-auto px-4 lg:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (window.innerWidth < 1024) {
-                  setMobileMenuOpen(!mobileMenuOpen)
-                } else {
-                  setSidebarOpen(!sidebarOpen)
-                }
-              }}
-              className={cn(
-                'p-2 rounded-xl transition-colors',
-                variant === 'bottom-dock' || variant === 'royal-top' ? 'lg:hidden' : '',
-                variant === 'royal-top' ? 'text-white hover:bg-white/15' : 'text-slate-600 hover:bg-slate-100'
-              )}
-              aria-label="Toggle navigation"
-            >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
+        <div className="max-w-[1600px] mx-auto px-5 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {hasLeftSidebar && (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+                title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              >
+                {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+              </button>
+            )}
 
             <Link
               to={user?.role === 'doctor' ? '/doctor' : '/admin/hospital'}
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 min-w-0"
             >
               <div
                 className={cn(
-                  'w-10 h-10 rounded-xl flex items-center justify-center shadow-md',
+                  'w-9 h-9 rounded-xl flex items-center justify-center shadow-sm shrink-0',
                   variant === 'royal-top'
                     ? 'bg-white/20 text-white border border-white/30'
                     : `bg-gradient-to-br ${theme.buttonGradient} text-white`
@@ -524,11 +576,11 @@ export function HospitalPortalShell({
               >
                 <BrandIcon className="w-5 h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
-                      'font-bold text-sm sm:text-base leading-tight',
+                      'font-bold text-sm xl:text-base leading-tight truncate',
                       variant === 'royal-top' ? 'text-white' : 'text-slate-900'
                     )}
                   >
@@ -537,44 +589,48 @@ export function HospitalPortalShell({
                   <Badge
                     variant="outline"
                     className={cn(
-                      'hidden xl:inline-flex text-[11px]',
+                      'hidden xl:inline-flex text-[11px] shrink-0',
                       variant === 'royal-top'
                         ? 'bg-white/15 text-white border-white/30'
                         : theme.badgeClass
                     )}
                   >
-                    {user?.role === 'doctor' ? t.doctorPortal : t.adminPortal}
+                    {theme.code} • {user?.role === 'doctor' ? t.doctorPortal : t.adminPortal}
                   </Badge>
                 </div>
                 <div
                   className={cn(
-                    'hidden sm:flex items-center gap-2 text-xs',
-                    variant === 'royal-top' ? 'text-white/80' : 'text-slate-500'
+                    'flex items-center gap-2 text-xs',
+                    variant === 'royal-top' ? 'text-white/85' : 'text-slate-600'
                   )}
                 >
-                  <MapPin className="w-3 h-3" />
-                  <span>{brandSubtitle || theme.city}</span>
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{brandSubtitle || theme.city}</span>
                   <span>•</span>
-                  <Clock className="w-3 h-3" />
-                  <LiveClock className="tabular-nums" />
+                  <Clock className="w-3 h-3 shrink-0" />
+                  <LiveClock />
                 </div>
               </div>
             </Link>
           </div>
 
+          {/* Horizontal Top Ribbon for Queen Elizabeth Hospital (royal-top) */}
           {variant === 'royal-top' && (
-            <nav className="hidden lg:flex items-center max-w-[44vw] overflow-hidden">
+            <nav
+              className="flex items-center max-w-[44vw] overflow-hidden"
+              aria-label="Hospital Navigation"
+            >
               <button
                 type="button"
                 onClick={() => scrollDock('left')}
-                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg"
-                aria-label="Scroll left"
+                className="p-1.5 text-white/85 hover:text-white hover:bg-white/10 rounded-lg shrink-0"
+                aria-label="Scroll navigation left"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div
                 ref={dockScrollRef}
-                className="flex items-center gap-1 bg-white/10 rounded-xl p-1 overflow-x-auto scrollbar-hide"
+                className="flex items-center gap-1 bg-white/10 rounded-xl p-1 overflow-x-auto"
               >
                 {navSections.flatMap((s) => s.items).map((item) => {
                   const Icon = item.icon
@@ -583,13 +639,14 @@ export function HospitalPortalShell({
                     <Link
                       key={item.path}
                       to={item.path}
+                      aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all',
-                        isActive ? 'bg-white text-red-700 shadow' : 'text-white/85 hover:bg-white/15'
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors',
+                        isActive ? 'bg-white text-red-800 shadow-sm' : 'text-white hover:bg-white/15'
                       )}
                     >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{renderItemLabel(item)}</span>
+                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                      <span>{t[item.labelKey]}</span>
                     </Link>
                   )
                 })}
@@ -597,8 +654,8 @@ export function HospitalPortalShell({
               <button
                 type="button"
                 onClick={() => scrollDock('right')}
-                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg"
-                aria-label="Scroll right"
+                className="p-1.5 text-white/85 hover:text-white hover:bg-white/10 rounded-lg shrink-0"
+                aria-label="Scroll navigation right"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -607,125 +664,77 @@ export function HospitalPortalShell({
 
           {renderToolbarActions(variant === 'royal-top')}
         </div>
-
-        {/* Mobile Drawer */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden bg-white border-t border-slate-200 px-4 py-4 shadow-xl max-h-[80vh] overflow-y-auto text-slate-800"
-            >
-              {navSections.map((section) => (
-                <div key={section.title} className="mb-4">
-                  <p className={cn('text-xs font-bold uppercase tracking-wider px-3 mb-1.5', theme.textColor)}>
-                    {section.title}
-                  </p>
-                  <div className="space-y-1">
-                    {section.items.map((item) => {
-                      const Icon = item.icon
-                      const isActive = location.pathname === item.path
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={cn(
-                            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium',
-                            isActive ? theme.activeNavClass : 'text-slate-600 hover:bg-slate-50'
-                          )}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span>{renderItemLabel(item)}</span>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </header>
 
+      <div className="flex min-h-[calc(100vh-4rem)]">
       {/* Desktop Left Sidebar for sidebar / hover-rail / glass-sidebar */}
-      {(variant === 'sidebar' || variant === 'hover-rail' || variant === 'glass-sidebar') && (
+      {hasLeftSidebar && (
         <aside
           onMouseEnter={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
           onMouseLeave={variant === 'hover-rail' ? () => setSidebarOpen(false) : undefined}
           className={cn(
-            'hidden lg:flex flex-col fixed top-16 left-0 z-30 h-[calc(100vh-4rem)] transition-all duration-300 border-r',
+            'flex flex-col z-30 h-[calc(100vh-4rem)] transition-all duration-200 border-r',
+            variant === 'hover-rail' ? 'fixed top-16 left-0' : 'sticky top-16 shrink-0',
             variant === 'hover-rail'
-              ? `bg-gradient-to-b ${theme.headerGradient} text-white border-white/10 shadow-xl`
+              ? `bg-gradient-to-b ${theme.headerGradient} text-white border-white/15 shadow-lg`
               : variant === 'glass-sidebar'
-                ? 'bg-white/85 backdrop-blur-xl border-violet-100 shadow-lg'
+                ? 'bg-white/92 backdrop-blur-xl border-violet-200/80 shadow-sm'
                 : 'bg-white border-slate-200',
-            sidebarOpen ? 'w-64' : 'w-20'
+            sidebarOpen ? 'w-60' : 'w-[72px]'
           )}
         >
-          <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+          <nav className="flex-1 p-2.5 space-y-4 overflow-y-auto" aria-label="Hospital Portal Navigation">
             {navSections.map((section) => (
-              <div key={section.title}>
+              <div key={section.titleKey}>
                 {sidebarOpen && (
                   <p
                     className={cn(
-                      'px-3 mb-2 text-[11px] font-bold uppercase tracking-wider',
-                      variant === 'hover-rail' ? 'text-white/75' : theme.textColor
+                      'px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider truncate',
+                      variant === 'hover-rail' ? 'text-white/80' : theme.textColor
                     )}
                   >
-                    {section.title}
+                    {t[section.titleKey]}
                   </p>
                 )}
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {section.items.map((item) => {
                     const Icon = item.icon
                     const isActive = location.pathname === item.path
+                    const label = t[item.labelKey]
                     return (
                       <Link
                         key={item.path}
                         to={item.path}
-                        title={!sidebarOpen ? renderItemLabel(item) : undefined}
+                        aria-current={isActive ? 'page' : undefined}
+                        title={!sidebarOpen ? label : undefined}
                         className={cn(
-                          'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all',
+                          'flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
                           variant === 'hover-rail'
                             ? isActive
-                              ? 'bg-white/25 text-white font-semibold shadow-sm'
-                              : 'text-white/75 hover:bg-white/10 hover:text-white'
+                              ? 'bg-white text-emerald-900 font-bold shadow-sm'
+                              : 'text-white/85 hover:bg-white/15 hover:text-white'
                             : isActive
                               ? theme.activeNavClass
-                              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
                           !sidebarOpen && 'justify-center'
                         )}
                       >
                         <div
                           className={cn(
-                            'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                            'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
                             variant === 'hover-rail'
                               ? isActive
-                                ? 'bg-white/20'
-                                : 'bg-white/5'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-white/10 text-white'
                               : isActive
                                 ? `${theme.bgMedium} ${theme.textColor}`
-                                : 'bg-slate-100 text-slate-500'
+                                : 'bg-slate-100 text-slate-600'
                           )}
                         >
                           <Icon className="w-4 h-4" />
                         </div>
                         {sidebarOpen && (
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium block truncate">
-                              {renderItemLabel(item)}
-                            </span>
-                            <span
-                              className={cn(
-                                'text-[11px] block truncate',
-                                variant === 'hover-rail' ? 'text-white/65' : 'text-slate-400'
-                              )}
-                            >
-                              {item.labelMY}
-                            </span>
-                          </div>
+                          <span className="text-xs font-semibold truncate flex-1">{label}</span>
                         )}
                       </Link>
                     )
@@ -744,50 +753,53 @@ export function HospitalPortalShell({
             >
               <div
                 className={cn(
-                  'p-3 rounded-xl border text-xs',
+                  'p-2.5 rounded-xl border text-xs',
                   variant === 'hover-rail'
-                    ? 'bg-white/10 border-white/20 text-white/90'
-                    : `${theme.bgLight} ${theme.borderColor} text-slate-600`
+                    ? 'bg-white/10 border-white/20 text-white'
+                    : `${theme.bgLight} ${theme.borderColor} text-slate-700`
                 )}
               >
-                <div className="flex items-center gap-2 font-semibold mb-1">
-                  <Shield className={cn('w-4 h-4', variant === 'hover-rail' ? 'text-white' : theme.textColor)} />
-                  <span>MedLink MY Federated Node</span>
+                <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                  <Shield className={cn('w-3.5 h-3.5 shrink-0', variant === 'hover-rail' ? 'text-white' : theme.textColor)} />
+                  <span className="truncate">{theme.code} Federated Node</span>
                 </div>
-                <p className="opacity-80">Zero-trust verified session ({theme.shortName})</p>
+                <p className="text-[11px] opacity-85 truncate">Zero-trust verified session</p>
               </div>
             </div>
           )}
         </aside>
       )}
 
-      {/* Main Content */}
+      {/* Main Clinical / Administrative Content Area */}
       <main
         className={cn(
-          'transition-all duration-300',
-          (variant === 'sidebar' || variant === 'glass-sidebar') && (sidebarOpen ? 'lg:pl-64' : 'lg:pl-20'),
-          variant === 'hover-rail' && 'lg:pl-20',
-          variant === 'bottom-dock' && 'pb-28'
+          'flex-1 min-w-0 transition-all duration-200',
+          variant === 'hover-rail' && 'pl-[72px]',
+          variant === 'bottom-dock' && 'pb-24'
         )}
       >
-        <div className="max-w-7xl mx-auto p-6 lg:p-8">
+        <div className="max-w-[1440px] mx-auto p-6 xl:p-7">
           <Outlet />
         </div>
       </main>
+      </div>
 
-      {/* Bottom Floating Dock for Johor Specialist */}
+      {/* Bottom Floating Dock for Sultanah Aminah Hospital (bottom-dock) */}
       {variant === 'bottom-dock' && (
-        <nav className="hidden lg:flex fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 justify-center">
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-amber-200/70 px-3 py-2.5 max-w-6xl flex items-center gap-2">
+        <nav
+          className="flex fixed bottom-0 left-0 right-0 z-40 px-4 pb-3 justify-center pointer-events-none"
+          aria-label="Hospital Dock Navigation"
+        >
+          <div className="pointer-events-auto bg-white/98 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-300/80 px-2.5 py-2 max-w-[92vw] flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => scrollDock('left')}
-              className="p-2 text-amber-600 hover:bg-amber-50 rounded-xl"
-              aria-label="Scroll left"
+              className="p-1.5 text-amber-800 hover:bg-amber-50 rounded-lg shrink-0"
+              aria-label="Scroll dock left"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <div ref={dockScrollRef} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide px-2">
+            <div ref={dockScrollRef} className="flex items-center gap-1 overflow-x-auto px-1">
               {navSections.flatMap((s) => s.items).map((item) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
@@ -795,15 +807,16 @@ export function HospitalPortalShell({
                   <Link
                     key={item.path}
                     to={item.path}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-2xl min-w-[78px] transition-all',
+                      'flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-xs font-bold transition-colors',
                       isActive
-                        ? `bg-gradient-to-br ${theme.buttonGradient} text-white shadow-md`
-                        : 'text-amber-700 hover:bg-amber-50'
+                        ? `bg-gradient-to-r ${theme.buttonGradient} text-white shadow-sm`
+                        : 'text-amber-900 hover:bg-amber-50'
                     )}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-[11px] font-bold whitespace-nowrap">{item.shortLabel}</span>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{t[item.labelKey]}</span>
                   </Link>
                 )
               })}
@@ -811,69 +824,52 @@ export function HospitalPortalShell({
             <button
               type="button"
               onClick={() => scrollDock('right')}
-              className="p-2 text-amber-600 hover:bg-amber-50 rounded-xl"
-              aria-label="Scroll right"
+              className="p-1.5 text-amber-800 hover:bg-amber-50 rounded-lg shrink-0"
+              aria-label="Scroll dock right"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </nav>
       )}
 
-      {/* Quick Patient Search Modal (⌘K) */}
-      <AnimatePresence>
-        {showQuickSearch && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center pt-24 p-4"
-            onClick={() => setShowQuickSearch(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -12 }}
-              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+      {/* Quick Patient Jump Dialog (⌘K / Ctrl+K) */}
+      <ModalDialog
+        open={showQuickSearch}
+        onClose={() => setShowQuickSearch(false)}
+        title={t.patientSearch}
+        description={t.quickSearchHint}
+        icon={<Search className={cn('w-5 h-5', theme.textColor)} />}
+        maxWidthClassName="max-w-md"
+      >
+        <form onSubmit={handleQuickJump} className="space-y-4">
+          <Input
+            autoFocus
+            value={quickIc}
+            onChange={(e) => setQuickIc(e.target.value)}
+            placeholder={t.quickSearchPlaceholder}
+            className="h-11 font-mono text-sm"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowQuickSearch(false)}
             >
-              <form onSubmit={handleQuickJump} className="p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Search className={cn('w-5 h-5', theme.textColor)} />
-                    <h3 className="font-bold text-slate-900">{t.patientSearch}</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickSearch(false)}
-                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <Input
-                  autoFocus
-                  value={quickIc}
-                  onChange={(e) => setQuickIc(e.target.value)}
-                  placeholder="Enter MyKad IC Number (e.g. 880101-14-5678)"
-                  className="h-12 font-mono text-base"
-                />
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Press Enter to open federated timeline</span>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setShowQuickSearch(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" size="sm" className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
-                      Open Patient
-                    </Button>
-                  </div>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {t.cancel}
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!quickIc.trim()}
+              className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}
+            >
+              {t.openPatient}
+            </Button>
+          </div>
+        </form>
+      </ModalDialog>
     </div>
   )
 }

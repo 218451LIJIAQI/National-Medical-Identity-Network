@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, UserCheck, AlertTriangle, Loader2, X, ExternalLink } from 'lucide-react'
+import { Search, UserCheck, AlertTriangle, Loader2, X, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { useClinicalStore, type ActiveClinicalPatient } from '@/store/clinical'
+import { useAuthStore } from '@/store/auth'
+import { useTranslation } from '@/lib/i18n'
 import { centralApi } from '@/lib/api'
 import { formatIC, parseMyKadDemographics } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/modal-dialog'
 import { useToast } from '@/components/ui/use-toast'
 
 export function ClinicalPatientBanner({
@@ -15,6 +18,8 @@ export function ClinicalPatientBanner({
   onPatientLoaded?: (patient: ActiveClinicalPatient) => void
 }) {
   const { activePatient, setActivePatient, clearActivePatient } = useClinicalStore()
+  const user = useAuthStore((s) => s.user)
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [icInput, setIcInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,23 +41,27 @@ export function ClinicalPatientBanner({
           gender: String(p.gender || ''),
           bloodType: String(p.bloodType || ''),
           allergies: Array.isArray(p.allergies) ? (p.allergies as string[]) : [],
+          allergiesUnverified: false,
           chronicConditions: Array.isArray(p.chronicConditions) ? (p.chronicConditions as string[]) : [],
           phone: p.phone ? String(p.phone) : undefined,
+          scopedHospitalId: user?.hospitalId,
+          scopedDoctorId: user?.doctorId,
         }
         setActivePatient(loaded)
         onPatientLoaded?.(loaded)
         setIcInput('')
         toast({
-          title: 'Active Patient Loaded',
-          description: `${loaded.fullName} (${loaded.icNumber}) linked to clinical session`,
+          title: 'Active Patient Linked',
+          description: `${loaded.fullName} (${loaded.icNumber}) bound to clinical workstation.`,
+          variant: 'success',
         })
       } else if (res.accessDenied) {
         toast({
-          title: 'Privacy Policy Restricted',
-          description: res.error || 'Patient has restricted access from your hospital.',
+          title: t.privacyRestrictedTitle,
+          description: res.error || t.privacyRestrictedDesc,
           variant: 'destructive',
         })
-      } else {
+      } else if (res.notFound || res.status === 404) {
         const inferred = parseMyKadDemographics(formatted)
         const provisional: ActiveClinicalPatient = {
           icNumber: formatted,
@@ -61,14 +70,23 @@ export function ClinicalPatientBanner({
           gender: inferred?.gender || '',
           bloodType: 'Unknown',
           allergies: [],
+          allergiesUnverified: true,
           chronicConditions: [],
+          scopedHospitalId: user?.hospitalId,
+          scopedDoctorId: user?.doctorId,
         }
         setActivePatient(provisional)
         onPatientLoaded?.(provisional)
         setIcInput('')
         toast({
-          title: 'Unindexed Patient Selected',
-          description: 'No existing federated record found; initialized walk-in clinical session.',
+          title: 'Walk-in Patient Initialized',
+          description: 'No federated record found. Please verify drug allergies directly with the patient.',
+        })
+      } else {
+        toast({
+          title: 'Unable to Verify Patient Profile',
+          description: res.error || t.networkError,
+          variant: 'destructive',
         })
       }
     } finally {
@@ -76,47 +94,65 @@ export function ClinicalPatientBanner({
     }
   }
 
+  const isAllergiesUnverified = Boolean(
+    activePatient &&
+      (activePatient.allergiesUnverified || activePatient.fullName.startsWith('Walk-in Patient ('))
+  )
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
       {activePatient ? (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
               <UserCheck className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-slate-900">{activePatient.fullName}</span>
-                <Badge variant="outline" className="font-mono text-xs">
+                <Badge variant="outline" className="font-mono text-xs tabular-nums">
                   {activePatient.icNumber}
                 </Badge>
                 {activePatient.bloodType && activePatient.bloodType !== 'Unknown' && (
-                  <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                  <Badge className="bg-red-50 text-red-800 border-red-200 text-xs font-bold">
                     Blood: {activePatient.bloodType}
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-slate-500">
+              <div className="flex items-center gap-2 flex-wrap mt-1.5 text-xs text-slate-700">
                 {activePatient.allergies.length > 0 ? (
-                  <span className="inline-flex items-center gap-1 text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    Allergies: {activePatient.allergies.join(', ')}
-                  </span>
+                  <StatusBadge
+                    tone="critical"
+                    icon={AlertTriangle}
+                    label={`Allergies: ${activePatient.allergies.join(', ')}`}
+                  />
+                ) : isAllergiesUnverified ? (
+                  <StatusBadge
+                    tone="warning"
+                    icon={AlertTriangle}
+                    label={t.walkInAllergyWarning}
+                  />
                 ) : (
-                  <span className="text-emerald-700 font-medium">No Known Drug Allergies (NKDA)</span>
+                  <StatusBadge
+                    tone="success"
+                    icon={CheckCircle2}
+                    label={t.nkdaVerified}
+                  />
                 )}
                 {activePatient.chronicConditions.length > 0 && (
-                  <span>• Conditions: {activePatient.chronicConditions.join(', ')}</span>
+                  <span className="font-medium text-slate-600">
+                    • Chronic: {activePatient.chronicConditions.join(', ')}
+                  </span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Link to={`/doctor/patient/${encodeURIComponent(activePatient.icNumber)}`}>
-              <Button type="button" variant="outline" size="sm" className="rounded-xl text-xs gap-1.5">
+              <Button type="button" variant="outline" size="sm" className="gap-1.5">
                 <ExternalLink className="w-3.5 h-3.5" />
-                Timeline
+                <span>Timeline</span>
               </Button>
             </Link>
             <Button
@@ -124,28 +160,33 @@ export function ClinicalPatientBanner({
               variant="ghost"
               size="sm"
               onClick={clearActivePatient}
-              className="rounded-xl text-xs text-slate-500 hover:text-red-600"
+              className="text-slate-600 hover:text-red-700 hover:bg-red-50"
             >
               <X className="w-4 h-4 mr-1" />
-              Switch Patient
+              <span>{t.switchPatient}</span>
             </Button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleLookup} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-700 shrink-0">
+        <form onSubmit={handleLookup} className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 shrink-0">
             <Search className="w-4 h-4 text-blue-600" />
-            <span>Active Consultation Patient:</span>
+            <span>{t.activeConsultationPatient}:</span>
           </div>
           <Input
             value={icInput}
             onChange={(e) => setIcInput(e.target.value)}
-            placeholder="Enter MyKad IC (e.g. 880101-14-5678) to bind patient..."
+            placeholder={t.quickSearchPlaceholder}
             className="h-10 font-mono text-sm flex-1"
           />
-          <Button type="submit" size="sm" disabled={loading || !icInput.trim()} className="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-            Bind Patient
+          <Button
+            type="submit"
+            size="sm"
+            disabled={loading || !icInput.trim()}
+            className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
+            <span>{t.bindPatient}</span>
           </Button>
         </form>
       )}

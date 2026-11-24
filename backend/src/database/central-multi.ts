@@ -29,7 +29,10 @@ export function parseAuditDateBound(raw: string, bound: 'start' | 'end'): Date |
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const iso = bound === 'start' ? `${trimmed}T00:00:00.000Z` : `${trimmed}T23:59:59.999Z`;
     const parsed = new Date(iso);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed) {
+      return null;
+    }
+    return parsed;
   }
 
   const parsed = new Date(trimmed);
@@ -100,18 +103,7 @@ export async function getHospitals(): Promise<Hospital[]> {
     where: { isActive: true },
   });
 
-  return hospitals.map((h: {
-    id: string;
-    name: string;
-    shortName: string;
-    city: string;
-    state: string;
-    address: string;
-    phone: string;
-    email: string;
-    apiEndpoint: string;
-    isActive: boolean;
-  }) => ({
+  return hospitals.map((h: Hospital) => ({
     id: h.id,
     name: h.name,
     shortName: h.shortName,
@@ -159,19 +151,6 @@ export async function getUsersByIc(rawIcNumber: string): Promise<User[]> {
   return users.map(mapUser);
 }
 
-export async function getUserByIc(rawIcNumber: string, role?: string): Promise<User | null> {
-  const icNumber = normalizeIcNumber(rawIcNumber);
-  const user = await getCentralDb().user.findFirst({
-    where: {
-      icNumber,
-      isActive: true,
-      ...(role ? { role } : {}),
-    },
-  });
-
-  return user ? mapUser(user) : null;
-}
-
 export async function getUserById(id: string): Promise<User | null> {
   const user = await getCentralDb().user.findUnique({
     where: { id },
@@ -194,6 +173,20 @@ export async function getBlockedHospitals(rawIcNumber: string): Promise<string[]
     select: { hospitalId: true },
   });
   return settings.map((s: { hospitalId: string }) => s.hospitalId);
+}
+
+export async function getBlockedPatientIcsForHospital(hospitalId: string): Promise<Set<string>> {
+  const settings = await getCentralDb().patientPrivacySetting.findMany({
+    where: { isBlocked: true },
+    select: { icNumber: true, hospitalId: true },
+  });
+  const blocked = new Set<string>();
+  for (const s of settings as Array<{ icNumber: string; hospitalId: string }>) {
+    if (s.hospitalId === hospitalId && s.icNumber) {
+      blocked.add(normalizeIcNumber(s.icNumber));
+    }
+  }
+  return blocked;
 }
 
 export async function setHospitalAccess(rawIcNumber: string, hospitalId: string, isBlocked: boolean): Promise<void> {
@@ -269,6 +262,9 @@ export async function getAuditLogs(filters?: {
       const end = parseAuditDateBound(filters.endDate, 'end');
       if (!end) throw new Error('Invalid endDate format');
       timestampFilter.lte = end;
+    }
+    if (timestampFilter.gte && timestampFilter.lte && timestampFilter.gte > timestampFilter.lte) {
+      throw new Error('Invalid date range: startDate cannot be after endDate');
     }
     where.timestamp = timestampFilter;
   }

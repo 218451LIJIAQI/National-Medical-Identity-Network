@@ -1,23 +1,20 @@
+import { Building2, Crown, Hexagon, Leaf, Zap, type LucideIcon } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
-import KLGeneralDashboard from './KLGeneralDashboard'
-import PenangDashboard from './PenangDashboard'
-import JohorDashboard from './JohorDashboard'
-import SarawakDashboard from './SarawakDashboard'
-import QueenElizabethDashboard from './QueenElizabethDashboard'
+import { getHospitalTheme, type HospitalHeroIconName } from '@/lib/hospital-themes'
+import { DoctorHospitalDashboard } from './DoctorHospitalDashboard'
 
-const hospitalDashboardMap: Record<string, React.ComponentType> = {
-  'hospital-kl': KLGeneralDashboard,
-  'hospital-penang': PenangDashboard,
-  'hospital-jb': JohorDashboard,
-  'hospital-kuching': SarawakDashboard,
-  'hospital-kk': QueenElizabethDashboard,
+const HERO_ICON_MAP: Record<HospitalHeroIconName, LucideIcon> = {
+  Building2,
+  Leaf,
+  Zap,
+  Hexagon,
+  Crown,
 }
 
 export default function DashboardSelector() {
   const { user } = useAuthStore()
+  const theme = getHospitalTheme(user?.hospitalId)
+  const HeroIcon = HERO_ICON_MAP[theme.heroIconName] || Building2
 
-  const hospitalId = user?.hospitalId || 'hospital-kl'
-  const DashboardComponent = hospitalDashboardMap[hospitalId] || KLGeneralDashboard
-
-  return <DashboardComponent />
+  return <DoctorHospitalDashboard heroIcon={HeroIcon} badgeLabel={theme.badgeLabel} />
 }
