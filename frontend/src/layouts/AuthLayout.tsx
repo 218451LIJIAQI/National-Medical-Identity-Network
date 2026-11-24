@@ -23,10 +23,59 @@ export default function AuthLayout() {
     return <Navigate to={getRoleHomePath(user.role, isHospitalVerified)} replace />
   }
 
+  const renderLangBar = (darkBg: boolean) => (
+    <div
+      className={cn(
+        'flex items-center gap-1 rounded-xl p-1 border',
+        darkBg ? 'bg-white/10 border-white/15' : 'bg-slate-100 border-slate-200'
+      )}
+    >
+      {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
+        <button
+          key={lang}
+          type="button"
+          onClick={() => setLanguage(lang)}
+          className={cn(
+            'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0',
+            language === lang
+              ? darkBg
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'bg-blue-600 text-white shadow-sm'
+              : darkBg
+                ? 'text-slate-200 hover:bg-white/10'
+                : 'text-slate-700 hover:bg-slate-200/70'
+          )}
+        >
+          {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Left Institutional Panel — Optimized for 1280×720 up to 1920×1080 */}
-      <div className="w-[45%] min-w-[420px] max-w-[640px] bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 px-10 py-8 flex flex-col justify-between relative overflow-hidden text-white border-r border-slate-800">
+    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
+      {/* Compact High-Zoom / Narrow Desktop Header (< 1024px CSS width, e.g. 200% zoom) */}
+      <div className="lg:hidden bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white px-5 py-3.5 flex items-center justify-between gap-3 border-b border-slate-800">
+        <Link to="/" className="flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-blue-600/30 rounded-xl flex items-center justify-center border border-blue-400/30">
+            <Building2 className="w-5 h-5 text-cyan-300" />
+          </div>
+          <span className="font-bold text-base">{t.appName}</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          {renderLangBar(true)}
+          <Link
+            to="/emergency"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/20 border border-red-400/30 text-red-200 text-xs font-semibold"
+          >
+            <Siren className="w-3.5 h-3.5" />
+            <span>ER</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Left Institutional Panel — Desktop Split View */}
+      <div className="hidden lg:flex lg:w-[44%] lg:min-w-[380px] max-w-[620px] bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 px-9 py-8 flex-col justify-between relative overflow-hidden text-white border-r border-slate-800">
         <div className="absolute -top-32 -right-32 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -41,23 +90,7 @@ export default function AuthLayout() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-1 rounded-xl bg-white/10 p-1 border border-white/15">
-            {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setLanguage(lang)}
-                className={cn(
-                  'px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors',
-                  language === lang
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-200 hover:bg-white/10'
-                )}
-              >
-                {lang === 'en' ? 'EN' : lang === 'ms' ? 'BM' : '中文'}
-              </button>
-            ))}
-          </div>
+          {renderLangBar(true)}
         </div>
 
         <div className="relative z-10 my-auto py-6 space-y-6">

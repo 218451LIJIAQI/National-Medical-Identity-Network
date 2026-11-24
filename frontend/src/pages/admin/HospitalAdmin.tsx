@@ -173,7 +173,7 @@ export default function HospitalAdminDashboard() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             label: 'Local Registered Patients',
@@ -229,7 +229,7 @@ export default function HospitalAdminDashboard() {
       </div>
 
       {/* Operations Shortcuts */}
-      <div className="grid grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {[
           { label: t.staffManagement, path: '/admin/staff', icon: Users },
           { label: t.departments, path: '/admin/departments', icon: Building2 },

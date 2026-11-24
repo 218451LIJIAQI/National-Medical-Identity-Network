@@ -127,7 +127,8 @@ export function ModalDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-4"
+      style={{ margin: 0 }}
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}

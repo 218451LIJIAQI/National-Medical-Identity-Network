@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
-import { centralApi } from '@/lib/api'
+import { centralApi, hospitalApi, type QueueTicketDto } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { formatIC } from '@/lib/utils'
+import { cn, formatIC, isValidMyKad, parseMyKadDemographics } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
+import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
 import {
   Users,
   Clock,
@@ -17,39 +19,18 @@ import {
   PhoneCall,
   Mic,
   Search,
-  User,
   Stethoscope,
-  Timer,
   Plus,
   ExternalLink,
   AlertTriangle,
   AlertCircle,
   Loader2,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react'
 
-export interface QueuePatient {
-  queueNo: string
-  name: string
-  icNumber: string
-  age: number
-  gender: 'M' | 'F'
-  category: 'Green' | 'Yellow' | 'Red'
-  waitTime: string
-  status: 'waiting' | 'in-progress' | 'called' | 'completed'
-  complaint: string
-}
-
-const initialQueue: QueuePatient[] = [
-  { queueNo: 'A001', name: 'Ahmad bin Abdullah', icNumber: '880101-14-5678', age: 38, gender: 'M', category: 'Green', waitTime: '25 min', status: 'waiting', complaint: 'Blood pressure & glucose review' },
-  { queueNo: 'A002', name: 'Siti Nurhaliza binti Mohd', icNumber: '950320-10-1234', age: 31, gender: 'F', category: 'Yellow', waitTime: '18 min', status: 'waiting', complaint: 'Wheezing & nocturnal cough' },
-  { queueNo: 'A003', name: 'Tan Ah Kow', icNumber: '550715-07-9999', age: 71, gender: 'M', category: 'Red', waitTime: '8 min', status: 'called', complaint: 'Exertional chest tightness' },
-  { queueNo: 'A004', name: 'Raj Kumar a/l Muthu', icNumber: '900808-01-5555', age: 36, gender: 'M', category: 'Yellow', waitTime: '15 min', status: 'waiting', complaint: 'Medication refill & neurology follow-up' },
-  { queueNo: 'A005', name: 'Aishah binti Mohd Yusof', icNumber: '820425-12-7777', age: 44, gender: 'F', category: 'Green', waitTime: '12 min', status: 'waiting', complaint: 'Seasonal asthma check-up' },
-  { queueNo: 'A006', name: 'Lee Mei Fong', icNumber: '780312-14-2345', age: 48, gender: 'F', category: 'Green', waitTime: '5 min', status: 'in-progress', complaint: 'Joint stiffness assessment' },
-]
-
 const TRIAGE_BADGE_MAP: Record<
-  QueuePatient['category'],
+  QueueTicketDto['category'],
   { tone: StatusTone; label: string; icon: typeof AlertTriangle }
 > = {
   Red: { tone: 'critical', label: 'Red · Emergent', icon: AlertTriangle },
@@ -58,7 +39,7 @@ const TRIAGE_BADGE_MAP: Record<
 }
 
 const QUEUE_STATUS_MAP: Record<
-  QueuePatient['status'],
+  QueueTicketDto['status'],
   { tone: StatusTone; label: string; icon: typeof Clock }
 > = {
   waiting: { tone: 'neutral', label: 'Waiting', icon: Clock },
@@ -67,343 +48,365 @@ const QUEUE_STATUS_MAP: Record<
   completed: { tone: 'neutral', label: 'Completed', icon: CheckCircle2 },
 }
 
-interface QueueManagementProps {
-  onSelectPatient?: (patient: QueuePatient) => void
-}
-
-export default function QueueManagement({ onSelectPatient }: QueueManagementProps) {
+export default function QueueManagement() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { t } = useTranslation()
-  const { user } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
   const { setActivePatient } = useClinicalStore()
-  const theme = getHospitalTheme(user?.hospitalId)
+  const hospitalId = user?.hospitalId || 'hospital-kl'
+  const theme = getHospitalTheme(hospitalId)
 
-  const [queue, setQueue] = useState<QueuePatient[]>(initialQueue)
-  const [filter, setFilter] = useState<'all' | 'waiting' | 'called' | 'in-progress' | 'completed'>('all')
+  const [queue, setQueue] = useState<QueueTicketDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | QueueTicketDto['status']>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [submittingWalkIn, setSubmittingWalkIn] = useState(false)
   const [hydratingQueueNo, setHydratingQueueNo] = useState<string | null>(null)
   const [walkIn, setWalkIn] = useState({
     name: '',
     icNumber: '',
-    age: '35',
-    gender: 'M' as 'M' | 'F',
-    category: 'Green' as QueuePatient['category'],
+    category: 'Green' as QueueTicketDto['category'],
     complaint: '',
   })
 
+  const loadQueue = useCallback(async () => {
+    setLoading(true)
+    const res = await hospitalApi.getQueue(hospitalId)
+    if (res.success && res.data) {
+      setQueue(res.data)
+    }
+    setLoading(false)
+  }, [hospitalId])
+
+  useEffect(() => {
+    void loadQueue()
+  }, [loadQueue])
+
   const filteredQueue = queue.filter((p) => {
     const matchesFilter = filter === 'all' || p.status === filter
-    const q = searchQuery.toLowerCase()
-    const matchesSearch =
-      p.name.toLowerCase().includes(q) ||
-      p.queueNo.toLowerCase().includes(q) ||
-      p.icNumber.includes(searchQuery)
-    return matchesFilter && matchesSearch
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return matchesFilter
+    return (
+      matchesFilter &&
+      (p.name.toLowerCase().includes(q) ||
+        p.queueNo.toLowerCase().includes(q) ||
+        p.icNumber.toLowerCase().includes(q) ||
+        p.complaint.toLowerCase().includes(q))
+    )
   })
 
   const stats = {
     waiting: queue.filter((p) => p.status === 'waiting').length,
-    inProgress: queue.filter((p) => p.status === 'in-progress').length,
     called: queue.filter((p) => p.status === 'called').length,
+    inProgress: queue.filter((p) => p.status === 'in-progress').length,
     completed: queue.filter((p) => p.status === 'completed').length,
   }
 
-  const callNextPatient = () => {
+  const updateTicketStatus = async (queueNo: string, status: QueueTicketDto['status'], label?: string) => {
+    const res = await hospitalApi.updateQueueTicket(hospitalId, queueNo, status)
+    if (res.success && res.data) {
+      setQueue((prev) => prev.map((q) => (q.queueNo === queueNo ? res.data! : q)))
+      if (label) {
+        toast({ title: label, description: `Ticket ${queueNo} updated to ${status}.` })
+      }
+    } else {
+      toast({ title: 'Update Failed', description: res.error || 'Unable to update ticket', variant: 'destructive' })
+    }
+  }
+
+  const callNextPatient = async () => {
     const nextPatient =
       queue.find((p) => p.status === 'waiting' && p.category === 'Red') ||
       queue.find((p) => p.status === 'waiting' && p.category === 'Yellow') ||
       queue.find((p) => p.status === 'waiting')
 
     if (!nextPatient) {
-      toast({ title: 'Queue Empty', description: 'No waiting patients remaining in queue.' })
+      toast({ title: 'Queue Clear', description: 'No waiting patients remaining in triage queue.' })
       return
     }
-
-    setQueue(queue.map((p) => (p.queueNo === nextPatient.queueNo ? { ...p, status: 'called' } : p)))
-    toast({
-      title: `Calling ${nextPatient.queueNo}`,
-      description: `${nextPatient.name} (${nextPatient.category} triage) paged to consultation room.`,
-    })
+    await updateTicketStatus(
+      nextPatient.queueNo,
+      'called',
+      `Calling ${nextPatient.queueNo} (${nextPatient.name})`
+    )
   }
 
-  const startConsultation = async (patient: QueuePatient, openTimeline = false) => {
-    if (hydratingQueueNo) return
-    setHydratingQueueNo(patient.queueNo)
+  const handleOpenConsult = async (ticket: QueueTicketDto) => {
+    setHydratingQueueNo(ticket.queueNo)
     try {
-      const formattedIc = formatIC(patient.icNumber)
+      await hospitalApi.updateQueueTicket(hospitalId, ticket.queueNo, 'in-progress')
+      const formattedIc = formatIC(ticket.icNumber)
       const res = await centralApi.getPatient(formattedIc)
-
       if (res.accessDenied) {
         toast({
           title: t.privacyRestrictedTitle,
           description: res.error || t.privacyRestrictedDesc,
           variant: 'destructive',
         })
+        await loadQueue()
         return
       }
-
       if (res.success && res.data?.patient) {
         const p = res.data.patient
         setActivePatient({
           icNumber: formattedIc,
-          fullName: String(p.fullName || patient.name),
+          fullName: String(p.fullName || ticket.name),
           dateOfBirth: String(p.dateOfBirth || ''),
-          gender: String(p.gender || (patient.gender === 'M' ? 'male' : 'female')),
+          gender: String(p.gender || ''),
           bloodType: String(p.bloodType || ''),
           allergies: Array.isArray(p.allergies) ? (p.allergies as string[]) : [],
           allergiesUnverified: false,
           chronicConditions: Array.isArray(p.chronicConditions) ? (p.chronicConditions as string[]) : [],
-          phone: p.phone ? String(p.phone) : undefined,
-          scopedHospitalId: user?.hospitalId,
+          scopedHospitalId: hospitalId,
           scopedDoctorId: user?.doctorId,
         })
+        navigate(`/doctor/patient/${encodeURIComponent(formattedIc)}`)
       } else {
+        const inferred = parseMyKadDemographics(formattedIc)
         setActivePatient({
           icNumber: formattedIc,
-          fullName: patient.name,
-          gender: patient.gender === 'M' ? 'male' : 'female',
+          fullName: ticket.name,
+          dateOfBirth: inferred?.dateOfBirth || '',
+          gender: inferred?.gender || '',
+          bloodType: 'Unknown',
           allergies: [],
           allergiesUnverified: true,
           chronicConditions: [],
-          scopedHospitalId: user?.hospitalId,
+          scopedHospitalId: hospitalId,
           scopedDoctorId: user?.doctorId,
         })
-      }
-
-      setQueue((prev) =>
-        prev.map((p) => (p.queueNo === patient.queueNo ? { ...p, status: 'in-progress' } : p))
-      )
-      onSelectPatient?.(patient)
-
-      if (openTimeline) {
-        navigate(`/doctor/patient/${encodeURIComponent(formattedIc)}`)
-      } else {
-        toast({
-          title: 'Consultation Started',
-          description: `${patient.name} set as active clinical patient.`,
-          variant: 'success',
-        })
+        navigate(`/doctor/patient/${encodeURIComponent(formattedIc)}/new-record`)
       }
     } finally {
       setHydratingQueueNo(null)
     }
   }
 
-  const completeConsultation = (queueNo: string) => {
-    setQueue(queue.map((p) => (p.queueNo === queueNo ? { ...p, status: 'completed' } : p)))
-    toast({ title: 'Consultation Completed', description: `Ticket ${queueNo} marked completed.` })
+  const handleRegisterWalkIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const formattedIc = formatIC(walkIn.icNumber.trim())
+    if (!walkIn.name.trim() || !isValidMyKad(formattedIc)) {
+      toast({
+        title: 'Invalid Walk-In Details',
+        description: t.invalidMyKadFormat,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSubmittingWalkIn(true)
+    try {
+      const res = await hospitalApi.enqueuePatient(hospitalId, {
+        name: walkIn.name.trim(),
+        icNumber: formattedIc,
+        category: walkIn.category,
+        complaint: walkIn.complaint.trim() || 'General outpatient consultation',
+      })
+      if (res.success && res.data) {
+        setQueue((prev) => [...prev, res.data!])
+        setShowAddModal(false)
+        setWalkIn({ name: '', icNumber: '', category: 'Green', complaint: '' })
+        toast({
+          title: `Ticket ${res.data.queueNo} Issued`,
+          description: `${res.data.name} added to ${theme.shortName} triage queue.`,
+          variant: 'success',
+        })
+      } else {
+        toast({
+          title: res.accessDenied ? t.privacyRestrictedTitle : 'Registration Rejected',
+          description: res.error || 'Could not issue queue ticket.',
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setSubmittingWalkIn(false)
+    }
   }
 
-  const handleAddWalkIn = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!walkIn.name.trim() || !walkIn.icNumber.trim()) return
-    const nextNum = `A${String(queue.length + 1).padStart(3, '0')}`
-    const newEntry: QueuePatient = {
-      queueNo: nextNum,
-      name: walkIn.name.trim(),
-      icNumber: formatIC(walkIn.icNumber.trim()),
-      age: Number(walkIn.age) || 30,
-      gender: walkIn.gender,
-      category: walkIn.category,
-      waitTime: 'Just now',
-      status: 'waiting',
-      complaint: walkIn.complaint.trim() || 'General consultation',
+  const handleRemoveTicket = async (queueNo: string) => {
+    const res = await hospitalApi.removeQueueTicket(hospitalId, queueNo)
+    if (res.success) {
+      setQueue((prev) => prev.filter((q) => q.queueNo !== queueNo))
+      toast({ title: 'Ticket Removed', description: `Removed ${queueNo} from active queue.` })
     }
-    setQueue((prev) => [...prev, newEntry])
-    setShowAddModal(false)
-    setWalkIn({ name: '', icNumber: '', age: '35', gender: 'M', category: 'Green', complaint: '' })
-    toast({
-      title: 'Walk-In Registered',
-      description: `Assigned ticket ${nextNum} to ${newEntry.name}`,
-      variant: 'success',
-    })
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Patient Queue</h2>
-          <p className="text-slate-600 text-sm">Triage-prioritized outpatient & acute care queue</p>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowAddModal(true)}
-            className="rounded-xl gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            Register Walk-In
-          </Button>
-          <Button
-            type="button"
-            onClick={callNextPatient}
-            className={`gap-2 rounded-xl text-white bg-gradient-to-r ${theme.buttonGradient} shadow-sm`}
-          >
-            <Mic className="w-4 h-4" />
-            Call Next Priority
-          </Button>
-        </div>
-      </div>
+      <WorkstationModuleHeader
+        icon={Users}
+        title={t.queue}
+        subtitle="MTS colour-coded outpatient triage & live consultation dispatch"
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={loadQueue}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              {t.refreshData}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)}>
+              <Plus className="w-4 h-4 mr-1" />
+              Register Walk-In
+            </Button>
+            <Button
+              size="sm"
+              onClick={callNextPatient}
+              className={cn('text-white bg-gradient-to-r font-bold', theme.buttonGradient)}
+            >
+              <Mic className="w-4 h-4 mr-1.5" />
+              Call Next Priority
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-4 gap-4">
+      {/* KPI Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Waiting', value: stats.waiting, icon: Clock, cardClass: 'bg-slate-50 border-slate-200', valueClass: 'text-slate-900' },
-          { label: 'Called', value: stats.called, icon: PhoneCall, cardClass: 'bg-blue-50/80 border-blue-200', valueClass: 'text-blue-800' },
-          { label: 'In Consultation', value: stats.inProgress, icon: Stethoscope, cardClass: 'bg-emerald-50/80 border-emerald-200', valueClass: 'text-emerald-800' },
-          { label: 'Completed', value: stats.completed, icon: CheckCircle2, cardClass: 'bg-slate-50 border-slate-200', valueClass: 'text-slate-700' },
-        ].map((stat) => (
-          <div key={stat.label} className={`p-4 ${stat.cardClass} rounded-xl border`}>
-            <div className="flex items-center justify-between mb-1">
-              <stat.icon className="w-5 h-5 text-slate-500" />
-              <span className={`text-2xl font-bold tabular-nums ${stat.valueClass}`}>{stat.value}</span>
-            </div>
-            <p className="text-xs font-semibold text-slate-600">{stat.label}</p>
+          { label: 'Waiting Triage', value: stats.waiting, tone: 'text-slate-900', bg: 'bg-slate-50 border-slate-200' },
+          { label: 'Called to Room', value: stats.called, tone: 'text-blue-800', bg: 'bg-blue-50/70 border-blue-200' },
+          { label: 'In Consultation', value: stats.inProgress, tone: 'text-emerald-800', bg: 'bg-emerald-50/70 border-emerald-200' },
+          { label: 'Completed Today', value: stats.completed, tone: 'text-slate-700', bg: 'bg-white border-slate-200' },
+        ].map((kpi) => (
+          <div key={kpi.label} className={cn('p-4 rounded-2xl border shadow-sm', kpi.bg)}>
+            <p className="text-xs font-semibold text-slate-600">{kpi.label}</p>
+            <p className={cn('text-2xl font-extrabold mt-1 tabular-nums', kpi.tone)}>{kpi.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder="Search name, Queue No. or MyKad IC..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {(['all', 'waiting', 'called', 'in-progress', 'completed'] as const).map((f) => (
+      {/* Filter & Search Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {(['all', 'waiting', 'called', 'in-progress', 'completed'] as const).map((s) => (
             <button
-              key={f}
+              key={s}
               type="button"
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                filter === f
-                  ? 'bg-blue-600 text-white'
+              onClick={() => setFilter(s)}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors',
+                filter === s
+                  ? `${theme.iconBg} text-white`
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+              )}
             >
-              {f.replace('-', ' ')}
+              {s === 'all' ? `All (${queue.length})` : s.replace('-', ' ')}
             </button>
           ))}
         </div>
+
+        <div className="relative w-72 max-w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search ticket, name, MyKad IC…"
+            className="pl-9 h-9 text-xs"
+          />
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-600">
-            <tr>
-              <th className="p-4 text-left">Ticket</th>
-              <th className="p-4 text-left">Patient</th>
-              <th className="p-4 text-left">MyKad IC</th>
-              <th className="p-4 text-left">Chief Complaint</th>
-              <th className="p-4 text-left">Triage</th>
-              <th className="p-4 text-left">Wait</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredQueue.map((patient) => {
-              const triageInfo = TRIAGE_BADGE_MAP[patient.category]
-              const statusInfo = QUEUE_STATUS_MAP[patient.status]
-              const isBusy = hydratingQueueNo === patient.queueNo
-
-              return (
-                <tr key={patient.queueNo} className="hover:bg-slate-50/80">
-                  <td className="p-4 font-bold text-slate-900 font-mono tabular-nums">{patient.queueNo}</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          patient.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
-                        }`}
-                      >
-                        <User className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{patient.name}</p>
-                        <p className="text-xs text-slate-500 tabular-nums">
-                          {patient.age} yrs • {patient.gender === 'M' ? 'Male' : 'Female'}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4 font-mono text-xs text-slate-700 tabular-nums">{patient.icNumber}</td>
-                  <td className="p-4 text-slate-700 max-w-[240px] truncate" title={patient.complaint}>
-                    {patient.complaint}
-                  </td>
-                  <td className="p-4">
-                    <StatusBadge
-                      tone={triageInfo.tone}
-                      icon={triageInfo.icon}
-                      label={triageInfo.label}
-                    />
-                  </td>
-                  <td className="p-4 text-slate-600 tabular-nums">
-                    <span className="inline-flex items-center gap-1 text-xs">
-                      <Timer className="w-3.5 h-3.5" /> {patient.waitTime}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="inline-flex items-center gap-1.5">
-                      <StatusBadge
-                        tone={statusInfo.tone}
-                        icon={statusInfo.icon}
-                        label={statusInfo.label}
-                      />
-                      {(patient.status === 'waiting' || patient.status === 'called') && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={isBusy}
-                          onClick={() => void startConsultation(patient, false)}
-                          className="h-8 px-2.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Consult'}
-                        </Button>
-                      )}
-                      {patient.status === 'in-progress' && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => completeConsultation(patient.queueNo)}
-                          className="h-8 px-2.5 text-xs rounded-lg"
-                        >
-                          Complete
-                        </Button>
-                      )}
-                      {user?.role === 'doctor' && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={isBusy}
-                          onClick={() => void startConsultation(patient, true)}
-                          title="Open Federated Timeline"
-                          aria-label={`Open Federated Timeline for ${patient.name}`}
-                          className="h-8 w-8 p-0 rounded-lg"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-
-        {filteredQueue.length === 0 && (
-          <div className="p-12 text-center text-slate-500">
+      {/* Queue Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-5 space-y-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : filteredQueue.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 text-sm">
             <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p>No queue tickets match the selected filter.</p>
+            <p className="font-semibold text-slate-700">{t.noMatchingResults}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                <tr>
+                  <th className="py-3 px-4 text-left font-bold">Queue No</th>
+                  <th className="py-3 px-4 text-left font-bold">Patient & MyKad IC</th>
+                  <th className="py-3 px-4 text-left font-bold">MTS Triage</th>
+                  <th className="py-3 px-4 text-left font-bold">Presenting Complaint</th>
+                  <th className="py-3 px-4 text-left font-bold">Status</th>
+                  <th className="py-3 px-4 text-right font-bold">Clinical Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredQueue.map((item) => {
+                  const triage = TRIAGE_BADGE_MAP[item.category]
+                  const statusMeta = QUEUE_STATUS_MAP[item.status]
+                  return (
+                    <tr key={item.queueNo} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-extrabold text-sm text-slate-900 tabular-nums">
+                        {item.queueNo}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <p className="font-bold text-slate-900 text-sm">{item.name}</p>
+                        <p className="font-mono text-slate-600 tabular-nums">
+                          {item.icNumber} • {item.age}y ({item.gender})
+                        </p>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <StatusBadge tone={triage.tone} icon={triage.icon} label={triage.label} />
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 max-w-xs">{item.complaint}</td>
+                      <td className="py-3.5 px-4">
+                        <StatusBadge tone={statusMeta.tone} icon={statusMeta.icon} label={statusMeta.label} />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {item.status === 'waiting' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateTicketStatus(item.queueNo, 'called', `Paged ${item.queueNo}`)}
+                            >
+                              <PhoneCall className="w-3.5 h-3.5 mr-1" />
+                              Call
+                            </Button>
+                          )}
+                          {item.status !== 'completed' && (
+                            <Button
+                              size="sm"
+                              disabled={hydratingQueueNo === item.queueNo}
+                              onClick={() => handleOpenConsult(item)}
+                              className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}
+                            >
+                              {hydratingQueueNo === item.queueNo ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              Consult
+                            </Button>
+                          )}
+                          {item.status === 'in-progress' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateTicketStatus(item.queueNo, 'completed', 'Encounter Completed')}
+                            >
+                              Complete
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Remove ${item.queueNo}`}
+                            onClick={() => handleRemoveTicket(item.queueNo)}
+                            className="text-slate-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -411,89 +414,62 @@ export default function QueueManagement({ onSelectPatient }: QueueManagementProp
       <ModalDialog
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title="Register Walk-In Ticket"
-        description="Assign an immediate triage ticket for an unscheduled outpatient arrival."
-        maxWidthClassName="max-w-md"
+        title="Register Outpatient Walk-In Ticket"
+        description={`Issue a new MTS triage ticket at ${theme.name}`}
       >
-        <form onSubmit={handleAddWalkIn} className="space-y-4">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Patient Full Name *
-              </label>
+        <form onSubmit={handleRegisterWalkIn} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Patient Full Name *</label>
               <Input
                 required
-                placeholder="e.g. Ahmad bin Abdullah"
                 value={walkIn.name}
                 onChange={(e) => setWalkIn({ ...walkIn, name: e.target.value })}
+                placeholder="e.g., Nurul Izzah Binti Razak"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                MyKad IC Number *
-              </label>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">MyKad IC Number *</label>
               <Input
                 required
-                placeholder="e.g. 880101-14-5678"
-                className="font-mono"
                 value={walkIn.icNumber}
                 onChange={(e) => setWalkIn({ ...walkIn, icNumber: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Age</label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={walkIn.age}
-                  onChange={(e) => setWalkIn({ ...walkIn, age: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
-                <select
-                  className="w-full h-10 border border-slate-200 rounded-md px-2.5 text-sm bg-white"
-                  value={walkIn.gender}
-                  onChange={(e) => setWalkIn({ ...walkIn, gender: e.target.value as 'M' | 'F' })}
-                >
-                  <option value="M">Male</option>
-                  <option value="F">Female</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Triage</label>
-                <select
-                  className="w-full h-10 border border-slate-200 rounded-md px-2.5 text-sm bg-white"
-                  value={walkIn.category}
-                  onChange={(e) =>
-                    setWalkIn({ ...walkIn, category: e.target.value as QueuePatient['category'] })
-                  }
-                >
-                  <option value="Green">Green</option>
-                  <option value="Yellow">Yellow</option>
-                  <option value="Red">Red</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Chief Complaint
-              </label>
-              <Input
-                placeholder="Reason for visit"
-                value={walkIn.complaint}
-                onChange={(e) => setWalkIn({ ...walkIn, complaint: e.target.value })}
+                placeholder="e.g., 920814-14-5220"
+                className="font-mono tabular-nums"
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700">MTS Triage Acuity</label>
+            <select
+              value={walkIn.category}
+              onChange={(e) => setWalkIn({ ...walkIn, category: e.target.value as QueueTicketDto['category'] })}
+              className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
+            >
+              <option value="Green">Green — Standard Non-Urgent</option>
+              <option value="Yellow">Yellow — Semi-Urgent Priority</option>
+              <option value="Red">Red — Emergent Resuscitation</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700">Chief Complaint</label>
+            <Input
+              value={walkIn.complaint}
+              onChange={(e) => setWalkIn({ ...walkIn, complaint: e.target.value })}
+              placeholder="Primary symptoms or reason for visit…"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-              Cancel
+              {t.cancel}
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-              Issue Queue Ticket
+            <Button
+              type="submit"
+              disabled={submittingWalkIn}
+              className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}
+            >
+              {submittingWalkIn && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
+              Issue Ticket
             </Button>
           </div>
         </form>

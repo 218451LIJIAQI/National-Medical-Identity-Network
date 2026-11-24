@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { JwtPayload } from '../types';
 import { CONFIG } from '../config';
 import { getUserById } from '../database/central-multi';
+import { getHospitalDb } from '../database/hospital-multi';
 
 declare global {
   namespace Express {
@@ -123,6 +124,27 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         error: 'Session role or hospital affiliation mismatch. Please sign in again.',
       });
       return;
+    }
+
+    // Real-time clinician roster check: if the doctor's hospital roster is reachable and deactivated, revoke access immediately
+    if (user.role === 'doctor' && user.hospitalId) {
+      let doctorRosterActive = true;
+      try {
+        const doctor = await getHospitalDb(user.hospitalId).getDoctorByIc(user.icNumber);
+        if (!doctor || !doctor.isActive) {
+          doctorRosterActive = false;
+        }
+      } catch {
+        // Allow central session to proceed if hospital DB is transiently unreachable
+      }
+
+      if (!doctorRosterActive) {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor clinical license is inactive at the assigned hospital',
+        });
+        return;
+      }
     }
 
     const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin';

@@ -22,6 +22,13 @@ function mapUser(user: {
   };
 }
 
+export function parseSafeLimit(raw: unknown, fallback = 100, max = 500): number {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const parsed = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(Math.trunc(parsed), max);
+}
+
 export function parseAuditDateBound(raw: string, bound: 'start' | 'end'): Date | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -177,12 +184,12 @@ export async function getBlockedHospitals(rawIcNumber: string): Promise<string[]
 
 export async function getBlockedPatientIcsForHospital(hospitalId: string): Promise<Set<string>> {
   const settings = await getCentralDb().patientPrivacySetting.findMany({
-    where: { isBlocked: true },
+    where: { hospitalId, isBlocked: true },
     select: { icNumber: true, hospitalId: true },
   });
   const blocked = new Set<string>();
-  for (const s of settings as Array<{ icNumber: string; hospitalId: string }>) {
-    if (s.hospitalId === hospitalId && s.icNumber) {
+  for (const s of settings as Array<{ icNumber: string; hospitalId?: string }>) {
+    if ((!s.hospitalId || s.hospitalId === hospitalId) && s.icNumber) {
       blocked.add(normalizeIcNumber(s.icNumber));
     }
   }
@@ -234,6 +241,7 @@ export async function getAuditLogs(filters?: {
   targetIcNumber?: string;
   hospitalScopeId?: string;
   action?: string;
+  success?: boolean;
   startDate?: string;
   endDate?: string;
   limit?: number;
@@ -243,6 +251,7 @@ export async function getAuditLogs(filters?: {
   if (filters?.actorId) where.actorId = filters.actorId;
   if (filters?.targetIcNumber) where.targetIcNumber = normalizeIcNumber(filters.targetIcNumber);
   if (filters?.action) where.action = filters.action;
+  if (filters?.success !== undefined) where.success = filters.success;
 
   if (filters?.hospitalScopeId) {
     where.OR = [
@@ -269,7 +278,7 @@ export async function getAuditLogs(filters?: {
     where.timestamp = timestampFilter;
   }
 
-  const safeLimit = Math.min(Math.max(filters?.limit || 100, 1), 500);
+  const safeLimit = parseSafeLimit(filters?.limit, 100, 500);
 
   const logs = await getCentralDb().auditLog.findMany({
     where,

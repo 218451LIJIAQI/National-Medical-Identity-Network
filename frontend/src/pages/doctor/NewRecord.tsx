@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/modal-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
@@ -30,7 +31,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { cn, formatIC, parseMyKadDemographics, toDateInputValue } from '@/lib/utils'
+import { cn, formatIC, isValidMyKad, parseMyKadDemographics, toDateInputValue } from '@/lib/utils'
 
 const EMPTY_PRESCRIPTION: PrescriptionDto = {
   medicationName: '',
@@ -57,9 +58,11 @@ const VITAL_FIELD_LIMITS = [
   { key: 'bloodPressureSystolic', min: 30, max: 300, label: 'Systolic BP (30–300 mmHg)' },
   { key: 'bloodPressureDiastolic', min: 15, max: 220, label: 'Diastolic BP (15–220 mmHg)' },
   { key: 'heartRate', min: 15, max: 300, label: 'Heart Rate (15–300 bpm)' },
+  { key: 'respiratoryRate', min: 4, max: 60, label: 'Respiratory Rate (4–60 /min)' },
   { key: 'temperature', min: 25, max: 45, label: 'Temperature (25–45 °C)' },
   { key: 'oxygenSaturation', min: 30, max: 100, label: 'SpO2 (30–100 %)' },
   { key: 'weight', min: 0.3, max: 500, label: 'Weight (0.3–500 kg)' },
+  { key: 'height', min: 20, max: 260, label: 'Height (20–260 cm)' },
 ] as const
 
 export default function NewRecord() {
@@ -71,7 +74,7 @@ export default function NewRecord() {
   const { toast } = useToast()
   const { t } = useTranslation()
   const { user } = useAuthStore()
-  const { setActivePatient } = useClinicalStore()
+  const { activePatient, setActivePatient, clearActivePatient } = useClinicalStore()
   const theme = getHospitalTheme(user?.hospitalId)
 
   const submittingRef = useRef(false)
@@ -110,6 +113,7 @@ export default function NewRecord() {
     bloodPressureSystolic: '',
     bloodPressureDiastolic: '',
     heartRate: '',
+    respiratoryRate: '',
     temperature: '',
     oxygenSaturation: '',
     weight: '',
@@ -120,19 +124,33 @@ export default function NewRecord() {
   const [labReports, setLabReports] = useState<LabReportDto[]>([])
 
   useEffect(() => {
+    let cancelled = false
+
     async function initializeForm() {
       if (!formattedIc || !user?.hospitalId) {
+        setLoadingInitial(false)
+        return
+      }
+      if (!isValidMyKad(formattedIc)) {
+        setBlockingError(t.invalidMyKadFormat)
         setLoadingInitial(false)
         return
       }
 
       setLoadingInitial(true)
       setBlockingError(null)
+      setPatientInfo(null)
+      setPrescriptions([])
+      setLabReports([])
 
       try {
         const patientRes = await hospitalApi.getPatient(user.hospitalId, formattedIc)
+        if (cancelled) return
 
         if (patientRes.accessDenied) {
+          if (activePatient?.icNumber === formattedIc) {
+            clearActivePatient()
+          }
           setBlockingError(patientRes.error || t.privacyRestrictedDesc)
           setLoadingInitial(false)
           return
@@ -163,6 +181,7 @@ export default function NewRecord() {
             gender: genderVal,
             bloodType: String(p.bloodType || ''),
             allergies: allergiesArr,
+            allergiesUnverified: false,
             chronicConditions: conditionsArr,
             scopedHospitalId: user.hospitalId,
             scopedDoctorId: user.doctorId,
@@ -177,7 +196,18 @@ export default function NewRecord() {
             chronicConditionsInput: conditionsArr.join(', '),
           }))
         } else if (patientRes.notFound || patientRes.status === 404) {
+          const inferred = parseMyKadDemographics(formattedIc)
           setPatientExists(false)
+          setIsFederatedFirstVisit(false)
+          setFormData((prev) => ({
+            ...prev,
+            patientName: '',
+            dateOfBirth: inferred?.dateOfBirth || '',
+            gender: (inferred?.gender || 'male') as 'male' | 'female',
+            bloodType: '',
+            allergiesInput: '',
+            chronicConditionsInput: '',
+          }))
         } else {
           setBlockingError(patientRes.error || t.networkError)
           setLoadingInitial(false)
@@ -186,6 +216,8 @@ export default function NewRecord() {
 
         if (isEditMode && recordId) {
           const recordRes = await hospitalApi.getRecord(user.hospitalId, recordId)
+          if (cancelled) return
+
           if (!recordRes.success || !recordRes.data) {
             setBlockingError(
               recordRes.error || 'Record not found or cross-hospital records cannot be modified.'
@@ -195,6 +227,11 @@ export default function NewRecord() {
           }
 
           const rec = recordRes.data
+          if (formatIC(rec.icNumber) !== formattedIc) {
+            setBlockingError('Record patient identity mismatch: this record belongs to another patient.')
+            setLoadingInitial(false)
+            return
+          }
           if (rec.hospitalId !== user.hospitalId || rec.isReadOnly) {
             setBlockingError('Cross-hospital records are strictly read-only.')
             setLoadingInitial(false)
@@ -213,19 +250,28 @@ export default function NewRecord() {
             symptoms: (rec.symptoms || []).join(', '),
             notes: rec.notes || '',
             followUpDate: toDateInputValue(rec.followUpDate),
-            bloodPressureSystolic: rec.vitalSigns?.bloodPressureSystolic
-              ? String(rec.vitalSigns.bloodPressureSystolic)
-              : '',
-            bloodPressureDiastolic: rec.vitalSigns?.bloodPressureDiastolic
-              ? String(rec.vitalSigns.bloodPressureDiastolic)
-              : '',
-            heartRate: rec.vitalSigns?.heartRate ? String(rec.vitalSigns.heartRate) : '',
-            temperature: rec.vitalSigns?.temperature ? String(rec.vitalSigns.temperature) : '',
-            oxygenSaturation: rec.vitalSigns?.oxygenSaturation
-              ? String(rec.vitalSigns.oxygenSaturation)
-              : '',
-            weight: rec.vitalSigns?.weight ? String(rec.vitalSigns.weight) : '',
-            height: rec.vitalSigns?.height ? String(rec.vitalSigns.height) : '',
+            bloodPressureSystolic:
+              rec.vitalSigns?.bloodPressureSystolic !== undefined
+                ? String(rec.vitalSigns.bloodPressureSystolic)
+                : '',
+            bloodPressureDiastolic:
+              rec.vitalSigns?.bloodPressureDiastolic !== undefined
+                ? String(rec.vitalSigns.bloodPressureDiastolic)
+                : '',
+            heartRate:
+              rec.vitalSigns?.heartRate !== undefined ? String(rec.vitalSigns.heartRate) : '',
+            respiratoryRate:
+              rec.vitalSigns?.respiratoryRate !== undefined
+                ? String(rec.vitalSigns.respiratoryRate)
+                : '',
+            temperature:
+              rec.vitalSigns?.temperature !== undefined ? String(rec.vitalSigns.temperature) : '',
+            oxygenSaturation:
+              rec.vitalSigns?.oxygenSaturation !== undefined
+                ? String(rec.vitalSigns.oxygenSaturation)
+                : '',
+            weight: rec.vitalSigns?.weight !== undefined ? String(rec.vitalSigns.weight) : '',
+            height: rec.vitalSigns?.height !== undefined ? String(rec.vitalSigns.height) : '',
           }))
           setPrescriptions(rec.prescriptions || [])
           setLabReports(
@@ -236,25 +282,38 @@ export default function NewRecord() {
           )
         }
       } catch {
-        setBlockingError('Unable to load clinical record context.')
+        if (!cancelled) {
+          setBlockingError('Unable to load clinical record context.')
+        }
       } finally {
-        setLoadingInitial(false)
+        if (!cancelled) {
+          setLoadingInitial(false)
+        }
       }
     }
 
     void initializeForm()
-  }, [formattedIc, isEditMode, recordId, user?.hospitalId, user?.doctorId, setActivePatient, t.privacyRestrictedDesc, t.networkError])
+    return () => {
+      cancelled = true
+    }
+  }, [
+    formattedIc,
+    isEditMode,
+    recordId,
+    user?.hospitalId,
+    user?.doctorId,
+    setActivePatient,
+    clearActivePatient,
+    t.invalidMyKadFormat,
+    t.privacyRestrictedDesc,
+    t.networkError,
+  ])
 
-  const mergedKnownAllergies = Array.from(
-    new Set([
-      ...(patientInfo?.allergies || []),
-      ...formData.allergiesInput
-        .split(',')
-        .map((a) => a.trim())
-        .filter(Boolean),
-    ])
-  )
-  const knownAllergiesLower = mergedKnownAllergies.map((a) => a.toLowerCase())
+  const effectiveAllergies = formData.allergiesInput
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean)
+  const knownAllergiesLower = effectiveAllergies.map((a) => a.toLowerCase())
 
   const conflictingMeds = prescriptions.filter((rx) => {
     const medLower = rx.medicationName.trim().toLowerCase()
@@ -312,8 +371,7 @@ export default function NewRecord() {
       return
     }
 
-    // Validate physiological vital bounds
-    const vitalSigns: Record<string, unknown> = {}
+    const vitalSigns: Record<string, number> = {}
     for (const rule of VITAL_FIELD_LIMITS) {
       const rawVal = formData[rule.key].trim()
       if (!rawVal) continue
@@ -329,7 +387,19 @@ export default function NewRecord() {
       vitalSigns[rule.key] = num
     }
 
-    // Validate prescription rows (do not silently drop half-filled medications)
+    if (
+      vitalSigns.bloodPressureSystolic !== undefined &&
+      vitalSigns.bloodPressureDiastolic !== undefined &&
+      vitalSigns.bloodPressureDiastolic >= vitalSigns.bloodPressureSystolic
+    ) {
+      toast({
+        title: 'Invalid Blood Pressure',
+        description: 'Diastolic blood pressure must be lower than systolic blood pressure.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     const cleanedPrescriptions: PrescriptionDto[] = []
     for (let i = 0; i < prescriptions.length; i++) {
       const rx = prescriptions[i]
@@ -354,7 +424,6 @@ export default function NewRecord() {
       })
     }
 
-    // Validate lab report rows
     const cleanedLabReports: LabReportDto[] = []
     for (let i = 0; i < labReports.length; i++) {
       const lab = labReports[i]
@@ -381,6 +450,11 @@ export default function NewRecord() {
     submittingRef.current = true
     setSaving(true)
     try {
+      const cleanedConditions = formData.chronicConditionsInput
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+
       const payload = {
         icNumber: formattedIc,
         visitDate: formData.visitDate,
@@ -404,14 +478,9 @@ export default function NewRecord() {
         dateOfBirth: formData.dateOfBirth || undefined,
         gender: formData.gender,
         bloodType: formData.bloodType.trim() || undefined,
-        allergies: formData.allergiesInput
-          .split(',')
-          .map((a) => a.trim())
-          .filter(Boolean),
-        chronicConditions: formData.chronicConditionsInput
-          .split(',')
-          .map((c) => c.trim())
-          .filter(Boolean),
+        allergies: effectiveAllergies,
+        chronicConditions: cleanedConditions,
+        replaceAllergiesAndConditions: true,
       }
 
       const response =
@@ -441,8 +510,10 @@ export default function NewRecord() {
 
   if (loadingInitial) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className={cn('w-8 h-8 animate-spin', theme.iconColor)} />
+      <div className="space-y-5">
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-44 w-full rounded-2xl" />
+        <Skeleton className="h-72 w-full rounded-2xl" />
       </div>
     )
   }
@@ -524,11 +595,11 @@ export default function NewRecord() {
                   {patientInfo.gender} • Blood: <strong>{patientInfo.bloodType || 'Unknown'}</strong> • DOB:{' '}
                   {patientInfo.dateOfBirth || '—'}
                 </p>
-                {mergedKnownAllergies.length > 0 && (
+                {effectiveAllergies.length > 0 && (
                   <div className="mt-2">
                     <StatusBadge
                       tone="critical"
-                      label={`Recorded Allergies: ${mergedKnownAllergies.join(', ')}`}
+                      label={`Recorded Allergies: ${effectiveAllergies.join(', ')}`}
                     />
                   </div>
                 )}
@@ -563,7 +634,7 @@ export default function NewRecord() {
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-5 grid grid-cols-3 gap-4">
+          <CardContent className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
             {!patientExists && (
               <>
                 <div className="space-y-1.5">
@@ -665,7 +736,7 @@ export default function NewRecord() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-5 space-y-5">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="visitDate" className="text-xs font-bold">
                   Visit Date
@@ -706,21 +777,22 @@ export default function NewRecord() {
               </div>
             </div>
 
-            {/* Vital Signs */}
+            {/* Complete 8-Metric Physiological Vital Signs */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                 <Activity className="w-3.5 h-3.5 text-slate-500" />
                 Vital Signs (Tabular Clinical Metrics)
               </Label>
-              <div className="grid grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <Label htmlFor="v-sys" className="text-[11px] text-slate-600 flex items-center gap-1 mb-1">
-                    <Heart className="w-3 h-3" /> Systolic BP
+                    <Heart className="w-3 h-3" /> Systolic BP (mmHg)
                   </Label>
                   <Input
                     id="v-sys"
                     type="number"
                     placeholder="120"
+                    className="tabular-nums"
                     value={formData.bloodPressureSystolic}
                     onChange={(e) =>
                       setFormData({ ...formData, bloodPressureSystolic: e.target.value })
@@ -729,12 +801,13 @@ export default function NewRecord() {
                 </div>
                 <div>
                   <Label htmlFor="v-dia" className="text-[11px] text-slate-600 mb-1 block">
-                    Diastolic BP
+                    Diastolic BP (mmHg)
                   </Label>
                   <Input
                     id="v-dia"
                     type="number"
                     placeholder="80"
+                    className="tabular-nums"
                     value={formData.bloodPressureDiastolic}
                     onChange={(e) =>
                       setFormData({ ...formData, bloodPressureDiastolic: e.target.value })
@@ -749,8 +822,22 @@ export default function NewRecord() {
                     id="v-hr"
                     type="number"
                     placeholder="72"
+                    className="tabular-nums"
                     value={formData.heartRate}
                     onChange={(e) => setFormData({ ...formData, heartRate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="v-rr" className="text-[11px] text-slate-600 mb-1 block">
+                    Resp. Rate (/min)
+                  </Label>
+                  <Input
+                    id="v-rr"
+                    type="number"
+                    placeholder="16"
+                    className="tabular-nums"
+                    value={formData.respiratoryRate}
+                    onChange={(e) => setFormData({ ...formData, respiratoryRate: e.target.value })}
                   />
                 </div>
                 <div>
@@ -762,6 +849,7 @@ export default function NewRecord() {
                     type="number"
                     step="0.1"
                     placeholder="36.6"
+                    className="tabular-nums"
                     value={formData.temperature}
                     onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                   />
@@ -774,6 +862,7 @@ export default function NewRecord() {
                     id="v-spo2"
                     type="number"
                     placeholder="98"
+                    className="tabular-nums"
                     value={formData.oxygenSaturation}
                     onChange={(e) =>
                       setFormData({ ...formData, oxygenSaturation: e.target.value })
@@ -789,14 +878,29 @@ export default function NewRecord() {
                     type="number"
                     step="0.1"
                     placeholder="70"
+                    className="tabular-nums"
                     value={formData.weight}
                     onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="v-ht" className="text-[11px] text-slate-600 mb-1 block">
+                    Height (cm)
+                  </Label>
+                  <Input
+                    id="v-ht"
+                    type="number"
+                    step="0.1"
+                    placeholder="170"
+                    className="tabular-nums"
+                    value={formData.height}
+                    onChange={(e) => setFormData({ ...formData, height: e.target.value })}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="chiefComplaint" className="text-xs font-bold">
                   Chief Complaint
@@ -822,8 +926,8 @@ export default function NewRecord() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-1.5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-1.5">
                 <Label htmlFor="diagnosis" className="text-xs font-bold">
                   Clinical Diagnosis * (comma-separated)
                 </Label>
@@ -887,7 +991,7 @@ export default function NewRecord() {
                 <span>
                   <strong>Drug Allergy Contraindication Alert:</strong>{' '}
                   {conflictingMeds.map((m) => m.medicationName).join(', ')} matches recorded patient allergies (
-                  {mergedKnownAllergies.join(', ')})!
+                  {effectiveAllergies.join(', ')})!
                 </span>
               </div>
             )}
@@ -899,7 +1003,7 @@ export default function NewRecord() {
             ) : (
               prescriptions.map((rx, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="grid grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="col-span-2">
                       <Label className="text-xs font-semibold">Medication Name *</Label>
                       <Input
@@ -937,6 +1041,7 @@ export default function NewRecord() {
                       <Input
                         type="number"
                         min={1}
+                        className="tabular-nums"
                         value={rx.quantity}
                         onChange={(e) =>
                           updatePrescriptionRow(idx, { quantity: Number(e.target.value) || 1 })
@@ -944,12 +1049,12 @@ export default function NewRecord() {
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Input
                       placeholder="Administration instructions (e.g. Take after meals)"
                       value={rx.instructions}
                       onChange={(e) => updatePrescriptionRow(idx, { instructions: e.target.value })}
-                      className="flex-1"
+                      className="flex-1 min-w-[200px]"
                     />
                     <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 shrink-0">
                       <input
@@ -995,7 +1100,7 @@ export default function NewRecord() {
             ) : (
               labReports.map((lab, idx) => (
                 <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="grid grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                     <div>
                       <Label className="text-xs font-semibold">Category</Label>
                       <Input
@@ -1016,6 +1121,7 @@ export default function NewRecord() {
                       <Label className="text-xs font-semibold">Result *</Label>
                       <Input
                         placeholder="6.8"
+                        className="tabular-nums"
                         value={lab.result}
                         onChange={(e) => updateLabReportRow(idx, { result: e.target.value })}
                       />
@@ -1032,17 +1138,18 @@ export default function NewRecord() {
                       <Label className="text-xs font-semibold">Ref Range</Label>
                       <Input
                         placeholder="4.0 - 5.6"
+                        className="tabular-nums"
                         value={lab.referenceRange}
                         onChange={(e) => updateLabReportRow(idx, { referenceRange: e.target.value })}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Input
                       placeholder="Pathology notes…"
                       value={lab.notes}
                       onChange={(e) => updateLabReportRow(idx, { notes: e.target.value })}
-                      className="flex-1"
+                      className="flex-1 min-w-[200px]"
                     />
                     <label className="flex items-center gap-2 text-xs font-bold text-red-800 shrink-0">
                       <input

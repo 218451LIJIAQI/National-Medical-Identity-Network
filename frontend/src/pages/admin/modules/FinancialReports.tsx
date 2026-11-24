@@ -1,423 +1,219 @@
-import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/ui/modal-dialog'
-import {
-  TrendingUp,
-  TrendingDown,
-  FileText,
-  Download,
-  Calendar,
-  Building2,
-  Users,
-  CreditCard,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
-  Printer,
-  CheckCircle2,
-} from 'lucide-react'
-import { downloadCsvFile, escapeHtml, printHtmlDocument } from '@/lib/utils'
+import { useState, useEffect, useCallback } from 'react'
+import { DollarSign, Download, Printer, RefreshCw, TrendingUp, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
+import { hospitalApi, type HospitalFinanceSummaryDto } from '@/lib/api'
 import { getHospitalTheme } from '@/lib/hospital-themes'
-import { useToast } from '@/components/ui/use-toast'
-
-interface RevenueData {
-  category: string
-  categoryMY: string
-  baseAmount: number
-  percentage: number
-  trend: 'up' | 'down' | 'stable'
-}
-
-interface ExpenseData {
-  category: string
-  categoryMY: string
-  baseAmount: number
-  percentage: number
-}
-
-const baseRevenueData: RevenueData[] = [
-  { category: 'Outpatient Services', categoryMY: 'Perkhidmatan Pesakit Luar', baseAmount: 450000, percentage: 35, trend: 'up' },
-  { category: 'Inpatient Services', categoryMY: 'Perkhidmatan Pesakit Dalam', baseAmount: 380000, percentage: 30, trend: 'up' },
-  { category: 'Laboratory & Diagnostics', categoryMY: 'Makmal & Diagnostik', baseAmount: 180000, percentage: 14, trend: 'stable' },
-  { category: 'Pharmacy Sales', categoryMY: 'Jualan Farmasi', baseAmount: 150000, percentage: 12, trend: 'up' },
-  { category: 'Government Subsidy (KKM)', categoryMY: 'Subsidi Kerajaan (KKM)', baseAmount: 120000, percentage: 9, trend: 'stable' },
-]
-
-const baseExpenseData: ExpenseData[] = [
-  { category: 'Staff Salaries', categoryMY: 'Gaji Kakitangan', baseAmount: 520000, percentage: 45 },
-  { category: 'Medical Supplies', categoryMY: 'Bekalan Perubatan', baseAmount: 230000, percentage: 20 },
-  { category: 'Equipment Maintenance', categoryMY: 'Penyelenggaraan Peralatan', baseAmount: 115000, percentage: 10 },
-  { category: 'Utilities', categoryMY: 'Utiliti', baseAmount: 92000, percentage: 8 },
-  { category: 'Administrative', categoryMY: 'Pentadbiran', baseAmount: 69000, percentage: 6 },
-  { category: 'Training & Development', categoryMY: 'Latihan & Pembangunan', baseAmount: 46000, percentage: 4 },
-  { category: 'Others', categoryMY: 'Lain-lain', baseAmount: 80500, percentage: 7 },
-]
-
-const baseSubsidyPrograms = [
-  { name: 'MySalam', baseAmount: 45000, baseBeneficiaries: 320, color: 'bg-blue-600' },
-  { name: 'PeKa B40', baseAmount: 38000, baseBeneficiaries: 180, color: 'bg-emerald-600' },
-  { name: 'SOCSO/PERKESO', baseAmount: 25000, baseBeneficiaries: 95, color: 'bg-purple-600' },
-  { name: 'Bantuan Sara Hidup', baseAmount: 12000, baseBeneficiaries: 45, color: 'bg-amber-600' },
-]
-
-const PERIOD_MULTIPLIER: Record<string, { factor: number; label: string }> = {
-  week: { factor: 0.25, label: 'Weekly' },
-  month: { factor: 1, label: 'Monthly' },
-  quarter: { factor: 3, label: 'Quarterly' },
-  year: { factor: 12, label: 'Annual' },
-}
+import { useTranslation } from '@/lib/i18n'
+import { downloadCsvFile, escapeHtml, formatMYR, printHtmlDocument } from '@/lib/utils'
+import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function FinancialReports() {
-  const { user } = useAuthStore()
-  const { toast } = useToast()
-  const theme = getHospitalTheme(user?.hospitalId)
+  const user = useAuthStore((s) => s.user)
+  const { t } = useTranslation()
+  const hospitalId = user?.hospitalId || 'hospital-kl'
+  const theme = getHospitalTheme(hospitalId)
 
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month')
-  const [showPaymentsTable, setShowPaymentsTable] = useState(false)
-  const [scheduledDigest, setScheduledDigest] = useState(false)
+  const [summary, setSummary] = useState<HospitalFinanceSummaryDto | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const multiplier = PERIOD_MULTIPLIER[selectedPeriod].factor
-  const periodLabel = PERIOD_MULTIPLIER[selectedPeriod].label
+  const loadFinance = useCallback(async () => {
+    setLoading(true)
+    const res = await hospitalApi.getFinanceSummary(hospitalId)
+    if (res.success && res.data) {
+      setSummary(res.data)
+    }
+    setLoading(false)
+  }, [hospitalId])
 
-  const revenueData = baseRevenueData.map((r) => ({
-    ...r,
-    amount: Math.round(r.baseAmount * multiplier),
-  }))
-  const expenseData = baseExpenseData.map((e) => ({
-    ...e,
-    amount: Math.round(e.baseAmount * multiplier),
-  }))
-  const subsidyPrograms = baseSubsidyPrograms.map((s) => ({
-    ...s,
-    amount: Math.round(s.baseAmount * multiplier),
-    beneficiaries: Math.max(1, Math.round(s.baseBeneficiaries * multiplier)),
-  }))
+  useEffect(() => {
+    void loadFinance()
+  }, [loadFinance])
 
-  const totalRevenue = revenueData.reduce((acc, r) => acc + r.amount, 0)
-  const totalExpense = expenseData.reduce((acc, e) => acc + e.amount, 0)
-  const netIncome = totalRevenue - totalExpense
-  const profitMargin = totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(1) : '0.0'
-  const totalSubsidies = subsidyPrograms.reduce((a, s) => a + s.amount, 0)
+  const totalAllocation = (summary?.monthlySeries || []).reduce((s, m) => s + m.mohAllocation, 0)
+  const totalPatientCollection = (summary?.monthlySeries || []).reduce((s, m) => s + m.patientCollection, 0)
+  const totalOperatingExpense = (summary?.monthlySeries || []).reduce((s, m) => s + m.operatingExpense, 0)
+  const totalSubsidyAbsorbed = (summary?.monthlySeries || []).reduce((s, m) => s + m.subsidyAbsorbed, 0)
 
-  const handlePrintPdf = () => {
-    const revRows = revenueData
-      .map(
-        (r) =>
-          `<tr><td>${escapeHtml(r.category)}</td><td>RM ${escapeHtml(r.amount.toLocaleString())}</td><td>${escapeHtml(r.percentage)}%</td></tr>`
-      )
-      .join('')
-    const expRows = expenseData
-      .map(
-        (e) =>
-          `<tr><td>${escapeHtml(e.category)}</td><td>RM ${escapeHtml(e.amount.toLocaleString())}</td><td>${escapeHtml(e.percentage)}%</td></tr>`
-      )
-      .join('')
-    printHtmlDocument(
-      `${periodLabel} Financial Report - ${theme.name}`,
-      `<div class="header">
-        <div><h1>${escapeHtml(theme.name)}</h1><p>${escapeHtml(periodLabel)} Financial Statement &amp; MOH Subsidy Ledger</p></div>
-        <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
-      </div>
-      <div class="meta">
-        <strong>Total Revenue:</strong> RM ${escapeHtml(totalRevenue.toLocaleString())} |
-        <strong>Total Expenses:</strong> RM ${escapeHtml(totalExpense.toLocaleString())} |
-        <strong>Net Surplus:</strong> RM ${escapeHtml(netIncome.toLocaleString())} (${escapeHtml(profitMargin)}%)
-      </div>
-      <h3>Revenue Breakdown</h3>
-      <table><thead><tr><th>Category</th><th>Amount</th><th>Share</th></tr></thead><tbody>${revRows}</tbody></table>
-      <h3>Expense Breakdown</h3>
-      <table><thead><tr><th>Category</th><th>Amount</th><th>Share</th></tr></thead><tbody>${expRows}</tbody></table>`
+  const handleExportCsv = () => {
+    if (!summary) return
+    downloadCsvFile(
+      `financial-ledger-${hospitalId}.csv`,
+      ['Month', 'KKM Operating Vote (MYR)', 'Patient Co-Payment (MYR)', 'Operating Expenditure (MYR)', 'Citizen Subsidy Absorbed (MYR)'],
+      summary.monthlySeries.map((m) => [
+        m.month,
+        m.mohAllocation,
+        m.patientCollection,
+        m.operatingExpense,
+        m.subsidyAbsorbed,
+      ])
     )
   }
 
-  const handleExportCsv = () => {
-    downloadCsvFile(
-      `financial-ledger-${selectedPeriod}-${new Date().toISOString().split('T')[0]}.csv`,
-      ['Type', 'Category', 'Period', 'Amount (RM)', 'Share (%)'],
-      [
-        ...revenueData.map((r) => ['Revenue', r.category, periodLabel, r.amount, r.percentage]),
-        ...expenseData.map((e) => ['Expense', e.category, periodLabel, e.amount, e.percentage]),
-      ]
+  const handlePrint = () => {
+    if (!summary) return
+    const rowsHtml = summary.monthlySeries
+      .map(
+        (m) => `<tr>
+          <td>${escapeHtml(m.month)}</td>
+          <td>${escapeHtml(formatMYR(m.mohAllocation))}</td>
+          <td>${escapeHtml(formatMYR(m.patientCollection))}</td>
+          <td>${escapeHtml(formatMYR(m.operatingExpense))}</td>
+          <td>${escapeHtml(formatMYR(m.subsidyAbsorbed))}</td>
+        </tr>`
+      )
+      .join('')
+    printHtmlDocument(
+      `Financial Report - ${summary.hospitalName}`,
+      `<div class="header">
+        <div><h1>${escapeHtml(summary.hospitalName)}</h1><p>${escapeHtml(summary.fiscalYear)} — KKM Operating Vote & Citizen Subsidy Ledger</p></div>
+        <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
+      </div>
+      <div class="meta">
+        <strong>6-Month Operating Allocation:</strong> ${escapeHtml(formatMYR(totalAllocation))} |
+        <strong>Patient Co-Payment Collected:</strong> ${escapeHtml(formatMYR(totalPatientCollection))}<br/>
+        <strong>Store Inventory Valuation:</strong> ${escapeHtml(formatMYR(summary.inventoryValuation))} |
+        <strong>Live Settled Receipts:</strong> ${summary.settledReceiptsCount}
+      </div>
+      <table>
+        <thead><tr><th>Month</th><th>MOH Vote B42</th><th>Co-Payments</th><th>Operating Expense</th><th>Subsidy Absorbed</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`
     )
   }
 
   return (
-    <div className="space-y-6 tabular-nums">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Financial Reports ({periodLabel})</h1>
-          <p className="text-slate-600 text-sm">
-            Hospital revenue, expenditure & MOH citizen subsidy reconciliation
-          </p>
+    <div className="space-y-6">
+      <WorkstationModuleHeader
+        icon={DollarSign}
+        title={t.financialReports}
+        subtitle="KKM Operating Vote B42 allocation, citizen subsidy absorption & live billing/inventory reconciliation"
+        badge={summary?.fiscalYear || theme.shortName}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={loadFinance}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              {t.refreshData}
+            </Button>
+            <Button variant="outline" size="sm" disabled={!summary} onClick={handleExportCsv}>
+              <Download className="w-4 h-4 mr-1.5" />
+              {t.exportCsv}
+            </Button>
+            <Button variant="outline" size="sm" disabled={!summary} onClick={handlePrint}>
+              <Printer className="w-4 h-4 mr-1.5" />
+              {t.printSummary}
+            </Button>
+          </>
+        }
+      />
+
+      {loading || !summary ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-28 w-full rounded-2xl" />
+            <Skeleton className="h-28 w-full rounded-2xl" />
+            <Skeleton className="h-28 w-full rounded-2xl" />
+            <Skeleton className="h-28 w-full rounded-2xl" />
+          </div>
+          <Skeleton className="h-72 w-full rounded-2xl" />
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value as typeof selectedPeriod)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-medium"
-            title="Select Period"
-          >
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="quarter">This Quarter</option>
-            <option value="year">This Year</option>
-          </select>
-          <Button variant="outline" onClick={handlePrintPdf} className="gap-2">
-            <Printer className="w-4 h-4" /> Print / Save PDF
-          </Button>
-          <Button
-            onClick={handleExportCsv}
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </Button>
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 tabular-nums">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">6-Month MOH Vote B42</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-1">{formatMYR(totalAllocation)}</p>
+              <p className="text-xs text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5" /> Federal Treasury Disbursed
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Citizen Subsidy Absorbed</p>
+              <p className="text-2xl font-extrabold text-emerald-800 mt-1">{formatMYR(totalSubsidyAbsorbed)}</p>
+              <p className="text-xs text-slate-600 mt-1">Akta Fi 1951 public care shield</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Patient Co-Payments Collected</p>
+              <p className="text-2xl font-extrabold text-blue-900 mt-1">{formatMYR(totalPatientCollection)}</p>
+              <p className="text-xs text-slate-600 mt-1">
+                Includes {summary.settledReceiptsCount} live session receipt(s) ({formatMYR(summary.liveSettledRevenue)})
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">Live Store Inventory Valuation</p>
+              <p className="text-2xl font-extrabold text-slate-900 mt-1">{formatMYR(summary.inventoryValuation)}</p>
+              <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Synced with Central Store
+              </p>
+            </div>
+          </div>
 
-      {scheduledDigest && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>
-            Automated {periodLabel.toLowerCase()} financial digest scheduled for hospital treasury
-            review.
-          </span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="bg-emerald-50/80 border-emerald-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-emerald-800">
-                  Total Revenue ({periodLabel})
-                </p>
-                <p className="text-2xl font-bold text-emerald-950 mt-1">
-                  RM {totalRevenue.toLocaleString()}
-                </p>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Monthly Ledger Table */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h2 className="text-sm font-bold text-slate-900">Monthly Operating Vote & Revenue Ledger</h2>
               </div>
-              <div className="p-2.5 bg-emerald-600 rounded-xl text-white">
-                <TrendingUp className="w-5 h-5" />
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs tabular-nums">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                    <tr>
+                      <th className="py-3 px-4 text-left font-bold">Period</th>
+                      <th className="py-3 px-4 text-right font-bold">MOH Allocation</th>
+                      <th className="py-3 px-4 text-right font-bold">Co-Payments</th>
+                      <th className="py-3 px-4 text-right font-bold">Expenditure</th>
+                      <th className="py-3 px-4 text-right font-bold">Subsidy Absorbed</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {summary.monthlySeries.map((row) => (
+                      <tr key={row.month} className="hover:bg-slate-50/70">
+                        <td className="py-3 px-4 font-bold text-slate-900">{row.month} 2026</td>
+                        <td className="py-3 px-4 text-right font-semibold">{formatMYR(row.mohAllocation)}</td>
+                        <td className="py-3 px-4 text-right text-blue-800 font-semibold">{formatMYR(row.patientCollection)}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{formatMYR(row.operatingExpense)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-800 font-semibold">{formatMYR(row.subsidyAbsorbed)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-extrabold text-slate-900">
+                    <tr>
+                      <td className="py-3 px-4">6-Month Total</td>
+                      <td className="py-3 px-4 text-right">{formatMYR(totalAllocation)}</td>
+                      <td className="py-3 px-4 text-right text-blue-900">{formatMYR(totalPatientCollection)}</td>
+                      <td className="py-3 px-4 text-right">{formatMYR(totalOperatingExpense)}</td>
+                      <td className="py-3 px-4 text-right text-emerald-900">{formatMYR(totalSubsidyAbsorbed)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-xs text-emerald-800 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +12.5% YoY
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-red-50/80 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-red-800">Total Expenses ({periodLabel})</p>
-                <p className="text-2xl font-bold text-red-950 mt-1">
-                  RM {totalExpense.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-2.5 bg-red-600 rounded-xl text-white">
-                <TrendingDown className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="flex items-center gap-1 mt-2 text-xs text-red-800 font-medium">
-              <ArrowDownRight className="w-3.5 h-3.5" /> -3.2% cost variance
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-blue-50/80 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-blue-800">Net Operating Surplus</p>
-                <p className="text-2xl font-bold text-blue-950 mt-1">
-                  RM {netIncome.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-2.5 bg-blue-600 rounded-xl text-white">
-                <Wallet className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-xs text-blue-800 font-medium mt-2">
-              Operating Margin: {profitMargin}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-purple-50/80 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-purple-800">MOH Subsidies Disbursed</p>
-                <p className="text-2xl font-bold text-purple-950 mt-1">
-                  RM {totalSubsidies.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-2.5 bg-purple-600 rounded-xl text-white">
-                <Building2 className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-xs text-purple-800 font-medium mt-2 flex items-center gap-1">
-              <Users className="w-3.5 h-3.5" />{' '}
-              {subsidyPrograms.reduce((a, s) => a + s.beneficiaries, 0)} citizens covered
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-base text-emerald-900">Revenue Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {revenueData.map((item) => (
-              <div key={item.category} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-semibold text-slate-900">{item.category}</p>
-                    <p className="text-xs text-slate-500">{item.categoryMY}</p>
+            {/* Expenditure Breakdown */}
+            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 tabular-nums">
+              <h2 className="text-sm font-bold text-slate-900">Monthly Operating Expenditure Breakdown</h2>
+              <div className="space-y-3.5">
+                {summary.expenseBreakdown.map((item) => (
+                  <div key={item.category} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="font-semibold text-slate-800">{item.category}</span>
+                      <span className="font-bold text-slate-900 shrink-0">
+                        {formatMYR(item.amount)} ({item.sharePercent}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={theme.iconBg}
+                        style={{ width: `${item.sharePercent}%`, height: '100%' }}
+                      />
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-slate-900">RM {item.amount.toLocaleString()}</p>
-                    <span className="text-xs text-emerald-700 font-medium">{item.percentage}%</span>
-                  </div>
-                </div>
-                <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-2 rounded-full bg-emerald-600"
-                    style={{ width: `${item.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-base text-red-900">Expense Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {expenseData.map((item) => (
-              <div key={item.category} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-semibold text-slate-900">{item.category}</p>
-                    <p className="text-xs text-slate-500">{item.categoryMY}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-slate-900">RM {item.amount.toLocaleString()}</p>
-                    <span className="text-xs text-slate-600 font-medium">{item.percentage}%</span>
-                  </div>
-                </div>
-                <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-2 rounded-full bg-rose-600"
-                    style={{ width: `${item.percentage}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-purple-700" />
-            Government Subsidy Reimbursements ({periodLabel})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-4 gap-4">
-          {subsidyPrograms.map((program) => (
-            <div
-              key={program.name}
-              className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2"
-            >
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${program.color}`} />
-                <h4 className="font-bold text-sm text-slate-900">{program.name}</h4>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Reimbursed</span>
-                <span className="font-bold text-slate-900">
-                  RM {program.amount.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs items-center">
-                <span className="text-slate-600">Beneficiaries</span>
-                <Badge variant="outline">{program.beneficiaries}</Badge>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-3">
-        <Button variant="outline" onClick={handleExportCsv} className="gap-2">
-          <FileText className="w-4 h-4" /> Export Full Ledger CSV
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => {
-            setScheduledDigest(true)
-            toast({
-              title: 'Report Scheduled',
-              description: `${periodLabel} treasury summary enabled.`,
-              variant: 'success',
-            })
-          }}
-          className="gap-2"
-        >
-          <Calendar className="w-4 h-4" /> Schedule Treasury Digest
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowPaymentsTable(!showPaymentsTable)}
-          className="gap-2"
-        >
-          <CreditCard className="w-4 h-4" /> {showPaymentsTable ? 'Hide' : 'View'} Recent
-          Reimbursements
-        </Button>
-      </div>
-
-      {showPaymentsTable && (
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-base">Recent MOH Reimbursement Transfers</CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-600 border-b border-slate-200">
-                <tr>
-                  <th className="p-3 text-left">Voucher Ref</th>
-                  <th className="p-3 text-left">Scheme</th>
-                  <th className="p-3 text-left">Amount</th>
-                  <th className="p-3 text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {subsidyPrograms.map((s, idx) => (
-                  <tr key={s.name}>
-                    <td className="p-3 font-mono text-xs text-slate-700">MOH-TR-{202500 + idx}</td>
-                    <td className="p-3 font-medium text-slate-900">{s.name}</td>
-                    <td className="p-3 font-semibold text-slate-900">
-                      RM {s.amount.toLocaleString()}
-                    </td>
-                    <td className="p-3">
-                      <StatusBadge tone="success" icon={CheckCircle2} label="Settled" />
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

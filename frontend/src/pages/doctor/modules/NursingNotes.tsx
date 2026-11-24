@@ -1,73 +1,43 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
 import {
   Stethoscope,
   Plus,
-  Clock,
-  FileText,
-  CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
   Heart,
   Droplets,
   Save,
-  History,
-  Edit3,
   Printer,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react'
-import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
+import {
+  ClinicalPatientBanner,
+  WorkstationModuleHeader,
+  PatientRequiredGate,
+} from '@/components/ClinicalPatientBanner'
 import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useClinicalStore } from '@/store/clinical'
 import { useAuthStore } from '@/store/auth'
-import { escapeHtml, printHtmlDocument } from '@/lib/utils'
+import { hospitalApi, type PatientNursingChartDto } from '@/lib/api'
+import { getHospitalTheme } from '@/lib/hospital-themes'
+import { useTranslation } from '@/lib/i18n'
+import { cn, escapeHtml, formatDateTime, printHtmlDocument } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
-interface VitalSigns {
-  timestamp: string
-  bp: string
-  pulse: number
-  temp: number
-  rr: number
-  spo2: number
-  gcs: string
-  painScore: number
-  bloodSugar?: number
-  recordedBy: string
-}
-
-interface NursingNote {
-  id: string
-  timestamp: string
-  type: 'assessment' | 'intervention' | 'evaluation' | 'handover'
-  content: string
-  nurse: string
-  priority: 'routine' | 'important' | 'urgent'
-}
-
-const todayLabel = new Date().toISOString().split('T')[0]
-
-const initialVitals: VitalSigns[] = [
-  { timestamp: `${todayLabel} 08:00`, bp: '122/78', pulse: 74, temp: 36.6, rr: 16, spo2: 98, gcs: '15/15', painScore: 1, bloodSugar: 6.1, recordedBy: 'SN Fatimah' },
-  { timestamp: `${todayLabel} 12:00`, bp: '118/76', pulse: 72, temp: 36.7, rr: 16, spo2: 99, gcs: '15/15', painScore: 2, recordedBy: 'SN Siti' },
-]
-
-const initialNotes: NursingNote[] = [
-  { id: '1', timestamp: `${todayLabel} 08:30`, type: 'assessment', content: 'Patient alert, oriented, comfortable in bed. IV cannula patent without phlebitis.', nurse: 'SN Fatimah', priority: 'routine' },
-  { id: '2', timestamp: `${todayLabel} 12:15`, type: 'intervention', content: 'Scheduled oral medications administered and tolerated well. Fall risk precautions maintained.', nurse: 'SN Siti', priority: 'routine' },
-]
-
 const NOTE_TYPE_CONFIG: Record<
-  NursingNote['type'],
+  PatientNursingChartDto['notes'][number]['type'],
   { label: string; borderClass: string; badgeClass: string }
 > = {
   assessment: { label: 'Assessment', borderClass: 'border-blue-500', badgeClass: 'bg-blue-100 text-blue-800' },
   intervention: { label: 'Intervention', borderClass: 'border-emerald-500', badgeClass: 'bg-emerald-100 text-emerald-800' },
   evaluation: { label: 'Evaluation', borderClass: 'border-purple-500', badgeClass: 'bg-purple-100 text-purple-800' },
-  handover: { label: 'Handover', borderClass: 'border-amber-500', badgeClass: 'bg-amber-100 text-amber-900' },
+  handover: { label: 'Shift Handover', borderClass: 'border-amber-500', badgeClass: 'bg-amber-100 text-amber-900' },
 }
 
-function isVitalRowAbnormal(v: VitalSigns): boolean {
+function isVitalAbnormal(v: PatientNursingChartDto['vitalsHistory'][number]): boolean {
   const [sysRaw, diaRaw] = v.bp.split('/')
   const sys = Number(sysRaw)
   const dia = Number(diaRaw)
@@ -75,163 +45,194 @@ function isVitalRowAbnormal(v: VitalSigns): boolean {
   if (!Number.isNaN(dia) && (dia >= 90 || dia < 60)) return true
   if (v.pulse > 100 || v.pulse < 50) return true
   if (v.temp >= 38.0 || v.temp < 35.5) return true
+  if (v.rr > 22 || v.rr < 10) return true
   if (v.spo2 < 94) return true
   if (v.painScore >= 7) return true
   return false
 }
 
-interface NursingNotesProps {
-  patientName?: string
-  patientIC?: string
-  ward?: string
-  bedNumber?: string
-}
-
-export default function NursingNotes({
-  patientName,
-  patientIC,
-  ward = 'Ward 5A',
-  bedNumber = 'Bed 12',
-}: NursingNotesProps) {
-  const { user } = useAuthStore()
-  const { activePatient } = useClinicalStore()
+export default function NursingNotes() {
+  const user = useAuthStore((s) => s.user)
+  const { activePatient, clearActivePatient } = useClinicalStore()
+  const { t } = useTranslation()
   const { toast } = useToast()
+  const hospitalId = user?.hospitalId || 'hospital-kl'
+  const theme = getHospitalTheme(hospitalId)
 
-  const resolvedName = activePatient?.fullName || patientName || 'Active Ward Patient'
-  const resolvedIc = activePatient?.icNumber || patientIC || '880101-14-5678'
-  const recorderName = user?.fullName || 'Clinical Staff'
-
-  const [vitalsHistory, setVitalsHistory] = useState<VitalSigns[]>(initialVitals)
-  const [notes, setNotes] = useState<NursingNote[]>(initialNotes)
+  const loadSeqRef = useRef(0)
+  const [chart, setChart] = useState<PatientNursingChartDto | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [savingAction, setSavingAction] = useState(false)
   const [activeTab, setActiveTab] = useState<'vitals' | 'notes' | 'io'>('vitals')
   const [showNewVitals, setShowNewVitals] = useState(false)
   const [showNewNote, setShowNewNote] = useState(false)
 
-  const [ioChart, setIoChart] = useState({
-    oralMl: 1200,
-    ivFluidMl: 1500,
+  const [ioDraft, setIoDraft] = useState({
+    oralMl: 0,
+    ivFluidMl: 0,
     bloodMl: 0,
-    urineMl: 1800,
-    drainMl: 150,
+    urineMl: 0,
+    drainMl: 0,
     vomitusMl: 0,
   })
 
-  const [newVitals, setNewVitals] = useState<Partial<VitalSigns>>({
+  const [newVitals, setNewVitals] = useState({
     bp: '120/80',
-    pulse: 72,
-    temp: 36.6,
-    rr: 16,
-    spo2: 98,
+    pulse: '74',
+    temp: '36.6',
+    rr: '16',
+    spo2: '98',
     gcs: '15/15',
-    painScore: 0,
+    painScore: '0',
+    bloodSugar: '',
   })
 
   const [newNote, setNewNote] = useState({
-    type: 'assessment' as NursingNote['type'],
+    type: 'assessment' as PatientNursingChartDto['notes'][number]['type'],
     content: '',
-    priority: 'routine' as NursingNote['priority'],
+    priority: 'routine' as PatientNursingChartDto['notes'][number]['priority'],
   })
 
-  const addVitals = (e: React.FormEvent) => {
-    e.preventDefault()
-    const pulse = Number(newVitals.pulse) || 72
-    const temp = Number(newVitals.temp) || 36.6
-    const spo2 = Number(newVitals.spo2) || 98
-    const painScore = Math.min(10, Math.max(0, Number(newVitals.painScore) || 0))
-    if (pulse < 20 || pulse > 260 || temp < 28 || temp > 44 || spo2 < 40 || spo2 > 100) {
-      toast({
-        title: 'Out-of-Bounds Vital Reading',
-        description: 'Please verify pulse (20-260 bpm), temperature (28-44°C), and SpO2 (40-100%).',
-        variant: 'destructive',
-      })
-      return
-    }
-    const vitals: VitalSigns = {
-      timestamp: new Date().toLocaleString('en-MY'),
-      bp: (newVitals.bp || '120/80').trim(),
-      pulse,
-      temp,
-      rr: Number(newVitals.rr) || 16,
-      spo2,
-      gcs: newVitals.gcs || '15/15',
-      painScore,
-      bloodSugar: newVitals.bloodSugar,
-      recordedBy: recorderName,
-    }
-    setVitalsHistory([vitals, ...vitalsHistory])
+  // Strictly reset and reload patient-scoped nursing chart whenever bound patient changes
+  useEffect(() => {
+    const ic = activePatient?.icNumber
+    setChart(null)
     setShowNewVitals(false)
-    toast({
-      title: 'Vital Signs Recorded',
-      description: `Logged BP ${vitals.bp}, SpO2 ${vitals.spo2}%.`,
-      variant: 'success',
-    })
-  }
-
-  const addNote = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newNote.content.trim()) return
-    const note: NursingNote = {
-      id: `note-${Date.now()}`,
-      timestamp: new Date().toLocaleString('en-MY'),
-      type: newNote.type,
-      content: newNote.content.trim(),
-      nurse: recorderName,
-      priority: newNote.priority,
-    }
-    setNotes([note, ...notes])
     setShowNewNote(false)
-    setNewNote({ type: 'assessment', content: '', priority: 'routine' })
-    toast({
-      title: 'Nursing Note Saved',
-      description: `${note.type.toUpperCase()} note appended.`,
-      variant: 'success',
-    })
+
+    if (!ic) return
+
+    const seq = ++loadSeqRef.current
+    setLoading(true)
+    hospitalApi
+      .getNursingChart(hospitalId, ic)
+      .then((res) => {
+        if (seq !== loadSeqRef.current) return
+        if (res.accessDenied) {
+          clearActivePatient()
+          toast({
+            title: t.privacyRestrictedTitle,
+            description: res.error || t.privacyRestrictedDesc,
+            variant: 'destructive',
+          })
+          return
+        }
+        if (res.success && res.data) {
+          setChart(res.data)
+          setIoDraft({
+            oralMl: res.data.ioChart.oralMl,
+            ivFluidMl: res.data.ioChart.ivFluidMl,
+            bloodMl: res.data.ioChart.bloodMl,
+            urineMl: res.data.ioChart.urineMl,
+            drainMl: res.data.ioChart.drainMl,
+            vomitusMl: res.data.ioChart.vomitusMl,
+          })
+        }
+      })
+      .finally(() => {
+        if (seq === loadSeqRef.current) setLoading(false)
+      })
+  }, [activePatient?.icNumber, hospitalId])
+
+  const handleAddVitals = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activePatient) return
+    setSavingAction(true)
+    try {
+      const res = await hospitalApi.addNursingVitals(hospitalId, activePatient.icNumber, {
+        bp: newVitals.bp.trim(),
+        pulse: Number(newVitals.pulse),
+        temp: Number(newVitals.temp),
+        rr: Number(newVitals.rr),
+        spo2: Number(newVitals.spo2),
+        gcs: newVitals.gcs.trim() || '15/15',
+        painScore: Number(newVitals.painScore) || 0,
+        bloodSugar: newVitals.bloodSugar ? Number(newVitals.bloodSugar) : undefined,
+        recordedBy: user?.fullName || `Dr. ${user?.icNumber}`,
+      })
+      if (res.success && res.data) {
+        setChart(res.data)
+        setShowNewVitals(false)
+        toast({ title: 'Vital Signs Logged', description: 'Observation saved to patient nursing chart.', variant: 'success' })
+      } else {
+        toast({ title: 'Invalid Vital Signs', description: res.error || 'Failed to record vitals', variant: 'destructive' })
+      }
+    } finally {
+      setSavingAction(false)
+    }
   }
 
-  const totalInput = ioChart.oralMl + ioChart.ivFluidMl + ioChart.bloodMl
-  const totalOutput = ioChart.urineMl + ioChart.drainMl + ioChart.vomitusMl
-  const netBalance = totalInput - totalOutput
-  const latestVitals = vitalsHistory[0]
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activePatient || !newNote.content.trim()) return
+    setSavingAction(true)
+    try {
+      const res = await hospitalApi.addNursingNote(hospitalId, activePatient.icNumber, {
+        type: newNote.type,
+        content: newNote.content.trim(),
+        priority: newNote.priority,
+        nurse: user?.fullName || `Clinician (${user?.icNumber})`,
+      })
+      if (res.success && res.data) {
+        setChart(res.data)
+        setNewNote({ type: 'assessment', content: '', priority: 'routine' })
+        setShowNewNote(false)
+        toast({ title: 'Progress Note Saved', description: 'Nursing note persisted for active patient.', variant: 'success' })
+      } else {
+        toast({ title: 'Save Failed', description: res.error || 'Could not save nursing note', variant: 'destructive' })
+      }
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const handleSaveFluidBalance = async () => {
+    if (!activePatient) return
+    setSavingAction(true)
+    try {
+      const res = await hospitalApi.updateFluidBalance(hospitalId, activePatient.icNumber, ioDraft)
+      if (res.success && res.data) {
+        setChart(res.data)
+        toast({ title: 'Fluid Balance Saved', description: '24-hour intake/output chart updated.', variant: 'success' })
+      }
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const totalIntake = ioDraft.oralMl + ioDraft.ivFluidMl + ioDraft.bloodMl
+  const totalOutput = ioDraft.urineMl + ioDraft.drainMl + ioDraft.vomitusMl
+  const netBalance = totalIntake - totalOutput
 
   const handlePrintChart = () => {
-    const vitalsRows = vitalsHistory
+    if (!activePatient || !chart) return
+    const vitalsRows = chart.vitalsHistory
       .map(
         (v) => `<tr>
-          <td>${escapeHtml(v.timestamp)}</td>
+          <td>${escapeHtml(formatDateTime(v.timestamp))}</td>
           <td>${escapeHtml(v.bp)}</td>
           <td>${escapeHtml(v.pulse)} bpm</td>
           <td>${escapeHtml(v.temp)} °C</td>
+          <td>${escapeHtml(v.rr)} /min</td>
           <td>${escapeHtml(v.spo2)}%</td>
-          <td>${escapeHtml(v.painScore)}/10</td>
           <td>${escapeHtml(v.recordedBy)}</td>
         </tr>`
       )
       .join('')
-    const notesRows = notes
-      .map(
-        (n) => `<tr>
-          <td>${escapeHtml(n.timestamp)}</td>
-          <td>${escapeHtml(n.type.toUpperCase())} (${escapeHtml(n.priority)})</td>
-          <td>${escapeHtml(n.content)}</td>
-          <td>${escapeHtml(n.nurse)}</td>
-        </tr>`
-      )
-      .join('')
-
     printHtmlDocument(
-      `Nursing Care Chart - ${resolvedName}`,
+      `Nursing Observation Chart - ${activePatient.fullName}`,
       `<div class="header">
-        <div><h1>Nursing Observation &amp; I/O Chart</h1><p>${escapeHtml(resolvedName)} (${escapeHtml(resolvedIc)}) • ${escapeHtml(ward)} ${escapeHtml(bedNumber)}</p></div>
-        <div>${escapeHtml(new Date().toLocaleString('en-MY'))}</div>
+        <div><h1>${escapeHtml(theme.name)}</h1><p>Inpatient / Observation Nursing Chart (${escapeHtml(chart.ward)} • ${escapeHtml(chart.bedNumber)})</p></div>
+        <div>${escapeHtml(new Date().toLocaleDateString('en-MY'))}</div>
       </div>
       <div class="meta">
-        <strong>Latest Vitals:</strong> BP ${escapeHtml(latestVitals?.bp || '-')} | HR ${escapeHtml(latestVitals?.pulse ?? '-')} bpm | Temp ${escapeHtml(latestVitals?.temp ?? '-')}°C | SpO2 ${escapeHtml(latestVitals?.spo2 ?? '-')}%<br/>
-        <strong>24h Fluid Balance:</strong> Input ${escapeHtml(totalInput)} ml - Output ${escapeHtml(totalOutput)} ml = ${netBalance >= 0 ? '+' : ''}${escapeHtml(netBalance)} ml
+        <strong>Patient:</strong> ${escapeHtml(activePatient.fullName)} (${escapeHtml(activePatient.icNumber)})<br/>
+        <strong>24h Fluid Balance:</strong> Intake ${totalIntake} mL / Output ${totalOutput} mL (Net ${netBalance >= 0 ? '+' : ''}${netBalance} mL)
       </div>
-      <h3>Vital Signs Log</h3>
-      <table><thead><tr><th>Time</th><th>BP</th><th>HR</th><th>Temp</th><th>SpO2</th><th>Pain</th><th>Recorded By</th></tr></thead><tbody>${vitalsRows}</tbody></table>
-      <h3>Progress Notes</h3>
-      <table><thead><tr><th>Time</th><th>Type</th><th>Observation</th><th>Nurse</th></tr></thead><tbody>${notesRows}</tbody></table>`
+      <table>
+        <thead><tr><th>Timestamp</th><th>BP</th><th>Pulse</th><th>Temp</th><th>RR</th><th>SpO2</th><th>Recorded By</th></tr></thead>
+        <tbody>${vitalsRows || '<tr><td colspan="7">No observations recorded</td></tr>'}</tbody>
+      </table>`
     )
   }
 
@@ -239,345 +240,316 @@ export default function NursingNotes({
     <div className="space-y-6">
       <ClinicalPatientBanner />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Nursing Records</h2>
-          <p className="text-slate-600 text-sm">
-            {ward} • {bedNumber} • Inpatient Observation & Fluid Balance
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handlePrintChart}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          <Printer className="w-4 h-4" /> Print Chart
-        </button>
-      </div>
-
-      {latestVitals && (
-        <div className="grid grid-cols-4 gap-3 p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200 tabular-nums">
-          <div className="bg-white p-3 rounded-lg text-center border border-pink-100">
-            <p className="text-xs text-slate-500">Latest BP</p>
-            <p className="font-bold text-slate-900">{latestVitals.bp} mmHg</p>
-          </div>
-          <div className="bg-white p-3 rounded-lg text-center border border-pink-100">
-            <p className="text-xs text-slate-500">Heart Rate</p>
-            <p className="font-bold text-slate-900">{latestVitals.pulse} bpm</p>
-          </div>
-          <div className="bg-white p-3 rounded-lg text-center border border-pink-100">
-            <p className="text-xs text-slate-500">Temperature</p>
-            <p className="font-bold text-slate-900">{latestVitals.temp}°C</p>
-          </div>
-          <div className="bg-white p-3 rounded-lg text-center border border-pink-100">
-            <p className="text-xs text-slate-500">SpO2</p>
-            <p
-              className={`font-bold ${
-                latestVitals.spo2 < 94 ? 'text-red-700' : 'text-emerald-700'
-              }`}
-            >
-              {latestVitals.spo2}%
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-        {[
-          { id: 'vitals', label: 'Vital Signs', icon: Heart },
-          { id: 'notes', label: 'Progress Notes', icon: FileText },
-          { id: 'io', label: '24h I/O Balance', icon: Droplets },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-              activeTab === tab.id ? 'bg-white text-pink-700 shadow-sm' : 'text-slate-600'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {activeTab === 'vitals' && (
-          <motion.div key="vitals" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowNewVitals(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl text-sm font-semibold hover:bg-pink-700"
-              >
-                <Plus className="w-4 h-4" /> Record Vital Signs
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-                <History className="w-4 h-4 text-pink-600" />
-                <h3 className="font-semibold text-slate-900 text-sm">Observation Log</h3>
-              </div>
-              <table className="w-full text-sm tabular-nums">
-                <thead className="bg-slate-50 text-xs text-slate-600 uppercase border-b border-slate-100">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Timestamp</th>
-                    <th className="px-4 py-3 text-center">BP</th>
-                    <th className="px-4 py-3 text-center">HR</th>
-                    <th className="px-4 py-3 text-center">Temp</th>
-                    <th className="px-4 py-3 text-center">SpO2</th>
-                    <th className="px-4 py-3 text-center">Pain</th>
-                    <th className="px-4 py-3 text-center">EWS Status</th>
-                    <th className="px-4 py-3 text-left">Recorded By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {vitalsHistory.map((v, idx) => {
-                    const abnormal = isVitalRowAbnormal(v)
-                    return (
-                      <tr key={idx} className={abnormal ? 'bg-red-50/40' : 'hover:bg-slate-50/70'}>
-                        <td className="px-4 py-3 text-xs text-slate-600">{v.timestamp}</td>
-                        <td className="px-4 py-3 text-center font-semibold text-slate-900">{v.bp}</td>
-                        <td className="px-4 py-3 text-center">{v.pulse}</td>
-                        <td className="px-4 py-3 text-center">{v.temp}°C</td>
-                        <td className="px-4 py-3 text-center font-medium">{v.spo2}%</td>
-                        <td className="px-4 py-3 text-center">{v.painScore}/10</td>
-                        <td className="px-4 py-3 text-center">
-                          <StatusBadge
-                            tone={abnormal ? 'critical' : 'success'}
-                            icon={abnormal ? AlertTriangle : CheckCircle2}
-                            label={abnormal ? 'Review' : 'Stable'}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{v.recordedBy}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'notes' && (
-          <motion.div key="notes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
+      <WorkstationModuleHeader
+        icon={Stethoscope}
+        title={t.nursingNotes}
+        subtitle="Patient-scoped vital observation flowsheet, progress notes & 24h fluid balance"
+        badge={chart ? `${chart.ward} • ${chart.bedNumber}` : theme.shortName}
+        actions={
+          activePatient && chart ? (
+            <>
+              <Button variant="outline" size="sm" onClick={handlePrintChart}>
+                <Printer className="w-4 h-4 mr-1.5" />
+                {t.printSummary}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowNewVitals(true)}>
+                <Heart className="w-4 h-4 mr-1.5 text-red-600" />
+                Record Vitals
+              </Button>
+              <Button
+                size="sm"
                 onClick={() => setShowNewNote(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-xl text-sm font-semibold hover:bg-pink-700"
+                className={cn('text-white bg-gradient-to-r font-bold', theme.buttonGradient)}
               >
-                <Edit3 className="w-4 h-4" /> Add Nursing Note
+                <Plus className="w-4 h-4 mr-1" />
+                Add Nursing Note
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+
+      {!activePatient ? (
+        <PatientRequiredGate moduleTitle={t.nursingNotes} />
+      ) : loading || !chart ? (
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-72 rounded-xl" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
+            {[
+              { id: 'vitals', label: `Vital Signs (${chart.vitalsHistory.length})`, icon: Heart },
+              { id: 'notes', label: `Progress Notes (${chart.notes.length})`, icon: Stethoscope },
+              { id: 'io', label: '24h Fluid Balance (I/O)', icon: Droplets },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as 'vitals' | 'notes' | 'io')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors',
+                  activeTab === tab.id
+                    ? `${theme.iconBg} text-white shadow-sm`
+                    : 'text-slate-700 hover:bg-slate-100'
+                )}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
               </button>
-            </div>
+            ))}
+          </div>
 
+          {activeTab === 'vitals' && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              {chart.vitalsHistory.length === 0 ? (
+                <div className="p-10 text-center text-xs text-slate-500">
+                  No nursing observations recorded for {activePatient.fullName} yet. Click "Record Vitals" to chart baseline parameters.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs tabular-nums">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                      <tr>
+                        <th className="py-3 px-4 text-left font-bold">Timestamp</th>
+                        <th className="py-3 px-4 text-left font-bold">BP (mmHg)</th>
+                        <th className="py-3 px-4 text-left font-bold">Pulse</th>
+                        <th className="py-3 px-4 text-left font-bold">Temp</th>
+                        <th className="py-3 px-4 text-left font-bold">RR</th>
+                        <th className="py-3 px-4 text-left font-bold">SpO2</th>
+                        <th className="py-3 px-4 text-left font-bold">Pain / GCS</th>
+                        <th className="py-3 px-4 text-left font-bold">MEWS Status</th>
+                        <th className="py-3 px-4 text-left font-bold">Recorded By</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {chart.vitalsHistory.map((v) => {
+                        const abnormal = isVitalAbnormal(v)
+                        return (
+                          <tr key={v.id} className={abnormal ? 'bg-red-50/50' : 'hover:bg-slate-50/70'}>
+                            <td className="py-3 px-4 font-semibold text-slate-800">{formatDateTime(v.timestamp)}</td>
+                            <td className="py-3 px-4 font-bold text-slate-900">{v.bp}</td>
+                            <td className="py-3 px-4">{v.pulse} bpm</td>
+                            <td className="py-3 px-4">{Number(v.temp).toFixed(1)} °C</td>
+                            <td className="py-3 px-4">{v.rr} /min</td>
+                            <td className="py-3 px-4 font-bold">{v.spo2}%</td>
+                            <td className="py-3 px-4">{v.painScore}/10 • {v.gcs}</td>
+                            <td className="py-3 px-4">
+                              {abnormal ? (
+                                <StatusBadge tone="critical" icon={AlertTriangle} label="Alert" />
+                              ) : (
+                                <StatusBadge tone="success" icon={CheckCircle2} label="Stable" />
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">{v.recordedBy}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'notes' && (
             <div className="space-y-3">
-              {notes.map((note) => {
-                const style = NOTE_TYPE_CONFIG[note.type]
-                return (
-                  <div
-                    key={note.id}
-                    className={`p-4 bg-white rounded-xl border border-slate-200 border-l-4 ${style.borderClass} shadow-sm`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${style.badgeClass}`}
-                        >
-                          {style.label}
+              {chart.notes.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-xs text-slate-500">
+                  No nursing progress notes recorded for {activePatient.fullName}.
+                </div>
+              ) : (
+                chart.notes.map((n) => {
+                  const cfg = NOTE_TYPE_CONFIG[n.type]
+                  return (
+                    <div
+                      key={n.id}
+                      className={cn(
+                        'bg-white rounded-2xl border border-slate-200 border-l-4 p-4 shadow-sm',
+                        cfg.borderClass
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('px-2.5 py-0.5 rounded-full text-xs font-bold', cfg.badgeClass)}>
+                            {cfg.label}
+                          </span>
+                          {n.priority !== 'routine' && (
+                            <StatusBadge
+                              tone={n.priority === 'urgent' ? 'critical' : 'warning'}
+                              label={n.priority.toUpperCase()}
+                            />
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500 tabular-nums">
+                          {formatDateTime(n.timestamp)} • {n.nurse}
                         </span>
-                        {note.priority === 'urgent' && (
-                          <StatusBadge tone="critical" icon={AlertTriangle} label="URGENT" />
-                        )}
-                        {note.priority === 'important' && (
-                          <StatusBadge tone="warning" icon={AlertCircle} label="Important" />
-                        )}
                       </div>
-                      <span className="text-xs text-slate-500 flex items-center gap-1 tabular-nums">
-                        <Clock className="w-3.5 h-3.5" /> {note.timestamp}
-                      </span>
+                      <p className="text-sm text-slate-800 leading-relaxed">{n.content}</p>
                     </div>
-                    <p className="text-sm text-slate-800 leading-relaxed">{note.content}</p>
-                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                      <Stethoscope className="w-3.5 h-3.5" /> {note.nurse}
-                    </p>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
-          </motion.div>
-        )}
+          )}
 
-        {activeTab === 'io' && (
-          <motion.div
-            key="io"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5 tabular-nums"
-          >
-            <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-              <Droplets className="w-5 h-5 text-blue-600" />
-              Interactive 24-Hour Fluid Input / Output Balance
-            </h3>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-blue-900 text-sm">FLUID INPUT (ml)</h4>
-                {[
-                  { key: 'oralMl', label: 'Oral Intake' },
-                  { key: 'ivFluidMl', label: 'IV Crystalloids / Infusions' },
-                  { key: 'bloodMl', label: 'Blood / Colloids' },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-700">{item.label}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={ioChart[item.key as keyof typeof ioChart]}
-                      onChange={(e) =>
-                        setIoChart({
-                          ...ioChart,
-                          [item.key]: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      className="w-28 px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-right text-sm font-semibold tabular-nums"
-                    />
-                  </div>
-                ))}
-                <div className="pt-2 border-t border-blue-200 flex justify-between font-bold text-blue-950">
-                  <span>TOTAL INPUT</span>
-                  <span>{totalInput} ml</span>
+          {activeTab === 'io' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 tabular-nums">
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                  <p className="text-xs font-bold text-blue-800">Total 24h Intake</p>
+                  <p className="text-2xl font-extrabold text-blue-950 mt-1">{totalIntake} mL</p>
+                </div>
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="text-xs font-bold text-amber-900">Total 24h Output</p>
+                  <p className="text-2xl font-extrabold text-amber-950 mt-1">{totalOutput} mL</p>
+                </div>
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <p className="text-xs font-bold text-emerald-900">Net Fluid Balance</p>
+                  <p className="text-2xl font-extrabold text-emerald-950 mt-1">
+                    {netBalance >= 0 ? `+${netBalance}` : netBalance} mL
+                  </p>
                 </div>
               </div>
 
-              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-amber-900 text-sm">FLUID OUTPUT (ml)</h4>
-                {[
-                  { key: 'urineMl', label: 'Urine Output' },
-                  { key: 'drainMl', label: 'Surgical Drain' },
-                  { key: 'vomitusMl', label: 'NG / Vomitus' },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-700">{item.label}</span>
-                    <input
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                {(
+                  [
+                    ['oralMl', 'Oral Intake (mL)'],
+                    ['ivFluidMl', 'IV Fluids (mL)'],
+                    ['bloodMl', 'Blood Products (mL)'],
+                    ['urineMl', 'Urine Output (mL)'],
+                    ['drainMl', 'Surgical Drain (mL)'],
+                    ['vomitusMl', 'Emesis / NG (mL)'],
+                  ] as const
+                ).map(([field, label]) => (
+                  <div key={field} className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700">{label}</label>
+                    <Input
                       type="number"
                       min={0}
-                      value={ioChart[item.key as keyof typeof ioChart]}
+                      className="tabular-nums"
+                      value={ioDraft[field]}
                       onChange={(e) =>
-                        setIoChart({
-                          ...ioChart,
-                          [item.key]: Math.max(0, Number(e.target.value) || 0),
-                        })
+                        setIoDraft({ ...ioDraft, [field]: Math.max(0, Number(e.target.value) || 0) })
                       }
-                      className="w-28 px-3 py-1.5 bg-white border border-amber-200 rounded-lg text-right text-sm font-semibold tabular-nums"
                     />
                   </div>
                 ))}
-                <div className="pt-2 border-t border-amber-200 flex justify-between font-bold text-amber-950">
-                  <span>TOTAL OUTPUT</span>
-                  <span>{totalOutput} ml</span>
-                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveFluidBalance}
+                  disabled={savingAction}
+                  className={cn('text-white bg-gradient-to-r font-bold', theme.buttonGradient)}
+                >
+                  {savingAction ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
+                  Save Fluid Balance
+                </Button>
               </div>
             </div>
-
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
-              <span className="font-semibold text-emerald-950 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                NET 24-HOUR FLUID BALANCE
-              </span>
-              <span className="text-2xl font-bold text-emerald-800">
-                {netBalance >= 0 ? `+${netBalance}` : netBalance} ml
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </>
+      )}
 
       <ModalDialog
         open={showNewVitals}
         onClose={() => setShowNewVitals(false)}
-        title="Record Vital Signs"
-        description={`${resolvedName} • ${ward} ${bedNumber}`}
-        maxWidthClassName="max-w-lg"
+        title="Record Bedside Vital Signs"
+        description={activePatient ? `${activePatient.fullName} (${activePatient.icNumber})` : ''}
       >
-        <form onSubmit={addVitals} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 tabular-nums">
+        <form onSubmit={handleAddVitals} className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">BP (mmHg)</label>
-              <input
-                type="text"
+              <label className="text-xs font-bold text-slate-700">BP (sys/dia) *</label>
+              <Input
+                required
                 value={newVitals.bp}
                 onChange={(e) => setNewVitals({ ...newVitals, bp: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                placeholder="120/80"
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Pulse (bpm)</label>
-              <input
+              <label className="text-xs font-bold text-slate-700">Pulse (bpm) *</label>
+              <Input
                 type="number"
+                required
                 value={newVitals.pulse}
-                onChange={(e) =>
-                  setNewVitals({ ...newVitals, pulse: parseInt(e.target.value, 10) || 0 })
-                }
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                onChange={(e) => setNewVitals({ ...newVitals, pulse: e.target.value })}
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Temp (°C)</label>
-              <input
+              <label className="text-xs font-bold text-slate-700">Temp (°C) *</label>
+              <Input
                 type="number"
                 step="0.1"
+                required
                 value={newVitals.temp}
-                onChange={(e) =>
-                  setNewVitals({ ...newVitals, temp: parseFloat(e.target.value) || 36.5 })
-                }
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                onChange={(e) => setNewVitals({ ...newVitals, temp: e.target.value })}
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">SpO2 (%)</label>
-              <input
+              <label className="text-xs font-bold text-slate-700">RR (/min) *</label>
+              <Input
                 type="number"
-                value={newVitals.spo2}
-                onChange={(e) =>
-                  setNewVitals({ ...newVitals, spo2: parseInt(e.target.value, 10) || 98 })
-                }
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                required
+                value={newVitals.rr}
+                onChange={(e) => setNewVitals({ ...newVitals, rr: e.target.value })}
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Pain Score (0-10)
-              </label>
-              <input
+              <label className="text-xs font-bold text-slate-700">SpO2 (%) *</label>
+              <Input
+                type="number"
+                required
+                value={newVitals.spo2}
+                onChange={(e) => setNewVitals({ ...newVitals, spo2: e.target.value })}
+                className="tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Pain (0-10)</label>
+              <Input
                 type="number"
                 min={0}
                 max={10}
                 value={newVitals.painScore}
-                onChange={(e) =>
-                  setNewVitals({ ...newVitals, painScore: parseInt(e.target.value, 10) || 0 })
-                }
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                onChange={(e) => setNewVitals({ ...newVitals, painScore: e.target.value })}
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">GCS</label>
-              <input
-                type="text"
+              <label className="text-xs font-bold text-slate-700">GCS</label>
+              <Input
                 value={newVitals.gcs}
                 onChange={(e) => setNewVitals({ ...newVitals, gcs: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Capillary BG (mmol/L)</label>
+              <Input
+                type="number"
+                step="0.1"
+                value={newVitals.bloodSugar}
+                onChange={(e) => setNewVitals({ ...newVitals, bloodSugar: e.target.value })}
+                placeholder="Optional"
+                className="tabular-nums"
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setShowNewVitals(false)}>
-              Cancel
+              {t.cancel}
             </Button>
-            <Button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white gap-1.5">
-              <Save className="w-4 h-4" /> Save Entry
+            <Button type="submit" disabled={savingAction} className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
+              {savingAction && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
+              Save Observation
             </Button>
           </div>
         </form>
@@ -587,59 +559,60 @@ export default function NursingNotes({
         open={showNewNote}
         onClose={() => setShowNewNote(false)}
         title="Add Nursing Progress Note"
-        description={`${resolvedName} • ${ward} ${bedNumber}`}
-        maxWidthClassName="max-w-lg"
+        description={activePatient ? `${activePatient.fullName} (${activePatient.icNumber})` : ''}
       >
-        <form onSubmit={addNote} className="space-y-4">
+        <form onSubmit={handleAddNote} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+              <label className="text-xs font-bold text-slate-700">Note Category</label>
               <select
                 value={newNote.type}
                 onChange={(e) =>
-                  setNewNote({ ...newNote, type: e.target.value as NursingNote['type'] })
+                  setNewNote({ ...newNote, type: e.target.value as PatientNursingChartDto['notes'][number]['type'] })
                 }
-                className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm bg-white"
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
               >
-                <option value="assessment">Assessment</option>
-                <option value="intervention">Intervention</option>
-                <option value="evaluation">Evaluation</option>
-                <option value="handover">Shift Handover</option>
+                <option value="assessment">Clinical Assessment</option>
+                <option value="intervention">Nursing Intervention</option>
+                <option value="evaluation">Outcome Evaluation</option>
+                <option value="handover">Shift Handover (ISBAR)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Priority</label>
+              <label className="text-xs font-bold text-slate-700">Priority</label>
               <select
                 value={newNote.priority}
                 onChange={(e) =>
-                  setNewNote({ ...newNote, priority: e.target.value as NursingNote['priority'] })
+                  setNewNote({
+                    ...newNote,
+                    priority: e.target.value as PatientNursingChartDto['notes'][number]['priority'],
+                  })
                 }
-                className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm bg-white"
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
               >
                 <option value="routine">Routine</option>
                 <option value="important">Important</option>
-                <option value="urgent">Urgent</option>
+                <option value="urgent">Urgent Escalation</option>
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Clinical Observation *
-            </label>
+            <label className="text-xs font-bold text-slate-700">Observation & Care Details *</label>
             <textarea
               required
-              maxLength={1500}
+              rows={4}
               value={newNote.content}
               onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
-              placeholder="Document nursing observation or intervention..."
-              className="w-full p-3 border border-slate-200 rounded-lg text-sm h-28 resize-none"
+              placeholder="Document bedside assessment, medication response, wound care, or handover notes…"
+              className="w-full mt-1 p-3 border border-slate-300 rounded-xl text-sm"
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setShowNewNote(false)}>
-              Cancel
+              {t.cancel}
             </Button>
-            <Button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white">
+            <Button type="submit" disabled={savingAction} className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
+              {savingAction && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
               Save Note
             </Button>
           </div>

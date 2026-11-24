@@ -51,6 +51,11 @@ export function formatDateTime(dateString?: string): string {
   })
 }
 
+export function formatMYR(amount: number): string {
+  const safe = Number.isFinite(amount) ? amount : 0
+  return `RM ${safe.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 export function formatIC(ic: string): string {
   const trimmed = String(ic || '').trim()
   const digits = trimmed.replace(/[-\s]/g, '')
@@ -64,12 +69,15 @@ export function parseMyKadDemographics(ic: string): {
   dateOfBirth: string
   gender: 'male' | 'female'
 } | null {
-  const digits = String(ic || '').replace(/\D/g, '')
-  if (digits.length !== 12) return null
+  const digits = String(ic || '').replace(/[-\s]/g, '')
+  if (!/^\d{12}$/.test(digits)) return null
   const yy = parseInt(digits.slice(0, 2), 10)
   const mm = parseInt(digits.slice(2, 4), 10)
   const dd = parseInt(digits.slice(4, 6), 10)
-  const currentYY = new Date().getFullYear() % 100
+  const pb = parseInt(digits.slice(6, 8), 10)
+  if (pb < 1 || pb > 99) return null
+
+  const currentYY = new Date().getUTCFullYear() % 100
   const year = yy <= currentYY ? 2000 + yy : 1900 + yy
   const candidate = new Date(Date.UTC(year, mm - 1, dd))
   if (
@@ -85,6 +93,10 @@ export function parseMyKadDemographics(ic: string): {
     dateOfBirth: candidate.toISOString().split('T')[0],
     gender,
   }
+}
+
+export function isValidMyKad(ic: string): boolean {
+  return parseMyKadDemographics(ic) !== null
 }
 
 export function maskIC(ic?: string): string {
@@ -183,9 +195,25 @@ export function downloadJsonFile(filename: string, payload: unknown): void {
   URL.revokeObjectURL(url)
 }
 
+const SAFE_E164_PHONE = /^\+\d{1,3}(?:[\s-]?\d{1,5}){2,4}$/
+const SAFE_PLAIN_SIGNED_NUM = /^[+-]\d+(?:\.\d+)?$/
+
 export function sanitizeCsvCell(val: string | number | boolean | null | undefined): string {
   const raw = val === null || val === undefined ? '' : String(val)
-  const safe = /^[=@\t\r]|^[+-](?![0-9])/.test(raw) ? `'${raw}` : raw
+  const trimmed = raw.trimStart()
+  let needsQuotePrefix = false
+
+  if (/^[=@\t\r]/.test(trimmed) || /^[\t\r]/.test(raw)) {
+    needsQuotePrefix = true
+  } else if (/^[+-]/.test(trimmed)) {
+    const isBenignPhoneOrNumber =
+      (raw.replace(/\D/g, "").length >= 8 && SAFE_E164_PHONE.test(raw.trim())) || SAFE_PLAIN_SIGNED_NUM.test(raw.trim())
+    if (!isBenignPhoneOrNumber) {
+      needsQuotePrefix = true
+    }
+  }
+
+  const safe = needsQuotePrefix ? `'${raw}` : raw
   if (/[",\n\r]/.test(safe)) {
     return `"${safe.replace(/"/g, '""')}"`
   }

@@ -46,7 +46,7 @@ export default function EmergencyManagement() {
 
   const loadLogs = async () => {
     try {
-      const response = await centralApi.getAuditLogs({ limit: 200 })
+      const response = await centralApi.getAuditLogs({ action: 'emergency_access', limit: 200 })
       if (response.success && response.data) {
         const emergencyLogs = (response.data as Array<Record<string, unknown>>)
           .filter((log) => log.action === 'emergency' || log.action === 'emergency_access')
@@ -179,7 +179,7 @@ export default function EmergencyManagement() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             label: 'Total Break-Glass Events',

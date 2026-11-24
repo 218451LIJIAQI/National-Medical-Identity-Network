@@ -105,6 +105,165 @@ export interface DoctorDto {
   isActive: boolean
 }
 
+export interface QueueTicketDto {
+  queueNo: string
+  name: string
+  icNumber: string
+  age: number
+  gender: 'M' | 'F'
+  category: 'Green' | 'Yellow' | 'Red'
+  waitTime: string
+  status: 'waiting' | 'in-progress' | 'called' | 'completed'
+  complaint: string
+  createdAt: string
+}
+
+export interface ClinicAppointmentDto {
+  id: string
+  patientName: string
+  icNumber: string
+  phone: string
+  date: string
+  time: string
+  type: 'follow-up' | 'new' | 'procedure' | 'review'
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed'
+}
+
+export interface PatientNursingChartDto {
+  icNumber: string
+  ward: string
+  bedNumber: string
+  vitalsHistory: Array<{
+    id: string
+    timestamp: string
+    bp: string
+    pulse: number
+    temp: number
+    rr: number
+    spo2: number
+    gcs: string
+    painScore: number
+    bloodSugar?: number
+    recordedBy: string
+  }>
+  notes: Array<{
+    id: string
+    timestamp: string
+    type: 'assessment' | 'intervention' | 'evaluation' | 'handover'
+    content: string
+    nurse: string
+    priority: 'routine' | 'important' | 'urgent'
+  }>
+  ioChart: {
+    oralMl: number
+    ivFluidMl: number
+    bloodMl: number
+    urineMl: number
+    drainMl: number
+    vomitusMl: number
+    updatedAt: string
+  }
+}
+
+export interface PatientBillingAccountDto {
+  icNumber: string
+  subsidyStatus: 'eligible' | 'not-eligible' | 'pending'
+  items: Array<{
+    id: string
+    category: string
+    description: string
+    originalPrice: number
+    subsidyPercent: number
+  }>
+  receipt: {
+    receiptNo: string
+    paidAt: string
+    paymentMethod: 'counter' | 'online' | 'waived'
+    grossAmount: number
+    subsidyAmount: number
+    netAmount: number
+  } | null
+}
+
+export interface HospitalWardDto {
+  id: string
+  name: string
+  nameMY: string
+  totalBeds: number
+  occupied: number
+  reserved: number
+  maintenance: number
+  type: 'general' | 'icu' | 'maternity' | 'pediatric' | 'isolation'
+}
+
+export interface HospitalDepartmentDto {
+  id: string
+  name: string
+  nameMY: string
+  head: string
+  headTitle: string
+  staffCount: number
+  doctorCount: number
+  nurseCount: number
+  location: string
+  extension: string
+  operatingHours: string
+  status: 'active' | 'limited' | 'closed'
+  specialties: string[]
+}
+
+export interface StaffRosterMemberDto {
+  id: string
+  name: string
+  icNumber: string
+  role: 'doctor' | 'nurse' | 'admin' | 'pharmacist' | 'technician'
+  department: string
+  email: string
+  phone: string
+  status: 'active' | 'on_leave' | 'inactive'
+  joinDate: string
+  specialization?: string
+  licenseNumber?: string
+}
+
+export interface InventorySkuDto {
+  id: string
+  name: string
+  nameMY: string
+  category: 'medicine' | 'equipment' | 'consumable' | 'ppe'
+  sku: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  unit: string
+  lastRestocked: string
+  expiryDate?: string
+  supplier: string
+  pricePerUnit: number
+}
+
+export interface HospitalFinanceSummaryDto {
+  hospitalId: string
+  hospitalName: string
+  fiscalYear: string
+  settledReceiptsCount: number
+  liveSettledRevenue: number
+  liveSubsidyAbsorbed: number
+  inventoryValuation: number
+  monthlySeries: Array<{
+    month: string
+    mohAllocation: number
+    patientCollection: number
+    operatingExpense: number
+    subsidyAbsorbed: number
+  }>
+  expenseBreakdown: Array<{
+    category: string
+    amount: number
+    sharePercent: number
+  }>
+}
+
 function getToken(): string | null {
   return useAuthStore.getState().token
 }
@@ -298,6 +457,8 @@ export const centralApi = {
     actorId?: string
     targetIcNumber?: string
     hospitalId?: string
+    action?: string
+    status?: 'success' | 'failed'
     startDate?: string
     endDate?: string
     limit?: number
@@ -306,6 +467,8 @@ export const centralApi = {
     if (params?.actorId) searchParams.set('actorId', params.actorId)
     if (params?.targetIcNumber) searchParams.set('targetIcNumber', params.targetIcNumber)
     if (params?.hospitalId) searchParams.set('hospitalId', params.hospitalId)
+    if (params?.action) searchParams.set('action', params.action)
+    if (params?.status) searchParams.set('status', params.status)
     if (params?.startDate) searchParams.set('startDate', params.startDate)
     if (params?.endDate) searchParams.set('endDate', params.endDate)
     if (params?.limit) searchParams.set('limit', params.limit.toString())
@@ -329,9 +492,6 @@ export const centralApi = {
         icNumber: string
         dateOfBirth: string
         gender: string
-        bloodType: string
-        allergies: string[]
-        chronicConditions: string[]
       } | null
       hospitals: Array<{
         hospitalId: string
@@ -416,6 +576,7 @@ export interface SaveRecordRequest {
   emergencyPhone?: string
   allergies?: string[]
   chronicConditions?: string[]
+  replaceAllergiesAndConditions?: boolean
 }
 
 export const hospitalApi = {
@@ -459,4 +620,227 @@ export const hospitalApi = {
         body: JSON.stringify(record),
       }
     ),
+
+  // Outpatient Queue & Clinic Appointments
+  getQueue: (hospitalId: string) =>
+    fetchApi<QueueTicketDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/queue`),
+
+  enqueuePatient: (
+    hospitalId: string,
+    payload: { name: string; icNumber: string; category: 'Green' | 'Yellow' | 'Red'; complaint: string }
+  ) =>
+    fetchApi<QueueTicketDto>(`/hospitals/${encodeURIComponent(hospitalId)}/queue`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateQueueTicket: (hospitalId: string, queueNo: string, status: QueueTicketDto['status']) =>
+    fetchApi<QueueTicketDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/queue/${encodeURIComponent(queueNo)}`,
+      { method: 'PUT', body: JSON.stringify({ status }) }
+    ),
+
+  removeQueueTicket: (hospitalId: string, queueNo: string) =>
+    fetchApi<{ message: string }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/queue/${encodeURIComponent(queueNo)}`,
+      { method: 'DELETE' }
+    ),
+
+  getAppointments: (hospitalId: string) =>
+    fetchApi<ClinicAppointmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/appointments`),
+
+  createAppointment: (
+    hospitalId: string,
+    payload: Omit<ClinicAppointmentDto, 'id' | 'status'>
+  ) =>
+    fetchApi<ClinicAppointmentDto>(`/hospitals/${encodeURIComponent(hospitalId)}/appointments`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateAppointmentStatus: (
+    hospitalId: string,
+    appointmentId: string,
+    status: ClinicAppointmentDto['status']
+  ) =>
+    fetchApi<ClinicAppointmentDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/appointments/${encodeURIComponent(appointmentId)}`,
+      { method: 'PUT', body: JSON.stringify({ status }) }
+    ),
+
+  // Patient-Scoped Nursing Chart & Billing
+  getNursingChart: (hospitalId: string, icNumber: string) =>
+    fetchApi<PatientNursingChartDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing`
+    ),
+
+  addNursingVitals: (
+    hospitalId: string,
+    icNumber: string,
+    payload: {
+      bp: string
+      pulse: number
+      temp: number
+      rr: number
+      spo2: number
+      gcs: string
+      painScore: number
+      bloodSugar?: number
+      recordedBy?: string
+    }
+  ) =>
+    fetchApi<PatientNursingChartDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing/vitals`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  addNursingNote: (
+    hospitalId: string,
+    icNumber: string,
+    payload: {
+      type: 'assessment' | 'intervention' | 'evaluation' | 'handover'
+      content: string
+      priority: 'routine' | 'important' | 'urgent'
+      nurse?: string
+    }
+  ) =>
+    fetchApi<PatientNursingChartDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing/notes`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  updateFluidBalance: (
+    hospitalId: string,
+    icNumber: string,
+    payload: Partial<PatientNursingChartDto['ioChart']> & { ward?: string; bedNumber?: string }
+  ) =>
+    fetchApi<PatientNursingChartDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/nursing/io`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  getBillingAccount: (hospitalId: string, icNumber: string) =>
+    fetchApi<PatientBillingAccountDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing`
+    ),
+
+  addBillingItem: (
+    hospitalId: string,
+    icNumber: string,
+    payload: { category: string; description: string; originalPrice: number; subsidyPercent?: number }
+  ) =>
+    fetchApi<PatientBillingAccountDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing/items`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  removeBillingItem: (hospitalId: string, icNumber: string, itemId: string) =>
+    fetchApi<PatientBillingAccountDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing/items/${encodeURIComponent(itemId)}`,
+      { method: 'DELETE' }
+    ),
+
+  updateBillingSubsidy: (
+    hospitalId: string,
+    icNumber: string,
+    subsidyStatus: PatientBillingAccountDto['subsidyStatus']
+  ) =>
+    fetchApi<PatientBillingAccountDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing/subsidy`,
+      { method: 'PUT', body: JSON.stringify({ subsidyStatus }) }
+    ),
+
+  settleBillingAccount: (
+    hospitalId: string,
+    icNumber: string,
+    paymentMethod: 'counter' | 'online' | 'waived'
+  ) =>
+    fetchApi<PatientBillingAccountDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/patients/${encodeURIComponent(icNumber)}/billing/settle`,
+      { method: 'POST', body: JSON.stringify({ paymentMethod }) }
+    ),
+
+  // Hospital Admin Modules
+  getWards: (hospitalId: string) =>
+    fetchApi<HospitalWardDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/wards`),
+
+  createWard: (hospitalId: string, payload: Omit<HospitalWardDto, 'id'>) =>
+    fetchApi<HospitalWardDto>(`/hospitals/${encodeURIComponent(hospitalId)}/wards`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateWard: (hospitalId: string, wardId: string, payload: Partial<Omit<HospitalWardDto, 'id'>>) =>
+    fetchApi<HospitalWardDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/wards/${encodeURIComponent(wardId)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  getDepartments: (hospitalId: string) =>
+    fetchApi<HospitalDepartmentDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/departments`),
+
+  createDepartment: (hospitalId: string, payload: Omit<HospitalDepartmentDto, 'id'>) =>
+    fetchApi<HospitalDepartmentDto>(`/hospitals/${encodeURIComponent(hospitalId)}/departments`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateDepartment: (
+    hospitalId: string,
+    deptId: string,
+    payload: Partial<Omit<HospitalDepartmentDto, 'id'>>
+  ) =>
+    fetchApi<HospitalDepartmentDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/departments/${encodeURIComponent(deptId)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  getStaff: (hospitalId: string) =>
+    fetchApi<StaffRosterMemberDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/staff`),
+
+  createStaff: (hospitalId: string, payload: Omit<StaffRosterMemberDto, 'id'>) =>
+    fetchApi<StaffRosterMemberDto>(`/hospitals/${encodeURIComponent(hospitalId)}/staff`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateStaff: (hospitalId: string, staffId: string, payload: Partial<StaffRosterMemberDto>) =>
+    fetchApi<StaffRosterMemberDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  deleteStaff: (hospitalId: string, staffId: string) =>
+    fetchApi<{ message: string }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'DELETE' }
+    ),
+
+  getInventory: (hospitalId: string) =>
+    fetchApi<InventorySkuDto[]>(`/hospitals/${encodeURIComponent(hospitalId)}/inventory`),
+
+  createInventoryItem: (hospitalId: string, payload: Omit<InventorySkuDto, 'id'>) =>
+    fetchApi<InventorySkuDto>(`/hospitals/${encodeURIComponent(hospitalId)}/inventory`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateInventoryItem: (
+    hospitalId: string,
+    itemId: string,
+    payload: Partial<Omit<InventorySkuDto, 'id'>>
+  ) =>
+    fetchApi<InventorySkuDto>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/inventory/${encodeURIComponent(itemId)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  deleteInventoryItem: (hospitalId: string, itemId: string) =>
+    fetchApi<{ message: string }>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/inventory/${encodeURIComponent(itemId)}`,
+      { method: 'DELETE' }
+    ),
+
+  getFinanceSummary: (hospitalId: string) =>
+    fetchApi<HospitalFinanceSummaryDto>(`/hospitals/${encodeURIComponent(hospitalId)}/finance`),
 }

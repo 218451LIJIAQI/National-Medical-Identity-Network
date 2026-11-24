@@ -459,7 +459,19 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 
     const allUsers = await getUsersByIc(dbUser.icNumber);
     const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
-    const userInfo = await buildUserResponse(dbUser, availableRoles, Boolean(currentUser.hospitalVerified));
+    let userInfo: Record<string, unknown>;
+    try {
+      userInfo = await buildUserResponse(dbUser, availableRoles, Boolean(currentUser.hospitalVerified));
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
+        res.status(403).json({
+          success: false,
+          error: 'Doctor profile is inactive or not registered at the assigned hospital',
+        });
+        return;
+      }
+      throw err;
+    }
 
     res.json({
       success: true,

@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuthStore } from '@/store/auth'
-import { ArrowLeft, FileText, Search, UserPlus, Loader2, ShieldAlert, WifiOff } from 'lucide-react'
+import { ArrowLeft, FileText, Search, UserPlus, Loader2, ShieldAlert, WifiOff, AlertTriangle } from 'lucide-react'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 import { centralApi } from '@/lib/api'
-import { cn, formatIC } from '@/lib/utils'
+import { cn, formatIC, isValidMyKad } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 
 export default function NewRecordSearch() {
@@ -18,10 +18,11 @@ export default function NewRecordSearch() {
   const { user } = useAuthStore()
   const theme = getHospitalTheme(user?.hospitalId)
 
+  const checkSeqRef = useRef(0)
   const [icNumber, setIcNumber] = useState('')
   const [isChecking, setIsChecking] = useState(false)
   const [blockingBanner, setBlockingBanner] = useState<{
-    kind: 'privacy' | 'network'
+    kind: 'invalid' | 'privacy' | 'network'
     message: string
   } | null>(null)
 
@@ -30,18 +31,21 @@ export default function NewRecordSearch() {
     setBlockingBanner(null)
 
     const formattedIC = formatIC(icNumber.trim())
-    if (!formattedIC) {
+    if (!formattedIC || !isValidMyKad(formattedIC)) {
+      setBlockingBanner({ kind: 'invalid', message: t.invalidMyKadFormat })
       toast({
-        title: 'Validation Error',
-        description: 'Please enter a valid patient MyKad IC number',
+        title: 'Invalid MyKad IC',
+        description: t.invalidMyKadFormat,
         variant: 'destructive',
       })
       return
     }
 
+    const seq = ++checkSeqRef.current
     setIsChecking(true)
     try {
       const response = await centralApi.getPatient(formattedIC)
+      if (seq !== checkSeqRef.current) return
 
       if (response.accessDenied) {
         const msg = response.error || t.privacyRestrictedDesc
@@ -81,7 +85,9 @@ export default function NewRecordSearch() {
         variant: 'destructive',
       })
     } finally {
-      setIsChecking(false)
+      if (seq === checkSeqRef.current) {
+        setIsChecking(false)
+      }
     }
   }
 
@@ -103,7 +109,7 @@ export default function NewRecordSearch() {
           </p>
         </div>
 
-        <Card className="border border-slate-200 shadow-md overflow-hidden bg-white">
+        <Card className="border border-slate-200 shadow-md overflow-hidden bg-white rounded-2xl">
           <div className={cn('h-1.5 bg-gradient-to-r', theme.cardAccentGradient)} />
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -120,6 +126,7 @@ export default function NewRecordSearch() {
                       setIcNumber(e.target.value)
                       setBlockingBanner(null)
                     }}
+                    aria-invalid={blockingBanner?.kind === 'invalid'}
                     disabled={isChecking}
                     className="text-base h-12 px-4 pr-11 font-mono tabular-nums"
                     autoFocus
@@ -131,8 +138,15 @@ export default function NewRecordSearch() {
                 </p>
               </div>
 
+              {blockingBanner?.kind === 'invalid' && (
+                <div role="alert" className="p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
+                  <span>{blockingBanner.message}</span>
+                </div>
+              )}
+
               {blockingBanner?.kind === 'privacy' && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
+                <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
                   <ShieldAlert className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold">{t.privacyRestrictedTitle}</p>
@@ -142,7 +156,7 @@ export default function NewRecordSearch() {
               )}
 
               {blockingBanner?.kind === 'network' && (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5">
+                <div role="alert" className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5">
                   <WifiOff className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold">Unable to Verify Consent & Allergies</p>

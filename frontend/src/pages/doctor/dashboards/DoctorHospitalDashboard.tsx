@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -20,49 +21,125 @@ import {
   Pill,
   FlaskConical,
   Stethoscope,
+  Crown,
+  Hexagon,
+  Leaf,
   type LucideIcon,
 } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
+import { centralApi, hospitalApi } from '@/lib/api'
+import { getHospitalTheme, type HospitalHeroIconName } from '@/lib/hospital-themes'
 import { formatStaffDisplayName, LiveClock, LiveDate } from '@/layouts/hospital/shared'
 import { useTranslation } from '@/lib/i18n'
-import { useDoctorDashboard } from './useDoctorDashboard'
 import { StatusBadge } from '@/components/ui/modal-dialog'
-import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn, formatTimeAgo, maskIC } from '@/lib/utils'
 
-export interface DoctorHospitalDashboardProps {
-  heroIcon?: LucideIcon
-  badgeLabel?: string
+const HERO_ICON_MAP: Record<HospitalHeroIconName, LucideIcon> = {
+  Building2,
+  Leaf,
+  Zap,
+  Hexagon,
+  Crown,
 }
 
-export function DoctorHospitalDashboard({
-  heroIcon: HeroIcon = Building2,
-  badgeLabel = 'Federated Clinical Node',
-}: DoctorHospitalDashboardProps) {
+interface DoctorRecentActivity {
+  patient: string
+  ic: string
+  rawIc?: string
+  action: string
+  time: string
+  type: 'view' | 'create'
+}
+
+export function DoctorHospitalDashboard() {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { user, theme, stats, recentActivity, loading } = useDoctorDashboard(6)
+  const user = useAuthStore((s) => s.user)
+  const theme = getHospitalTheme(user?.hospitalId)
+  const HeroIcon = HERO_ICON_MAP[theme.heroIconName] || Building2
+
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeHospitals: 0,
+    todayQueries: 0,
+    avgResponseTime: 0,
+    localPatients: 0,
+    localRecords: 0,
+    localDoctors: 0,
+    todayVisits: 0,
+  })
+  const [recentActivity, setRecentActivity] = useState<DoctorRecentActivity[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const hospitalId = user?.hospitalId || 'hospital-kl'
+
+    Promise.all([
+      centralApi.getStats(),
+      centralApi.getMyActivityLogs(6),
+      hospitalApi.getStats(hospitalId),
+    ])
+      .then(([statsRes, logsRes, hospStatsRes]) => {
+        if (cancelled) return
+        setStats((prev) => ({
+          ...prev,
+          ...(statsRes.success && statsRes.data ? statsRes.data : {}),
+          ...(hospStatsRes.success && hospStatsRes.data
+            ? {
+                localPatients: hospStatsRes.data.totalPatients,
+                localRecords: hospStatsRes.data.totalRecords,
+                localDoctors: hospStatsRes.data.totalDoctors,
+                todayVisits: hospStatsRes.data.todayVisits || 0,
+              }
+            : {}),
+        }))
+
+        if (logsRes.success && logsRes.data) {
+          setRecentActivity(
+            logsRes.data.map((log) => ({
+              patient: log.patientName || 'Patient',
+              ic: log.targetIcNumber ? maskIC(log.targetIcNumber) : 'N/A',
+              rawIc: log.targetIcNumber,
+              action: log.details || log.action || 'Query',
+              time: formatTimeAgo(log.timestamp),
+              type: log.action === 'create' || log.action === 'update' ? 'create' : 'view',
+            }))
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.hospitalId])
 
   const kpiCards = [
     {
       label: t.connectedHospitals,
-      value: loading ? '—' : stats.activeHospitals,
+      value: stats.activeHospitals,
       sub: `${stats.localDoctors || 2} active clinicians locally`,
       icon: Globe,
     },
     {
       label: 'Federated Queries Today',
-      value: loading ? '—' : stats.todayQueries,
+      value: stats.todayQueries,
       sub: `${stats.todayVisits} encounters recorded today`,
       icon: Activity,
     },
     {
       label: 'National Indexed Patients',
-      value: loading ? '—' : stats.totalPatients.toLocaleString(),
+      value: stats.totalPatients.toLocaleString(),
       sub: `${stats.localPatients} registered at ${theme.shortName}`,
       icon: Users,
     },
     {
       label: 'Avg Federated Latency',
-      value: loading ? '—' : `${stats.avgResponseTime.toFixed(1)}s`,
+      value: `${stats.avgResponseTime.toFixed(1)}s`,
       sub: `${stats.localRecords} local clinical records`,
       icon: Zap,
     },
@@ -87,7 +164,7 @@ export function DoctorHospitalDashboard({
       >
         <div className="relative z-10 space-y-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <div
                 className={cn(
                   'flex items-center gap-2 px-3 py-1 bg-white/90 rounded-xl border text-xs font-semibold text-slate-700',
@@ -108,7 +185,7 @@ export function DoctorHospitalDashboard({
               </div>
             </div>
 
-            <StatusBadge tone="success" label={badgeLabel} />
+            <StatusBadge tone="success" label={theme.badgeLabel} />
           </div>
 
           <div className="flex items-center justify-between gap-6 flex-wrap">
@@ -168,7 +245,7 @@ export function DoctorHospitalDashboard({
 
             <div
               className={cn(
-                'p-4 bg-white/90 backdrop-blur-sm rounded-2xl border shadow-sm min-w-[250px]',
+                'p-4 bg-white/90 backdrop-blur-sm rounded-2xl border shadow-sm min-w-[240px]',
                 theme.borderColor
               )}
             >
@@ -185,7 +262,7 @@ export function DoctorHospitalDashboard({
                   <p className="font-bold text-slate-900 text-sm truncate">{theme.name}</p>
                   <p className="text-xs text-slate-600 flex items-center gap-1 truncate">
                     <MapPin className="w-3 h-3 shrink-0" />
-                    <span>{theme.city}</span>
+                    <span>{theme.city}, {theme.state}</span>
                   </p>
                 </div>
               </div>
@@ -207,7 +284,7 @@ export function DoctorHospitalDashboard({
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {kpiCards.map((stat) => (
           <div
             key={stat.label}
@@ -224,7 +301,11 @@ export function DoctorHospitalDashboard({
               </div>
               <TrendingUp className={cn('w-4 h-4', theme.textColor)} />
             </div>
-            <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+            {loading ? (
+              <Skeleton className="h-8 w-20 mb-1" />
+            ) : (
+              <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{stat.value}</p>
+            )}
             <p className="text-xs font-bold text-slate-800 mt-0.5">{stat.label}</p>
             <p className="text-xs text-slate-600 mt-1 tabular-nums">{stat.sub}</p>
           </div>
@@ -232,7 +313,7 @@ export function DoctorHospitalDashboard({
       </div>
 
       {/* Quick Clinical Shortcuts */}
-      <div className="grid grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3.5">
         {quickClinicalLinks.map((item) => (
           <Link
             key={item.path}
@@ -257,8 +338,8 @@ export function DoctorHospitalDashboard({
       </div>
 
       {/* Recent Activity & Specialties */}
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div
             className={cn(
               'p-5 border-b border-slate-100 bg-gradient-to-r flex items-center justify-between',
@@ -288,7 +369,13 @@ export function DoctorHospitalDashboard({
           </div>
 
           <div className="p-5">
-            {recentActivity.length === 0 ? (
+            {loading ? (
+              <div className="space-y-2.5">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : recentActivity.length === 0 ? (
               <div className="text-center py-8">
                 <div
                   className={cn(
@@ -359,7 +446,7 @@ export function DoctorHospitalDashboard({
           </div>
         </div>
 
-        <div className="col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div
             className={cn(
               'p-5 border-b border-slate-100 bg-gradient-to-r flex items-center gap-3',

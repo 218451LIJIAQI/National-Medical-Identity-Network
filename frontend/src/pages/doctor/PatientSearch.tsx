@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,7 @@ import {
   Download,
   CheckCircle2,
 } from 'lucide-react'
-import { cn, formatIC, getHospitalColor } from '@/lib/utils'
+import { cn, formatIC, getHospitalColor, isValidMyKad } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
 
 function QueryNetworkVisualization({ step }: { step: number }) {
@@ -42,8 +42,8 @@ function QueryNetworkVisualization({ step }: { step: number }) {
   ]
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-      <div className="flex items-center justify-between">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-x-auto">
+      <div className="flex items-center justify-between min-w-[520px]">
         {steps.map((s, i) => {
           const Icon = s.icon
           const done = step > s.id
@@ -107,6 +107,7 @@ interface HospitalResult {
 }
 
 type SearchErrorState =
+  | { kind: 'invalid_format'; message: string }
   | { kind: 'privacy_denied'; message: string; ic: string }
   | { kind: 'not_found'; message: string; ic: string }
   | { kind: 'forbidden'; message: string }
@@ -120,6 +121,7 @@ export default function PatientSearch() {
   const { user } = useAuthStore()
   const theme = getHospitalTheme(user?.hospitalId)
 
+  const searchSeqRef = useRef(0)
   const [icNumber, setIcNumber] = useState('')
   const [searchedIc, setSearchedIc] = useState('')
   const [isSearching, setIsSearching] = useState(false)
@@ -136,15 +138,19 @@ export default function PatientSearch() {
     e.preventDefault()
 
     const formattedIc = formatIC(icNumber.trim())
-    if (!formattedIc) {
+    if (!formattedIc || !isValidMyKad(formattedIc)) {
+      setShowResults(false)
+      setQuerySteps([])
+      setErrorState({ kind: 'invalid_format', message: t.invalidMyKadFormat })
       toast({
-        title: 'Validation Error',
-        description: 'Please enter a valid patient MyKad IC number',
+        title: 'Invalid MyKad IC',
+        description: t.invalidMyKadFormat,
         variant: 'destructive',
       })
       return
     }
 
+    const seq = ++searchSeqRef.current
     setSearchedIc(formattedIc)
     setIsSearching(true)
     setShowResults(false)
@@ -175,6 +181,7 @@ export default function PatientSearch() {
 
     try {
       const response = await centralApi.queryPatient(formattedIc)
+      if (seq !== searchSeqRef.current) return
 
       if (response.success && response.data) {
         setQuerySteps(
@@ -234,13 +241,16 @@ export default function PatientSearch() {
         })
       }
     } catch {
+      if (seq !== searchSeqRef.current) return
       setQuerySteps([])
       setErrorState({
         kind: 'network',
         message: t.networkError,
       })
     } finally {
-      setIsSearching(false)
+      if (seq === searchSeqRef.current) {
+        setIsSearching(false)
+      }
     }
   }
 
@@ -267,7 +277,7 @@ export default function PatientSearch() {
               <span className="font-semibold">{theme.name}</span>
               <span>•</span>
               <MapPin className="w-3.5 h-3.5" />
-              <span>{theme.city}</span>
+              <span>{theme.city}, {theme.state}</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{t.patientSearch}</h1>
             <p className="text-slate-600 text-xs mt-0.5">
@@ -293,17 +303,20 @@ export default function PatientSearch() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5">
-          <form onSubmit={handleSearch} className="flex items-center gap-3">
+          <form onSubmit={handleSearch} className="flex items-center gap-3 flex-wrap">
             <Input
               placeholder="e.g., 880101-14-5678"
               value={icNumber}
-              onChange={(e) => setIcNumber(e.target.value)}
-              disabled={isSearching}
-              className="text-base h-11 px-4 font-mono tabular-nums flex-1"
+              onChange={(e) => {
+                setIcNumber(e.target.value)
+                if (errorState?.kind === 'invalid_format') setErrorState(null)
+              }}
+              aria-invalid={errorState?.kind === 'invalid_format'}
+              className="text-base h-11 px-4 font-mono tabular-nums flex-1 min-w-[240px]"
             />
             <Button
               type="submit"
-              disabled={isSearching || !icNumber.trim()}
+              disabled={!icNumber.trim()}
               size="lg"
               className={cn('h-11 px-6 text-white font-bold bg-gradient-to-r', theme.buttonGradient)}
             >
@@ -324,6 +337,15 @@ export default function PatientSearch() {
       </Card>
 
       {/* Semantic Policy & Error Banners */}
+      {errorState?.kind === 'invalid_format' && (
+        <Card role="alert" className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm">
+          <CardContent className="p-5 flex items-center gap-3 text-red-900 text-xs font-medium">
+            <AlertTriangle className="w-5 h-5 text-red-700 shrink-0" />
+            <span>{errorState.message}</span>
+          </CardContent>
+        </Card>
+      )}
+
       {errorState?.kind === 'privacy_denied' && (
         <Card className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm">
           <CardContent className="p-6 flex items-start gap-4">
@@ -352,7 +374,10 @@ export default function PatientSearch() {
                 <UserX className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-amber-950">{t.patientNotFoundTitle}</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-bold text-amber-950">{t.patientNotFoundTitle}</h2>
+                  <StatusBadge tone="warning" label="HTTP 404 • Not Indexed" />
+                </div>
                 <p className="text-sm text-amber-900 mt-0.5">{errorState.message}</p>
                 <p className="text-xs text-amber-800 mt-1 font-mono tabular-nums">
                   Queried IC: {errorState.ic}
@@ -405,7 +430,7 @@ export default function PatientSearch() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
-              <div className="grid grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {querySteps.slice(0, 8).map((step) => {
                   const isStepError = step.status === 'error' || step.status === 'failed'
                   const isCompleted = step.status === 'completed'
@@ -474,7 +499,7 @@ export default function PatientSearch() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="text-right px-3.5 py-2 bg-white rounded-xl border border-emerald-200">
                   <p className="text-[11px] text-emerald-800 font-semibold">Round-Trip Latency</p>
                   <p className="text-lg font-extrabold text-emerald-900 tabular-nums">{queryTime}ms</p>
@@ -504,7 +529,7 @@ export default function PatientSearch() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {hospitalResults.map((hospital) => {
                   const color = getHospitalColor(hospital.hospitalId)
                   const isError = hospital.status !== 'success'

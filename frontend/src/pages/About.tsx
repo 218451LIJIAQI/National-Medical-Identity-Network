@@ -85,7 +85,7 @@ export default function AboutPage() {
         <Card className="border border-slate-200 shadow-sm">
           <CardContent className="p-6 space-y-4">
             <h2 className="text-xl font-bold text-slate-900">{t.connectedHospitals}</h2>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {HOSPITALS.map((h) => (
                 <div
                   key={h.id}

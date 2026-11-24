@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/ui/modal-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/store/auth'
 import { centralApi, type MedicalRecordDto } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
@@ -11,7 +12,6 @@ import {
   Building2,
   Calendar,
   FileText,
-  Loader2,
   Stethoscope,
   Clock,
   Pill,
@@ -23,6 +23,8 @@ import {
   ChevronUp,
   Search,
   AlertTriangle,
+  WifiOff,
+  RefreshCw,
 } from 'lucide-react'
 import {
   escapeHtml,
@@ -40,47 +42,55 @@ export default function PatientRecords() {
   const { t } = useTranslation()
   const [records, setRecords] = useState<MedicalRecordDto[]>([])
   const [partialFailure, setPartialFailure] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedHospital, setSelectedHospital] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedRecordIds, setExpandedRecordIds] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
-    async function loadRecords() {
-      if (!user?.icNumber) {
-        setLoading(false)
-        return
-      }
-      try {
-        const response = await centralApi.queryPatient(user.icNumber)
-        if (response.success && response.data) {
-          setPartialFailure(Boolean(response.data.partialFailure))
-          const allRecords: MedicalRecordDto[] = []
-          response.data.hospitals.forEach((hospital) => {
-            hospital.records?.forEach((record) => {
-              allRecords.push({
-                ...record,
-                hospitalId: hospital.hospitalId,
-                hospitalName: hospital.hospitalName,
-              })
+  const loadRecords = useCallback(async () => {
+    if (!user?.icNumber) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const response = await centralApi.queryPatient(user.icNumber)
+      if (response.success && response.data) {
+        setPartialFailure(Boolean(response.data.partialFailure))
+        const allRecords: MedicalRecordDto[] = []
+        response.data.hospitals.forEach((hospital) => {
+          hospital.records?.forEach((record) => {
+            allRecords.push({
+              ...record,
+              hospitalId: hospital.hospitalId,
+              hospitalName: hospital.hospitalName,
             })
           })
-          allRecords.sort(
-            (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
-          )
-          setRecords(allRecords)
-          if (allRecords[0]?.id) {
-            setExpandedRecordIds({ [allRecords[0].id]: true })
-          }
+        })
+        allRecords.sort(
+          (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
+        )
+        setRecords(allRecords)
+        if (allRecords[0]?.id) {
+          setExpandedRecordIds({ [allRecords[0].id]: true })
         }
-      } catch (error) {
-        console.error('Failed to load records:', error)
-      } finally {
-        setLoading(false)
+      } else if (response.notFound || response.status === 404) {
+        setRecords([])
+      } else {
+        setLoadError(response.error || t.networkError)
       }
+    } catch {
+      setLoadError(t.networkError)
+    } finally {
+      setLoading(false)
     }
+  }, [user?.icNumber, t.networkError])
+
+  useEffect(() => {
     void loadRecords()
-  }, [user?.icNumber])
+  }, [loadRecords])
 
   const hospitalOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -202,16 +212,20 @@ export default function PatientRecords() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-          <p className="text-xs text-slate-500">Loading your medical records…</p>
+      <div className="space-y-5">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
+        <Skeleton className="h-72 w-full rounded-2xl" />
       </div>
     )
   }
 
   const uniqueHospitalsCount = hospitalOptions.length
+  const hasActiveFilter = selectedHospital !== 'all' || Boolean(searchQuery.trim())
 
   return (
     <div className="space-y-6">
@@ -262,323 +276,370 @@ export default function PatientRecords() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="border border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3.5">
-            <div className="p-3 bg-blue-50 text-blue-700 rounded-xl">
-              <Building2 className="w-5 h-5" />
+      {loadError ? (
+        <Card className="border-2 border-red-200 bg-red-50/70 rounded-2xl shadow-sm">
+          <CardContent className="p-6 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 text-red-900">
+              <WifiOff className="w-6 h-6 text-red-700 shrink-0" />
+              <div>
+                <p className="font-bold text-sm">{t.loadFailedTitle}</p>
+                <p className="text-xs text-red-800 mt-0.5">{loadError}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-extrabold text-slate-900 tabular-nums">
-                {uniqueHospitalsCount}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">{t.hospitalsVisited}</p>
-            </div>
+            <Button variant="outline" onClick={loadRecords} className="bg-white">
+              <RefreshCw className="w-4 h-4 mr-1.5" />
+              {t.retryLoad}
+            </Button>
           </CardContent>
         </Card>
-        <Card className="border border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3.5">
-            <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{records.length}</p>
-              <p className="text-xs font-semibold text-slate-600">{t.medicalRecordsCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-5 flex items-center gap-3.5">
-            <div className="p-3 bg-violet-50 text-violet-700 rounded-xl">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-lg font-extrabold text-slate-900 tabular-nums">
-                {records.length > 0 ? formatDate(records[0].visitDate) : '—'}
-              </p>
-              <p className="text-xs font-semibold text-slate-600">{t.lastVisit}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-slate-100 bg-slate-50/70 space-y-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Medical History Timeline</h2>
-              <p className="text-xs text-slate-600 tabular-nums">
-                Showing {filteredRecords.length} of {records.length} visits • Expand any visit to inspect prescriptions, labs & vitals
-              </p>
-            </div>
-
-            <div className="relative w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter diagnosis, drug, lab, doctor…"
-                className="pl-10 h-10 bg-white"
-              />
-            </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border border-slate-200 shadow-sm rounded-2xl">
+              <CardContent className="p-5 flex items-center gap-3.5">
+                <div className="p-3 bg-blue-50 text-blue-700 rounded-xl">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">
+                    {uniqueHospitalsCount}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-600">{t.hospitalsVisited}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-slate-200 shadow-sm rounded-2xl">
+              <CardContent className="p-5 flex items-center gap-3.5">
+                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{records.length}</p>
+                  <p className="text-xs font-semibold text-slate-600">{t.medicalRecordsCount}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-slate-200 shadow-sm rounded-2xl">
+              <CardContent className="p-5 flex items-center gap-3.5">
+                <div className="p-3 bg-violet-50 text-violet-700 rounded-xl">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold text-slate-900 tabular-nums">
+                    {records.length > 0 ? formatDate(records[0].visitDate) : '—'}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-600">{t.lastVisit}</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {hospitalOptions.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                size="sm"
-                variant={selectedHospital === 'all' ? 'default' : 'outline'}
-                onClick={() => setSelectedHospital('all')}
-              >
-                All Hospitals ({records.length})
-              </Button>
-              {hospitalOptions.map((h) => (
-                <Button
-                  key={h.id}
-                  size="sm"
-                  variant={selectedHospital === h.id ? 'default' : 'outline'}
-                  onClick={() => setSelectedHospital(h.id)}
-                >
-                  {h.name}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
+          <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/70 space-y-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Medical History Timeline</h2>
+                  <p className="text-xs text-slate-600 tabular-nums">
+                    Showing {filteredRecords.length} of {records.length} visits • Expand any visit to inspect prescriptions, labs & vitals
+                  </p>
+                </div>
 
-        <CardContent className="p-0">
-          {filteredRecords.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm text-slate-500 font-medium">No matching medical records found</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {filteredRecords.map((record) => {
-                const color = getHospitalColor(record.hospitalId)
-                const isExpanded = Boolean(expandedRecordIds[record.id])
-                const doctorLabel =
-                  record.doctorName || formatActorDisplayName(undefined, record.doctorId, 'doctor')
-                const vitals = record.vitalSigns || {}
-                const hasVitals =
-                  vitals.bloodPressureSystolic !== undefined ||
-                  vitals.heartRate !== undefined ||
-                  vitals.temperature !== undefined ||
-                  vitals.oxygenSaturation !== undefined
+                <div className="relative w-72 max-w-full">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter diagnosis, drug, lab, doctor…"
+                    className="pl-10 h-10 bg-white"
+                  />
+                </div>
+              </div>
 
-                return (
-                  <div key={record.id} className="p-5 hover:bg-slate-50/60 transition-colors">
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() => toggleExpand(record.id)}
-                      className="w-full text-left flex items-start gap-4"
+              {hospitalOptions.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    size="sm"
+                    variant={selectedHospital === 'all' ? 'default' : 'outline'}
+                    onClick={() => setSelectedHospital('all')}
+                  >
+                    All Hospitals ({records.length})
+                  </Button>
+                  {hospitalOptions.map((h) => (
+                    <Button
+                      key={h.id}
+                      size="sm"
+                      variant={selectedHospital === h.id ? 'default' : 'outline'}
+                      onClick={() => setSelectedHospital(h.id)}
                     >
-                      <div
-                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${color}18` }}
-                      >
-                        <Building2 className="w-5 h-5" style={{ color }} />
-                      </div>
+                      {h.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-bold text-sm text-slate-900">{record.hospitalName}</p>
-                            <p className="text-slate-800 font-semibold text-sm mt-0.5">
-                              {record.diagnosis?.length > 0
-                                ? record.diagnosis.join(', ')
-                                : record.chiefComplaint || 'General consultation'}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3.5 mt-1.5 text-xs text-slate-600 tabular-nums">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5" />
-                                {formatDate(record.visitDate)}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Stethoscope className="w-3.5 h-3.5" />
-                                {doctorLabel}
-                              </span>
-                              {(record.prescriptions?.length || 0) > 0 && (
-                                <span className="flex items-center gap-1 text-violet-800 font-semibold">
-                                  <Pill className="w-3.5 h-3.5" />
-                                  {record.prescriptions!.length} Rx
-                                </span>
-                              )}
-                              {(record.labReports?.length || 0) > 0 && (
-                                <span className="flex items-center gap-1 text-indigo-800 font-semibold">
-                                  <FlaskConical className="w-3.5 h-3.5" />
-                                  {record.labReports!.length} Lab
-                                </span>
-                              )}
+            <CardContent className="p-0">
+              {records.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm text-slate-700 font-bold">No Hospital Visits Recorded Yet</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Clinical encounters from participating hospitals will automatically appear here once indexed under your MyKad.
+                  </p>
+                </div>
+              ) : filteredRecords.length === 0 ? (
+                <div className="text-center py-12 px-4 space-y-3">
+                  <Search className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-sm text-slate-600 font-medium">{t.noMatchingResults}</p>
+                  {hasActiveFilter && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedHospital('all')
+                        setSearchQuery('')
+                      }}
+                    >
+                      {t.clearFilters}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredRecords.map((record) => {
+                    const color = getHospitalColor(record.hospitalId)
+                    const isExpanded = Boolean(expandedRecordIds[record.id])
+                    const doctorLabel =
+                      record.doctorName || formatActorDisplayName(undefined, record.doctorId, 'doctor')
+                    const vitals = record.vitalSigns || {}
+                    const hasVitals =
+                      vitals.bloodPressureSystolic !== undefined ||
+                      vitals.heartRate !== undefined ||
+                      vitals.respiratoryRate !== undefined ||
+                      vitals.temperature !== undefined ||
+                      vitals.oxygenSaturation !== undefined
+
+                    return (
+                      <div key={record.id} className="p-5 hover:bg-slate-50/60 transition-colors">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() => toggleExpand(record.id)}
+                          className="w-full text-left flex items-start gap-4"
+                        >
+                          <div
+                            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: `${color}18` }}
+                          >
+                            <Building2 className="w-5 h-5" style={{ color }} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-bold text-sm text-slate-900">{record.hospitalName}</p>
+                                <p className="text-slate-800 font-semibold text-sm mt-0.5">
+                                  {record.diagnosis?.length > 0
+                                    ? record.diagnosis.join(', ')
+                                    : record.chiefComplaint || 'General consultation'}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-3.5 mt-1.5 text-xs text-slate-600 tabular-nums">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    {formatDate(record.visitDate)}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Stethoscope className="w-3.5 h-3.5" />
+                                    {doctorLabel}
+                                  </span>
+                                  {(record.prescriptions?.length || 0) > 0 && (
+                                    <span className="flex items-center gap-1 text-violet-800 font-semibold">
+                                      <Pill className="w-3.5 h-3.5" />
+                                      {record.prescriptions!.length} Rx
+                                    </span>
+                                  )}
+                                  {(record.labReports?.length || 0) > 0 && (
+                                    <span className="flex items-center gap-1 text-indigo-800 font-semibold">
+                                      <FlaskConical className="w-3.5 h-3.5" />
+                                      {record.labReports!.length} Lab
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Badge
+                                  variant={
+                                    record.visitType === 'emergency'
+                                      ? 'destructive'
+                                      : record.visitType === 'inpatient'
+                                        ? 'warning'
+                                        : 'info'
+                                  }
+                                  className="capitalize"
+                                >
+                                  {record.visitType}
+                                </Badge>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-slate-500" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                                )}
+                              </div>
                             </div>
                           </div>
+                        </button>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge
-                              variant={
-                                record.visitType === 'emergency'
-                                  ? 'destructive'
-                                  : record.visitType === 'inpatient'
-                                    ? 'warning'
-                                    : 'info'
-                              }
-                              className="capitalize"
-                            >
-                              {record.visitType}
-                            </Badge>
-                            {isExpanded ? (
-                              <ChevronUp className="w-4 h-4 text-slate-500" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-slate-500" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-4 pt-4 pl-15 border-t border-slate-200/80 space-y-3.5 text-xs">
-                        {record.chiefComplaint && (
-                          <div>
-                            <span className="font-bold text-slate-800">Chief Complaint: </span>
-                            <span className="text-slate-700">{record.chiefComplaint}</span>
-                          </div>
-                        )}
-
-                        {hasVitals && (
-                          <div className="grid grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 tabular-nums">
-                            {vitals.bloodPressureSystolic !== undefined && (
-                              <div className="flex items-center gap-1.5">
-                                <Activity className="w-3.5 h-3.5 text-red-600" />
-                                <span className="text-slate-600">BP:</span>
-                                <span className="font-bold text-slate-900">
-                                  {vitals.bloodPressureSystolic}/{vitals.bloodPressureDiastolic} mmHg
-                                </span>
-                              </div>
-                            )}
-                            {vitals.heartRate !== undefined && (
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 pl-4 md:pl-14 border-t border-slate-200/80 space-y-3.5 text-xs">
+                            {record.chiefComplaint && (
                               <div>
-                                <span className="text-slate-600">HR: </span>
-                                <span className="font-bold text-slate-900">{vitals.heartRate} bpm</span>
+                                <span className="font-bold text-slate-800">Chief Complaint: </span>
+                                <span className="text-slate-700">{record.chiefComplaint}</span>
                               </div>
                             )}
-                            {vitals.temperature !== undefined && (
-                              <div>
-                                <span className="text-slate-600">Temp: </span>
-                                <span className="font-bold text-slate-900">
-                                  {Number(vitals.temperature).toFixed(1)} °C
-                                </span>
+
+                            {hasVitals && (
+                              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 tabular-nums">
+                                {vitals.bloodPressureSystolic !== undefined && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Activity className="w-3.5 h-3.5 text-red-600" />
+                                    <span className="text-slate-600">BP:</span>
+                                    <span className="font-bold text-slate-900">
+                                      {vitals.bloodPressureSystolic}/{vitals.bloodPressureDiastolic} mmHg
+                                    </span>
+                                  </div>
+                                )}
+                                {vitals.heartRate !== undefined && (
+                                  <div>
+                                    <span className="text-slate-600">HR: </span>
+                                    <span className="font-bold text-slate-900">{vitals.heartRate} bpm</span>
+                                  </div>
+                                )}
+                                {vitals.respiratoryRate !== undefined && (
+                                  <div>
+                                    <span className="text-slate-600">RR: </span>
+                                    <span className="font-bold text-slate-900">{vitals.respiratoryRate} /min</span>
+                                  </div>
+                                )}
+                                {vitals.temperature !== undefined && (
+                                  <div>
+                                    <span className="text-slate-600">Temp: </span>
+                                    <span className="font-bold text-slate-900">
+                                      {Number(vitals.temperature).toFixed(1)} °C
+                                    </span>
+                                  </div>
+                                )}
+                                {vitals.oxygenSaturation !== undefined && (
+                                  <div>
+                                    <span className="text-slate-600">SpO2: </span>
+                                    <span className="font-bold text-slate-900">
+                                      {vitals.oxygenSaturation}%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             )}
-                            {vitals.oxygenSaturation !== undefined && (
-                              <div>
-                                <span className="text-slate-600">SpO2: </span>
-                                <span className="font-bold text-slate-900">
-                                  {vitals.oxygenSaturation}%
-                                </span>
+
+                            {record.notes && (
+                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-line">
+                                <p className="font-bold text-slate-900 mb-1">Clinical Notes</p>
+                                <p>{record.notes}</p>
                               </div>
                             )}
-                          </div>
-                        )}
 
-                        {record.notes && (
-                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-slate-700 leading-relaxed">
-                            <p className="font-bold text-slate-900 mb-1">Clinical Notes</p>
-                            <p>{record.notes}</p>
-                          </div>
-                        )}
+                            {record.prescriptions && record.prescriptions.length > 0 && (
+                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-violet-50/70 text-violet-950 border-b border-slate-200">
+                                    <tr>
+                                      <th className="py-2 px-3 text-left font-bold">Medication</th>
+                                      <th className="py-2 px-3 text-left font-bold">Dosage & Regimen</th>
+                                      <th className="py-2 px-3 text-left font-bold">Instructions</th>
+                                      <th className="py-2 px-3 text-left font-bold">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {record.prescriptions.map((rx, idx) => (
+                                      <tr key={rx.id || `${record.id}-rx-${idx}`}>
+                                        <td className="py-2 px-3 font-bold text-slate-900">
+                                          {rx.medicationName}
+                                        </td>
+                                        <td className="py-2 px-3 text-slate-700">
+                                          {rx.dosage} • {rx.frequency} ({rx.duration || '—'})
+                                        </td>
+                                        <td className="py-2 px-3 text-slate-600">
+                                          {rx.instructions || '—'}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <StatusBadge
+                                            tone={rx.isActive !== false ? 'success' : 'neutral'}
+                                            label={rx.isActive !== false ? 'Active' : 'Completed'}
+                                          />
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
 
-                        {record.prescriptions && record.prescriptions.length > 0 && (
-                          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                            <table className="w-full text-xs">
-                              <thead className="bg-violet-50/70 text-violet-950 border-b border-slate-200">
-                                <tr>
-                                  <th className="py-2 px-3 text-left font-bold">Medication</th>
-                                  <th className="py-2 px-3 text-left font-bold">Dosage & Regimen</th>
-                                  <th className="py-2 px-3 text-left font-bold">Instructions</th>
-                                  <th className="py-2 px-3 text-left font-bold">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {record.prescriptions.map((rx, idx) => (
-                                  <tr key={rx.id || `${record.id}-rx-${idx}`}>
-                                    <td className="py-2 px-3 font-bold text-slate-900">
-                                      {rx.medicationName}
-                                    </td>
-                                    <td className="py-2 px-3 text-slate-700">
-                                      {rx.dosage} • {rx.frequency} ({rx.duration || '—'})
-                                    </td>
-                                    <td className="py-2 px-3 text-slate-600">
-                                      {rx.instructions || '—'}
-                                    </td>
-                                    <td className="py-2 px-3">
-                                      <StatusBadge
-                                        tone={rx.isActive !== false ? 'success' : 'neutral'}
-                                        label={rx.isActive !== false ? 'Active' : 'Completed'}
-                                      />
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                            {record.labReports && record.labReports.length > 0 && (
+                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-indigo-50/70 text-indigo-950 border-b border-slate-200">
+                                    <tr>
+                                      <th className="py-2 px-3 text-left font-bold">Test</th>
+                                      <th className="py-2 px-3 text-left font-bold">Result</th>
+                                      <th className="py-2 px-3 text-left font-bold">Reference Range</th>
+                                      <th className="py-2 px-3 text-left font-bold">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {record.labReports.map((lab, idx) => (
+                                      <tr
+                                        key={lab.id || `${record.id}-lab-${idx}`}
+                                        className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
+                                      >
+                                        <td className="py-2 px-3 font-bold text-slate-900">
+                                          {lab.testName}
+                                        </td>
+                                        <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
+                                          {lab.result} {lab.unit}
+                                        </td>
+                                        <td className="py-2 px-3 text-slate-600 tabular-nums">
+                                          {lab.referenceRange || '—'}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          {lab.isAbnormal ? (
+                                            <StatusBadge tone="critical" label="Abnormal" />
+                                          ) : (
+                                            <StatusBadge tone="success" label="Normal" />
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
 
-                        {record.labReports && record.labReports.length > 0 && (
-                          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                            <table className="w-full text-xs">
-                              <thead className="bg-indigo-50/70 text-indigo-950 border-b border-slate-200">
-                                <tr>
-                                  <th className="py-2 px-3 text-left font-bold">Test</th>
-                                  <th className="py-2 px-3 text-left font-bold">Result</th>
-                                  <th className="py-2 px-3 text-left font-bold">Reference Range</th>
-                                  <th className="py-2 px-3 text-left font-bold">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {record.labReports.map((lab, idx) => (
-                                  <tr
-                                    key={lab.id || `${record.id}-lab-${idx}`}
-                                    className={lab.isAbnormal ? 'bg-red-50/50' : undefined}
-                                  >
-                                    <td className="py-2 px-3 font-bold text-slate-900">
-                                      {lab.testName}
-                                    </td>
-                                    <td className="py-2 px-3 font-bold text-slate-900 tabular-nums">
-                                      {lab.result} {lab.unit}
-                                    </td>
-                                    <td className="py-2 px-3 text-slate-600 tabular-nums">
-                                      {lab.referenceRange || '—'}
-                                    </td>
-                                    <td className="py-2 px-3">
-                                      {lab.isAbnormal ? (
-                                        <StatusBadge tone="critical" label="Abnormal" />
-                                      ) : (
-                                        <StatusBadge tone="success" label="Normal" />
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            {record.followUpDate && (
+                              <p className="text-xs text-indigo-800 font-bold tabular-nums">
+                                Scheduled Follow-up: {formatDate(record.followUpDate)}
+                              </p>
+                            )}
                           </div>
-                        )}
-
-                        {record.followUpDate && (
-                          <p className="text-xs text-indigo-800 font-bold tabular-nums">
-                            Scheduled Follow-up: {formatDate(record.followUpDate)}
-                          </p>
                         )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   )
 }

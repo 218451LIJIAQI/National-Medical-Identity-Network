@@ -173,7 +173,7 @@ export default function PatientIndexPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             label: 'Indexed Patients',
@@ -224,7 +224,7 @@ export default function PatientIndexPage() {
             Patient Pointer Distribution by Hospital Node
           </h2>
         </div>
-        <CardContent className="p-5 grid grid-cols-5 gap-3.5">
+        <CardContent className="p-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
           {hospitalCounts.map((hospital) => {
             const color = getHospitalColor(hospital.id)
             const percentage =
@@ -351,17 +351,12 @@ export default function PatientIndexPage() {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <p className="font-bold text-slate-900 text-base">{indexDetail.patient.fullName}</p>
                 <p className="text-xs text-slate-600 capitalize tabular-nums">
-                  {indexDetail.patient.gender} • Blood Type:{' '}
-                  <strong>{indexDetail.patient.bloodType || 'Unknown'}</strong> • DOB:{' '}
-                  {indexDetail.patient.dateOfBirth}
+                  {indexDetail.patient.gender} • DOB: {indexDetail.patient.dateOfBirth}
                 </p>
-                {indexDetail.patient.allergies?.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {indexDetail.patient.allergies.map((alg) => (
-                      <StatusBadge key={alg} tone="critical" label={`Allergy: ${alg}`} />
-                    ))}
-                  </div>
-                )}
+                <StatusBadge
+                  tone="info"
+                  label="Zero-Trust Pointer Only • Clinical PHI Redacted on Central Hub"
+                />
               </div>
             )}
 

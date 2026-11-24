@@ -43,7 +43,7 @@ import { useSettingsStore } from '@/store/settings'
 import { authApi } from '@/lib/api'
 import { useTranslation, type Language, type TranslationKey } from '@/lib/i18n'
 import { getHospitalTheme, type HospitalShellVariant } from '@/lib/hospital-themes'
-import { cn, formatIC, getRoleHomePath } from '@/lib/utils'
+import { cn, formatIC, getRoleHomePath, isValidMyKad } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -221,11 +221,16 @@ export function HospitalPortalShell({
   const [showNotifications, setShowNotifications] = useState(false)
   const [showQuickSearch, setShowQuickSearch] = useState(false)
   const [quickIc, setQuickIc] = useState('')
+  const [quickError, setQuickError] = useState('')
   const [switchingRole, setSwitchingRole] = useState(false)
   const dockScrollRef = useRef<HTMLDivElement>(null)
   const toolbarMenuRef = useRef<HTMLDivElement>(null)
 
   const alternateRoles = (user?.availableRoles || []).filter((r) => r !== user?.role)
+
+  useEffect(() => {
+    setSidebarOpen(variant !== 'hover-rail')
+  }, [variant])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -296,6 +301,11 @@ export function HospitalPortalShell({
     e.preventDefault()
     const normalized = formatIC(quickIc.trim())
     if (!normalized) return
+    if (!isValidMyKad(normalized)) {
+      setQuickError(t.invalidMyKadFormat)
+      return
+    }
+    setQuickError('')
     setShowQuickSearch(false)
     setQuickIc('')
     if (user?.role === 'doctor') {
@@ -313,7 +323,7 @@ export function HospitalPortalShell({
     variant === 'sidebar' || variant === 'hover-rail' || variant === 'glass-sidebar'
 
   const renderToolbarActions = (inverted = false) => (
-    <div ref={toolbarMenuRef} className="flex items-center gap-2.5 shrink-0">
+    <div ref={toolbarMenuRef} className="flex items-center gap-2 shrink-0">
       <Button
         type="button"
         variant="ghost"
@@ -326,11 +336,11 @@ export function HospitalPortalShell({
             : 'text-slate-700 border-slate-200 bg-slate-50/80 hover:bg-slate-100'
         )}
       >
-        <Search className="w-3.5 h-3.5" />
-        <span className="text-xs font-semibold">{t.patientSearch}</span>
+        <Search className="w-3.5 h-3.5 shrink-0" />
+        <span className="text-xs font-semibold hidden lg:inline">{t.patientSearch}</span>
         <kbd
           className={cn(
-            'ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono',
+            'px-1.5 py-0.5 rounded text-[10px] font-mono',
             inverted ? 'bg-white/20 text-white' : 'bg-white border border-slate-200 text-slate-600'
           )}
         >
@@ -346,7 +356,7 @@ export function HospitalPortalShell({
         role="group"
         aria-label="Language Switcher"
       >
-        <Globe className={cn('w-3.5 h-3.5 mx-1', inverted ? 'text-white/85' : 'text-slate-500')} />
+        <Globe className={cn('w-3.5 h-3.5 mx-1 shrink-0', inverted ? 'text-white/85' : 'text-slate-500')} />
         {(['en', 'ms', 'zh'] as Language[]).map((lang) => (
           <button
             key={lang}
@@ -426,7 +436,7 @@ export function HospitalPortalShell({
           >
             <UserIcon className="w-4 h-4" />
           </div>
-          <div className="text-left">
+          <div className="text-left hidden md:block">
             <p className="text-xs font-bold leading-tight">{formatStaffDisplayName(user)}</p>
             <p className={cn('text-[11px] leading-tight', inverted ? 'text-white/80' : 'text-slate-600')}>
               {formatStaffSubtitle(user)}
@@ -439,7 +449,7 @@ export function HospitalPortalShell({
           <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-slate-800">
             <div className="px-4 py-3 border-b border-slate-100">
               <p className="text-sm font-bold text-slate-900">{user?.fullName}</p>
-              <p className="text-xs font-mono text-slate-600 mt-0.5">
+              <p className="text-xs font-mono text-slate-600 mt-0.5 tabular-nums">
                 {user?.icNumber ? formatIC(user.icNumber) : ''}
                 {user?.licenseNumber ? ` • ${user.licenseNumber}` : ''}
               </p>
@@ -448,7 +458,6 @@ export function HospitalPortalShell({
               </Badge>
             </div>
 
-            {/* Display & Accessibility Quick Controls */}
             <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/60">
               <div className="flex items-center gap-1" role="group" aria-label={t.fontScaleLabel}>
                 <Type className="w-3.5 h-3.5 text-slate-500 mr-0.5" />
@@ -548,13 +557,13 @@ export function HospitalPortalShell({
             : 'bg-white/95 backdrop-blur-xl border-slate-200 shadow-sm'
         )}
       >
-        <div className="max-w-[1600px] mx-auto px-5 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-[1600px] mx-auto px-5 min-h-[4rem] py-2 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {hasLeftSidebar && (
               <button
                 type="button"
                 onClick={() => setSidebarOpen((prev) => !prev)}
-                className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors shrink-0"
                 aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
                 title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
               >
@@ -605,7 +614,7 @@ export function HospitalPortalShell({
                   )}
                 >
                   <MapPin className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{brandSubtitle || theme.city}</span>
+                  <span className="truncate">{brandSubtitle || `${theme.city}, ${theme.state}`}</span>
                   <span>•</span>
                   <Clock className="w-3 h-3 shrink-0" />
                   <LiveClock />
@@ -614,10 +623,14 @@ export function HospitalPortalShell({
             </Link>
           </div>
 
-          {/* Horizontal Top Ribbon for Queen Elizabeth Hospital (royal-top) */}
-          {variant === 'royal-top' && (
+          {renderToolbarActions(variant === 'royal-top')}
+        </div>
+
+        {/* Dedicated Second-Tier Ribbon for Queen Elizabeth Hospital (royal-top) — Zero Truncation Across Viewports & High Zoom */}
+        {variant === 'royal-top' && (
+          <div className="border-t border-white/15 bg-black/10">
             <nav
-              className="flex items-center max-w-[44vw] overflow-hidden"
+              className="max-w-[1600px] mx-auto px-5 py-1.5 flex items-center gap-1.5"
               aria-label="Hospital Navigation"
             >
               <button
@@ -630,7 +643,7 @@ export function HospitalPortalShell({
               </button>
               <div
                 ref={dockScrollRef}
-                className="flex items-center gap-1 bg-white/10 rounded-xl p-1 overflow-x-auto"
+                className="flex items-center gap-1 overflow-x-auto flex-1 py-0.5"
               >
                 {navSections.flatMap((s) => s.items).map((item) => {
                   const Icon = item.icon
@@ -642,7 +655,7 @@ export function HospitalPortalShell({
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors',
-                        isActive ? 'bg-white text-red-800 shadow-sm' : 'text-white hover:bg-white/15'
+                        isActive ? 'bg-white text-red-800 shadow-sm' : 'text-white/90 hover:bg-white/15 hover:text-white'
                       )}
                     >
                       <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -660,128 +673,127 @@ export function HospitalPortalShell({
                 <ChevronRight className="w-4 h-4" />
               </button>
             </nav>
-          )}
-
-          {renderToolbarActions(variant === 'royal-top')}
-        </div>
+          </div>
+        )}
       </header>
 
       <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Desktop Left Sidebar for sidebar / hover-rail / glass-sidebar */}
-      {hasLeftSidebar && (
-        <aside
-          onMouseEnter={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
-          onMouseLeave={variant === 'hover-rail' ? () => setSidebarOpen(false) : undefined}
-          className={cn(
-            'flex flex-col z-30 h-[calc(100vh-4rem)] transition-all duration-200 border-r',
-            variant === 'hover-rail' ? 'fixed top-16 left-0' : 'sticky top-16 shrink-0',
-            variant === 'hover-rail'
-              ? `bg-gradient-to-b ${theme.headerGradient} text-white border-white/15 shadow-lg`
-              : variant === 'glass-sidebar'
-                ? 'bg-white/92 backdrop-blur-xl border-violet-200/80 shadow-sm'
-                : 'bg-white border-slate-200',
-            sidebarOpen ? 'w-60' : 'w-[72px]'
-          )}
-        >
-          <nav className="flex-1 p-2.5 space-y-4 overflow-y-auto" aria-label="Hospital Portal Navigation">
-            {navSections.map((section) => (
-              <div key={section.titleKey}>
-                {sidebarOpen && (
-                  <p
-                    className={cn(
-                      'px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider truncate',
-                      variant === 'hover-rail' ? 'text-white/80' : theme.textColor
-                    )}
-                  >
-                    {t[section.titleKey]}
-                  </p>
-                )}
-                <div className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const Icon = item.icon
-                    const isActive = location.pathname === item.path
-                    const label = t[item.labelKey]
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        aria-current={isActive ? 'page' : undefined}
-                        title={!sidebarOpen ? label : undefined}
-                        className={cn(
-                          'flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
-                          variant === 'hover-rail'
-                            ? isActive
-                              ? 'bg-white text-emerald-900 font-bold shadow-sm'
-                              : 'text-white/85 hover:bg-white/15 hover:text-white'
-                            : isActive
-                              ? theme.activeNavClass
-                              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
-                          !sidebarOpen && 'justify-center'
-                        )}
-                      >
-                        <div
+        {/* Desktop Left Sidebar for sidebar / hover-rail / glass-sidebar */}
+        {hasLeftSidebar && (
+          <aside
+            onMouseEnter={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
+            onMouseLeave={variant === 'hover-rail' ? () => setSidebarOpen(false) : undefined}
+            onFocusCapture={variant === 'hover-rail' ? () => setSidebarOpen(true) : undefined}
+            className={cn(
+              'flex flex-col z-30 h-[calc(100vh-4rem)] transition-all duration-200 border-r',
+              variant === 'hover-rail' ? 'fixed top-16 left-0' : 'sticky top-16 shrink-0',
+              variant === 'hover-rail'
+                ? `bg-gradient-to-b ${theme.headerGradient} text-white border-white/15 shadow-lg`
+                : variant === 'glass-sidebar'
+                  ? 'bg-white/92 backdrop-blur-xl border-violet-200/80 shadow-sm'
+                  : 'bg-white border-slate-200',
+              sidebarOpen ? 'w-60' : 'w-[72px]'
+            )}
+          >
+            <nav className="flex-1 p-2.5 space-y-4 overflow-y-auto" aria-label="Hospital Portal Navigation">
+              {navSections.map((section) => (
+                <div key={section.titleKey}>
+                  {sidebarOpen && (
+                    <p
+                      className={cn(
+                        'px-3 mb-1.5 text-[11px] font-bold uppercase tracking-wider truncate',
+                        variant === 'hover-rail' ? 'text-white/80' : theme.textColor
+                      )}
+                    >
+                      {t[section.titleKey]}
+                    </p>
+                  )}
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const Icon = item.icon
+                      const isActive = location.pathname === item.path
+                      const label = t[item.labelKey]
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          aria-current={isActive ? 'page' : undefined}
+                          title={!sidebarOpen ? label : undefined}
                           className={cn(
-                            'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                            'flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
                             variant === 'hover-rail'
                               ? isActive
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-white/10 text-white'
+                                ? 'bg-white text-emerald-900 font-bold shadow-sm'
+                                : 'text-white/85 hover:bg-white/15 hover:text-white'
                               : isActive
-                                ? `${theme.bgMedium} ${theme.textColor}`
-                                : 'bg-slate-100 text-slate-600'
+                                ? theme.activeNavClass
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
+                            !sidebarOpen && 'justify-center'
                           )}
                         >
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        {sidebarOpen && (
-                          <span className="text-xs font-semibold truncate flex-1">{label}</span>
-                        )}
-                      </Link>
-                    )
-                  })}
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                              variant === 'hover-rail'
+                                ? isActive
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-white/10 text-white'
+                                : isActive
+                                  ? `${theme.bgMedium} ${theme.textColor}`
+                                  : 'bg-slate-100 text-slate-600'
+                            )}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          {sidebarOpen && (
+                            <span className="text-xs font-semibold truncate flex-1">{label}</span>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </nav>
+              ))}
+            </nav>
 
-          {sidebarOpen && (
-            <div
-              className={cn(
-                'p-3 border-t',
-                variant === 'hover-rail' ? 'border-white/15' : 'border-slate-200'
-              )}
-            >
+            {sidebarOpen && (
               <div
                 className={cn(
-                  'p-2.5 rounded-xl border text-xs',
-                  variant === 'hover-rail'
-                    ? 'bg-white/10 border-white/20 text-white'
-                    : `${theme.bgLight} ${theme.borderColor} text-slate-700`
+                  'p-3 border-t',
+                  variant === 'hover-rail' ? 'border-white/15' : 'border-slate-200'
                 )}
               >
-                <div className="flex items-center gap-1.5 font-bold mb-0.5">
-                  <Shield className={cn('w-3.5 h-3.5 shrink-0', variant === 'hover-rail' ? 'text-white' : theme.textColor)} />
-                  <span className="truncate">{theme.code} Federated Node</span>
+                <div
+                  className={cn(
+                    'p-2.5 rounded-xl border text-xs',
+                    variant === 'hover-rail'
+                      ? 'bg-white/10 border-white/20 text-white'
+                      : `${theme.bgLight} ${theme.borderColor} text-slate-700`
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                    <Shield className={cn('w-3.5 h-3.5 shrink-0', variant === 'hover-rail' ? 'text-white' : theme.textColor)} />
+                    <span className="truncate">{theme.code} Federated Node</span>
+                  </div>
+                  <p className="text-[11px] opacity-85 truncate">Zero-trust verified session</p>
                 </div>
-                <p className="text-[11px] opacity-85 truncate">Zero-trust verified session</p>
               </div>
-            </div>
-          )}
-        </aside>
-      )}
-
-      {/* Main Clinical / Administrative Content Area */}
-      <main
-        className={cn(
-          'flex-1 min-w-0 transition-all duration-200',
-          variant === 'hover-rail' && 'pl-[72px]',
-          variant === 'bottom-dock' && 'pb-24'
+            )}
+          </aside>
         )}
-      >
-        <div className="max-w-[1440px] mx-auto p-6 xl:p-7">
-          <Outlet />
-        </div>
-      </main>
+
+        {/* Main Clinical / Administrative Content Area */}
+        <main
+          className={cn(
+            'flex-1 min-w-0 transition-all duration-200',
+            variant === 'hover-rail' && 'pl-[72px]',
+            variant === 'bottom-dock' && 'pb-28'
+          )}
+        >
+          <div className="max-w-[1440px] mx-auto p-5 lg:p-6 xl:p-7">
+            <Outlet />
+          </div>
+        </main>
       </div>
 
       {/* Bottom Floating Dock for Sultanah Aminah Hospital (bottom-dock) */}
@@ -790,7 +802,7 @@ export function HospitalPortalShell({
           className="flex fixed bottom-0 left-0 right-0 z-40 px-4 pb-3 justify-center pointer-events-none"
           aria-label="Hospital Dock Navigation"
         >
-          <div className="pointer-events-auto bg-white/98 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-300/80 px-2.5 py-2 max-w-[92vw] flex items-center gap-1.5">
+          <div className="pointer-events-auto bg-white/98 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-300/80 px-2.5 py-2 max-w-[94vw] flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => scrollDock('left')}
@@ -836,26 +848,43 @@ export function HospitalPortalShell({
       {/* Quick Patient Jump Dialog (⌘K / Ctrl+K) */}
       <ModalDialog
         open={showQuickSearch}
-        onClose={() => setShowQuickSearch(false)}
+        onClose={() => {
+          setShowQuickSearch(false)
+          setQuickError('')
+        }}
         title={t.patientSearch}
         description={t.quickSearchHint}
         icon={<Search className={cn('w-5 h-5', theme.textColor)} />}
         maxWidthClassName="max-w-md"
       >
         <form onSubmit={handleQuickJump} className="space-y-4">
-          <Input
-            autoFocus
-            value={quickIc}
-            onChange={(e) => setQuickIc(e.target.value)}
-            placeholder={t.quickSearchPlaceholder}
-            className="h-11 font-mono text-sm"
-          />
+          <div className="space-y-1.5">
+            <Input
+              autoFocus
+              value={quickIc}
+              onChange={(e) => {
+                setQuickIc(e.target.value)
+                if (quickError) setQuickError('')
+              }}
+              placeholder={t.quickSearchPlaceholder}
+              aria-invalid={Boolean(quickError)}
+              className="h-11 font-mono text-sm tabular-nums"
+            />
+            {quickError && (
+              <p role="alert" className="text-xs font-medium text-red-600">
+                {quickError}
+              </p>
+            )}
+          </div>
           <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setShowQuickSearch(false)}
+              onClick={() => {
+                setShowQuickSearch(false)
+                setQuickError('')
+              }}
             >
               {t.cancel}
             </Button>
@@ -872,4 +901,10 @@ export function HospitalPortalShell({
       </ModalDialog>
     </div>
   )
+}
+
+export default function HospitalLayout() {
+  const user = useAuthStore((s) => s.user)
+  const theme = getHospitalTheme(user?.hospitalId || 'hospital-kl')
+  return <HospitalPortalShell hospitalId={theme.id} variant={theme.shellVariant} />
 }

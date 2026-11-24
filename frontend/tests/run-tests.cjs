@@ -209,8 +209,8 @@ const allFrontendTsFiles = collectFiles(
 );
 
 test('1. Transpiles 100% of frontend TypeScript & TSX files cleanly (debloated architecture)', () => {
-  assert.equal(allSrcFiles.length, 62, `Expected 62 src TS/TSX files, found ${allSrcFiles.length}`);
-  assert.equal(allFrontendTsFiles.length, 63, `Expected 63 total frontend TS/TSX files, found ${allFrontendTsFiles.length}`);
+  assert.equal(allSrcFiles.length, 58, `Expected 58 src TS/TSX files, found ${allSrcFiles.length}`);
+  assert.equal(allFrontendTsFiles.length, 59, `Expected 59 total frontend TS/TSX files, found ${allFrontendTsFiles.length}`);
 
   for (const file of allFrontendTsFiles) {
     const raw = fs.readFileSync(file, 'utf8').replace(/import\.meta\.env/g, '({})');
@@ -414,4 +414,55 @@ test('6. Enforces clinical workstation context purge upon role switch, unverific
   });
   useAuthStore.getState().logout();
   assert.equal(useClinicalStore.getState().activePatient, null);
+});
+
+
+test('7. Hardened MyKad calendar/PB validation & numeric-prefix CSV formula injection defense', () => {
+  const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
+
+  // Valid MyKad including leap year Feb 29
+  assert.equal(utils.isValidMyKad('850505-10-5111'), true);
+  assert.equal(utils.isValidMyKad('240229-14-5001'), true);
+
+  // Invalid calendar dates (Feb 31, non-leap Feb 29, PB=00, non-12-digit)
+  assert.equal(utils.isValidMyKad('990231-14-5001'), false);
+  assert.equal(utils.isValidMyKad('230229-14-5001'), false);
+  assert.equal(utils.isValidMyKad('850505-00-5111'), false);
+  assert.equal(utils.isValidMyKad('12345'), false);
+
+  // CSV formula payloads starting with signed digits or leading whitespace must be neutralized
+  assert.equal(utils.sanitizeCsvCell('+1+1'), "'+1+1");
+  assert.equal(utils.sanitizeCsvCell('-2+CMD|"/C calc"!A0'), '"\x27-2+CMD|""/C calc""!A0"');
+  assert.equal(utils.sanitizeCsvCell('  =SUM(A1:A5)'), "'  =SUM(A1:A5)");
+  // Benign Malaysian phone numbers and plain signed decimals remain clean
+  assert.equal(utils.sanitizeCsvCell('+60 12-345 6789'), '+60 12-345 6789');
+  assert.equal(utils.sanitizeCsvCell('-12.50'), '-12.50');
+  assert.equal(utils.formatMYR(1250.5), 'RM 1,250.50');
+});
+
+test('8. Verifies zero hardcoded patient IC fallbacks, debloated themes & zoom-safe grids across modules', () => {
+  const { hospitalThemes } = require(path.join(SRC_ROOT, 'lib/hospital-themes.ts'));
+
+  for (const [id, theme] of Object.entries(hospitalThemes)) {
+    assert.ok(typeof theme.state === 'string' && theme.state.length > 0, `Missing state on ${id}`);
+    assert.equal(theme.secondaryColor, undefined, `Dead key secondaryColor still present on ${id}`);
+    assert.equal(theme.orbPrimaryClass, undefined, `Dead key orbPrimaryClass still present on ${id}`);
+  }
+
+  // NursingNotes & Billing must never hardcode fallback patient IC 880101-14-5678
+  const nursingSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/NursingNotes.tsx'), 'utf8');
+  const billingSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/Billing.tsx'), 'utf8');
+  assert.ok(!nursingSrc.includes('880101-14-5678'), 'NursingNotes must not fallback to hardcoded patient IC');
+  assert.ok(!billingSrc.includes('880101-14-5678'), 'Billing must not fallback to hardcoded patient IC');
+  assert.match(nursingSrc, /PatientRequiredGate/, 'NursingNotes must gate on bound patient');
+  assert.match(billingSrc, /PatientRequiredGate/, 'Billing must gate on bound patient');
+
+  // ClinicalPatientBanner must re-verify bound patient consent against centralApi.getPatient
+  const bannerSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ClinicalPatientBanner.tsx'), 'utf8');
+  assert.match(bannerSrc, /centralApi\.getPatient\(boundIc\)/, 'ClinicalPatientBanner must re-verify activePatient consent');
+
+  // NewRecord must include respiratoryRate and height inputs so editing never drops vital fields
+  const newRecSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/NewRecord.tsx'), 'utf8');
+  assert.match(newRecSrc, /respiratoryRate/, 'NewRecord must preserve respiratoryRate');
+  assert.match(newRecSrc, /id="v-ht"/, 'NewRecord must render height input');
 });

@@ -8,8 +8,10 @@ import {
   createAuditLog,
   getUserById,
   getBlockedHospitals,
+  getBlockedPatientIcsForHospital,
   setHospitalAccess,
   getPrivacySettings,
+  parseSafeLimit,
 } from '../database/central-multi';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
 import { authenticate, authorize, requireHospitalVerification } from '../middleware/auth';
@@ -21,6 +23,7 @@ import {
   HospitalQueryResult,
   MedicalRecord,
   User,
+  isValidMyKadIc,
   normalizeIcNumber,
 } from '../types';
 
@@ -199,10 +202,10 @@ router.get('/emergency/:icNumber', async (req: Request, res: Response) => {
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
 
-  if (!icNumber) {
+  if (!icNumber || !isValidMyKadIc(icNumber)) {
     res.status(400).json({
       success: false,
-      error: 'Patient IC number is required',
+      error: 'Valid Malaysian MyKad IC number (YYMMDD-PB-XXXX) is required',
     });
     return;
   }
@@ -409,6 +412,14 @@ router.get(
     const querySteps: QueryFlowStep[] = [];
     const user = req.user!;
 
+    if (!isValidMyKadIc(icNumber)) {
+      res.status(400).json({
+        success: false,
+        error: 'Valid Malaysian MyKad IC number (YYMMDD-PB-XXXX) is required',
+      });
+      return;
+    }
+
     try {
       if (user.role === 'patient' && normalizeIcNumber(user.icNumber) !== icNumber) {
         await createAuditLog({
@@ -610,6 +621,14 @@ router.get(
       const icNumber = normalizeIcNumber(req.params.icNumber);
       const user = req.user!;
 
+      if (!isValidMyKadIc(icNumber)) {
+        res.status(400).json({
+          success: false,
+          error: 'Valid Malaysian MyKad IC number (YYMMDD-PB-XXXX) is required',
+        });
+        return;
+      }
+
       if (user.role === 'patient' && normalizeIcNumber(user.icNumber) !== icNumber) {
         await createAuditLog({
           timestamp: new Date().toISOString(),
@@ -709,6 +728,14 @@ router.get('/indexes', authenticate, authorize('central_admin'), async (_req: Re
 router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (req: Request, res: Response) => {
   try {
     const icNumber = normalizeIcNumber(req.params.icNumber);
+    if (!isValidMyKadIc(icNumber)) {
+      res.status(400).json({
+        success: false,
+        error: 'Valid Malaysian MyKad IC number (YYMMDD-PB-XXXX) is required',
+      });
+      return;
+    }
+
     const patientIndex = await getPatientIndex(icNumber);
 
     if (!patientIndex) {
@@ -748,17 +775,26 @@ router.get('/index/:icNumber', authenticate, authorize('central_admin'), async (
       findPatientInHospitals(icNumber, patientIndex.hospitals),
     ]);
 
+    // Central administrators manage identity pointer routing only; clinical PHI (allergies, diagnoses, bloodType) is strictly redacted.
     const patientInfo = patient
       ? {
           fullName: patient.fullName,
           icNumber: patient.icNumber,
           dateOfBirth: patient.dateOfBirth,
           gender: patient.gender,
-          bloodType: patient.bloodType,
-          allergies: patient.allergies,
-          chronicConditions: patient.chronicConditions,
         }
       : null;
+
+    await createAuditLog({
+      timestamp: new Date().toISOString(),
+      action: 'query',
+      actorId: req.user?.userId,
+      actorType: 'central_admin',
+      targetIcNumber: icNumber,
+      details: `Central patient pointer index lookup (${hospitalDetails.length} hospital nodes)`,
+      ipAddress: req.ip || 'unknown',
+      success: true,
+    });
 
     res.json({
       success: true,
@@ -796,11 +832,14 @@ router.get(
         return;
       }
 
-      const { actorId, targetIcNumber, startDate, endDate, limit, hospitalId } = req.query;
+      const { actorId, targetIcNumber, action, status, startDate, endDate, limit, hospitalId } = req.query;
       const hospitalScopeId =
         user.role === 'hospital_admin'
           ? user.hospitalId
           : (hospitalId as string | undefined) || undefined;
+
+      const parsedSuccess =
+        status === 'success' ? true : status === 'failed' ? false : undefined;
 
       let logs: AuditLog[];
       try {
@@ -808,9 +847,11 @@ router.get(
           actorId: actorId as string | undefined,
           targetIcNumber: targetIcNumber as string | undefined,
           hospitalScopeId,
+          action: action ? String(action) : undefined,
+          success: parsedSuccess,
           startDate: startDate as string | undefined,
           endDate: endDate as string | undefined,
-          limit: limit ? parseInt(limit as string, 10) : 100,
+          limit: parseSafeLimit(limit, 100, 500),
         });
       } catch (filterError) {
         if (filterError instanceof Error && filterError.message.includes('Invalid')) {
@@ -851,7 +892,7 @@ router.get('/my-access-logs', authenticate, authorize('patient'), async (req: Re
       return;
     }
 
-    const requestedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const requestedLimit = parseSafeLimit(req.query.limit, 20, 200);
     const userId = req.user?.userId;
 
     const allLogs = await getAuditLogs({
@@ -903,19 +944,23 @@ router.get(
         return;
       }
 
-      const requestedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
-
-      const logs = await getAuditLogs({
-        actorId: userId,
-        limit: requestedLimit * 5,
-      });
+      const requestedLimit = parseSafeLimit(req.query.limit, 10, 100);
+      const callerHospitalId = req.user?.hospitalId;
+      const [logs, blockedSet] = await Promise.all([
+        getAuditLogs({
+          actorId: userId,
+          limit: requestedLimit * 5,
+        }),
+        callerHospitalId ? getBlockedPatientIcsForHospital(callerHospitalId) : Promise.resolve(new Set<string>()),
+      ]);
 
       const filteredLogs = logs.filter(
         log =>
           log.action !== 'login' &&
           log.action !== 'logout' &&
           log.action !== 'verify' &&
-          log.targetIcNumber
+          log.targetIcNumber &&
+          !blockedSet.has(normalizeIcNumber(log.targetIcNumber))
       );
 
       const patientLogs = deduplicateLogs(

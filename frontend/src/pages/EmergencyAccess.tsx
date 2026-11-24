@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
 import { centralApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { formatDate, formatDateTime, formatIC } from '@/lib/utils'
+import { formatDate, formatDateTime, formatIC, isValidMyKad } from '@/lib/utils'
 import {
   AlertTriangle,
   Heart,
@@ -169,6 +169,10 @@ export default function EmergencyAccess() {
   const handleSearchClick = () => {
     const normalizedIc = formatIC(icNumber.trim())
     if (!normalizedIc) return
+    if (!isValidMyKad(normalizedIc)) {
+      setStatusError(t.invalidMyKadFormat)
+      return
+    }
 
     const lastSuccessForIc = cooldownByIc[normalizedIc] || 0
     const elapsed = Date.now() - lastSuccessForIc

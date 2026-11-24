@@ -357,7 +357,7 @@ export default function LoginPage() {
       {/* Main Authentication Card */}
       <Card className="border border-slate-200 shadow-lg overflow-hidden bg-white">
         <div className="h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600" />
-        <div className="p-6 xl:p-7">
+        <div className="p-5 xl:p-7">
           <div className="flex items-center gap-3.5 mb-5">
             <div className="w-11 h-11 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl flex items-center justify-center shrink-0">
               <Shield className="w-5 h-5" />
@@ -387,7 +387,7 @@ export default function LoginPage() {
                     setIcNumber(e.target.value)
                     setSelectedRole('')
                   }}
-                  className="pl-10 h-11 font-mono text-sm bg-white border-slate-300 rounded-xl"
+                  className="pl-9 pr-3 h-11 font-mono tabular-nums text-[13px] bg-white border-slate-300 rounded-xl"
                   disabled={isLoading || chipScanning}
                 />
               </div>
@@ -421,7 +421,7 @@ export default function LoginPage() {
                   placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11 text-sm bg-white border-slate-300 rounded-xl"
+                  className="pl-9 pr-3 h-11 text-[13px] bg-white border-slate-300 rounded-xl"
                   disabled={isLoading || chipScanning}
                 />
               </div>

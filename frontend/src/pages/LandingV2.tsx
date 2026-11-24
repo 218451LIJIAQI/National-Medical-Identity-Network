@@ -11,7 +11,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
-  Globe,
   CreditCard,
   Scan,
   Type,
@@ -309,7 +308,7 @@ export default function LandingPageV2() {
             <p className="text-sm text-slate-600 mt-2">{t.nationwideDesc}</p>
           </div>
 
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {HOSPITALS.map((hospital) => (
               <Card
                 key={hospital.id}

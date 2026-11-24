@@ -1,67 +1,39 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Calendar,
   Clock,
-  User,
   Phone,
   Search,
   ChevronLeft,
   ChevronRight,
   Check,
-  X,
-  Bell,
-  Filter,
   Plus,
   Download,
   CheckCircle2,
   AlertCircle,
   Ban,
+  Loader2,
 } from 'lucide-react'
-import { ClinicalPatientBanner } from '@/components/ClinicalPatientBanner'
+import { ClinicalPatientBanner, WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
 import { ModalDialog, StatusBadge, type StatusTone } from '@/components/ui/modal-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
-import { downloadCsvFile, formatIC } from '@/lib/utils'
+import { hospitalApi, type ClinicAppointmentDto } from '@/lib/api'
+import { getHospitalTheme } from '@/lib/hospital-themes'
+import { useTranslation } from '@/lib/i18n'
+import { cn, downloadCsvFile, formatIC, isValidMyKad } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Appointment {
-  id: string
-  patientName: string
-  icNumber: string
-  phone: string
-  date: string
-  time: string
-  type: 'follow-up' | 'new' | 'procedure' | 'review'
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed'
-}
-
-function getOffsetDateStr(daysOffset: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + daysOffset)
-  return d.toISOString().split('T')[0]
-}
-
-const initialAppointments = (): Appointment[] => {
-  const today = getOffsetDateStr(0)
-  const tomorrow = getOffsetDateStr(1)
-  return [
-    { id: '1', patientName: 'Ahmad bin Abdullah', icNumber: '880101-14-5678', phone: '+6012-3456789', date: today, time: '09:00', type: 'follow-up', status: 'confirmed' },
-    { id: '2', patientName: 'Siti Nurhaliza binti Mohd', icNumber: '950320-10-1234', phone: '+6013-9876543', date: today, time: '09:30', type: 'new', status: 'pending' },
-    { id: '3', patientName: 'Tan Ah Kow', icNumber: '550715-07-9999', phone: '+6016-5551234', date: today, time: '10:00', type: 'review', status: 'confirmed' },
-    { id: '4', patientName: 'Lee Mei Fong', icNumber: '780312-14-2345', phone: '+6011-2223333', date: today, time: '11:00', type: 'procedure', status: 'confirmed' },
-    { id: '5', patientName: 'Raj Kumar a/l Muthu', icNumber: '900808-01-5555', phone: '+6017-6665555', date: tomorrow, time: '09:00', type: 'follow-up', status: 'confirmed' },
-    { id: '6', patientName: 'Aishah binti Mohd Yusof', icNumber: '820425-12-7777', phone: '+6019-8887777', date: tomorrow, time: '10:30', type: 'review', status: 'pending' },
-  ]
-}
-
-const timeSlots = [
-  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+const TIME_SLOTS = [
+  '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ]
 
 const APPOINTMENT_STATUS_META: Record<
-  Appointment['status'],
+  ClinicAppointmentDto['status'],
   { tone: StatusTone; label: string; icon: typeof CheckCircle2 }
 > = {
   confirmed: { tone: 'success', label: 'Confirmed', icon: CheckCircle2 },
@@ -70,7 +42,7 @@ const APPOINTMENT_STATUS_META: Record<
   completed: { tone: 'neutral', label: 'Completed', icon: Check },
 }
 
-const TYPE_BADGE_CLASS: Record<Appointment['type'], string> = {
+const TYPE_BADGE_CLASS: Record<ClinicAppointmentDto['type'], string> = {
   new: 'bg-blue-100 text-blue-800 border-blue-200',
   'follow-up': 'bg-purple-100 text-purple-800 border-purple-200',
   procedure: 'bg-amber-100 text-amber-900 border-amber-200',
@@ -78,440 +50,438 @@ const TYPE_BADGE_CLASS: Record<Appointment['type'], string> = {
 }
 
 export default function Appointments() {
+  const user = useAuthStore((s) => s.user)
   const { activePatient } = useClinicalStore()
+  const { t } = useTranslation()
   const { toast } = useToast()
+  const hospitalId = user?.hospitalId || 'hospital-kl'
+  const theme = getHospitalTheme(hospitalId)
 
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments)
-  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [appointments, setAppointments] = useState<ClinicAppointmentDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [bookingSlot, setBookingSlot] = useState<string | null>(null)
+  const [savingBooking, setSavingBooking] = useState(false)
   const [newBooking, setNewBooking] = useState({
     patientName: '',
     icNumber: '',
-    phone: '+6012-0000000',
-    type: 'follow-up' as Appointment['type'],
+    phone: '+60 12-345 6789',
+    time: '09:00',
+    type: 'follow-up' as ClinicAppointmentDto['type'],
   })
 
-  const selectedDateKey = selectedDate.toISOString().split('T')[0]
-  const displayDate = selectedDate.toLocaleDateString('en-MY', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const loadAppointments = useCallback(async () => {
+    setLoading(true)
+    const res = await hospitalApi.getAppointments(hospitalId)
+    if (res.success && res.data) {
+      setAppointments(res.data)
+    }
+    setLoading(false)
+  }, [hospitalId])
+
+  useEffect(() => {
+    void loadAppointments()
+  }, [loadAppointments])
 
   const dayAppointments = appointments
-    .filter((apt) => apt.date === selectedDateKey)
+    .filter((apt) => apt.date === selectedDate)
     .sort((a, b) => a.time.localeCompare(b.time))
 
   const filteredAppointments = dayAppointments.filter((apt) => {
+    const q = searchQuery.trim().toLowerCase()
     const matchesSearch =
-      apt.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      apt.icNumber.includes(searchQuery)
+      !q ||
+      apt.patientName.toLowerCase().includes(q) ||
+      apt.icNumber.toLowerCase().includes(q)
     const matchesFilter = filterStatus === 'all' || apt.status === filterStatus
     return matchesSearch && matchesFilter
   })
 
-  const navigateDate = (direction: 'prev' | 'next') => {
-    const next = new Date(selectedDate)
-    next.setDate(next.getDate() + (direction === 'next' ? 1 : -1))
-    setSelectedDate(next)
+  const shiftDate = (days: number) => {
+    const d = new Date(`${selectedDate}T00:00:00`)
+    d.setDate(d.getDate() + days)
+    setSelectedDate(d.toISOString().split('T')[0])
   }
 
-  const updateStatus = (id: string, status: Appointment['status']) => {
-    setAppointments((prev) => prev.map((apt) => (apt.id === id ? { ...apt, status } : apt)))
-    toast({ title: 'Appointment Updated', description: `Status changed to ${status}.` })
-  }
-
-  const openSlotBooking = (slot?: string) => {
-    const chosenSlot =
+  const openBookingModal = (slot?: string) => {
+    const defaultSlot =
       slot ||
-      timeSlots.find(
-        (candidate) => !dayAppointments.some((apt) => apt.time === candidate && apt.status !== 'cancelled')
-      )
-
-    if (!chosenSlot) {
-      toast({
-        title: 'All Slots Occupied',
-        description: `No open slots remain for ${selectedDateKey}. Navigate to the next clinic day.`,
-        variant: 'destructive',
-      })
-      return
-    }
-
-    setBookingSlot(chosenSlot)
+      TIME_SLOTS.find(
+        (s) => !dayAppointments.some((a) => a.time === s && a.status !== 'cancelled')
+      ) ||
+      '09:00'
     setNewBooking({
       patientName: activePatient?.fullName || '',
       icNumber: activePatient?.icNumber || '',
-      phone: activePatient?.phone || '+6012-3456789',
+      phone: activePatient?.phone || '+60 12-345 6789',
+      time: defaultSlot,
       type: 'follow-up',
     })
+    setBookingSlot(defaultSlot)
   }
 
-  const confirmSlotBooking = (e: React.FormEvent) => {
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!bookingSlot || !newBooking.patientName.trim() || !newBooking.icNumber.trim()) return
-
-    const alreadyBooked = dayAppointments.some(
-      (apt) => apt.time === bookingSlot && apt.status !== 'cancelled'
-    )
-    if (alreadyBooked) {
+    const formattedIc = formatIC(newBooking.icNumber.trim())
+    if (!newBooking.patientName.trim() || !isValidMyKad(formattedIc)) {
       toast({
-        title: 'Slot Already Booked',
-        description: `The ${bookingSlot} slot is already assigned. Please choose another open time.`,
+        title: 'Validation Error',
+        description: t.invalidMyKadFormat,
         variant: 'destructive',
       })
       return
     }
 
-    const created: Appointment = {
-      id: `apt-${Date.now()}`,
-      patientName: newBooking.patientName.trim(),
-      icNumber: formatIC(newBooking.icNumber.trim()),
-      phone: newBooking.phone.trim(),
-      date: selectedDateKey,
-      time: bookingSlot,
-      type: newBooking.type,
-      status: 'confirmed',
+    setSavingBooking(true)
+    try {
+      const res = await hospitalApi.createAppointment(hospitalId, {
+        patientName: newBooking.patientName.trim(),
+        icNumber: formattedIc,
+        phone: newBooking.phone.trim(),
+        date: selectedDate,
+        time: newBooking.time,
+        type: newBooking.type,
+      })
+      if (res.success && res.data) {
+        setAppointments((prev) => [res.data!, ...prev])
+        setBookingSlot(null)
+        toast({
+          title: 'Appointment Scheduled',
+          description: `${res.data.patientName} booked for ${res.data.date} at ${res.data.time}.`,
+          variant: 'success',
+        })
+      } else {
+        toast({
+          title: res.accessDenied ? t.privacyRestrictedTitle : 'Booking Failed',
+          description: res.error || 'Could not create appointment.',
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setSavingBooking(false)
     }
-    setAppointments((prev) => [...prev, created])
-    setBookingSlot(null)
-    toast({
-      title: 'Appointment Booked',
-      description: `${created.patientName} scheduled for ${selectedDateKey} at ${created.time}.`,
-      variant: 'success',
-    })
+  }
+
+  const handleStatusChange = async (id: string, status: ClinicAppointmentDto['status']) => {
+    const res = await hospitalApi.updateAppointmentStatus(hospitalId, id, status)
+    if (res.success && res.data) {
+      setAppointments((prev) => prev.map((a) => (a.id === id ? res.data! : a)))
+      toast({ title: 'Appointment Updated', description: `Status updated to ${status}.` })
+    }
   }
 
   const handleExportCsv = () => {
     downloadCsvFile(
-      `appointments-${selectedDateKey}.csv`,
-      ['Date', 'Time', 'Patient Name', 'IC Number', 'Phone', 'Type', 'Status'],
-      dayAppointments.map((a) => [a.date, a.time, a.patientName, a.icNumber, a.phone, a.type, a.status])
+      `appointments-${hospitalId}-${selectedDate}.csv`,
+      ['Date', 'Time', 'Patient Name', 'MyKad IC', 'Phone', 'Type', 'Status'],
+      filteredAppointments.map((a) => [
+        a.date,
+        a.time,
+        a.patientName,
+        a.icNumber,
+        a.phone,
+        a.type,
+        a.status,
+      ])
     )
-  }
-
-  const stats = {
-    total: dayAppointments.length,
-    confirmed: dayAppointments.filter((a) => a.status === 'confirmed').length,
-    pending: dayAppointments.filter((a) => a.status === 'pending').length,
-    completed: dayAppointments.filter((a) => a.status === 'completed').length,
   }
 
   return (
     <div className="space-y-6">
       <ClinicalPatientBanner />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Appointments</h2>
-          <p className="text-slate-600 text-sm">Outpatient clinic schedule & slot booking</p>
-        </div>
+      <WorkstationModuleHeader
+        icon={Calendar}
+        title={t.appointments}
+        subtitle="Specialist clinic slot booking, attendance confirmation & follow-up roster"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={filteredAppointments.length === 0}
+              onClick={handleExportCsv}
+            >
+              <Download className="w-4 h-4 mr-1.5" />
+              {t.exportCsv}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => openBookingModal()}
+              className={cn('text-white bg-gradient-to-r font-bold', theme.buttonGradient)}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Book Slot
+            </Button>
+          </>
+        }
+      />
+
+      {/* Date Navigator & Filters */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={handleExportCsv} className="rounded-xl gap-1.5">
-            <Download className="w-4 h-4" /> Export CSV
+          <Button variant="outline" size="sm" onClick={() => shiftDate(-1)} aria-label="Previous day">
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+            className="h-9 w-40 font-mono text-xs tabular-nums"
+          />
+          <Button variant="outline" size="sm" onClick={() => shiftDate(1)} aria-label="Next day">
+            <ChevronRight className="w-4 h-4" />
           </Button>
           <Button
-            type="button"
-            onClick={() => openSlotBooking()}
-            className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            className="text-xs font-semibold"
           >
-            <Plus className="w-4 h-4" /> Book Appointment
+            Today
           </Button>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-        <button
-          type="button"
-          onClick={() => navigateDate('prev')}
-          className="p-2 hover:bg-slate-100 rounded-lg"
-          aria-label="Previous day"
-          title="Previous day"
-        >
-          <ChevronLeft className="w-5 h-5 text-slate-600" />
-        </button>
-
-        <div className="flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-teal-700" />
-          <div className="text-center">
-            <p className="text-lg font-bold text-slate-900">{displayDate}</p>
-            <p className="text-xs text-slate-500 tabular-nums">
-              {stats.total} scheduled appointment(s)
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => navigateDate('next')}
-          className="p-2 hover:bg-slate-100 rounded-lg"
-          aria-label="Next day"
-          title="Next day"
-        >
-          <ChevronRight className="w-5 h-5 text-slate-600" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: 'Total', value: stats.total, cardClass: 'bg-blue-50/80 border-blue-200', valueClass: 'text-blue-800' },
-          { label: 'Confirmed', value: stats.confirmed, cardClass: 'bg-emerald-50/80 border-emerald-200', valueClass: 'text-emerald-800' },
-          { label: 'Pending', value: stats.pending, cardClass: 'bg-amber-50/80 border-amber-200', valueClass: 'text-amber-900' },
-          { label: 'Completed', value: stats.completed, cardClass: 'bg-slate-50 border-slate-200', valueClass: 'text-slate-800' },
-        ].map((stat) => (
-          <div key={stat.label} className={`p-4 ${stat.cardClass} rounded-xl border`}>
-            <p className={`text-2xl font-bold tabular-nums ${stat.valueClass}`}>{stat.value}</p>
-            <p className="text-xs font-semibold text-slate-600">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder="Search patient name or MyKad IC..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Filter className="w-4 h-4 text-slate-400 mr-1" />
-          {['all', 'confirmed', 'pending', 'completed', 'cancelled'].map((status) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {(['all', 'confirmed', 'pending', 'completed', 'cancelled'] as const).map((st) => (
             <button
-              key={status}
+              key={st}
               type="button"
-              onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                filterStatus === status
-                  ? 'bg-teal-600 text-white'
+              onClick={() => setFilterStatus(st)}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors',
+                filterStatus === st
+                  ? `${theme.iconBg} text-white`
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+              )}
             >
-              {status}
+              {st}
             </button>
           ))}
+          <div className="relative w-56">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter patient or IC…"
+              className="pl-8 h-9 text-xs"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-600">
-            <tr>
-              <th className="p-4 text-left">Time</th>
-              <th className="p-4 text-left">Patient</th>
-              <th className="p-4 text-left">MyKad IC</th>
-              <th className="p-4 text-left">Type</th>
-              <th className="p-4 text-left">Status</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredAppointments.map((apt) => {
-              const statusMeta = APPOINTMENT_STATUS_META[apt.status]
-              return (
-                <tr
-                  key={apt.id}
-                  className={apt.status === 'cancelled' ? 'opacity-60 bg-slate-50/50' : 'hover:bg-slate-50'}
-                >
-                  <td className="p-4 font-semibold text-slate-900 tabular-nums">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-teal-700" /> {apt.time}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4 text-teal-800" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{apt.patientName}</p>
-                        <p className="text-xs text-slate-500 flex items-center gap-1 tabular-nums">
-                          <Phone className="w-3 h-3" /> {apt.phone}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4 font-mono text-xs text-slate-700 tabular-nums">{apt.icNumber}</td>
-                  <td className="p-4">
-                    <span
-                      className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border capitalize ${TYPE_BADGE_CLASS[apt.type]}`}
-                    >
-                      {apt.type}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <StatusBadge
-                      tone={statusMeta.tone}
-                      icon={statusMeta.icon}
-                      label={statusMeta.label}
-                    />
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="inline-flex items-center gap-1.5">
-                      {apt.status === 'pending' && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(apt.id, 'confirmed')}
-                            className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200"
-                            title="Confirm appointment"
-                            aria-label="Confirm appointment"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(apt.id, 'cancelled')}
-                            className="p-1.5 bg-red-100 text-red-800 rounded-lg hover:bg-red-200"
-                            title="Cancel appointment"
-                            aria-label="Cancel appointment"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {apt.status === 'confirmed' && (
-                        <button
-                          type="button"
-                          onClick={() => updateStatus(apt.id, 'completed')}
-                          className="px-2.5 py-1 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700"
-                        >
-                          Complete
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toast({
-                            title: 'SMS Reminder Queued',
-                            description: `Sent appointment reminder to ${apt.patientName} (${apt.phone}).`,
-                          })
-                        }
-                        className="p-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
-                        title="Send SMS reminder"
-                        aria-label={`Send SMS reminder to ${apt.patientName}`}
-                      >
-                        <Bell className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-
-        {filteredAppointments.length === 0 && (
-          <div className="p-10 text-center text-slate-500">
-            <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm">
-              No appointments scheduled for this date/filter. Click an open time slot below to book.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Interactive Time Slots */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-semibold text-slate-900 mb-3 text-sm tabular-nums">
-          Time Slots for {selectedDateKey} (Select any available slot to book)
-        </h3>
-        <div className="grid grid-cols-7 gap-2.5">
-          {timeSlots.map((slot) => {
-            const isBooked = dayAppointments.some(
-              (apt) => apt.time === slot && apt.status !== 'cancelled'
+      {/* Time Slot Quick Grid */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+          Clinic Time Slots ({selectedDate}) — Click an open slot to schedule
+        </h2>
+        <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+          {TIME_SLOTS.map((slot) => {
+            const booked = dayAppointments.find(
+              (a) => a.time === slot && a.status !== 'cancelled'
             )
             return (
               <button
                 key={slot}
                 type="button"
-                disabled={isBooked}
-                onClick={() => openSlotBooking(slot)}
-                className={`p-2.5 rounded-lg text-center text-xs font-semibold border transition-colors tabular-nums ${
-                  isBooked
-                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                }`}
+                disabled={Boolean(booked)}
+                onClick={() => openBookingModal(slot)}
+                className={cn(
+                  'p-2.5 rounded-xl border text-left transition-colors tabular-nums',
+                  booked
+                    ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                    : 'bg-emerald-50/60 border-emerald-200 hover:bg-emerald-100/70 text-emerald-950'
+                )}
               >
-                <span>{slot}</span>
-                <span className="block text-[10px] font-medium mt-0.5">
-                  {isBooked ? 'Booked' : 'Available'}
-                </span>
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span>{slot}</span>
+                  <Clock className="w-3 h-3 opacity-60" />
+                </div>
+                <p className="text-[11px] truncate mt-0.5">
+                  {booked ? booked.patientName : 'Available'}
+                </p>
               </button>
             )
           })}
         </div>
       </div>
 
+      {/* Appointments Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-5 space-y-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : filteredAppointments.length === 0 ? (
+          <div className="p-10 text-center text-slate-500 text-xs">
+            <Calendar className="w-9 h-9 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-700">No appointments scheduled for this date/filter</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                <tr>
+                  <th className="py-3 px-4 text-left font-bold">Time</th>
+                  <th className="py-3 px-4 text-left font-bold">Patient & MyKad IC</th>
+                  <th className="py-3 px-4 text-left font-bold">Contact</th>
+                  <th className="py-3 px-4 text-left font-bold">Visit Type</th>
+                  <th className="py-3 px-4 text-left font-bold">Status</th>
+                  <th className="py-3 px-4 text-right font-bold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredAppointments.map((apt) => {
+                  const statusMeta = APPOINTMENT_STATUS_META[apt.status]
+                  return (
+                    <tr key={apt.id} className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4 font-mono font-bold text-sm text-slate-900 tabular-nums">
+                        {apt.time}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <p className="font-bold text-slate-900 text-sm">{apt.patientName}</p>
+                        <p className="font-mono text-slate-600 tabular-nums">{apt.icNumber}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 tabular-nums">
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          {apt.phone}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={cn(
+                            'px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize',
+                            TYPE_BADGE_CLASS[apt.type]
+                          )}
+                        >
+                          {apt.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <StatusBadge tone={statusMeta.tone} icon={statusMeta.icon} label={statusMeta.label} />
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {apt.status === 'pending' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleStatusChange(apt.id, 'confirmed')}
+                            >
+                              Confirm
+                            </Button>
+                          )}
+                          {(apt.status === 'confirmed' || apt.status === 'pending') && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStatusChange(apt.id, 'completed')}
+                              >
+                                Complete
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                                className="text-red-700 hover:bg-red-50"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <ModalDialog
         open={Boolean(bookingSlot)}
         onClose={() => setBookingSlot(null)}
-        title="Book Clinic Slot"
-        description={bookingSlot ? `${selectedDateKey} at ${bookingSlot}` : undefined}
-        maxWidthClassName="max-w-md"
+        title="Schedule Clinic Appointment"
+        description={`Book specialist consultation at ${theme.name} (${selectedDate})`}
       >
-        <form onSubmit={confirmSlotBooking} className="space-y-4">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Patient Full Name *
-              </label>
+        <form onSubmit={handleCreateAppointment} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Patient Full Name *</label>
               <Input
                 required
-                placeholder="Patient Full Name"
                 value={newBooking.patientName}
                 onChange={(e) => setNewBooking({ ...newBooking, patientName: e.target.value })}
+                placeholder="Patient full name"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                MyKad IC Number *
-              </label>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">MyKad IC Number *</label>
               <Input
                 required
-                placeholder="e.g. 880101-14-5678"
-                className="font-mono"
                 value={newBooking.icNumber}
                 onChange={(e) => setNewBooking({ ...newBooking, icNumber: e.target.value })}
+                placeholder="850505-10-5111"
+                className="font-mono tabular-nums"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Contact Phone
-              </label>
-              <Input
-                placeholder="+6012-3456789"
-                value={newBooking.phone}
-                onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Consultation Type
-              </label>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Time Slot</label>
               <select
-                className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
+                value={newBooking.time}
+                onChange={(e) => setNewBooking({ ...newBooking, time: e.target.value })}
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm tabular-nums"
+              >
+                {TIME_SLOTS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Visit Category</label>
+              <select
                 value={newBooking.type}
                 onChange={(e) =>
-                  setNewBooking({ ...newBooking, type: e.target.value as Appointment['type'] })
+                  setNewBooking({ ...newBooking, type: e.target.value as ClinicAppointmentDto['type'] })
                 }
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm"
               >
-                <option value="follow-up">Follow-up Consultation</option>
+                <option value="follow-up">Follow-Up</option>
                 <option value="new">New Consultation</option>
-                <option value="review">Lab / Imaging Review</option>
+                <option value="review">Result Review</option>
                 <option value="procedure">Minor Procedure</option>
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">Contact Phone</label>
+              <Input
+                value={newBooking.phone}
+                onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })}
+                className="tabular-nums"
+              />
+            </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setBookingSlot(null)}>
-              Cancel
+              {t.cancel}
             </Button>
-            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button
+              type="submit"
+              disabled={savingBooking}
+              className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}
+            >
+              {savingBooking && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
               Confirm Booking
             </Button>
           </div>

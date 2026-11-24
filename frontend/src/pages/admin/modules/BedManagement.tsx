@@ -1,445 +1,397 @@
-import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { useState, useEffect, useCallback } from 'react'
+import { Bed, Plus, Edit2, Download, RefreshCw, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
+import { hospitalApi, type HospitalWardDto } from '@/lib/api'
+import { getHospitalTheme } from '@/lib/hospital-themes'
+import { useTranslation } from '@/lib/i18n'
+import { cn, downloadCsvFile } from '@/lib/utils'
+import { WorkstationModuleHeader } from '@/components/ClinicalPatientBanner'
 import { ModalDialog, StatusBadge } from '@/components/ui/modal-dialog'
-import {
-  Bed,
-  User,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  RefreshCw,
-  Plus,
-  Minus,
-  Download,
-} from 'lucide-react'
-import { downloadCsvFile } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
 
-interface Ward {
-  id: string
-  name: string
-  nameMY: string
-  totalBeds: number
-  occupied: number
-  reserved: number
-  maintenance: number
-  type: 'general' | 'icu' | 'maternity' | 'pediatric' | 'isolation'
-}
-
-const initialWards: Ward[] = [
-  { id: '1', name: 'General Ward A', nameMY: 'Wad Am A', totalBeds: 30, occupied: 24, reserved: 3, maintenance: 1, type: 'general' },
-  { id: '2', name: 'General Ward B', nameMY: 'Wad Am B', totalBeds: 30, occupied: 28, reserved: 1, maintenance: 0, type: 'general' },
-  { id: '3', name: 'ICU', nameMY: 'Unit Rawatan Rapi', totalBeds: 10, occupied: 8, reserved: 1, maintenance: 0, type: 'icu' },
-  { id: '4', name: 'Maternity Ward', nameMY: 'Wad Bersalin', totalBeds: 20, occupied: 15, reserved: 2, maintenance: 1, type: 'maternity' },
-  { id: '5', name: 'Pediatric Ward', nameMY: 'Wad Pediatrik', totalBeds: 25, occupied: 18, reserved: 4, maintenance: 0, type: 'pediatric' },
-  { id: '6', name: 'Isolation Ward', nameMY: 'Wad Isolasi', totalBeds: 15, occupied: 5, reserved: 0, maintenance: 2, type: 'isolation' },
-  { id: '7', name: 'CCU', nameMY: 'Unit Jantung', totalBeds: 8, occupied: 6, reserved: 1, maintenance: 0, type: 'icu' },
-  { id: '8', name: 'Surgical Ward', nameMY: 'Wad Pembedahan', totalBeds: 25, occupied: 20, reserved: 2, maintenance: 1, type: 'general' },
+const WARD_TYPES: Array<{ value: HospitalWardDto['type']; label: string }> = [
+  { value: 'general', label: 'General Medical / Surgical' },
+  { value: 'icu', label: 'Intensive Care (ICU / CCU)' },
+  { value: 'maternity', label: 'Maternity & Obstetrics' },
+  { value: 'pediatric', label: 'Paediatric Ward' },
+  { value: 'isolation', label: 'Negative-Pressure Isolation' },
 ]
 
-const wardTypeConfig: Record<Ward['type'], { color: string; label: string }> = {
-  general: { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'General' },
-  icu: { color: 'bg-red-100 text-red-800 border-red-200', label: 'ICU / CCU' },
-  maternity: { color: 'bg-pink-100 text-pink-800 border-pink-200', label: 'Maternity' },
-  pediatric: { color: 'bg-purple-100 text-purple-800 border-purple-200', label: 'Pediatric' },
-  isolation: { color: 'bg-amber-100 text-amber-900 border-amber-200', label: 'Isolation' },
-}
-
 export default function BedManagement() {
+  const user = useAuthStore((s) => s.user)
+  const { t, language } = useTranslation()
   const { toast } = useToast()
-  const [wards, setWards] = useState<Ward[]>(initialWards)
-  const [selectedWard, setSelectedWard] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newWard, setNewWard] = useState({
+  const hospitalId = user?.hospitalId || 'hospital-kl'
+  const theme = getHospitalTheme(hospitalId)
+
+  const [wards, setWards] = useState<HospitalWardDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterType, setFilterType] = useState<string>('all')
+  const [editingWard, setEditingWard] = useState<HospitalWardDto | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const [draft, setDraft] = useState({
     name: '',
     nameMY: '',
-    totalBeds: '20',
-    type: 'general' as Ward['type'],
+    type: 'general' as HospitalWardDto['type'],
+    totalBeds: 24,
+    occupied: 12,
+    reserved: 2,
+    maintenance: 0,
   })
 
-  const totalStats = wards.reduce(
-    (acc, ward) => ({
-      totalBeds: acc.totalBeds + ward.totalBeds,
-      occupied: acc.occupied + ward.occupied,
-      reserved: acc.reserved + ward.reserved,
-      maintenance: acc.maintenance + ward.maintenance,
-    }),
-    { totalBeds: 0, occupied: 0, reserved: 0, maintenance: 0 }
+  const loadWards = useCallback(async () => {
+    setLoading(true)
+    const res = await hospitalApi.getWards(hospitalId)
+    if (res.success && res.data) {
+      setWards(res.data)
+    }
+    setLoading(false)
+  }, [hospitalId])
+
+  useEffect(() => {
+    void loadWards()
+  }, [loadWards])
+
+  const filteredWards =
+    filterType === 'all' ? wards : wards.filter((w) => w.type === filterType)
+
+  const totals = wards.reduce(
+    (acc, w) => {
+      const avail = Math.max(0, w.totalBeds - w.occupied - w.reserved - w.maintenance)
+      acc.total += w.totalBeds
+      acc.occupied += w.occupied
+      acc.reserved += w.reserved
+      acc.maintenance += w.maintenance
+      acc.available += avail
+      return acc
+    },
+    { total: 0, occupied: 0, reserved: 0, maintenance: 0, available: 0 }
   )
 
-  const availableTotal =
-    totalStats.totalBeds - totalStats.occupied - totalStats.reserved - totalStats.maintenance
-  const occupancyRate =
-    totalStats.totalBeds > 0 ? Math.round((totalStats.occupied / totalStats.totalBeds) * 100) : 0
+  const occupancyPct = totals.total > 0 ? Math.round((totals.occupied / totals.total) * 100) : 0
 
-  const adjustWardOccupancy = (wardId: string, delta: number) => {
-    setWards((prev) =>
-      prev.map((w) => {
-        if (w.id !== wardId) return w
-        const maxOccupiable = w.totalBeds - w.reserved - w.maintenance
-        const nextOccupied = Math.max(0, Math.min(maxOccupiable, w.occupied + delta))
-        return { ...w, occupied: nextOccupied }
-      })
-    )
+  const openEdit = (ward: HospitalWardDto) => {
+    setEditingWard(ward)
+    setDraft({
+      name: ward.name,
+      nameMY: ward.nameMY,
+      type: ward.type,
+      totalBeds: ward.totalBeds,
+      occupied: ward.occupied,
+      reserved: ward.reserved,
+      maintenance: ward.maintenance,
+    })
   }
 
-  const addBedToSelectedOrOpenModal = () => {
-    if (selectedWard) {
-      setWards((prev) =>
-        prev.map((w) => (w.id === selectedWard ? { ...w, totalBeds: w.totalBeds + 2 } : w))
-      )
-      toast({
-        title: 'Capacity Expanded',
-        description: 'Added 2 beds to selected ward.',
-        variant: 'success',
-      })
-    } else {
-      setShowAddModal(true)
-    }
-  }
-
-  const handleCreateWard = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newWard.name.trim()) return
-    const created: Ward = {
-      id: `ward-${Date.now()}`,
-      name: newWard.name.trim(),
-      nameMY: newWard.nameMY.trim() || newWard.name.trim(),
-      totalBeds: Math.min(100, Math.max(1, Number(newWard.totalBeds) || 20)),
+  const openCreate = () => {
+    setEditingWard(null)
+    setDraft({
+      name: '',
+      nameMY: '',
+      type: 'general',
+      totalBeds: 24,
       occupied: 0,
       reserved: 0,
       maintenance: 0,
-      type: newWard.type,
-    }
-    setWards((prev) => [...prev, created])
-    setShowAddModal(false)
-    setNewWard({ name: '', nameMY: '', totalBeds: '20', type: 'general' })
-    toast({
-      title: 'Ward Added',
-      description: `${created.name} (${created.totalBeds} beds) registered.`,
-      variant: 'success',
     })
+    setShowCreate(true)
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (draft.occupied + draft.reserved + draft.maintenance > draft.totalBeds) {
+      toast({
+        title: 'Capacity Exceeded',
+        description: 'Occupied + Reserved + Maintenance beds cannot exceed Total Ward Capacity.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setSaving(true)
+    try {
+      const res = editingWard
+        ? await hospitalApi.updateWard(hospitalId, editingWard.id, draft)
+        : await hospitalApi.createWard(hospitalId, draft)
+      if (res.success && res.data) {
+        if (editingWard) {
+          setWards((prev) => prev.map((w) => (w.id === editingWard.id ? res.data! : w)))
+        } else {
+          setWards((prev) => [...prev, res.data!])
+        }
+        setEditingWard(null)
+        setShowCreate(false)
+        toast({
+          title: editingWard ? 'Ward Capacity Updated' : 'New Ward Commissioned',
+          description: `${res.data.name} saved at ${theme.shortName}.`,
+          variant: 'success',
+        })
+      } else {
+        toast({ title: 'Save Failed', description: res.error || 'Could not save ward', variant: 'destructive' })
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleExportCsv = () => {
     downloadCsvFile(
-      'hospital-bed-capacity.csv',
-      ['Ward', 'Type', 'Total Beds', 'Occupied', 'Available', 'Reserved', 'Maintenance'],
-      wards.map((w) => [
+      `bed-census-${hospitalId}.csv`,
+      ['Ward ID', 'Ward Name', 'Category', 'Total Beds', 'Occupied', 'Reserved', 'Maintenance', 'Available'],
+      filteredWards.map((w) => [
+        w.id,
         w.name,
         w.type,
         w.totalBeds,
         w.occupied,
-        w.totalBeds - w.occupied - w.reserved - w.maintenance,
         w.reserved,
         w.maintenance,
+        Math.max(0, w.totalBeds - w.occupied - w.reserved - w.maintenance),
       ])
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Bed Management</h1>
-          <p className="text-slate-600 text-sm">
-            Real-time ward census, admissions & bed capacity allocation
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportCsv} className="gap-2">
-            <Download className="w-4 h-4" /> Export CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              toast({ title: 'Census Synced', description: 'Ward occupancy synchronized.' })
-            }
-            className="gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Sync
-          </Button>
-          <Button
-            onClick={addBedToSelectedOrOpenModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-          >
-            <Bed className="w-4 h-4" />
-            {selectedWard ? '+2 Beds to Selected Ward' : 'Add Ward / Beds'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-4 tabular-nums">
-        <Card className="bg-slate-50 border-slate-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Bed className="w-6 h-6 text-slate-700" />
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{totalStats.totalBeds}</p>
-              <p className="text-xs font-medium text-slate-600">Total Beds</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-red-50/80 border-red-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <User className="w-6 h-6 text-red-700" />
-            <div>
-              <p className="text-2xl font-bold text-red-900">{totalStats.occupied}</p>
-              <p className="text-xs font-medium text-red-700">Occupied</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-emerald-50/80 border-emerald-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-emerald-700" />
-            <div>
-              <p className="text-2xl font-bold text-emerald-900">{availableTotal}</p>
-              <p className="text-xs font-medium text-emerald-700">Available</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-amber-50/80 border-amber-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Clock className="w-6 h-6 text-amber-700" />
-            <div>
-              <p className="text-2xl font-bold text-amber-900">{totalStats.reserved}</p>
-              <p className="text-xs font-medium text-amber-800">Reserved</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-orange-50/80 border-orange-200">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="w-6 h-6 text-orange-700" />
-            <div>
-              <p className="text-2xl font-bold text-orange-900">{totalStats.maintenance}</p>
-              <p className="text-xs font-medium text-orange-800">Maintenance</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-slate-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Hospital Occupancy Rate</h3>
-              <p className="text-xs text-slate-500">
-                Select any ward card below to expand capacity or admit/discharge beds
-              </p>
-            </div>
-            <div className="flex items-center gap-3 tabular-nums">
-              <StatusBadge
-                tone={occupancyRate > 90 ? 'critical' : occupancyRate > 75 ? 'warning' : 'success'}
-                icon={occupancyRate > 90 ? AlertTriangle : occupancyRate > 75 ? AlertCircle : CheckCircle2}
-                label={occupancyRate > 90 ? 'Critical Surge' : occupancyRate > 75 ? 'High Load' : 'Optimal'}
-              />
-              <p className="text-3xl font-bold text-blue-700">{occupancyRate}%</p>
-            </div>
-          </div>
-          <div className="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden">
-            <div
-              className={`h-3.5 rounded-full transition-all ${
-                occupancyRate > 90
-                  ? 'bg-red-600'
-                  : occupancyRate > 75
-                    ? 'bg-amber-500'
-                    : 'bg-emerald-600'
-              }`}
-              style={{ width: `${occupancyRate}%` }}
-            />
-          </div>
-          <div className="flex items-center gap-5 mt-3 text-xs text-slate-600">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" /> Occupied (Solid)
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-amber-100 inline-block" />{' '}
-              Reserved (Ring)
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm border border-dashed border-orange-600 bg-orange-100 inline-block" />{' '}
-              Maintenance (Dashed)
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm border border-emerald-500 bg-emerald-50 inline-block" />{' '}
-              Available (Open)
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-4 gap-4 tabular-nums">
-        {wards.map((ward) => {
-          const available = ward.totalBeds - ward.occupied - ward.reserved - ward.maintenance
-          const occupancy = Math.round((ward.occupied / ward.totalBeds) * 100)
-          const typeConfig = wardTypeConfig[ward.type]
-          const isSelected = selectedWard === ward.id
-
-          return (
-            <Card
-              key={ward.id}
-              className={`cursor-pointer border-slate-200 transition-shadow hover:shadow-md ${
-                isSelected ? 'ring-2 ring-blue-600 shadow-md' : ''
-              }`}
-              onClick={() => setSelectedWard(isSelected ? null : ward.id)}
+      <WorkstationModuleHeader
+        icon={Bed}
+        title={t.bedManagement}
+        subtitle="Real-time inpatient bed census, ICU surge allocation & isolation ward readiness"
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={loadWards}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              {t.refreshData}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportCsv}>
+              <Download className="w-4 h-4 mr-1.5" />
+              {t.exportCsv}
+            </Button>
+            <Button
+              size="sm"
+              onClick={openCreate}
+              className={cn('text-white bg-gradient-to-r font-bold', theme.buttonGradient)}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-sm font-bold text-slate-900">{ward.name}</CardTitle>
-                  <Badge className={typeConfig.color}>{typeConfig.label}</Badge>
-                </div>
-                <p className="text-xs text-slate-500">{ward.nameMY}</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-10 gap-1" aria-label={`${ward.name} bed map`}>
-                  {Array.from({ length: ward.totalBeds }).map((_, i) => {
-                    let statusLabel = 'Available'
-                    let cellClass = 'rounded-sm border border-emerald-500 bg-emerald-50'
-                    if (i < ward.occupied) {
-                      statusLabel = 'Occupied'
-                      cellClass = 'rounded-sm bg-red-500'
-                    } else if (i < ward.occupied + ward.reserved) {
-                      statusLabel = 'Reserved'
-                      cellClass = 'rounded-full border-2 border-amber-500 bg-amber-100'
-                    } else if (i < ward.occupied + ward.reserved + ward.maintenance) {
-                      statusLabel = 'Maintenance'
-                      cellClass = 'rounded-sm border border-dashed border-orange-600 bg-orange-100'
-                    }
-                    return (
-                      <div
-                        key={i}
-                        title={`Bed ${i + 1}: ${statusLabel}`}
-                        className={`w-2.5 h-2.5 ${cellClass}`}
-                      />
-                    )
-                  })}
-                </div>
+              <Plus className="w-4 h-4 mr-1" />
+              Add Ward
+            </Button>
+          </>
+        }
+      />
 
-                <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-600">
-                  <span>
-                    Occupied: <strong className="text-slate-900">{ward.occupied}</strong>
-                  </span>
-                  <span>
-                    Available: <strong className="text-emerald-700">{available}</strong>
-                  </span>
-                  <span>Reserved: {ward.reserved}</span>
-                  <span>Maint: {ward.maintenance}</span>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="text-slate-500">Occupancy</span>
-                    <span className="font-bold text-slate-900">{occupancy}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={`h-2 rounded-full ${
-                        occupancy > 90
-                          ? 'bg-red-600'
-                          : occupancy > 75
-                            ? 'bg-amber-500'
-                            : 'bg-emerald-600'
-                      }`}
-                      style={{ width: `${occupancy}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={ward.occupied <= 0}
-                    onClick={() => adjustWardOccupancy(ward.id, -1)}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    <Minus className="w-3 h-3 mr-1" /> Discharge
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={available <= 0}
-                    onClick={() => adjustWardOccupancy(ward.id, 1)}
-                    className="flex-1 h-8 text-xs"
-                  >
-                    <Plus className="w-3 h-3 mr-1" /> Admit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      {/* Census KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 tabular-nums">
+        {[
+          { label: 'Total Licensed Beds', value: totals.total, sub: `${wards.length} active wards` },
+          { label: 'Occupied Beds', value: totals.occupied, sub: `${occupancyPct}% BOR` },
+          { label: 'Available Ready', value: totals.available, sub: 'Immediate admission' },
+          { label: 'Reserved / OT Post-Op', value: totals.reserved, sub: 'Booked transfers' },
+          { label: 'Terminal Cleaning / Maint.', value: totals.maintenance, sub: 'Temporarily closed' },
+        ].map((kpi) => (
+          <div key={kpi.label} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500">{kpi.label}</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">{kpi.value}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{kpi.sub}</p>
+          </div>
+        ))}
       </div>
+
+      {/* Category Filter */}
+      <div className="flex items-center gap-1.5 flex-wrap bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFilterType('all')}
+          className={cn(
+            'px-3 py-1.5 rounded-xl text-xs font-bold transition-colors',
+            filterType === 'all' ? `${theme.iconBg} text-white` : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          )}
+        >
+          All Wards ({wards.length})
+        </button>
+        {WARD_TYPES.map((wt) => (
+          <button
+            key={wt.value}
+            type="button"
+            onClick={() => setFilterType(wt.value)}
+            className={cn(
+              'px-3 py-1.5 rounded-xl text-xs font-bold transition-colors',
+              filterType === wt.value ? `${theme.iconBg} text-white` : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            )}
+          >
+            {wt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Ward Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-44 w-full rounded-2xl" />
+          <Skeleton className="h-44 w-full rounded-2xl" />
+          <Skeleton className="h-44 w-full rounded-2xl" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredWards.map((ward) => {
+            const available = Math.max(0, ward.totalBeds - ward.occupied - ward.reserved - ward.maintenance)
+            const utilPct = ward.totalBeds > 0 ? Math.round((ward.occupied / ward.totalBeds) * 100) : 0
+            const highStrain = utilPct >= 85
+            return (
+              <div key={ward.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 tabular-nums">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono text-[11px] font-bold text-slate-500">{ward.id}</span>
+                    <h2 className="text-base font-bold text-slate-900">
+                      {language === 'ms' ? ward.nameMY : ward.name}
+                    </h2>
+                  </div>
+                  <StatusBadge
+                    tone={highStrain ? 'critical' : 'success'}
+                    icon={highStrain ? AlertTriangle : CheckCircle2}
+                    label={`${utilPct}% Occupied`}
+                  />
+                </div>
+
+                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full transition-all', highStrain ? 'bg-red-600' : 'bg-emerald-600')}
+                    style={{ width: `${Math.min(100, utilPct)}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="p-2 rounded-xl bg-slate-50">
+                    <p className="font-extrabold text-slate-900">{ward.totalBeds}</p>
+                    <p className="text-[10px] text-slate-500">Total</p>
+                  </div>
+                  <div className="p-2 rounded-xl bg-blue-50">
+                    <p className="font-extrabold text-blue-900">{ward.occupied}</p>
+                    <p className="text-[10px] text-blue-700">In-Use</p>
+                  </div>
+                  <div className="p-2 rounded-xl bg-emerald-50">
+                    <p className="font-extrabold text-emerald-900">{available}</p>
+                    <p className="text-[10px] text-emerald-700">Free</p>
+                  </div>
+                  <div className="p-2 rounded-xl bg-amber-50">
+                    <p className="font-extrabold text-amber-900">{ward.reserved + ward.maintenance}</p>
+                    <p className="text-[10px] text-amber-800">Hold</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1 border-t border-slate-100">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(ward)}>
+                    <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+                    Adjust Allocation
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <ModalDialog
-        open={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add New Ward"
-        description="Register an inpatient ward unit and initialize bed capacity."
-        maxWidthClassName="max-w-md"
+        open={Boolean(editingWard) || showCreate}
+        onClose={() => {
+          setEditingWard(null)
+          setShowCreate(false)
+        }}
+        title={editingWard ? `Adjust Census — ${editingWard.name}` : 'Commission New Inpatient Ward'}
+        description={theme.name}
       >
-        <form onSubmit={handleCreateWard} className="space-y-4">
-          <div className="space-y-3">
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Ward Name *</label>
+              <label className="text-xs font-bold text-slate-700">Ward Name (EN) *</label>
               <Input
                 required
-                placeholder="e.g., Ward 6C"
-                value={newWard.name}
-                onChange={(e) => setNewWard({ ...newWard, name: e.target.value })}
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="e.g., Surgical Ward 6B"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Malay Label (Optional)
-              </label>
+              <label className="text-xs font-bold text-slate-700">Nama Wad (BM)</label>
               <Input
-                placeholder="e.g., Wad 6C"
-                value={newWard.nameMY}
-                onChange={(e) => setNewWard({ ...newWard, nameMY: e.target.value })}
+                value={draft.nameMY}
+                onChange={(e) => setDraft({ ...draft, nameMY: e.target.value })}
+                placeholder="cth., Wad Pembedahan 6B"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Total Beds
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={newWard.totalBeds}
-                  onChange={(e) => setNewWard({ ...newWard, totalBeds: e.target.value })}
-                  className="tabular-nums"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Ward Type</label>
-                <select
-                  className="w-full h-10 px-3 border border-slate-200 rounded-md text-sm bg-white"
-                  value={newWard.type}
-                  onChange={(e) => setNewWard({ ...newWard, type: e.target.value as Ward['type'] })}
-                >
-                  <option value="general">General Ward</option>
-                  <option value="icu">ICU / CCU</option>
-                  <option value="maternity">Maternity</option>
-                  <option value="pediatric">Pediatric</option>
-                  <option value="isolation">Isolation</option>
-                </select>
-              </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700">Ward Classification</label>
+            <select
+              value={draft.type}
+              onChange={(e) => setDraft({ ...draft, type: e.target.value as HospitalWardDto['type'] })}
+              className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm mt-1"
+            >
+              {WARD_TYPES.map((wt) => (
+                <option key={wt.value} value={wt.value}>
+                  {wt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
+            <div>
+              <label className="text-xs font-bold text-slate-700">Total Beds</label>
+              <Input
+                type="number"
+                min={1}
+                value={draft.totalBeds}
+                onChange={(e) => setDraft({ ...draft, totalBeds: Math.max(1, Number(e.target.value) || 1) })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Occupied</label>
+              <Input
+                type="number"
+                min={0}
+                value={draft.occupied}
+                onChange={(e) => setDraft({ ...draft, occupied: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Reserved</label>
+              <Input
+                type="number"
+                min={0}
+                value={draft.reserved}
+                onChange={(e) => setDraft({ ...draft, reserved: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Maintenance</label>
+              <Input
+                type="number"
+                min={0}
+                value={draft.maintenance}
+                onChange={(e) => setDraft({ ...draft, maintenance: Math.max(0, Number(e.target.value) || 0) })}
+              />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-              Cancel
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setEditingWard(null)
+                setShowCreate(false)
+              }}
+            >
+              {t.cancel}
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
-              Create Ward
+            <Button type="submit" disabled={saving} className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
+              Save Allocation
             </Button>
           </div>
         </form>

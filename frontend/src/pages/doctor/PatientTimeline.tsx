@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/ui/modal-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { centralApi, type MedicalRecordDto } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useClinicalStore } from '@/store/clinical'
@@ -17,7 +18,6 @@ import {
   AlertTriangle,
   FileText,
   Pill,
-  Loader2,
   Shield,
   ShieldAlert,
   Edit3,
@@ -27,6 +27,8 @@ import {
   Activity,
   Lock,
   CheckCircle2,
+  WifiOff,
+  RefreshCw,
 } from 'lucide-react'
 import {
   cn,
@@ -34,6 +36,7 @@ import {
   escapeHtml,
   formatDate,
   formatIC,
+  isValidMyKad,
   printHtmlDocument,
 } from '@/lib/utils'
 import { getHospitalTheme } from '@/lib/hospital-themes'
@@ -59,19 +62,24 @@ export default function PatientTimeline() {
   const { icNumber } = useParams<{ icNumber: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { setActivePatient } = useClinicalStore()
+  const { activePatient, setActivePatient, clearActivePatient } = useClinicalStore()
   const { t } = useTranslation()
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [loading, setLoading] = useState(true)
   const [accessDeniedError, setAccessDeniedError] = useState<string | null>(null)
   const [notFoundError, setNotFoundError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [allergiesVerified, setAllergiesVerified] = useState(false)
   const [partialFailureWarning, setPartialFailureWarning] = useState<string | null>(null)
   const [hospitalFilter, setHospitalFilter] = useState<string>('all')
+  const [reloadNonce, setReloadNonce] = useState(0)
+
+  const formattedRouteIc = formatIC(icNumber || '')
 
   const [patient, setPatient] = useState<PatientInfo>({
     fullName: '',
-    icNumber: formatIC(icNumber || ''),
+    icNumber: formattedRouteIc,
     dateOfBirth: '',
     gender: '',
     bloodType: '',
@@ -81,27 +89,39 @@ export default function PatientTimeline() {
   const [records, setRecords] = useState<MedicalRecordDto[]>([])
   const [medications, setMedications] = useState<ActiveMedicationItem[]>([])
 
+  const triggerReload = useCallback(() => setReloadNonce((n) => n + 1), [])
+
   useEffect(() => {
     let cancelled = false
 
     async function loadPatientData() {
-      if (!icNumber) return
+      if (!formattedRouteIc) return
+      if (!isValidMyKad(formattedRouteIc)) {
+        setLoadError(t.invalidMyKadFormat)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setAccessDeniedError(null)
       setNotFoundError(null)
+      setLoadError(null)
+      setAllergiesVerified(false)
       setPartialFailureWarning(null)
       setHospitalFilter('all')
 
       try {
-        const formattedIc = formatIC(icNumber)
         const [queryRes, patientRes] = await Promise.all([
-          centralApi.queryPatient(formattedIc),
-          centralApi.getPatient(formattedIc),
+          centralApi.queryPatient(formattedRouteIc),
+          centralApi.getPatient(formattedRouteIc),
         ])
 
         if (cancelled) return
 
         if (queryRes.accessDenied || patientRes.accessDenied) {
+          if (activePatient?.icNumber === formattedRouteIc) {
+            clearActivePatient()
+          }
           setAccessDeniedError(queryRes.error || patientRes.error || t.privacyRestrictedDesc)
           return
         }
@@ -111,6 +131,11 @@ export default function PatientTimeline() {
           (patientRes.notFound || patientRes.status === 404)
         ) {
           setNotFoundError(queryRes.error || t.patientNotFoundDesc)
+          return
+        }
+
+        if (!queryRes.success && !patientRes.success) {
+          setLoadError(queryRes.error || patientRes.error || t.networkError)
           return
         }
 
@@ -163,7 +188,7 @@ export default function PatientTimeline() {
           const p = patientRes.data.patient
           const info: PatientInfo = {
             fullName: String(p.fullName || 'Unknown Patient'),
-            icNumber: formattedIc,
+            icNumber: formattedRouteIc,
             dateOfBirth: String(p.dateOfBirth || ''),
             gender: String(p.gender || ''),
             bloodType: String(p.bloodType || ''),
@@ -173,6 +198,7 @@ export default function PatientTimeline() {
               : [],
           }
           setPatient(info)
+          setAllergiesVerified(true)
           setActivePatient({
             icNumber: info.icNumber,
             fullName: info.fullName,
@@ -180,13 +206,23 @@ export default function PatientTimeline() {
             gender: info.gender,
             bloodType: info.bloodType,
             allergies: info.allergies,
+            allergiesUnverified: false,
             chronicConditions: info.chronicConditions,
             scopedHospitalId: user?.hospitalId,
             scopedDoctorId: user?.doctorId,
           })
+        } else {
+          setPatient((prev) => ({
+            ...prev,
+            fullName: prev.fullName || `Patient ${formattedRouteIc}`,
+            icNumber: formattedRouteIc,
+          }))
+          setAllergiesVerified(false)
         }
-      } catch (error) {
-        console.error('Failed to load patient data:', error)
+      } catch {
+        if (!cancelled) {
+          setLoadError(t.networkError)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -197,10 +233,14 @@ export default function PatientTimeline() {
       cancelled = true
     }
   }, [
-    icNumber,
+    formattedRouteIc,
+    reloadNonce,
     user?.hospitalId,
     user?.doctorId,
     setActivePatient,
+    clearActivePatient,
+    t.invalidMyKadFormat,
+    t.networkError,
     t.partialHospitalFailureWarning,
     t.patientNotFoundDesc,
     t.privacyRestrictedDesc,
@@ -208,8 +248,10 @@ export default function PatientTimeline() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className={cn('h-8 w-8 animate-spin', theme.iconColor)} />
+      <div className="space-y-5">
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     )
   }
@@ -223,7 +265,7 @@ export default function PatientTimeline() {
             <div>
               <h2 className="text-xl font-bold">{t.privacyRestrictedTitle}</h2>
               <p className="text-xs font-mono text-red-800 mt-0.5 tabular-nums">
-                IC: {formatIC(icNumber || '')}
+                IC: {formattedRouteIc}
               </p>
             </div>
           </div>
@@ -245,20 +287,49 @@ export default function PatientTimeline() {
         <CardContent className="p-8 space-y-4">
           <h2 className="text-xl font-bold text-amber-950">{t.patientNotFoundTitle}</h2>
           <p className="text-sm text-amber-900">{notFoundError}</p>
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-2 flex-wrap">
             <Button variant="outline" onClick={() => navigate('/doctor/search')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
             <Button
               onClick={() =>
-                navigate(`/doctor/patient/${encodeURIComponent(formatIC(icNumber || ''))}/new-record`)
+                navigate(`/doctor/patient/${encodeURIComponent(formattedRouteIc)}/new-record`)
               }
               className={cn('bg-gradient-to-r text-white', theme.buttonGradient)}
             >
               <Plus className="w-4 h-4 mr-1.5" />
               Register & Create First Record
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <Card className="border-2 border-slate-300 bg-white rounded-2xl shadow-sm max-w-2xl mx-auto mt-10">
+        <CardContent className="p-8 space-y-4">
+          <div className="flex items-center gap-3 text-slate-900">
+            <WifiOff className="w-7 h-7 text-red-600 shrink-0" />
+            <div>
+              <h2 className="text-lg font-bold">{t.loadFailedTitle}</h2>
+              <p className="text-xs font-mono text-slate-600 tabular-nums">{formattedRouteIc}</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-700">{loadError}</p>
+          <div className="flex gap-2.5 pt-2">
+            <Button variant="outline" onClick={() => navigate('/doctor/search')}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" />
+              Back
+            </Button>
+            {isValidMyKad(formattedRouteIc) && (
+              <Button onClick={triggerReload} className={cn('text-white bg-gradient-to-r', theme.buttonGradient)}>
+                <RefreshCw className="w-4 h-4 mr-1.5" />
+                {t.retryLoad}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -296,7 +367,11 @@ export default function PatientTimeline() {
         <strong>DOB:</strong> ${escapeHtml(formatDate(patient.dateOfBirth))} |
         <strong>Gender:</strong> ${escapeHtml(patient.gender)} |
         <strong>Blood Type:</strong> ${escapeHtml(patient.bloodType || 'Unknown')}<br/>
-        <strong>Allergies:</strong> ${escapeHtml(patient.allergies.join(', ') || 'None recorded')}
+        <strong>Allergies:</strong> ${escapeHtml(
+          allergiesVerified
+            ? patient.allergies.join(', ') || 'No Known Drug Allergies (Verified)'
+            : 'UNVERIFIED — Confirm directly with patient'
+        )}
       </div>
       <table>
         <thead><tr><th>Date</th><th>Hospital</th><th>Attending Doctor</th><th>Diagnosis</th><th>Notes</th></tr></thead>
@@ -309,6 +384,7 @@ export default function PatientTimeline() {
     downloadJsonFile(`medlink-timeline-${patient.icNumber}.json`, {
       exportedAt: new Date().toISOString(),
       patient,
+      allergiesVerified,
       records: filteredRecords,
       activeMedications: medications,
     })
@@ -412,7 +488,7 @@ export default function PatientTimeline() {
           </div>
         </CardHeader>
         <CardContent className="p-5 space-y-4">
-          <div className="grid grid-cols-4 gap-3 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <p className="text-xs text-slate-500">Full Name</p>
               <p className="font-bold text-slate-900 mt-0.5">{patient.fullName}</p>
@@ -443,8 +519,14 @@ export default function PatientTimeline() {
                   <StatusBadge key={allergy} tone="critical" label={allergy} />
                 ))}
               </div>
-            ) : (
+            ) : allergiesVerified ? (
               <StatusBadge tone="success" icon={CheckCircle2} label={t.nkdaVerified} />
+            ) : (
+              <StatusBadge
+                tone="warning"
+                icon={AlertTriangle}
+                label="Allergy Profile Unverified (Source Node Offline) — Confirm Directly With Patient"
+              />
             )}
 
             {patient.chronicConditions.length > 0 && (
@@ -507,7 +589,11 @@ export default function PatientTimeline() {
           {filteredRecords.length === 0 ? (
             <div className="text-center py-10 text-slate-500 text-sm">
               <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-              <p>No consultation records match the selected hospital filter.</p>
+              <p>
+                {records.length === 0
+                  ? 'No consultation records available from reachable hospital nodes.'
+                  : t.noMatchingResults}
+              </p>
             </div>
           ) : (
             filteredRecords.map((record) => {
@@ -613,6 +699,9 @@ export default function PatientTimeline() {
                         {record.vitalSigns.heartRate && (
                           <Badge variant="outline">HR {record.vitalSigns.heartRate} bpm</Badge>
                         )}
+                        {record.vitalSigns.respiratoryRate && (
+                          <Badge variant="outline">RR {record.vitalSigns.respiratoryRate} /min</Badge>
+                        )}
                         {record.vitalSigns.temperature && (
                           <Badge variant="outline">
                             Temp {Number(record.vitalSigns.temperature).toFixed(1)} °C
@@ -624,11 +713,14 @@ export default function PatientTimeline() {
                         {record.vitalSigns.weight && (
                           <Badge variant="outline">{record.vitalSigns.weight} kg</Badge>
                         )}
+                        {record.vitalSigns.height && (
+                          <Badge variant="outline">{record.vitalSigns.height} cm</Badge>
+                        )}
                       </div>
                     )}
 
                     {record.notes && (
-                      <p className="text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
+                      <p className="text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed whitespace-pre-line">
                         {record.notes}
                       </p>
                     )}
@@ -730,7 +822,7 @@ export default function PatientTimeline() {
           {medications.length === 0 ? (
             <p className="text-center py-4 text-slate-500 text-xs">No active prescriptions recorded.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {medications.map((med, i) => (
                 <div
                   key={`${med.name}-${i}`}

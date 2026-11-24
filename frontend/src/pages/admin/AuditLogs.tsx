@@ -339,7 +339,7 @@ export default function AuditLogs() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Card
             key={stat.label}
@@ -458,10 +458,22 @@ export default function AuditLogs() {
                 return (
                   <div
                     key={log.id}
+                    role={isEmergency ? 'button' : undefined}
+                    tabIndex={isEmergency ? 0 : undefined}
+                    onKeyDown={
+                      isEmergency
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setSelectedEmergency(log)
+                            }
+                          }
+                        : undefined
+                    }
                     className={cn(
                       'p-4 hover:bg-slate-50 transition-colors',
                       isEmergency &&
-                        'bg-orange-50/60 border-l-4 border-orange-600 cursor-pointer',
+                        'bg-orange-50/60 border-l-4 border-orange-600 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600',
                       !isEmergency &&
                         log.status === 'denied' &&
                         'bg-red-50/40 border-l-4 border-red-600'

@@ -9,27 +9,25 @@ import { Building2, Loader2 } from 'lucide-react'
 
 import MainLayout from '@/layouts/MainLayout'
 import AuthLayout from '@/layouts/AuthLayout'
-import HospitalLayout from '@/layouts/hospital'
+import HospitalLayout from '@/layouts/hospital/shared'
 
 import LandingPage from '@/pages/LandingV2'
 import LoginPage from '@/pages/Login'
-import DoctorDashboard from '@/pages/doctor/dashboards'
+import DoctorDashboard from '@/pages/doctor/dashboards/DoctorHospitalDashboard'
 import PatientSearch from '@/pages/doctor/PatientSearch'
 import HospitalWorkstation from '@/pages/doctor/HospitalWorkstation'
 import PatientTimeline from '@/pages/doctor/PatientTimeline'
 import NewRecord from '@/pages/doctor/NewRecord'
 import NewRecordSearch from '@/pages/doctor/NewRecordSearch'
-import {
-  QueueManagement,
-  EPrescription,
-  LabOrders,
-  MedicalCertificate,
-  Referral,
-  Appointments,
-  Radiology,
-  NursingNotes,
-  Billing,
-} from '@/pages/doctor/modules'
+import QueueManagement from '@/pages/doctor/modules/QueueManagement'
+import EPrescription from '@/pages/doctor/modules/EPrescription'
+import LabOrders from '@/pages/doctor/modules/LabOrders'
+import MedicalCertificate from '@/pages/doctor/modules/MedicalCertificate'
+import Referral from '@/pages/doctor/modules/Referral'
+import Appointments from '@/pages/doctor/modules/Appointments'
+import Radiology from '@/pages/doctor/modules/Radiology'
+import NursingNotes from '@/pages/doctor/modules/NursingNotes'
+import Billing from '@/pages/doctor/modules/Billing'
 import PatientDashboard from '@/pages/patient/Dashboard'
 import PatientRecords from '@/pages/patient/Records'
 import PatientPrivacy from '@/pages/patient/Privacy'
