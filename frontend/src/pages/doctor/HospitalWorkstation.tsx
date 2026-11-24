@@ -68,8 +68,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'billing', labelKey: 'billing', icon: Receipt },
 ]
 
-function isValidWorkstationModule(value: string | null): value is ModuleType {
-  return Boolean(value && NAV_ITEMS.some((item) => item.id === value))
+const VALID_WORKSTATION_MODULES = new Set<ModuleType>(NAV_ITEMS.map((item) => item.id))
+
+function parseWorkstationModule(raw: string | null): ModuleType {
+  if (raw && VALID_WORKSTATION_MODULES.has(raw as ModuleType)) {
+    return raw as ModuleType
+  }
+  return 'dashboard'
 }
 
 export default function HospitalWorkstation() {
@@ -77,29 +82,7 @@ export default function HospitalWorkstation() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user, logout } = useAuthStore()
   const { t } = useTranslation()
-  const requestedModule = searchParams.get('module')
-  const activeModule: ModuleType = isValidWorkstationModule(requestedModule)
-    ? requestedModule
-    : 'dashboard'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-
-  const setActiveModule = useCallback(
-    (nextModule: ModuleType) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          if (nextModule === 'dashboard') {
-            next.delete('module')
-          } else {
-            next.set('module', nextModule)
-          }
-          return next
-        },
-        { replace: true }
-      )
-    },
-    [setSearchParams]
-  )
   const [hospitalMetrics, setHospitalMetrics] = useState({
     totalPatients: 0,
     totalRecords: 0,
@@ -107,8 +90,23 @@ export default function HospitalWorkstation() {
     todayVisits: 0,
   })
 
+  const activeModule = parseWorkstationModule(searchParams.get('module'))
   const theme = getHospitalTheme(user?.hospitalId)
   const activeNav = NAV_ITEMS.find((n) => n.id === activeModule)
+
+  const selectModule = useCallback(
+    (nextModule: ModuleType) => {
+      if (nextModule === activeModule) return
+      const nextParams = new URLSearchParams(searchParams)
+      if (nextModule === 'dashboard') {
+        nextParams.delete('module')
+      } else {
+        nextParams.set('module', nextModule)
+      }
+      setSearchParams(nextParams)
+    },
+    [activeModule, searchParams, setSearchParams]
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -193,7 +191,7 @@ export default function HospitalWorkstation() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveModule(item.id)}
+                  onClick={() => selectModule(item.id)}
                   className="p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all text-left flex items-center gap-3"
                 >
                   <div
@@ -249,7 +247,7 @@ export default function HospitalWorkstation() {
                 type="button"
                 aria-current={isActive ? 'page' : undefined}
                 title={sidebarCollapsed ? label : undefined}
-                onClick={() => setActiveModule(item.id)}
+                onClick={() => selectModule(item.id)}
                 className={cn(
                   'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
                   isActive ? theme.activeNavClass : 'text-slate-700 hover:bg-slate-100',
@@ -324,7 +322,7 @@ export default function HospitalWorkstation() {
             </Link>
             <button
               type="button"
-              onClick={() => setActiveModule('search')}
+              onClick={() => selectModule('search')}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold hover:bg-blue-100"
             >
               <Search className="w-3.5 h-3.5" />

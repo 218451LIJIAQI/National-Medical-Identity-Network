@@ -98,6 +98,13 @@ export function ClinicalPatientBanner({
   const [privacyRevokedNotice, setPrivacyRevokedNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const verifySeqRef = useRef(0)
+  const lookupAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      lookupAbortRef.current?.abort()
+    }
+  }, [])
 
   // Live backend consent & allergy re-verification whenever a cached patient is bound
   useEffect(() => {
@@ -176,14 +183,18 @@ export function ClinicalPatientBanner({
       return
     }
 
+    lookupAbortRef.current?.abort()
+    const controller = new AbortController()
+    lookupAbortRef.current = controller
+
     setInputError('')
     setPrivacyRevokedNotice('')
     const seq = ++verifySeqRef.current
     setLoading(true)
 
     try {
-      const res = await centralApi.getPatient(formatted)
-      if (seq !== verifySeqRef.current) return
+      const res = await centralApi.getPatient(formatted, controller.signal)
+      if (res.aborted || controller.signal.aborted || seq !== verifySeqRef.current) return
 
       if (res.success && res.data?.patient) {
         const p = res.data.patient
@@ -255,7 +266,7 @@ export function ClinicalPatientBanner({
         })
       }
     } finally {
-      if (seq === verifySeqRef.current) {
+      if (!controller.signal.aborted && seq === verifySeqRef.current) {
         setLoading(false)
       }
     }
@@ -356,6 +367,7 @@ export function ClinicalPatientBanner({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  lookupAbortRef.current?.abort()
                   verifySeqRef.current += 1
                   clearActivePatient()
                 }}
@@ -385,6 +397,7 @@ export function ClinicalPatientBanner({
                 }}
                 placeholder={t.quickSearchPlaceholder}
                 aria-invalid={Boolean(inputError)}
+                aria-describedby={inputError ? 'clinical-banner-ic-error' : undefined}
                 className="h-10 font-mono text-sm flex-1 min-w-[240px] tabular-nums"
               />
               <Button
@@ -398,7 +411,11 @@ export function ClinicalPatientBanner({
               </Button>
             </form>
             {inputError && (
-              <p role="alert" className="text-xs font-medium text-red-700 pl-6">
+              <p
+                id="clinical-banner-ic-error"
+                role="alert"
+                className="text-xs font-medium text-red-700 pl-6"
+              >
                 {inputError}
               </p>
             )}

@@ -37,7 +37,7 @@ async function buildUserResponse(
   user: User,
   availableRoles: UserRole[],
   hospitalVerified: boolean
-): Promise<UserProfileResponse> {
+): Promise<UserProfileResponse | null> {
   const userInfo: UserProfileResponse = {
     id: user.id,
     icNumber: user.icNumber,
@@ -50,7 +50,7 @@ async function buildUserResponse(
   if (user.role === 'doctor' && user.hospitalId) {
     const doctor = await getHospitalDb(user.hospitalId).getDoctorByIc(user.icNumber);
     if (!doctor || !doctor.isActive) {
-      throw new Error('INACTIVE_DOCTOR');
+      return null;
     }
     userInfo.doctorId = doctor.id;
     userInfo.fullName = doctor.fullName;
@@ -72,6 +72,25 @@ async function buildUserResponse(
   }
 
   return userInfo;
+}
+
+async function resolveUserProfileOrRespond(
+  res: Response,
+  user: User,
+  availableRoles: UserRole[],
+  hospitalVerified: boolean,
+  inactiveError: string
+): Promise<UserProfileResponse | null> {
+  const profile = await buildUserResponse(user, availableRoles, hospitalVerified);
+  if (!profile) {
+    res.status(403).json({
+      success: false,
+      licenseRevoked: true,
+      error: inactiveError,
+    });
+    return null;
+  }
+  return profile;
 }
 
 router.post('/login', async (req: Request, res: Response) => {
@@ -146,20 +165,14 @@ router.post('/login', async (req: Request, res: Response) => {
     const requiresHospitalStep = user.role === 'doctor' || user.role === 'hospital_admin';
     const hospitalVerified = !requiresHospitalStep;
 
-    let userInfo: UserProfileResponse;
-    try {
-      userInfo = await buildUserResponse(user, availableRoles, hospitalVerified);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
-        res.status(403).json({
-          success: false,
-          licenseRevoked: true,
-          error: 'Doctor profile is inactive or not registered at the assigned hospital',
-        });
-        return;
-      }
-      throw err;
-    }
+    const userInfo = await resolveUserProfileOrRespond(
+      res,
+      user,
+      availableRoles,
+      hospitalVerified,
+      'Doctor profile is inactive or not registered at the assigned hospital'
+    );
+    if (!userInfo) return;
 
     await updateUserLastLogin(user.id);
 
@@ -330,11 +343,18 @@ router.post(
         }
       }
 
-      revokeRequestSession(req.rawToken, currentUser);
-
       const allSameIcUsers = await getUsersByIc(dbUser.icNumber);
       const availableRoles = Array.from(new Set(allSameIcUsers.map(u => u.role)));
-      const userInfo = await buildUserResponse(dbUser, availableRoles, true);
+      const userInfo = await resolveUserProfileOrRespond(
+        res,
+        dbUser,
+        availableRoles,
+        true,
+        'Active clinician profile not found at this hospital'
+      );
+      if (!userInfo) return;
+
+      revokeRequestSession(req.rawToken, currentUser);
 
       const verifiedToken = generateToken({
         userId: dbUser.id,
@@ -402,20 +422,14 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
     // Idempotent no-op when switching to the currently active role: preserve step-up hospitalVerified state
     if (targetUser.id === currentUser.userId && targetUser.role === currentUser.role) {
       const preservedVerified = Boolean(currentUser.hospitalVerified);
-      let sameUserInfo: UserProfileResponse;
-      try {
-        sameUserInfo = await buildUserResponse(targetUser, availableRoles, preservedVerified);
-      } catch (err) {
-        if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
-          res.status(403).json({
-            success: false,
-            licenseRevoked: true,
-            error: 'Doctor profile is inactive at the assigned hospital',
-          });
-          return;
-        }
-        throw err;
-      }
+      const sameUserInfo = await resolveUserProfileOrRespond(
+        res,
+        targetUser,
+        availableRoles,
+        preservedVerified,
+        'Doctor profile is inactive at the assigned hospital'
+      );
+      if (!sameUserInfo) return;
 
       res.json({
         success: true,
@@ -430,20 +444,14 @@ router.post('/switch-role', authenticate, async (req: Request, res: Response) =>
     const requiresHospitalStep = targetUser.role === 'doctor' || targetUser.role === 'hospital_admin';
     const hospitalVerified = !requiresHospitalStep;
 
-    let userInfo: UserProfileResponse;
-    try {
-      userInfo = await buildUserResponse(targetUser, availableRoles, hospitalVerified);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
-        res.status(403).json({
-          success: false,
-          licenseRevoked: true,
-          error: 'Doctor profile is inactive at the assigned hospital',
-        });
-        return;
-      }
-      throw err;
-    }
+    const userInfo = await resolveUserProfileOrRespond(
+      res,
+      targetUser,
+      availableRoles,
+      hospitalVerified,
+      'Doctor profile is inactive at the assigned hospital'
+    );
+    if (!userInfo) return;
 
     revokeRequestSession(req.rawToken, currentUser);
 
@@ -527,20 +535,14 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 
     const allUsers = await getUsersByIc(dbUser.icNumber);
     const availableRoles = Array.from(new Set(allUsers.map(u => u.role)));
-    let userInfo: UserProfileResponse;
-    try {
-      userInfo = await buildUserResponse(dbUser, availableRoles, Boolean(currentUser.hospitalVerified));
-    } catch (err) {
-      if (err instanceof Error && err.message === 'INACTIVE_DOCTOR') {
-        res.status(403).json({
-          success: false,
-          licenseRevoked: true,
-          error: 'Doctor profile is inactive or not registered at the assigned hospital',
-        });
-        return;
-      }
-      throw err;
-    }
+    const userInfo = await resolveUserProfileOrRespond(
+      res,
+      dbUser,
+      availableRoles,
+      Boolean(currentUser.hospitalVerified),
+      'Doctor profile is inactive or not registered at the assigned hospital'
+    );
+    if (!userInfo) return;
 
     res.json({
       success: true,

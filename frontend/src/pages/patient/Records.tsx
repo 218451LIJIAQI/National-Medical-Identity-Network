@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -50,19 +50,26 @@ export default function PatientRecords() {
   const [selectedHospital, setSelectedHospital] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedRecordIds, setExpandedRecordIds] = useState<Record<string, boolean>>({})
+  const abortRef = useRef<AbortController | null>(null)
+  const loadSeqRef = useRef(0)
 
-  const loadRecords = useCallback(async (signal?: AbortSignal) => {
+  const loadRecords = useCallback(async () => {
+    abortRef.current?.abort()
     if (!user?.icNumber) {
       setLoading(false)
       return
     }
+    const controller = new AbortController()
+    abortRef.current = controller
+    const seq = ++loadSeqRef.current
+
     setLoading(true)
     setLoadError(null)
     setAllNodesFailed(false)
     setPartialFailure(false)
     try {
-      const response = await centralApi.queryPatient(user.icNumber, signal)
-      if (response.aborted || signal?.aborted) return
+      const response = await centralApi.queryPatient(user.icNumber, controller.signal)
+      if (response.aborted || controller.signal.aborted || seq !== loadSeqRef.current) return
       if (response.success && response.data) {
         if (response.data.allNodesFailed) {
           setAllNodesFailed(true)
@@ -94,16 +101,18 @@ export default function PatientRecords() {
         setLoadError(response.error || t.networkError)
       }
     } catch {
-      if (!signal?.aborted) setLoadError(t.networkError)
+      if (controller.signal.aborted || seq !== loadSeqRef.current) return
+      setLoadError(t.networkError)
     } finally {
-      if (!signal?.aborted) setLoading(false)
+      if (!controller.signal.aborted && seq === loadSeqRef.current) {
+        setLoading(false)
+      }
     }
   }, [user?.icNumber, t.allNodesUnavailableDesc, t.networkError])
 
   useEffect(() => {
-    const controller = new AbortController()
-    void loadRecords(controller.signal)
-    return () => controller.abort()
+    void loadRecords()
+    return () => abortRef.current?.abort()
   }, [loadRecords])
 
   const hospitalOptions = useMemo(() => {
@@ -302,7 +311,7 @@ export default function PatientRecords() {
                 <p className="text-xs text-red-800 mt-0.5">{loadError}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={loadRecords} className="bg-white">
+            <Button variant="outline" onClick={() => void loadRecords()} className="bg-white">
               <RefreshCw className="w-4 h-4 mr-1.5" />
               {t.retryLoad}
             </Button>

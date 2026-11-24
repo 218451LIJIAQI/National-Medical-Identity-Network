@@ -38,6 +38,12 @@ interface RadiologyOrderItem {
   turnaround: string
 }
 
+interface RadiologySlipSnapshot {
+  ref: string
+  clinicalInfo: string
+  orders: RadiologyOrderItem[]
+}
+
 const RADIOLOGY_CATALOG = [
   { code: 'CXR', name: 'Chest X-Ray (PA Erect)', modality: 'X-Ray', bodyPart: 'Thorax', turnaround: '30 min', preparation: 'None', contrast: false },
   { code: 'AXR', name: 'Abdominal X-Ray (Supine)', modality: 'X-Ray', bodyPart: 'Abdomen', turnaround: '30 min', preparation: 'None', contrast: false },
@@ -61,19 +67,19 @@ export default function Radiology() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [selectedOrders, setSelectedOrders] = useState<RadiologyOrderItem[]>([])
-  const [lastSubmittedOrders, setLastSubmittedOrders] = useState<RadiologyOrderItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedModality, setSelectedModality] = useState('All')
   const [clinicalInfo, setClinicalInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [radRef, setRadRef] = useState<string | null>(null)
+  const [lastSubmittedSlip, setLastSubmittedSlip] = useState<RadiologySlipSnapshot | null>(null)
   const submitLockRef = useRef(false)
 
   useEffect(() => {
     setSelectedOrders([])
-    setLastSubmittedOrders([])
     setClinicalInfo('')
     setRadRef(null)
+    setLastSubmittedSlip(null)
   }, [activePatient?.icNumber])
 
   const filteredExams = RADIOLOGY_CATALOG.filter((exam) => {
@@ -92,11 +98,15 @@ export default function Radiology() {
     setSelectedOrders((prev) => [...prev, { id: `rad-${exam.code}`, ...exam, urgent: false }])
   }
 
-  const printableOrders = selectedOrders.length > 0 ? selectedOrders : lastSubmittedOrders
-
   const handlePrint = () => {
-    if (!activePatient || printableOrders.length === 0) return
-    const slipRef = selectedOrders.length > 0 ? 'DRAFT' : radRef || 'DRAFT'
+    if (!activePatient) return
+    const printableOrders = selectedOrders.length > 0 ? selectedOrders : (lastSubmittedSlip?.orders || [])
+    if (printableOrders.length === 0) return
+    const slipRef = selectedOrders.length > 0 ? 'DRAFT' : (lastSubmittedSlip?.ref || radRef || 'DRAFT')
+    const slipClinicalInfo =
+      selectedOrders.length > 0
+        ? clinicalInfo
+        : (lastSubmittedSlip?.clinicalInfo ?? clinicalInfo)
     const rows = printableOrders
       .map(
         (o) => `<tr>
@@ -116,7 +126,7 @@ export default function Radiology() {
       </div>
       <div class="meta">
         <strong>Patient:</strong> ${escapeHtml(activePatient.fullName)} (${escapeHtml(activePatient.icNumber)})<br/>
-        <strong>Clinical Indication:</strong> ${escapeHtml(clinicalInfo || 'Diagnostic evaluation')}
+        <strong>Clinical Indication:</strong> ${escapeHtml(slipClinicalInfo || 'Diagnostic evaluation')}
       </div>
       <table>
         <thead><tr><th>Code</th><th>Examination</th><th>Modality</th><th>Prep</th><th>Priority</th></tr></thead>
@@ -132,15 +142,17 @@ export default function Radiology() {
     try {
       const ref = `RAD-${Date.now().toString().slice(-6)}`
       const today = new Date().toISOString().split('T')[0]
+      const normalizedClinicalInfo = clinicalInfo.trim()
+      const submittedOrders = selectedOrders.map((o) => ({ ...o }))
       const res = await hospitalApi.createRecord(user.hospitalId, {
         icNumber: activePatient.icNumber,
         visitDate: today,
         visitType: 'outpatient',
-        chiefComplaint: clinicalInfo.trim() || 'Diagnostic Imaging Requisition',
-        diagnosis: [clinicalInfo.trim() || 'Radiological Evaluation'],
-        notes: `Submitted RIS/PACS imaging order ${ref}: ${selectedOrders.map((o) => `${o.code} (${o.name})`).join(', ')}.`,
+        chiefComplaint: normalizedClinicalInfo || 'Diagnostic Imaging Requisition',
+        diagnosis: [normalizedClinicalInfo || 'Radiological Evaluation'],
+        notes: `Submitted RIS/PACS imaging order ${ref}: ${submittedOrders.map((o) => `${o.code} (${o.name})`).join(', ')}.`,
         patientName: activePatient.fullName,
-        labReports: selectedOrders.map((o) => ({
+        labReports: submittedOrders.map((o) => ({
           testType: `Radiology (${o.modality})`,
           testName: `${o.code} - ${o.name}`,
           result: `Imaging Scheduled (${o.turnaround})`,
@@ -154,11 +166,15 @@ export default function Radiology() {
 
       if (res.success) {
         setRadRef(ref)
-        setLastSubmittedOrders(selectedOrders)
+        setLastSubmittedSlip({
+          ref,
+          clinicalInfo: normalizedClinicalInfo,
+          orders: submittedOrders,
+        })
         setSelectedOrders([])
         toast({
           title: 'Radiology Order Transmitted',
-          description: `${ref} (${selectedOrders.length} study) persisted to ${activePatient.fullName}'s timeline.`,
+          description: `${ref} (${submittedOrders.length} study) persisted to ${activePatient.fullName}'s timeline.`,
           variant: 'success',
         })
       } else {
@@ -174,6 +190,8 @@ export default function Radiology() {
     }
   }
 
+  const canPrintSlip = selectedOrders.length > 0 || Boolean(lastSubmittedSlip)
+
   return (
     <div className="space-y-6">
       <ClinicalPatientBanner />
@@ -185,7 +203,7 @@ export default function Radiology() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={printableOrders.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={!canPrintSlip} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>
@@ -208,11 +226,25 @@ export default function Radiology() {
       ) : (
         <>
           {radRef && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              <span>
-                RIS Requisition <code className="font-mono tabular-nums">{radRef}</code> logged with structured imaging entries in patient timeline.
-              </span>
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  RIS Requisition <code className="font-mono tabular-nums">{radRef}</code> logged with structured imaging entries in patient timeline.
+                </span>
+              </div>
+              {lastSubmittedSlip && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100 h-8"
+                >
+                  <Printer className="w-3.5 h-3.5 mr-1.5" />
+                  Print Imaging Slip
+                </Button>
+              )}
             </div>
           )}
 

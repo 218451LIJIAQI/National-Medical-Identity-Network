@@ -6,6 +6,13 @@ import authRoutes from './routes/auth';
 import centralRoutes from './routes/central';
 import hospitalRoutes from './routes/hospital';
 
+type BodyParserError = Error & {
+  status?: number;
+  statusCode?: number;
+  type?: string;
+  body?: unknown;
+};
+
 export function createApp() {
   const app = express();
 
@@ -36,34 +43,32 @@ export function createApp() {
   app.use('/api/central', centralRoutes);
   app.use('/api/hospitals', hospitalRoutes);
 
-  app.use(
-    (
-      err: Error & { status?: number; type?: string },
-      _req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction
-    ) => {
-      if (err instanceof SyntaxError && ('body' in err || err.status === 400)) {
-        res.status(400).json({
-          success: false,
-          error: 'Invalid JSON payload',
-        });
-        return;
-      }
-      if (err.type === 'entity.too.large' || err.status === 413) {
-        res.status(413).json({
-          success: false,
-          error: 'Request payload too large',
-        });
-        return;
-      }
-      console.error('Unhandled error:', err);
-      res.status(500).json({
+  app.use((err: BodyParserError, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = err?.status ?? err?.statusCode;
+    if (err?.type === 'entity.too.large' || status === 413) {
+      res.status(413).json({
         success: false,
-        error: 'Internal server error',
+        error: 'Request payload exceeds maximum allowed size (1MB)',
       });
+      return;
     }
-  );
+
+    if (err instanceof SyntaxError && (status === 400 || 'body' in err)) {
+      res.status(400).json({
+        success: false,
+        error: 'Malformed JSON in request body',
+      });
+      return;
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Unhandled error:', err);
+    }
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  });
 
   app.use((_req, res) => {
     res.status(404).json({

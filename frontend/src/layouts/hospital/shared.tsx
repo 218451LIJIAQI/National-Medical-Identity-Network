@@ -42,7 +42,7 @@ import { useSettingsStore } from '@/store/settings'
 import { authApi } from '@/lib/api'
 import { useTranslation, type Language, type TranslationKey } from '@/lib/i18n'
 import { getHospitalTheme, type HospitalShellVariant } from '@/lib/hospital-themes'
-import { cn, formatIC, getRoleHomePath, isValidMyKad } from '@/lib/utils'
+import { cn, formatIC, getRoleHomePath, isValidMyKad, prefersReducedMotion } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -425,7 +425,10 @@ export default function HospitalLayout() {
   }
 
   const scrollDock = (dir: 'left' | 'right') => {
-    dockScrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' })
+    dockScrollRef.current?.scrollBy({
+      left: dir === 'left' ? -240 : 240,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    })
   }
 
   const hasLeftSidebar =
@@ -928,10 +931,15 @@ export default function HospitalLayout() {
               }}
               placeholder={t.quickSearchPlaceholder}
               aria-invalid={Boolean(quickError)}
+              aria-describedby={quickError ? 'quick-jump-ic-error' : undefined}
               className="h-11 font-mono text-sm tabular-nums"
             />
             {quickError && (
-              <p role="alert" className="text-xs font-medium text-red-700">
+              <p
+                id="quick-jump-ic-error"
+                role="alert"
+                className="text-xs font-medium text-red-700"
+              >
                 {quickError}
               </p>
             )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -96,8 +96,16 @@ export default function CentralAdminDashboard() {
   const [searchResult, setSearchResult] = useState<PatientIndexResult | null>(null)
   const [searchError, setSearchError] = useState('')
   const [selectedHospital, setSelectedHospital] = useState<HospitalSummaryDto | null>(null)
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
+  const searchSeqRef = useRef(0)
 
-  const loadData = useCallback(async (signal?: AbortSignal) => {
+  const loadData = useCallback(async () => {
+    loadAbortRef.current?.abort()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+    const { signal } = controller
+
     setLoading(true)
     setLoadError('')
     try {
@@ -107,7 +115,7 @@ export default function CentralAdminDashboard() {
         centralApi.getAuditLogs({ limit: 20 }, signal),
       ])
 
-      if (statsRes.aborted || hospitalsRes.aborted || logsRes.aborted) return
+      if (signal.aborted || statsRes.aborted || hospitalsRes.aborted || logsRes.aborted) return
 
       if (!statsRes.success && !hospitalsRes.success) {
         setLoadError(statsRes.error || hospitalsRes.error || t.networkError)
@@ -137,20 +145,22 @@ export default function CentralAdminDashboard() {
         setNetworkActivity(activities)
       }
     } catch {
-      if (!signal?.aborted) {
+      if (!signal.aborted) {
         setLoadError(t.networkError)
       }
     } finally {
-      if (!signal?.aborted) {
+      if (!signal.aborted) {
         setLoading(false)
       }
     }
   }, [t.networkError])
 
   useEffect(() => {
-    const controller = new AbortController()
-    void loadData(controller.signal)
-    return () => controller.abort()
+    void loadData()
+    return () => {
+      loadAbortRef.current?.abort()
+      searchAbortRef.current?.abort()
+    }
   }, [loadData])
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -159,26 +169,36 @@ export default function CentralAdminDashboard() {
     if (!normalizedIc) return
 
     if (!isValidMyKad(normalizedIc)) {
+      searchAbortRef.current?.abort()
       setSearchError(t.invalidMyKadFormat)
       setSearchResult(null)
       return
     }
+
+    searchAbortRef.current?.abort()
+    const controller = new AbortController()
+    searchAbortRef.current = controller
+    const seq = ++searchSeqRef.current
 
     setSearching(true)
     setSearchError('')
     setSearchResult(null)
 
     try {
-      const response = await centralApi.searchPatientIndex(normalizedIc)
+      const response = await centralApi.searchPatientIndex(normalizedIc, controller.signal)
+      if (response.aborted || controller.signal.aborted || seq !== searchSeqRef.current) return
       if (response.success && response.data) {
         setSearchResult(response.data)
       } else {
         setSearchError(response.error || 'Patient not found in any participating hospital')
       }
     } catch {
+      if (controller.signal.aborted || seq !== searchSeqRef.current) return
       setSearchError('Failed to search central patient index')
     } finally {
-      setSearching(false)
+      if (!controller.signal.aborted && seq === searchSeqRef.current) {
+        setSearching(false)
+      }
     }
   }
 
@@ -333,6 +353,7 @@ export default function CentralAdminDashboard() {
                   if (searchError) setSearchError('')
                 }}
                 aria-invalid={Boolean(searchError)}
+                aria-describedby={searchError ? 'central-pointer-ic-error' : undefined}
                 className="h-11 font-mono text-sm tabular-nums flex-1 min-w-[240px]"
               />
               <Button type="submit" disabled={searching || !searchIC.trim()} className="h-11 px-6 shrink-0">
@@ -350,6 +371,7 @@ export default function CentralAdminDashboard() {
 
           {searchError && (
             <div
+              id="central-pointer-ic-error"
               role="alert"
               className="p-3.5 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-red-900"
             >

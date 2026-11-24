@@ -18,14 +18,15 @@ import {
   HospitalDepartment,
   StaffRosterMember,
   InventorySku,
+  SensitiveCategoryKey,
   SensitiveCategorySettings,
+  filterSensitiveConditions,
   getNodeQueryTimeoutMs,
   normalizeIcNumber,
   parseMyKadParts,
   withTimeout,
 } from '../types';
 import { getHospitalDbClient } from './multi-db-manager';
-import { filterSensitiveConditions } from './central-multi';
 import { getHospitalById } from '../config';
 import { PrismaClient as HospitalPrismaClient } from '../../node_modules/.prisma/client/hospital';
 
@@ -79,7 +80,7 @@ function normalizeLabReportInput(l: Partial<LabReport>, fallbackDate: Date) {
 
 export function isPendingLabResult(result: string): boolean {
   const normalized = String(result || '').trim();
-  return !normalized || /^(?:pending\b|imaging scheduled\b)/i.test(normalized);
+  return !normalized || /^(?:pending\b|imaging scheduled\b|ordered$)/i.test(normalized);
 }
 
 const HOSPITAL_PREFIX: Record<string, string> = {
@@ -332,6 +333,7 @@ export class HospitalDatabaseMulti {
   private billingAccounts = new Map<string, PatientBillingAccount>();
   private settledAmountsByPatient = new Map<string, { net: number; subsidy: number }>();
   private doctorLeaveSet = new Set<string>();
+  private locks = new Map<string, Promise<void>>();
   private wards: HospitalWard[];
   private departments: HospitalDepartment[];
   private supportStaff: StaffRosterMember[];
@@ -351,6 +353,26 @@ export class HospitalDatabaseMulti {
     this.departments = createDefaultDepartments(this.prefix, shortName);
     this.supportStaff = createDefaultSupportStaff(this.prefix, hospitalId);
     this.inventory = createDefaultInventory(this.prefix);
+  }
+
+  private async withExclusiveLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(key) || Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const queued = prev.then(() => gate);
+    this.locks.set(key, queued);
+
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (this.locks.get(key) === queued) {
+        this.locks.delete(key);
+      }
+    }
   }
 
   async getPatient(rawIcNumber: string): Promise<Patient | null> {
@@ -419,60 +441,62 @@ export class HospitalDatabaseMulti {
     options?: { replaceArrays?: boolean }
   ): Promise<Patient | null> {
     const icNumber = normalizeIcNumber(rawIcNumber);
-    const existing = await this.getPatient(icNumber);
-    if (!existing) return null;
+    return this.withExclusiveLock(`patient:${icNumber}`, async () => {
+      const existing = await this.getPatient(icNumber);
+      if (!existing) return null;
 
-    const mergedAllergies =
-      updates.allergies !== undefined
-        ? options?.replaceArrays
-          ? cleanStringArray(updates.allergies)
-          : cleanStringArray([...existing.allergies, ...updates.allergies])
-        : existing.allergies;
+      const mergedAllergies =
+        updates.allergies !== undefined
+          ? options?.replaceArrays
+            ? cleanStringArray(updates.allergies)
+            : cleanStringArray([...existing.allergies, ...updates.allergies])
+          : existing.allergies;
 
-    const mergedConditions =
-      updates.chronicConditions !== undefined
-        ? options?.replaceArrays
-          ? cleanStringArray(updates.chronicConditions)
-          : cleanStringArray([...existing.chronicConditions, ...updates.chronicConditions])
-        : existing.chronicConditions;
+      const mergedConditions =
+        updates.chronicConditions !== undefined
+          ? options?.replaceArrays
+            ? cleanStringArray(updates.chronicConditions)
+            : cleanStringArray([...existing.chronicConditions, ...updates.chronicConditions])
+          : existing.chronicConditions;
 
-    const safeDob = parseOptionalDate(updates.dateOfBirth) || new Date(existing.dateOfBirth);
-    const resolveOptionalString = (nextVal: string | undefined, fallback: string) =>
-      nextVal !== undefined ? String(nextVal).trim() : fallback;
+      const safeDob = parseOptionalDate(updates.dateOfBirth) || new Date(existing.dateOfBirth);
+      const resolveOptionalString = (nextVal: string | undefined, fallback: string) =>
+        nextVal !== undefined ? String(nextVal).trim() : fallback;
 
-    const updated = await this.prisma.patient.update({
-      where: { icNumber },
-      data: {
-        fullName: updates.fullName?.trim() || existing.fullName,
-        dateOfBirth: safeDob,
-        gender: updates.gender === 'male' || updates.gender === 'female' ? updates.gender : existing.gender,
-        bloodType: resolveOptionalString(updates.bloodType, existing.bloodType),
-        phone: resolveOptionalString(updates.phone, existing.phone),
-        email: resolveOptionalString(updates.email, existing.email),
-        address: resolveOptionalString(updates.address, existing.address),
-        emergencyContact: resolveOptionalString(updates.emergencyContact, existing.emergencyContact),
-        emergencyPhone: resolveOptionalString(updates.emergencyPhone, existing.emergencyPhone),
-        allergies: JSON.stringify(mergedAllergies),
-        chronicConditions: JSON.stringify(mergedConditions),
-      },
+      const updated = await this.prisma.patient.update({
+        where: { icNumber },
+        data: {
+          fullName: updates.fullName?.trim() || existing.fullName,
+          dateOfBirth: safeDob,
+          gender: updates.gender === 'male' || updates.gender === 'female' ? updates.gender : existing.gender,
+          bloodType: resolveOptionalString(updates.bloodType, existing.bloodType),
+          phone: resolveOptionalString(updates.phone, existing.phone),
+          email: resolveOptionalString(updates.email, existing.email),
+          address: resolveOptionalString(updates.address, existing.address),
+          emergencyContact: resolveOptionalString(updates.emergencyContact, existing.emergencyContact),
+          emergencyPhone: resolveOptionalString(updates.emergencyPhone, existing.emergencyPhone),
+          allergies: JSON.stringify(mergedAllergies),
+          chronicConditions: JSON.stringify(mergedConditions),
+        },
+      });
+
+      return {
+        icNumber: updated.icNumber,
+        fullName: updated.fullName,
+        dateOfBirth: updated.dateOfBirth.toISOString().split('T')[0],
+        gender: updated.gender as 'male' | 'female',
+        bloodType: updated.bloodType || '',
+        phone: updated.phone || '',
+        email: updated.email || '',
+        address: updated.address || '',
+        emergencyContact: updated.emergencyContact || '',
+        emergencyPhone: updated.emergencyPhone || '',
+        allergies: mergedAllergies,
+        chronicConditions: mergedConditions,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      };
     });
-
-    return {
-      icNumber: updated.icNumber,
-      fullName: updated.fullName,
-      dateOfBirth: updated.dateOfBirth.toISOString().split('T')[0],
-      gender: updated.gender as 'male' | 'female',
-      bloodType: updated.bloodType || '',
-      phone: updated.phone || '',
-      email: updated.email || '',
-      address: updated.address || '',
-      emergencyContact: updated.emergencyContact || '',
-      emergencyPhone: updated.emergencyPhone || '',
-      allergies: mergedAllergies,
-      chronicConditions: mergedConditions,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
   }
 
   async countRecordsByPatient(rawIcNumber: string): Promise<number> {
@@ -550,92 +574,73 @@ export class HospitalDatabaseMulti {
   }
 
   async updateRecord(recordId: string, updates: Partial<MedicalRecord>): Promise<MedicalRecord | null> {
-    const existing = await this.prisma.medicalRecord.findUnique({
-      where: { id: recordId },
-      include: { doctor: true, prescriptions: true, labReports: true },
-    });
+    return this.withExclusiveLock(`record:${recordId}`, async () => {
+      const existing = await this.prisma.medicalRecord.findUnique({
+        where: { id: recordId },
+        include: { doctor: true, prescriptions: true, labReports: true },
+      });
 
-    if (!existing) return null;
+      if (!existing) return null;
 
-    const safeVisitDate = parseOptionalDate(updates.visitDate) || existing.visitDate;
-    const safeFollowUpDate =
-      updates.followUpDate !== undefined
-        ? parseOptionalDate(updates.followUpDate)
-        : existing.followUpDate;
+      const safeVisitDate = parseOptionalDate(updates.visitDate) || existing.visitDate;
+      const safeFollowUpDate =
+        updates.followUpDate !== undefined
+          ? parseOptionalDate(updates.followUpDate)
+          : existing.followUpDate;
 
-    const data: Record<string, unknown> = {
-      visitDate: safeVisitDate,
-      visitType:
-        updates.visitType === 'outpatient' || updates.visitType === 'inpatient' || updates.visitType === 'emergency'
-          ? updates.visitType
-          : existing.visitType,
-      chiefComplaint: updates.chiefComplaint !== undefined ? updates.chiefComplaint : existing.chiefComplaint,
-      diagnosis: updates.diagnosis !== undefined ? JSON.stringify(updates.diagnosis) : existing.diagnosis,
-      diagnosisCodes: updates.diagnosisCodes !== undefined ? JSON.stringify(updates.diagnosisCodes) : existing.diagnosisCodes,
-      symptoms: updates.symptoms !== undefined ? JSON.stringify(updates.symptoms) : existing.symptoms,
-      notes: updates.notes !== undefined ? updates.notes : existing.notes,
-      vitalSigns:
-        updates.vitalSigns !== undefined
-          ? updates.vitalSigns
-            ? JSON.stringify(updates.vitalSigns)
-            : null
-          : existing.vitalSigns,
-      followUpDate: safeFollowUpDate,
-    };
-
-    if (updates.prescriptions !== undefined) {
-      const validPrescriptions = updates.prescriptions
-        .map(normalizePrescriptionInput)
-        .filter(p => p.medicationName && p.dosage && p.frequency);
-      data.prescriptions = {
-        deleteMany: {},
-        ...(validPrescriptions.length > 0 ? { create: validPrescriptions } : {}),
+      const data: Record<string, unknown> = {
+        visitDate: safeVisitDate,
+        visitType:
+          updates.visitType === 'outpatient' || updates.visitType === 'inpatient' || updates.visitType === 'emergency'
+            ? updates.visitType
+            : existing.visitType,
+        chiefComplaint: updates.chiefComplaint !== undefined ? updates.chiefComplaint : existing.chiefComplaint,
+        diagnosis: updates.diagnosis !== undefined ? JSON.stringify(updates.diagnosis) : existing.diagnosis,
+        diagnosisCodes: updates.diagnosisCodes !== undefined ? JSON.stringify(updates.diagnosisCodes) : existing.diagnosisCodes,
+        symptoms: updates.symptoms !== undefined ? JSON.stringify(updates.symptoms) : existing.symptoms,
+        notes: updates.notes !== undefined ? updates.notes : existing.notes,
+        vitalSigns:
+          updates.vitalSigns !== undefined
+            ? updates.vitalSigns
+              ? JSON.stringify(updates.vitalSigns)
+              : null
+            : existing.vitalSigns,
+        followUpDate: safeFollowUpDate,
       };
-    }
 
-    if (updates.labReports !== undefined) {
-      const validLabReports = updates.labReports
-        .map(l => normalizeLabReportInput(l, safeVisitDate))
-        .filter(l => l.testName);
-      data.labReports = {
-        deleteMany: {},
-        ...(validLabReports.length > 0 ? { create: validLabReports } : {}),
-      };
-    }
-
-    const updated = await this.prisma.medicalRecord.update({
-      where: { id: recordId },
-      data,
-      include: {
-        doctor: true,
-        prescriptions: true,
-        labReports: true,
-      },
-    });
-
-    return this.formatRecord(updated);
-  }
-
-  private actionLocks = new Map<string, Promise<unknown>>();
-
-  private async withExclusiveLock<T>(key: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.actionLocks.get(key) ?? Promise.resolve();
-    let release!: () => void;
-    const gate = new Promise<void>(resolve => {
-      release = resolve;
-    });
-    const queued = previous.then(() => gate);
-    this.actionLocks.set(key, queued);
-
-    await previous;
-    try {
-      return await task();
-    } finally {
-      release();
-      if (this.actionLocks.get(key) === queued) {
-        this.actionLocks.delete(key);
+      // Single nested Prisma update keeps child deleteMany + create atomic within one DB transaction
+      if (updates.prescriptions !== undefined) {
+        const validPrescriptions = updates.prescriptions
+          .map(normalizePrescriptionInput)
+          .filter(p => p.medicationName && p.dosage && p.frequency);
+        data.prescriptions = {
+          deleteMany: {},
+          ...(validPrescriptions.length > 0 ? { create: validPrescriptions } : {}),
+        };
       }
-    }
+
+      if (updates.labReports !== undefined) {
+        const validLabReports = updates.labReports
+          .map(l => normalizeLabReportInput(l, safeVisitDate))
+          .filter(l => l.testName);
+        data.labReports = {
+          deleteMany: {},
+          ...(validLabReports.length > 0 ? { create: validLabReports } : {}),
+        };
+      }
+
+      const updated = await this.prisma.medicalRecord.update({
+        where: { id: recordId },
+        data,
+        include: {
+          doctor: true,
+          prescriptions: true,
+          labReports: true,
+        },
+      });
+
+      return this.formatRecord(updated);
+    });
   }
 
   async dispensePrescription(
@@ -647,7 +652,7 @@ export class HospitalDatabaseMulti {
     | { status: 'already_dispensed'; record: MedicalRecord }
     | { status: 'dispensed'; record: MedicalRecord; prescription: Prescription }
   > {
-    return this.withExclusiveLock(`rx:${recordId}:${prescriptionId}`, async () => {
+    return this.withExclusiveLock(`record:${recordId}`, async () => {
       const existing = await this.prisma.medicalRecord.findUnique({
         where: { id: recordId },
         include: { doctor: true, prescriptions: true, labReports: true },
@@ -698,7 +703,7 @@ export class HospitalDatabaseMulti {
     | { status: 'already_finalized'; record: MedicalRecord }
     | { status: 'signed_off'; record: MedicalRecord; labReport: LabReport }
   > {
-    return this.withExclusiveLock(`lab:${recordId}:${labReportId}`, async () => {
+    return this.withExclusiveLock(`record:${recordId}`, async () => {
       const existing = await this.prisma.medicalRecord.findUnique({
         where: { id: recordId },
         include: { doctor: true, prescriptions: true, labReports: true },
@@ -1015,8 +1020,7 @@ export class HospitalDatabaseMulti {
     return { ...found };
   }
 
-  async getOrInitNursingChart(rawIcNumber: string): Promise<PatientNursingChart> {
-    const icNumber = normalizeIcNumber(rawIcNumber);
+  private async ensureNursingChartUnlocked(icNumber: string): Promise<PatientNursingChart> {
     const existing = this.nursingCharts.get(icNumber);
     if (existing) return existing;
 
@@ -1062,55 +1066,69 @@ export class HospitalDatabaseMulti {
     return chart;
   }
 
+  async getOrInitNursingChart(rawIcNumber: string): Promise<PatientNursingChart> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`nursing:${icNumber}`, () => this.ensureNursingChartUnlocked(icNumber));
+  }
+
   async addNursingObservation(
     rawIcNumber: string,
     obs: Omit<NursingObservation, 'id' | 'timestamp'>
   ): Promise<PatientNursingChart> {
-    const chart = await this.getOrInitNursingChart(rawIcNumber);
-    chart.vitalsHistory.unshift({
-      ...obs,
-      id: `obs-${crypto.randomUUID().slice(0, 8)}`,
-      timestamp: new Date().toISOString(),
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`nursing:${icNumber}`, async () => {
+      const chart = await this.ensureNursingChartUnlocked(icNumber);
+      chart.vitalsHistory.unshift({
+        ...obs,
+        id: `obs-${crypto.randomUUID().slice(0, 8)}`,
+        timestamp: new Date().toISOString(),
+      });
+      return chart;
     });
-    return chart;
   }
 
   async addNursingNote(
     rawIcNumber: string,
     note: Omit<NursingProgressNote, 'id' | 'timestamp'>
   ): Promise<PatientNursingChart> {
-    const chart = await this.getOrInitNursingChart(rawIcNumber);
-    chart.notes.unshift({
-      ...note,
-      id: `nn-${crypto.randomUUID().slice(0, 8)}`,
-      timestamp: new Date().toISOString(),
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`nursing:${icNumber}`, async () => {
+      const chart = await this.ensureNursingChartUnlocked(icNumber);
+      chart.notes.unshift({
+        ...note,
+        id: `nn-${crypto.randomUUID().slice(0, 8)}`,
+        timestamp: new Date().toISOString(),
+      });
+      return chart;
     });
-    return chart;
   }
 
   async updateFluidBalance(
     rawIcNumber: string,
     updates: Partial<Omit<PatientFluidBalance, 'updatedAt'>> & { ward?: string; bedNumber?: string }
   ): Promise<PatientNursingChart> {
-    const chart = await this.getOrInitNursingChart(rawIcNumber);
-    if (updates.ward !== undefined && String(updates.ward).trim()) {
-      chart.ward = String(updates.ward).trim();
-    }
-    if (updates.bedNumber !== undefined && String(updates.bedNumber).trim()) {
-      chart.bedNumber = String(updates.bedNumber).trim();
-    }
-    const nonNeg = (val: unknown, prev: number) =>
-      val !== undefined && Number.isFinite(Number(val)) ? Math.max(0, Math.round(Number(val))) : prev;
-    chart.ioChart = {
-      oralMl: nonNeg(updates.oralMl, chart.ioChart.oralMl),
-      ivFluidMl: nonNeg(updates.ivFluidMl, chart.ioChart.ivFluidMl),
-      bloodMl: nonNeg(updates.bloodMl, chart.ioChart.bloodMl),
-      urineMl: nonNeg(updates.urineMl, chart.ioChart.urineMl),
-      drainMl: nonNeg(updates.drainMl, chart.ioChart.drainMl),
-      vomitusMl: nonNeg(updates.vomitusMl, chart.ioChart.vomitusMl),
-      updatedAt: new Date().toISOString(),
-    };
-    return chart;
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`nursing:${icNumber}`, async () => {
+      const chart = await this.ensureNursingChartUnlocked(icNumber);
+      if (updates.ward !== undefined && String(updates.ward).trim()) {
+        chart.ward = String(updates.ward).trim().slice(0, 50);
+      }
+      if (updates.bedNumber !== undefined && String(updates.bedNumber).trim()) {
+        chart.bedNumber = String(updates.bedNumber).trim().slice(0, 50);
+      }
+      const nonNeg = (val: unknown, prev: number) =>
+        val !== undefined && Number.isFinite(Number(val)) ? Math.max(0, Math.round(Number(val))) : prev;
+      chart.ioChart = {
+        oralMl: nonNeg(updates.oralMl, chart.ioChart.oralMl),
+        ivFluidMl: nonNeg(updates.ivFluidMl, chart.ioChart.ivFluidMl),
+        bloodMl: nonNeg(updates.bloodMl, chart.ioChart.bloodMl),
+        urineMl: nonNeg(updates.urineMl, chart.ioChart.urineMl),
+        drainMl: nonNeg(updates.drainMl, chart.ioChart.drainMl),
+        vomitusMl: nonNeg(updates.vomitusMl, chart.ioChart.vomitusMl),
+        updatedAt: new Date().toISOString(),
+      };
+      return chart;
+    });
   }
 
   private invalidateAccountReceipt(account: PatientBillingAccount): void {
@@ -1124,8 +1142,7 @@ export class HospitalDatabaseMulti {
     }
   }
 
-  async getOrInitBillingAccount(rawIcNumber: string): Promise<PatientBillingAccount> {
-    const icNumber = normalizeIcNumber(rawIcNumber);
+  private async ensureBillingAccountUnlocked(icNumber: string): Promise<PatientBillingAccount> {
     const existing = this.billingAccounts.get(icNumber);
     if (existing) return existing;
 
@@ -1172,65 +1189,78 @@ export class HospitalDatabaseMulti {
     return account;
   }
 
+  async getOrInitBillingAccount(rawIcNumber: string): Promise<PatientBillingAccount> {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`billing:${icNumber}`, () => this.ensureBillingAccountUnlocked(icNumber));
+  }
+
   async addBillingItem(
     rawIcNumber: string,
     item: Omit<BillingLineItem, 'id' | 'subsidyPercent'> & { subsidyPercent?: number }
   ): Promise<PatientBillingAccount> {
-    const account = await this.getOrInitBillingAccount(rawIcNumber);
-    const defaultSubsidy =
-      account.subsidyStatus === 'eligible' ? 95 : account.subsidyStatus === 'pending' ? 50 : 0;
-    this.invalidateAccountReceipt(account);
-    account.items.push({
-      id: `bil-${crypto.randomUUID().slice(0, 8)}`,
-      category: String(item.category || 'Clinical Service').trim(),
-      description: String(item.description || '').trim(),
-      originalPrice: Number(Math.max(0, Number(item.originalPrice) || 0).toFixed(2)),
-      subsidyPercent: Math.min(100, Math.max(0, Number(item.subsidyPercent ?? defaultSubsidy))),
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`billing:${icNumber}`, async () => {
+      const account = await this.ensureBillingAccountUnlocked(icNumber);
+      const defaultSubsidy =
+        account.subsidyStatus === 'eligible' ? 95 : account.subsidyStatus === 'pending' ? 50 : 0;
+      this.invalidateAccountReceipt(account);
+      account.items.push({
+        id: `bil-${crypto.randomUUID().slice(0, 8)}`,
+        category: String(item.category || 'Clinical Service').trim(),
+        description: String(item.description || '').trim(),
+        originalPrice: Number(Math.max(0, Number(item.originalPrice) || 0).toFixed(2)),
+        subsidyPercent: Math.min(100, Math.max(0, Number(item.subsidyPercent ?? defaultSubsidy))),
+      });
+      return account;
     });
-    return account;
   }
 
   async removeBillingItem(
     rawIcNumber: string,
     itemId: string
   ): Promise<{ removed: boolean; account: PatientBillingAccount }> {
-    const account = await this.getOrInitBillingAccount(rawIcNumber);
-    const before = account.items.length;
-    account.items = account.items.filter(i => i.id !== itemId);
-    const removed = account.items.length < before;
-    if (removed) {
-      this.invalidateAccountReceipt(account);
-    }
-    return { removed, account };
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`billing:${icNumber}`, async () => {
+      const account = await this.ensureBillingAccountUnlocked(icNumber);
+      const before = account.items.length;
+      account.items = account.items.filter(i => i.id !== itemId);
+      const removed = account.items.length < before;
+      if (removed) {
+        this.invalidateAccountReceipt(account);
+      }
+      return { removed, account };
+    });
   }
 
   async setBillingSubsidyStatus(
     rawIcNumber: string,
     subsidyStatus: PatientBillingAccount['subsidyStatus']
   ): Promise<PatientBillingAccount> {
-    const account = await this.getOrInitBillingAccount(rawIcNumber);
-    account.subsidyStatus = subsidyStatus;
-    account.items = account.items.map(item => ({
-      ...item,
-      subsidyPercent:
-        subsidyStatus === 'not-eligible'
-          ? 0
-          : subsidyStatus === 'pending'
-            ? 50
-            : item.category === 'Pharmacy Dispensing'
-              ? 100
-              : 95,
-    }));
-    this.invalidateAccountReceipt(account);
-    return account;
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`billing:${icNumber}`, async () => {
+      const account = await this.ensureBillingAccountUnlocked(icNumber);
+      account.subsidyStatus = subsidyStatus;
+      account.items = account.items.map(item => ({
+        ...item,
+        subsidyPercent:
+          subsidyStatus === 'not-eligible'
+            ? 0
+            : subsidyStatus === 'pending'
+              ? 50
+              : item.category === 'Pharmacy Dispensing'
+                ? 100
+                : 95,
+      }));
+      this.invalidateAccountReceipt(account);
+      return account;
+    });
   }
 
-  async settleBillingAccount(
-    rawIcNumber: string,
+  private applyBillingSettlementUnlocked(
+    account: PatientBillingAccount,
     paymentMethod: 'counter' | 'online' | 'waived'
-  ): Promise<PatientBillingAccount> {
-    const icNumber = normalizeIcNumber(rawIcNumber);
-    const account = await this.getOrInitBillingAccount(icNumber);
+  ): PatientBillingAccount {
+    const icNumber = account.icNumber;
     const grossAmount = Number(account.items.reduce((s, i) => s + i.originalPrice, 0).toFixed(2));
     const netAmount =
       paymentMethod === 'waived'
@@ -1271,6 +1301,28 @@ export class HospitalDatabaseMulti {
       netAmount,
     };
     return account;
+  }
+
+  async settleBillingAccountGuarded(
+    rawIcNumber: string,
+    paymentMethod: 'counter' | 'online' | 'waived'
+  ): Promise<
+    | { status: 'empty' }
+    | { status: 'already_settled'; account: PatientBillingAccount }
+    | { status: 'settled'; account: PatientBillingAccount }
+  > {
+    const icNumber = normalizeIcNumber(rawIcNumber);
+    return this.withExclusiveLock(`billing:${icNumber}`, async () => {
+      const account = await this.ensureBillingAccountUnlocked(icNumber);
+      if (account.items.length === 0) {
+        return { status: 'empty' };
+      }
+      if (account.receipt && account.receipt.paymentMethod === paymentMethod) {
+        return { status: 'already_settled', account };
+      }
+      const settled = this.applyBillingSettlementUnlocked(account, paymentMethod);
+      return { status: 'settled', account: settled };
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1647,31 +1699,34 @@ export function resetHospitalDbInstances(): void {
   hospitalDbInstances.clear();
 }
 
+export interface FederatedPatientLookupOptions {
+  viewerHospitalId?: string;
+  sensitiveSettings?: Pick<SensitiveCategorySettings, SensitiveCategoryKey> | null;
+}
+
 export async function findPatientInHospitals(
   rawIcNumber: string,
   hospitalIds: string[],
-  options?: {
-    viewerHospitalId?: string;
-    sensitiveSettings?: SensitiveCategorySettings | null;
-  }
+  options?: FederatedPatientLookupOptions
 ): Promise<Patient | null> {
   const icNumber = normalizeIcNumber(rawIcNumber);
   let merged: Patient | null = null;
   const timeoutMs = getNodeQueryTimeoutMs();
 
   const results = await Promise.allSettled(
-    hospitalIds.map(async hospitalId => ({
-      hospitalId,
-      patient: await withTimeout(getHospitalDb(hospitalId).getPatient(icNumber), timeoutMs, hospitalId),
-    }))
+    hospitalIds.map(hospitalId =>
+      withTimeout(getHospitalDb(hospitalId).getPatient(icNumber), timeoutMs, hospitalId)
+    )
   );
 
-  for (const res of results) {
-    if (res.status !== 'fulfilled' || !res.value.patient) continue;
-    const { hospitalId, patient: p } = res.value;
-    const isExternalHospital =
-      Boolean(options?.sensitiveSettings) && hospitalId !== options?.viewerHospitalId;
-    const visibleConditions = isExternalHospital
+  for (let idx = 0; idx < results.length; idx++) {
+    const res = results[idx];
+    if (res.status !== 'fulfilled' || !res.value) continue;
+    const hospitalId = hospitalIds[idx];
+    const p = res.value;
+    const isExternalWithPolicy =
+      Boolean(options?.sensitiveSettings) && options?.viewerHospitalId !== hospitalId;
+    const visibleConditions = isExternalWithPolicy
       ? filterSensitiveConditions(p.chronicConditions, options?.sensitiveSettings)
       : p.chronicConditions;
 

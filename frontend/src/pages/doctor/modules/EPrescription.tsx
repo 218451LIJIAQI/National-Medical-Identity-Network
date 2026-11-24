@@ -38,6 +38,12 @@ interface MedicationRow {
   instructions: string
 }
 
+interface PrescriptionSlipSnapshot {
+  ref: string
+  diagnosisNote: string
+  medications: MedicationRow[]
+}
+
 interface ExistingHospitalRx extends PrescriptionDto {
   recordId: string
   visitDate: string
@@ -68,11 +74,11 @@ export default function EPrescription() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [medications, setMedications] = useState<MedicationRow[]>([])
-  const [lastSubmittedMeds, setLastSubmittedMeds] = useState<MedicationRow[]>([])
   const [diagnosisNote, setDiagnosisNote] = useState('Outpatient Medication Prescription')
   const [searchQuery, setSearchQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [lastOrderRef, setLastOrderRef] = useState<string | null>(null)
+  const [lastSubmittedSlip, setLastSubmittedSlip] = useState<PrescriptionSlipSnapshot | null>(null)
   const [existingRxList, setExistingRxList] = useState<ExistingHospitalRx[]>([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [dispensingId, setDispensingId] = useState<string | null>(null)
@@ -108,12 +114,12 @@ export default function EPrescription() {
     [user?.hospitalId]
   )
 
-  // Clear draft prescription & reload pharmacy queue whenever active patient switches or unbinds
+  // Clear draft prescription, slip snapshot & reload pharmacy queue whenever active patient switches or unbinds
   useEffect(() => {
     setMedications([])
-    setLastSubmittedMeds([])
     setDiagnosisNote('Outpatient Medication Prescription')
     setLastOrderRef(null)
+    setLastSubmittedSlip(null)
     setSearchQuery('')
     setExistingRxList([])
     if (!activePatient?.icNumber) return
@@ -205,11 +211,15 @@ export default function EPrescription() {
     }
   }
 
-  const printableMeds = medications.length > 0 ? medications : lastSubmittedMeds
-
   const handlePrint = () => {
-    if (!activePatient || printableMeds.length === 0) return
-    const slipRef = medications.length > 0 ? 'DRAFT' : lastOrderRef || 'DRAFT'
+    if (!activePatient) return
+    const printableMeds = medications.length > 0 ? medications : (lastSubmittedSlip?.medications || [])
+    if (printableMeds.length === 0) return
+    const slipRef = medications.length > 0 ? 'DRAFT' : (lastSubmittedSlip?.ref || lastOrderRef || 'DRAFT')
+    const slipDiagnosis =
+      medications.length > 0
+        ? diagnosisNote
+        : (lastSubmittedSlip?.diagnosisNote || diagnosisNote)
     const rows = printableMeds
       .map(
         (m) => `<tr>
@@ -231,7 +241,7 @@ export default function EPrescription() {
       <div class="meta">
         <strong>Patient:</strong> ${escapeHtml(activePatient.fullName)} (${escapeHtml(activePatient.icNumber)})<br/>
         <strong>Allergies:</strong> ${escapeHtml(patientAllergies.join(', ') || 'NKDA')} |
-        <strong>Indication:</strong> ${escapeHtml(diagnosisNote)}
+        <strong>Indication:</strong> ${escapeHtml(slipDiagnosis)}
       </div>
       <table>
         <thead><tr><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Qty</th><th>Instructions</th></tr></thead>
@@ -256,28 +266,41 @@ export default function EPrescription() {
     setSubmitting(true)
     try {
       const refCode = `RX-${Date.now().toString().slice(-6)}`
+      const normalizedDiagnosis = diagnosisNote.trim() || 'Outpatient Medication Prescription'
+      const submittedRows = medications.map((m) => ({
+        ...m,
+        dosage: m.dosage.trim(),
+        frequency: m.frequency.trim(),
+        duration: m.duration.trim(),
+        quantity: Math.max(1, Math.trunc(Number(m.quantity) || 1)),
+        instructions: m.instructions.trim(),
+      }))
       const res = await hospitalApi.createRecord(user.hospitalId, {
         icNumber: activePatient.icNumber,
         visitDate: new Date().toISOString().split('T')[0],
         visitType: 'outpatient',
         chiefComplaint: 'Electronic Prescription Dispatch',
-        diagnosis: [diagnosisNote.trim() || 'Outpatient Medication Prescription'],
-        notes: `Dispatched ${medications.length} medication(s) via e-Prescription (${refCode}).`,
+        diagnosis: [normalizedDiagnosis],
+        notes: `Dispatched ${submittedRows.length} medication(s) via e-Prescription (${refCode}).`,
         patientName: activePatient.fullName,
-        prescriptions: medications.map((m) => ({
+        prescriptions: submittedRows.map((m) => ({
           medicationName: m.name,
-          dosage: m.dosage.trim(),
-          frequency: m.frequency.trim(),
-          duration: m.duration.trim(),
-          quantity: Math.max(1, Math.trunc(Number(m.quantity) || 1)),
-          instructions: m.instructions.trim(),
+          dosage: m.dosage,
+          frequency: m.frequency,
+          duration: m.duration,
+          quantity: m.quantity,
+          instructions: m.instructions,
           isActive: true,
         })),
       })
 
       if (res.success) {
         setLastOrderRef(refCode)
-        setLastSubmittedMeds(medications)
+        setLastSubmittedSlip({
+          ref: refCode,
+          diagnosisNote: normalizedDiagnosis,
+          medications: submittedRows,
+        })
         setMedications([])
         await loadHospitalPrescriptions(activePatient.icNumber)
         toast({
@@ -298,6 +321,8 @@ export default function EPrescription() {
     }
   }
 
+  const canPrintSlip = medications.length > 0 || Boolean(lastSubmittedSlip)
+
   return (
     <div className="space-y-6">
       <ClinicalPatientBanner />
@@ -309,7 +334,7 @@ export default function EPrescription() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={printableMeds.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={!canPrintSlip} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>
@@ -332,11 +357,25 @@ export default function EPrescription() {
       ) : (
         <>
           {lastOrderRef && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              <span>
-                e-Prescription <code className="font-mono tabular-nums">{lastOrderRef}</code> saved to federated clinical record and added to the pharmacy dispensing queue below.
-              </span>
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  e-Prescription <code className="font-mono tabular-nums">{lastOrderRef}</code> saved to federated clinical record and added to the pharmacy dispensing queue below.
+                </span>
+              </div>
+              {lastSubmittedSlip && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100 h-8"
+                >
+                  <Printer className="w-3.5 h-3.5 mr-1.5" />
+                  Print Prescription
+                </Button>
+              )}
             </div>
           )}
 

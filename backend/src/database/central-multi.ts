@@ -2,24 +2,17 @@ import {
   PatientIndex,
   AuditLog,
   Hospital,
-  MedicalRecord,
   User,
   SensitiveCategoryKey,
   SensitiveCategorySettings,
+  SENSITIVE_CATEGORY_KEYS,
   normalizeIcNumber,
 } from '../types';
 import { getCentralDb } from './multi-db-manager';
 import { HOSPITALS } from '../config';
 
 const SENSITIVE_SETTING_PREFIX = 'sensitive:';
-const SENSITIVE_CATEGORY_KEYS: SensitiveCategoryKey[] = [
-  'mentalHealth',
-  'reproductiveHealth',
-  'substanceAbuse',
-  'hivStatus',
-];
-
-const sensitiveUpdatedAtByPatient = new Map<string, string>();
+const sensitiveUpdatedAtCache = new Map<string, string>();
 
 const DEFAULT_SENSITIVE_SETTINGS: Omit<SensitiveCategorySettings, 'updatedAt'> = {
   mentalHealth: true,
@@ -28,75 +21,16 @@ const DEFAULT_SENSITIVE_SETTINGS: Omit<SensitiveCategorySettings, 'updatedAt'> =
   hivStatus: true,
 };
 
-const SENSITIVE_CATEGORY_MATCHERS: ReadonlyArray<{
-  key: SensitiveCategoryKey;
-  icdRegex: RegExp;
-  textRegex: RegExp;
-}> = [
-  {
-    key: 'mentalHealth',
-    icdRegex: /^F[2-9]\d/i,
-    textRegex: /\b(schizophren|bipolar|major\s+depress|psychiat|suicid|psychosis|anxiety\s+disorder|ptsd)\b/i,
-  },
-  {
-    key: 'substanceAbuse',
-    icdRegex: /^F1\d/i,
-    textRegex: /\b(substance\s+abuse|opioid|alcohol\s+depend|drug\s+overdose|methadone|addiction|withdrawal\s+syndrome)\b/i,
-  },
-  {
-    key: 'hivStatus',
-    icdRegex: /^B2[0-4]/i,
-    textRegex: /\b(hiv|human\s+immunodeficiency|aids|antiretroviral)\b/i,
-  },
-  {
-    key: 'reproductiveHealth',
-    icdRegex: /^O\d{2}/i,
-    textRegex: /\b(obstetric|ectopic\s+pregnan|miscarriage|contracepti|fertility|ivf|reproductive\s+health|termination\s+of\s+pregnancy)\b/i,
-  },
-];
-
-export function classifySensitiveCategories(
-  record: Pick<MedicalRecord, 'diagnosisCodes' | 'chiefComplaint' | 'diagnosis' | 'notes'>
-): SensitiveCategoryKey[] {
-  const codes = (record.diagnosisCodes || []).map(c => String(c || '').trim());
-  const combinedText = [
-    record.chiefComplaint || '',
-    ...(record.diagnosis || []),
-    record.notes || '',
-  ].join(' ');
-
-  const matched: SensitiveCategoryKey[] = [];
-  for (const rule of SENSITIVE_CATEGORY_MATCHERS) {
-    if (codes.some(code => rule.icdRegex.test(code)) || rule.textRegex.test(combinedText)) {
-      matched.push(rule.key);
-    }
-  }
-  return matched;
+function toSensitiveSettingKey(category: SensitiveCategoryKey): string {
+  return `${SENSITIVE_SETTING_PREFIX}${category}`;
 }
 
-export function filterSensitiveConditions(
-  conditions: string[],
-  settings: SensitiveCategorySettings | null | undefined
-): string[] {
-  if (!settings || !Array.isArray(conditions) || conditions.length === 0) {
-    return conditions;
-  }
-  return conditions.filter(rawCondition => {
-    const text = String(rawCondition || '').trim();
-    if (!text) return false;
-    const codeTokens = text.split(/[\s,;:()\[\]/]+/).filter(Boolean);
-    for (const rule of SENSITIVE_CATEGORY_MATCHERS) {
-      if (!settings[rule.key]) continue;
-      if (rule.textRegex.test(text) || codeTokens.some(tok => rule.icdRegex.test(tok))) {
-        return false;
-      }
-    }
-    return true;
-  });
+function isSensitiveSettingRow(hospitalId: string): boolean {
+  return String(hospitalId || '').startsWith(SENSITIVE_SETTING_PREFIX);
 }
 
 export function resetCentralTransientStateForTesting(): void {
-  sensitiveUpdatedAtByPatient.clear();
+  sensitiveUpdatedAtCache.clear();
 }
 
 export async function getSensitiveCategorySettings(
@@ -112,11 +46,12 @@ export async function getSensitiveCategorySettings(
     ...DEFAULT_SENSITIVE_SETTINGS,
   };
   let hasPersistedRow = false;
+
   for (const row of rows as Array<{ hospitalId: string; isBlocked: boolean }>) {
-    if (!row.hospitalId.startsWith(SENSITIVE_SETTING_PREFIX)) continue;
-    const key = row.hospitalId.slice(SENSITIVE_SETTING_PREFIX.length) as SensitiveCategoryKey;
-    if (SENSITIVE_CATEGORY_KEYS.includes(key)) {
-      resolved[key] = Boolean(row.isBlocked);
+    if (!isSensitiveSettingRow(row.hospitalId)) continue;
+    const category = row.hospitalId.slice(SENSITIVE_SETTING_PREFIX.length) as SensitiveCategoryKey;
+    if (SENSITIVE_CATEGORY_KEYS.includes(category)) {
+      resolved[category] = Boolean(row.isBlocked);
       hasPersistedRow = true;
     }
   }
@@ -124,7 +59,7 @@ export async function getSensitiveCategorySettings(
   return {
     ...resolved,
     updatedAt:
-      sensitiveUpdatedAtByPatient.get(icNumber) ||
+      sensitiveUpdatedAtCache.get(icNumber) ||
       (hasPersistedRow ? new Date().toISOString() : new Date(0).toISOString()),
   };
 }
@@ -134,8 +69,10 @@ export async function updateSensitiveCategorySettings(
   patch: Partial<Omit<SensitiveCategorySettings, 'updatedAt'>>
 ): Promise<SensitiveCategorySettings> {
   const icNumber = normalizeIcNumber(rawIcNumber);
+  const prisma = getCentralDb();
   const current = await getSensitiveCategorySettings(icNumber);
   const updatedAt = new Date().toISOString();
+
   const next: SensitiveCategorySettings = {
     mentalHealth:
       typeof patch.mentalHealth === 'boolean' ? patch.mentalHealth : current.mentalHealth,
@@ -149,26 +86,21 @@ export async function updateSensitiveCategorySettings(
     updatedAt,
   };
 
-  const prisma = getCentralDb();
   await Promise.all(
-    SENSITIVE_CATEGORY_KEYS.map(key =>
-      prisma.patientPrivacySetting.upsert({
+    SENSITIVE_CATEGORY_KEYS.map(category => {
+      const hospitalId = toSensitiveSettingKey(category);
+      const isBlocked = next[category];
+      return prisma.patientPrivacySetting.upsert({
         where: {
-          icNumber_hospitalId: {
-            icNumber,
-            hospitalId: `${SENSITIVE_SETTING_PREFIX}${key}`,
-          },
+          icNumber_hospitalId: { icNumber, hospitalId },
         },
-        update: { isBlocked: next[key] },
-        create: {
-          icNumber,
-          hospitalId: `${SENSITIVE_SETTING_PREFIX}${key}`,
-          isBlocked: next[key],
-        },
-      })
-    )
+        update: { isBlocked },
+        create: { icNumber, hospitalId, isBlocked },
+      });
+    })
   );
-  sensitiveUpdatedAtByPatient.set(icNumber, updatedAt);
+
+  sensitiveUpdatedAtCache.set(icNumber, updatedAt);
   return { ...next };
 }
 
@@ -351,7 +283,7 @@ export async function getBlockedHospitals(rawIcNumber: string): Promise<string[]
   });
   return settings
     .map((s: { hospitalId: string }) => s.hospitalId)
-    .filter((hospitalId: string) => !hospitalId.startsWith(SENSITIVE_SETTING_PREFIX));
+    .filter((hospitalId: string) => !isSensitiveSettingRow(hospitalId));
 }
 
 export async function getBlockedPatientIcsForHospital(hospitalId: string): Promise<Set<string>> {
@@ -386,7 +318,7 @@ export async function getPrivacySettings(rawIcNumber: string): Promise<Array<{ h
     select: { hospitalId: true, isBlocked: true },
   });
   return settings
-    .filter((s: { hospitalId: string }) => !s.hospitalId.startsWith(SENSITIVE_SETTING_PREFIX))
+    .filter((s: { hospitalId: string; isBlocked: boolean }) => !isSensitiveSettingRow(s.hospitalId))
     .map((s: { hospitalId: string; isBlocked: boolean }) => ({
       hospitalId: s.hospitalId,
       isBlocked: s.isBlocked,

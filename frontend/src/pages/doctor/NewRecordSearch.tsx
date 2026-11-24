@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ export default function NewRecordSearch() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const checkSeqRef = useRef(0)
+  const checkAbortRef = useRef<AbortController | null>(null)
   const [icNumber, setIcNumber] = useState('')
   const [isChecking, setIsChecking] = useState(false)
   const [blockingBanner, setBlockingBanner] = useState<{
@@ -26,12 +27,19 @@ export default function NewRecordSearch() {
     message: string
   } | null>(null)
 
+  useEffect(() => {
+    return () => {
+      checkAbortRef.current?.abort()
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBlockingBanner(null)
 
     const formattedIC = formatIC(icNumber.trim())
     if (!formattedIC || !isValidMyKad(formattedIC)) {
+      checkAbortRef.current?.abort()
       setBlockingBanner({ kind: 'invalid', message: t.invalidMyKadFormat })
       toast({
         title: 'Invalid MyKad IC',
@@ -41,11 +49,14 @@ export default function NewRecordSearch() {
       return
     }
 
+    checkAbortRef.current?.abort()
+    const controller = new AbortController()
+    checkAbortRef.current = controller
     const seq = ++checkSeqRef.current
     setIsChecking(true)
     try {
-      const response = await centralApi.getPatient(formattedIC)
-      if (seq !== checkSeqRef.current) return
+      const response = await centralApi.getPatient(formattedIC, controller.signal)
+      if (response.aborted || controller.signal.aborted || seq !== checkSeqRef.current) return
 
       if (response.accessDenied) {
         const msg = response.error || t.privacyRestrictedDesc
@@ -85,7 +96,7 @@ export default function NewRecordSearch() {
         variant: 'destructive',
       })
     } finally {
-      if (seq === checkSeqRef.current) {
+      if (!controller.signal.aborted && seq === checkSeqRef.current) {
         setIsChecking(false)
       }
     }
@@ -127,6 +138,7 @@ export default function NewRecordSearch() {
                       setBlockingBanner(null)
                     }}
                     aria-invalid={blockingBanner?.kind === 'invalid'}
+                    aria-describedby={blockingBanner ? 'new-rec-ic-error' : undefined}
                     disabled={isChecking}
                     className="text-base h-12 px-4 pr-11 font-mono tabular-nums"
                     autoFocus
@@ -139,14 +151,22 @@ export default function NewRecordSearch() {
               </div>
 
               {blockingBanner?.kind === 'invalid' && (
-                <div role="alert" className="p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
+                <div
+                  id="new-rec-ic-error"
+                  role="alert"
+                  className="p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5"
+                >
                   <AlertTriangle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                   <span>{blockingBanner.message}</span>
                 </div>
               )}
 
               {blockingBanner?.kind === 'privacy' && (
-                <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5">
+                <div
+                  id="new-rec-ic-error"
+                  role="alert"
+                  className="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs flex items-start gap-2.5"
+                >
                   <ShieldAlert className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold">{t.privacyRestrictedTitle}</p>
@@ -156,7 +176,11 @@ export default function NewRecordSearch() {
               )}
 
               {blockingBanner?.kind === 'network' && (
-                <div role="alert" className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5">
+                <div
+                  id="new-rec-ic-error"
+                  role="alert"
+                  className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5"
+                >
                   <WifiOff className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold">Unable to Verify Consent & Allergies</p>

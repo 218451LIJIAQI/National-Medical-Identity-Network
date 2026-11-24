@@ -14,7 +14,6 @@ import {
   getSensitiveCategorySettings,
   updateSensitiveCategorySettings,
   resetCentralTransientStateForTesting,
-  classifySensitiveCategories,
   parseSafeLimit,
 } from '../database/central-multi';
 import { getHospitalDb, findPatientInHospitals } from '../database/hospital-multi';
@@ -25,8 +24,12 @@ import {
   CrossHospitalQueryResult,
   QueryFlowStep,
   HospitalQueryResult,
+  MedicalRecord,
   NodeTimeoutError,
+  SENSITIVE_CATEGORY_KEYS,
+  SensitiveCategoryKey,
   User,
+  classifySensitiveCategories,
   getNodeQueryTimeoutMs,
   isValidMyKadIc,
   normalizeIcNumber,
@@ -785,7 +788,10 @@ router.get(
         }
       }
 
-      const patientIndex = await getPatientIndex(icNumber);
+      const [patientIndex, sensitiveSettings] = await Promise.all([
+        getPatientIndex(icNumber),
+        user.role === 'doctor' ? getSensitiveCategorySettings(icNumber) : Promise.resolve(null),
+      ]);
 
       if (!patientIndex || patientIndex.hospitals.length === 0) {
         res.status(404).json({
@@ -796,12 +802,13 @@ router.get(
         return;
       }
 
-      const sensitiveSettings =
-        user.role === 'doctor' ? await getSensitiveCategorySettings(icNumber) : null;
-      const patientInfo = await findPatientInHospitals(icNumber, patientIndex.hospitals, {
-        viewerHospitalId: user.role === 'doctor' ? user.hospitalId : undefined,
-        sensitiveSettings,
-      });
+      const patientInfo = await findPatientInHospitals(
+        icNumber,
+        patientIndex.hospitals,
+        user.role === 'doctor'
+          ? { viewerHospitalId: user.hospitalId, sensitiveSettings }
+          : undefined
+      );
       if (!patientInfo) {
         res.status(503).json({
           success: false,
@@ -1288,16 +1295,10 @@ router.put(
       }
 
       const body = req.body || {};
-      const allowedKeys: ReadonlyArray<SensitiveCategoryKey> = [
-        'mentalHealth',
-        'reproductiveHealth',
-        'substanceAbuse',
-        'hivStatus',
-      ];
       const patch: Partial<Record<SensitiveCategoryKey, boolean>> = {};
       const changedDescriptions: string[] = [];
 
-      for (const key of allowedKeys) {
+      for (const key of SENSITIVE_CATEGORY_KEYS) {
         if (body[key] !== undefined) {
           if (typeof body[key] !== 'boolean') {
             res.status(400).json({

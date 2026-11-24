@@ -84,10 +84,12 @@ export function StatusBadge({
 }
 
 export function DataErrorBanner({
+  title,
   message,
   onRetry,
   className,
 }: {
+  title?: string
   message: string
   onRetry?: () => void
   className?: string
@@ -107,7 +109,7 @@ export function DataErrorBanner({
           <AlertTriangle className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-red-950">{t.loadFailedTitle}</h3>
+          <h3 className="text-sm font-bold text-red-950">{title || t.loadFailedTitle}</h3>
           <p className="text-xs text-red-800 mt-0.5 leading-relaxed">{message}</p>
         </div>
       </div>
@@ -289,10 +291,10 @@ export function ModalDialog({
 
   if (!open) return null
 
-  const dialogContent = (
+  const dialogNode = (
     <div
       style={{ margin: 0 }}
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/55 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -305,7 +307,7 @@ export function ModalDialog({
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
         className={cn(
-          'relative flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl focus:outline-none',
+          'relative flex max-h-[calc(100vh-1.5rem)] min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl focus:outline-none',
           maxWidthClassName
         )}
       >
@@ -338,7 +340,7 @@ export function ModalDialog({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">{children}</div>
 
         {footer && (
           <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-6 py-3.5 shrink-0">
@@ -349,5 +351,5 @@ export function ModalDialog({
     </div>
   )
 
-  return typeof document !== 'undefined' ? createPortal(dialogContent, document.body) : dialogContent
+  return typeof document !== 'undefined' ? createPortal(dialogNode, document.body) : dialogNode
 }

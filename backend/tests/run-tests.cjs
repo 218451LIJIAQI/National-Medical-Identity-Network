@@ -368,26 +368,59 @@ function createExpressApp() {
 }
 
 createExpressApp.Router = createRouter;
-createExpressApp.json = () => (req, res, next) => {
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    req.body = {};
-    return next();
-  }
-  const chunks = [];
-  req.on('data', (chunk) => chunks.push(chunk));
-  req.on('end', () => {
-    const raw = Buffer.concat(chunks).toString('utf8').trim();
-    if (!raw) {
+function parseByteLimit(limit) {
+  if (typeof limit === 'number') return limit;
+  const m = /^(\d+(?:\.\d+)?)\s*(kb|mb|gb|b)?$/i.exec(String(limit || '100kb'));
+  if (!m) return 102400;
+  const val = parseFloat(m[1]);
+  const unit = (m[2] || 'b').toLowerCase();
+  if (unit === 'kb') return Math.floor(val * 1024);
+  if (unit === 'mb') return Math.floor(val * 1024 * 1024);
+  if (unit === 'gb') return Math.floor(val * 1024 * 1024 * 1024);
+  return Math.floor(val);
+}
+
+createExpressApp.json = (opts = {}) => {
+  const maxBytes = parseByteLimit(opts.limit || '100kb');
+  return (req, _res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') {
       req.body = {};
       return next();
     }
-    try {
-      req.body = JSON.parse(raw);
-      next();
-    } catch {
-      res.status(400).json({ success: false, error: 'Invalid JSON payload' });
-    }
-  });
+    const chunks = [];
+    let totalBytes = 0;
+    let abortedForSize = false;
+    req.on('data', (chunk) => {
+      if (abortedForSize) return;
+      totalBytes += chunk.length;
+      if (totalBytes > maxBytes) {
+        abortedForSize = true;
+        const err = new Error('request entity too large');
+        err.status = 413;
+        err.statusCode = 413;
+        err.type = 'entity.too.large';
+        return next(err);
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (abortedForSize) return;
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (!raw) {
+        req.body = {};
+        return next();
+      }
+      try {
+        req.body = JSON.parse(raw);
+        next();
+      } catch (parseErr) {
+        parseErr.status = 400;
+        parseErr.statusCode = 400;
+        parseErr.body = raw;
+        next(parseErr);
+      }
+    });
+  };
 };
 
 const corsShim = () => (req, res, next) => {
@@ -791,12 +824,16 @@ function createMockHospitalPrisma(seed = {}) {
       },
       async update({ where, data }) {
         checkOnline();
+        if (state.failNextRecordUpdate) {
+          state.failNextRecordUpdate = false;
+          throw new Error('Simulated Prisma nested write transaction failure');
+        }
         const existing = state.records.find((r) => r.id === where.id);
         if (!existing) throw new Error('MedicalRecord not found');
         const { prescriptions, labReports, ...scalarUpdates } = data;
         Object.assign(existing, scalarUpdates, { updatedAt: new Date() });
 
-        if (prescriptions?.deleteMany) {
+        if (prescriptions?.deleteMany !== undefined) {
           state.prescriptions = state.prescriptions.filter((p) => p.recordId !== existing.id);
         }
         if (prescriptions?.create) {
@@ -804,7 +841,7 @@ function createMockHospitalPrisma(seed = {}) {
             state.prescriptions.push({ id: crypto.randomUUID(), recordId: existing.id, ...rx });
           }
         }
-        if (labReports?.deleteMany) {
+        if (labReports?.deleteMany !== undefined) {
           state.labReports = state.labReports.filter((l) => l.recordId !== existing.id);
         }
         if (labReports?.create) {
@@ -822,6 +859,7 @@ function createMockHospitalPrisma(seed = {}) {
       },
       async update({ where, data }) {
         checkOnline();
+        await new Promise((resolve) => setImmediate(resolve));
         const existing = state.prescriptions.find((p) => p.id === where.id);
         if (!existing) throw new Error('Prescription not found');
         Object.assign(existing, data);
@@ -835,6 +873,7 @@ function createMockHospitalPrisma(seed = {}) {
       },
       async update({ where, data }) {
         checkOnline();
+        await new Promise((resolve) => setImmediate(resolve));
         const existing = state.labReports.find((l) => l.id === where.id);
         if (!existing) throw new Error('LabReport not found');
         Object.assign(existing, data);
@@ -2793,147 +2832,379 @@ test('19. Closed-loop prescription dispensing, lab sign-off, 409 state-transitio
   assert.equal(finAfterInvalidation.body.data.liveSettledRevenue, 0);
 });
 
-test('20. Central DB sensitive consent persistence, cross-hospital chronicConditions redaction & concurrent dispense/signoff race safety', async () => {
-  const { hospitals } = buildSeededTestFixture();
+function requestRaw(baseUrl, method, urlPath, { token, rawBody, contentType = 'application/json' } = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(urlPath, baseUrl);
+    const buf = rawBody !== undefined ? Buffer.from(rawBody, 'utf8') : null;
+    const headers = {
+      Accept: 'application/json',
+      ...(buf !== null
+        ? {
+            'Content-Type': contentType,
+            'Content-Length': buf.length,
+          }
+        : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const req = http.request(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: target.pathname + target.search,
+        method,
+        headers,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let json = {};
+          try {
+            json = text ? JSON.parse(text) : {};
+          } catch {
+            json = { raw: text };
+          }
+          resolve({ status: res.statusCode, body: json });
+        });
+      }
+    );
+    req.on('error', reject);
+    if (buf !== null) req.write(buf);
+    req.end();
+  });
+}
+
+test('20. Central DB persistence of sensitive specialty consent & cross-hospital chronicConditions redaction across all lookup/walk-in paths', async () => {
+  const { central, hospitals } = buildSeededTestFixture();
   const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
   const { verifiedToken: pgDocToken } = await loginAndVerifyDoctor(baseUrl, '790303-07-5002');
+  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
+    body: { icNumber: '900202-07-5222', password: 'demo123' },
+  });
+  const patToken = patLogin.body.data.token;
 
-  // Record a sensitive psychiatric chronic condition on 850505-10-5111 at hospital-kl
-  const addPsychCondition = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+  // Seed sensitive chronic conditions (Psychiatric + HIV) on patient 900202-07-5222 at Penang General Hospital
+  const pgPat = hospitals['hospital-penang']._state.patients.find(
+    (p) => p.icNumber === '900202-07-5222'
+  );
+  pgPat.chronicConditions = JSON.stringify([
+    'Bronchial Asthma',
+    'Major Depressive Disorder',
+    'HIV Positive (Viral Load Undetectable)',
+  ]);
+
+  // 1) Toggle mentalHealth=false (Standard sharing) while hivStatus remains true (Protected), then wipe transient state to simulate server restart
+  const putSens = await requestJson(baseUrl, 'PUT', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+    body: { mentalHealth: false, hivStatus: true },
+  });
+  assert.equal(putSens.status, 200);
+  assert.equal(putSens.body.data.mentalHealth, false);
+  assert.equal(putSens.body.data.hivStatus, true);
+
+  centralMultiMod.resetCentralTransientStateForTesting();
+
+  // Persisted in Central DB across restart, and does NOT pollute hospital blocklist!
+  const getSensAfterRestart = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings/sensitive', {
+    token: patToken,
+  });
+  assert.equal(getSensAfterRestart.status, 200);
+  assert.equal(getSensAfterRestart.body.data.mentalHealth, false);
+  assert.equal(getSensAfterRestart.body.data.hivStatus, true);
+  assert.equal(getSensAfterRestart.body.data.reproductiveHealth, true);
+  assert.equal(getSensAfterRestart.body.data.substanceAbuse, true);
+
+  const hospPrivacy = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings', {
+    token: patToken,
+  });
+  assert.equal(hospPrivacy.status, 200);
+  assert.ok(
+    hospPrivacy.body.data.every((row) => !String(row.hospitalId).startsWith('sensitive:')),
+    'Hospital privacy settings must exclude sensitive:<category> rows'
+  );
+  assert.ok(
+    central._state.privacySettings.some((row) => row.hospitalId === 'sensitive:mentalHealth'),
+    'Central DB patientPrivacySetting table must persist sensitive:<category> rows'
+  );
+
+  // 2) External hospital doctor (KL) querying /api/central/patient/:ic and /api/hospitals/hospital-kl/patients/:ic:
+  //    sees Bronchial Asthma + Major Depressive Disorder (shared), but HIV Positive is redacted!
+  const klCentralPat = await requestJson(baseUrl, 'GET', '/api/central/patient/900202-07-5222', {
+    token: klDocToken,
+  });
+  assert.equal(klCentralPat.status, 200);
+  assert.deepEqual(klCentralPat.body.data.patient.chronicConditions.sort(), [
+    'Bronchial Asthma',
+    'Major Depressive Disorder',
+  ]);
+
+  const klFedLookup = await requestJson(
+    baseUrl,
+    'GET',
+    '/api/hospitals/hospital-kl/patients/900202-07-5222',
+    { token: klDocToken }
+  );
+  assert.equal(klFedLookup.status, 200);
+  assert.equal(klFedLookup.body.data.isLocal, false);
+  assert.deepEqual(klFedLookup.body.data.patient.chronicConditions.sort(), [
+    'Bronchial Asthma',
+    'Major Depressive Disorder',
+  ]);
+
+  // 3) Authoring hospital doctor (Penang) and patient themselves still see full unredacted chronicConditions!
+  const pgCentralPat = await requestJson(baseUrl, 'GET', '/api/central/patient/900202-07-5222', {
+    token: pgDocToken,
+  });
+  assert.equal(pgCentralPat.body.data.patient.chronicConditions.length, 3);
+
+  const selfCentralPat = await requestJson(baseUrl, 'GET', '/api/central/patient/900202-07-5222', {
+    token: patToken,
+  });
+  assert.equal(selfCentralPat.body.data.patient.chronicConditions.length, 3);
+
+  // 4) First-visit walk-in creation at KL General must NOT copy Penang's protected HIV condition into KL's local Patient table!
+  const walkInKl = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '900202-07-5222',
+      visitDate: '2026-05-27',
+      visitType: 'outpatient',
+      chiefComplaint: 'Seasonal rhinitis',
+      diagnosis: ['Allergic Rhinitis'],
+    },
+  });
+  assert.equal(walkInKl.status, 201);
+
+  const klLocalPat = await requestJson(
+    baseUrl,
+    'GET',
+    '/api/hospitals/hospital-kl/patients/900202-07-5222',
+    { token: klDocToken }
+  );
+  assert.equal(klLocalPat.body.data.isLocal, true);
+  assert.ok(
+    !klLocalPat.body.data.patient.chronicConditions.some((c) => /hiv/i.test(c)),
+    'Protected HIV condition from Penang must never leak into KL local patient table on first visit'
+  );
+  assert.ok(klLocalPat.body.data.patient.chronicConditions.includes('Bronchial Asthma'));
+});
+
+test('21. Single-write atomic updateRecord nested replacement & rollback safety when database write fails', async () => {
+  const { hospitals } = buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  // Inject failure on medicalRecord.update: existing Metformin prescription and HbA1c lab report MUST remain intact!
+  hospitals['hospital-kl']._state.failNextRecordUpdate = true;
+  const failedUpdate = await requestJson(
+    baseUrl,
+    'PUT',
+    '/api/hospitals/hospital-kl/records/rec-kl-101',
+    {
+      token: klDocToken,
+      body: {
+        diagnosis: ['Should Rollback'],
+        prescriptions: [
+          {
+            medicationName: 'Gliclazide',
+            dosage: '80mg',
+            frequency: 'BD',
+            duration: '30 days',
+            quantity: 60,
+          },
+        ],
+        labReports: [
+          {
+            testType: 'Biochemistry',
+            testName: 'Fasting Glucose',
+            result: '6.1',
+            unit: 'mmol/L',
+          },
+        ],
+      },
+    }
+  );
+  assert.equal(failedUpdate.status, 500);
+
+  // Verify zero partial deletion of child prescriptions or labReports occurred!
+  const verifyIntact = await requestJson(baseUrl, 'GET', '/api/central/query/850505-10-5111', {
+    token: klDocToken,
+  });
+  assert.equal(verifyIntact.status, 200);
+  const klRec = verifyIntact.body.data.hospitals
+    .find((h) => h.hospitalId === 'hospital-kl')
+    .records.find((r) => r.id === 'rec-kl-101');
+  assert.deepEqual(klRec.diagnosis, ['Type 2 Diabetes Mellitus']);
+  assert.equal(klRec.prescriptions.length, 1);
+  assert.equal(klRec.prescriptions[0].medicationName, 'Metformin');
+  assert.equal(klRec.labReports.length, 1);
+  assert.equal(klRec.labReports[0].testName, 'HbA1c');
+});
+
+test('22. True concurrent race serialization (Promise.all) on dispensePrescription, signOffLabReport & billing settle', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  const createRec = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
     token: klDocToken,
     body: {
       icNumber: '850505-10-5111',
-      visitDate: '2026-05-27T10:00:00.000Z',
+      visitDate: '2026-05-28',
       visitType: 'outpatient',
-      chiefComplaint: 'Mood follow-up',
-      diagnosis: ['Major Depressive Disorder'],
-      diagnosisCodes: ['F33.1'],
-      chronicConditions: ['Major Depressive Disorder (F33.1)'],
+      diagnosis: ['Concurrent Guard Verification'],
       prescriptions: [
         {
-          medicationName: 'Sertraline',
+          medicationName: 'Losartan 50mg',
           dosage: '50mg',
           frequency: 'OD',
           duration: '30 days',
           quantity: 30,
-          instructions: 'Morning',
+          instructions: 'Take morning',
           isActive: true,
         },
       ],
       labReports: [
         {
           testType: 'Biochemistry',
-          testName: 'TSH Screening',
-          result: 'Pending Specimen Analysis',
-          unit: 'mIU/L',
-          referenceRange: '0.4 - 4.0',
+          testName: 'RFT - Renal Function',
+          result: 'Ordered',
+          unit: 'umol/L',
+          referenceRange: '60 - 110',
           isAbnormal: false,
-          reportDate: '2026-05-27T10:00:00.000Z',
         },
       ],
     },
   });
-  assert.equal(addPsychCondition.status, 201);
-  const createdRec = addPsychCondition.body.data.record;
+  assert.equal(createRec.status, 201);
+  const rec = createRec.body.data.record;
+  const rxId = rec.prescriptions[0].id;
+  const labId = rec.labReports[0].id;
 
-  // Authoring hospital doctor (KL) sees local sensitive chronicCondition, whereas external Penang doctor does NOT
-  const klCentralPat = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
-    token: klDocToken,
-  });
-  assert.equal(klCentralPat.status, 200);
-  assert.ok(klCentralPat.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')));
-
-  const pgCentralPatProtected = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
-    token: pgDocToken,
-  });
-  assert.equal(pgCentralPatProtected.status, 200);
-  assert.ok(
-    !pgCentralPatProtected.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')),
-    'Protected mentalHealth chronicCondition must be redacted from external hospital summary'
-  );
-
-  // Patient updates mentalHealth=false -> persists in Central DB across resetCentralTransientStateForTesting()
-  // without polluting hospital privacy-settings list
-  const patLogin = await requestJson(baseUrl, 'POST', '/api/auth/login', {
-    body: { icNumber: '850505-10-5111', password: 'demo123' },
-  });
-  const patToken = patLogin.body.data.token;
-  const saveSens = await requestJson(baseUrl, 'PUT', '/api/central/privacy-settings/sensitive', {
-    token: patToken,
-    body: { mentalHealth: false },
-  });
-  assert.equal(saveSens.status, 200);
-
-  centralMultiMod.resetCentralTransientStateForTesting();
-
-  const reloadedSens = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings/sensitive', {
-    token: patToken,
-  });
-  assert.equal(reloadedSens.status, 200);
-  assert.equal(reloadedSens.body.data.mentalHealth, false);
-  assert.equal(reloadedSens.body.data.hivStatus, true);
-
-  const hospitalPrivacyList = await requestJson(baseUrl, 'GET', '/api/central/privacy-settings', {
-    token: patToken,
-  });
-  assert.equal(hospitalPrivacyList.status, 200);
-  assert.ok(
-    hospitalPrivacyList.body.data.every((row) => !String(row.hospitalId).startsWith('sensitive:')),
-    'Sensitive category rows must not leak into hospital blocklist settings'
-  );
-
-  // External Penang doctor now sees unlocked mentalHealth chronicCondition
-  const pgCentralPatUnlocked = await requestJson(baseUrl, 'GET', '/api/central/patient/850505-10-5111', {
-    token: pgDocToken,
-  });
-  assert.ok(pgCentralPatUnlocked.body.data.patient.chronicConditions.some((c) => c.includes('Major Depressive')));
-
-  // Concurrent dispense race: exactly 1 x 200 and 1 x 409
-  const rxId = createdRec.prescriptions[0].id;
+  // 1) Fire two concurrent dispense requests in parallel via Promise.all
   const [dispA, dispB] = await Promise.all([
-    requestJson(baseUrl, 'POST', `/api/hospitals/hospital-kl/records/${createdRec.id}/prescriptions/${rxId}/dispense`, {
-      token: klDocToken,
-    }),
-    requestJson(baseUrl, 'POST', `/api/hospitals/hospital-kl/records/${createdRec.id}/prescriptions/${rxId}/dispense`, {
-      token: klDocToken,
-    }),
+    requestJson(
+      baseUrl,
+      'POST',
+      `/api/hospitals/hospital-kl/records/${rec.id}/prescriptions/${rxId}/dispense`,
+      { token: klDocToken }
+    ),
+    requestJson(
+      baseUrl,
+      'POST',
+      `/api/hospitals/hospital-kl/records/${rec.id}/prescriptions/${rxId}/dispense`,
+      { token: klDocToken }
+    ),
   ]);
-  assert.deepEqual([dispA.status, dispB.status].sort((a, b) => a - b), [200, 409]);
+  const dispStatuses = [dispA.status, dispB.status].sort();
+  assert.deepEqual(dispStatuses, [200, 409], 'Concurrent dispense must yield exactly one 200 and one 409');
+  const dispWinner = dispA.status === 200 ? dispA : dispB;
+  const dispStampedMatches = dispWinner.body.data.prescription.instructions.match(/\[Dispensed/g) || [];
+  assert.equal(dispStampedMatches.length, 1, 'Instructions must only be stamped once');
 
-  // Concurrent lab signoff race: exactly 1 x 200 and 1 x 409
-  const labId = createdRec.labReports[0].id;
-  const [signA, signB] = await Promise.all([
-    requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}/lab-reports/${labId}/signoff`, {
-      token: klDocToken,
-      body: { result: '2.1', unit: 'mIU/L', isAbnormal: false },
-    }),
-    requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}/lab-reports/${labId}/signoff`, {
-      token: klDocToken,
-      body: { result: '2.2', unit: 'mIU/L', isAbnormal: false },
-    }),
+  // 2) Fire two concurrent lab sign-off requests in parallel (note initial result was "Ordered", exercising unified isPendingLabResult)
+  const [labA, labB] = await Promise.all([
+    requestJson(
+      baseUrl,
+      'PUT',
+      `/api/hospitals/hospital-kl/records/${rec.id}/lab-reports/${labId}/signoff`,
+      { token: klDocToken, body: { result: '88', unit: 'umol/L', isAbnormal: false } }
+    ),
+    requestJson(
+      baseUrl,
+      'PUT',
+      `/api/hospitals/hospital-kl/records/${rec.id}/lab-reports/${labId}/signoff`,
+      { token: klDocToken, body: { result: '92', unit: 'umol/L', isAbnormal: false } }
+    ),
   ]);
-  assert.deepEqual([signA.status, signB.status].sort((a, b) => a - b), [200, 409]);
+  const labStatuses = [labA.status, labB.status].sort();
+  assert.deepEqual(labStatuses, [200, 409], 'Concurrent lab sign-off must yield exactly one 200 and one 409');
 
-  // Atomic updateRecord: if medicalRecord.update throws, existing prescriptions are NOT lost
-  const origUpdate = hospitals['hospital-kl'].medicalRecord.update;
-  hospitals['hospital-kl'].medicalRecord.update = async () => {
-    throw new Error('Simulated DB write failure');
-  };
-  try {
-    const failedPut = await requestJson(baseUrl, 'PUT', `/api/hospitals/hospital-kl/records/${createdRec.id}`, {
+  // 3) Fire two concurrent billing settlements in parallel
+  const [billA, billB] = await Promise.all([
+    requestJson(
+      baseUrl,
+      'POST',
+      '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+      { token: klDocToken, body: { paymentMethod: 'online' } }
+    ),
+    requestJson(
+      baseUrl,
+      'POST',
+      '/api/hospitals/hospital-kl/patients/850505-10-5111/billing/settle',
+      { token: klDocToken, body: { paymentMethod: 'online' } }
+    ),
+  ]);
+  const billStatuses = [billA.status, billB.status].sort();
+  assert.deepEqual(billStatuses, [200, 409], 'Concurrent billing settlement must yield exactly one 200 and one 409');
+});
+
+test('23. Express 400 malformed JSON, 413 oversized payload (>1MB), strict visitType enum & nursing I/O whitelist', async () => {
+  buildSeededTestFixture();
+  const { verifiedToken: klDocToken } = await loginAndVerifyDoctor(baseUrl, '800101-14-5001');
+
+  // 1) Malformed JSON body -> 400 (never 500)
+  const badJsonRes = await requestRaw(baseUrl, 'POST', '/api/auth/login', {
+    rawBody: '{"icNumber": "800101-14-5001", bad_json}',
+  });
+  assert.equal(badJsonRes.status, 400);
+  assert.match(badJsonRes.body.error, /Malformed JSON/i);
+
+  // 2) Oversized >1MB JSON payload -> 413 (never 500)
+  const hugePayload = JSON.stringify({ padding: 'A'.repeat(1100 * 1024) });
+  const tooLargeRes = await requestRaw(baseUrl, 'POST', '/api/auth/login', {
+    rawBody: hugePayload,
+  });
+  assert.equal(tooLargeRes.status, 413);
+  assert.match(tooLargeRes.body.error, /exceeds maximum allowed size/i);
+
+  // 3) Invalid visitType enum rejected with 400 on POST and PUT /records
+  const badVisitTypePost = await requestJson(baseUrl, 'POST', '/api/hospitals/hospital-kl/records', {
+    token: klDocToken,
+    body: {
+      icNumber: '850505-10-5111',
+      visitDate: '2026-05-29',
+      visitType: 'telepathy',
+      diagnosis: ['Check'],
+    },
+  });
+  assert.equal(badVisitTypePost.status, 400);
+  assert.match(badVisitTypePost.body.error, /Invalid visitType/);
+
+  const badVisitTypePut = await requestJson(
+    baseUrl,
+    'PUT',
+    '/api/hospitals/hospital-kl/records/rec-kl-101',
+    {
+      token: klDocToken,
+      body: { visitType: 'invalid_visit_type' },
+    }
+  );
+  assert.equal(badVisitTypePut.status, 400);
+
+  // 4) PUT .../nursing/io strictly whitelists numeric fluid fields + ward/bedNumber and drops injected keys
+  const ioRes = await requestJson(
+    baseUrl,
+    'PUT',
+    '/api/hospitals/hospital-kl/patients/850505-10-5111/nursing/io',
+    {
       token: klDocToken,
       body: {
-        prescriptions: [{ medicationName: 'Escitalopram', dosage: '10mg', frequency: 'OD' }],
+        oralMl: 450,
+        ivFluidMl: 250,
+        urineMl: 300,
+        ward: 'Medical Ward 4C',
+        bedNumber: '4C-09',
+        oralIntakeMl: 99999,
+        injectedAdminFlag: true,
+        role: 'central_admin',
       },
-    });
-    assert.equal(failedPut.status, 500);
-  } finally {
-    hospitals['hospital-kl'].medicalRecord.update = origUpdate;
-  }
-  const intactRec = await requestJson(baseUrl, 'GET', `/api/hospitals/hospital-kl/records/${createdRec.id}`, {
-    token: klDocToken,
-  });
-  assert.equal(intactRec.status, 200);
-  assert.equal(intactRec.body.data.prescriptions.length, 1);
-  assert.equal(intactRec.body.data.prescriptions[0].medicationName, 'Sertraline');
+    }
+  );
+  assert.equal(ioRes.status, 200);
+  assert.equal(ioRes.body.data.ward, 'Medical Ward 4C');
+  assert.equal(ioRes.body.data.bedNumber, '4C-09');
+  assert.equal(ioRes.body.data.ioChart.oralMl, 450);
+  assert.equal(ioRes.body.data.ioChart.oralIntakeMl, undefined);
+  assert.equal(ioRes.body.data.ioChart.injectedAdminFlag, undefined);
+  assert.equal(ioRes.body.data.ioChart.role, undefined);
 });

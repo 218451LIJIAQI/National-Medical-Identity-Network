@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -124,6 +124,7 @@ export default function PatientSearch() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const searchSeqRef = useRef(0)
+  const searchAbortRef = useRef<AbortController | null>(null)
   const [icNumber, setIcNumber] = useState('')
   const [searchedIc, setSearchedIc] = useState('')
   const [isSearching, setIsSearching] = useState(false)
@@ -138,9 +139,16 @@ export default function PatientSearch() {
   const [showResults, setShowResults] = useState(false)
   const [errorState, setErrorState] = useState<SearchErrorState>(null)
 
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort()
+    }
+  }, [])
+
   const runSearch = async (rawIc: string) => {
     const formattedIc = formatIC(rawIc.trim())
     if (!formattedIc || !isValidMyKad(formattedIc)) {
+      searchAbortRef.current?.abort()
       setShowResults(false)
       setQuerySteps([])
       setErrorState({ kind: 'invalid_format', message: t.invalidMyKadFormat })
@@ -151,6 +159,10 @@ export default function PatientSearch() {
       })
       return
     }
+
+    searchAbortRef.current?.abort()
+    const controller = new AbortController()
+    searchAbortRef.current = controller
 
     dismiss()
     const seq = ++searchSeqRef.current
@@ -185,8 +197,8 @@ export default function PatientSearch() {
     ])
 
     try {
-      const response = await centralApi.queryPatient(formattedIc)
-      if (seq !== searchSeqRef.current) return
+      const response = await centralApi.queryPatient(formattedIc, controller.signal)
+      if (response.aborted || controller.signal.aborted || seq !== searchSeqRef.current) return
 
       if (response.success && response.data) {
         setQuerySteps(
@@ -248,14 +260,14 @@ export default function PatientSearch() {
         })
       }
     } catch {
-      if (seq !== searchSeqRef.current) return
+      if (controller.signal.aborted || seq !== searchSeqRef.current) return
       setQuerySteps([])
       setErrorState({
         kind: 'network',
         message: t.networkError,
       })
     } finally {
-      if (seq === searchSeqRef.current) {
+      if (!controller.signal.aborted && seq === searchSeqRef.current) {
         setIsSearching(false)
       }
     }
@@ -329,6 +341,9 @@ export default function PatientSearch() {
                   if (errorState?.kind === 'invalid_format') setErrorState(null)
                 }}
                 aria-invalid={errorState?.kind === 'invalid_format'}
+                aria-describedby={
+                  errorState?.kind === 'invalid_format' ? 'doctor-patient-search-error' : undefined
+                }
                 className="text-base h-11 px-4 font-mono tabular-nums flex-1 min-w-[240px]"
               />
               <Button
@@ -356,7 +371,11 @@ export default function PatientSearch() {
 
       {/* Semantic Policy & Error Banners */}
       {errorState?.kind === 'invalid_format' && (
-        <Card role="alert" className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm">
+        <Card
+          id="doctor-patient-search-error"
+          role="alert"
+          className="border-2 border-red-300 bg-red-50 rounded-2xl shadow-sm"
+        >
           <CardContent className="p-5 flex items-center gap-3 text-red-900 text-xs font-medium">
             <AlertTriangle className="w-5 h-5 text-red-700 shrink-0" />
             <span>{errorState.message}</span>

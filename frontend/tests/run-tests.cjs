@@ -416,7 +416,6 @@ test('6. Enforces clinical workstation context purge upon role switch, unverific
   assert.equal(useClinicalStore.getState().activePatient, null);
 });
 
-
 test('7. Hardened MyKad calendar/PB validation & numeric-prefix CSV formula injection defense', () => {
   const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
 
@@ -427,7 +426,7 @@ test('7. Hardened MyKad calendar/PB validation & numeric-prefix CSV formula inje
   // Invalid calendar dates (Feb 31, non-leap Feb 29, PB=00, non-12-digit)
   assert.equal(utils.isValidMyKad('990231-14-5001'), false);
   assert.equal(utils.isValidMyKad('230229-14-5001'), false);
-  assert.equal(utils.isValidMyKad('850505-00-5111'), false);
+  assert.equal(utils.isValidMyKad('850505-00-5001'), false);
   assert.equal(utils.isValidMyKad('12345'), false);
 
   // CSV formula payloads starting with signed digits or leading whitespace must be neutralized
@@ -470,17 +469,14 @@ test('8. Verifies zero hardcoded patient IC fallbacks, debloated themes & zoom-s
 test('9. Validates centenarian MyKad century rollback, safe partial BP formatting & silent AbortSignal handling', async () => {
   const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
 
-  // Centenarian born Dec 31 of 1926 (when 2026-12-31 is in the future) resolves to 1926-12-31, never a future date
   const centenarian = utils.parseMyKadDemographics('261231-14-5001');
   assert.deepEqual(centenarian, { dateOfBirth: '1926-12-31', gender: 'male' });
 
-  // Safe blood pressure formatter prevents malformed "120/ mmHg" strings
   assert.equal(utils.formatBloodPressure(122, 78), '122/78');
   assert.equal(utils.formatBloodPressure(122, undefined), '122/—');
   assert.equal(utils.formatBloodPressure(undefined, 80), '—/80');
   assert.equal(utils.formatBloodPressure(undefined, undefined), null);
 
-  // Aborted requests in api.ts return { success: false, aborted: true } cleanly without throwing
   const origFetch = global.fetch;
   const controller = new AbortController();
   controller.abort();
@@ -507,14 +503,12 @@ test('10. Enforces 100% trilingual key utilization, zero dead theme/nav metadata
   const { hospitalThemes } = require(path.join(SRC_ROOT, 'lib/hospital-themes.ts'));
   const sharedShellSrc = fs.readFileSync(path.join(SRC_ROOT, 'layouts/hospital/shared.tsx'), 'utf8');
 
-  // Zero dead fontClass on themes & zero dead shortLabel/sectionIcon on nav sections
   for (const [id, theme] of Object.entries(hospitalThemes)) {
     assert.equal(theme.fontClass, undefined, `Dead fontClass should be removed from ${id}`);
   }
   assert.ok(!sharedShellSrc.includes('shortLabel'), 'Dead shortLabel should be removed from shared.tsx');
   assert.ok(!sharedShellSrc.includes('sectionIcon'), 'Dead sectionIcon should be removed from shared.tsx');
 
-  // Every translation key in en/ms/zh is actively referenced outside i18n.ts
   const nonI18nCombined = allSrcFiles
     .filter((f) => !f.endsWith(path.join('lib', 'i18n.ts')))
     .map((f) => fs.readFileSync(f, 'utf8'))
@@ -525,7 +519,6 @@ test('10. Enforces 100% trilingual key utilization, zero dead theme/nav metadata
   );
   assert.deepEqual(unusedKeys, [], `Found unused translation keys: ${unusedKeys.join(', ')}`);
 
-  // High-contrast CSS protects dark surfaces against dark-on-dark slate foreground overrides
   const cssSrc = fs.readFileSync(path.join(SRC_ROOT, 'index.css'), 'utf8');
   assert.match(cssSrc, /html\.high-contrast\s+\.dark-surface\s+\.text-slate-400/, 'index.css must protect dark-surface contrast in high-contrast mode');
 });
@@ -599,7 +592,6 @@ test('13. Verifies fetchApi 403 licenseRevoked auto-logout + clinical purge, 503
       scopedHospitalId: 'hospital-kl',
     });
 
-    // Simulate 403 licenseRevoked from backend
     global.fetch = async () => ({
       ok: false,
       status: 403,
@@ -612,7 +604,6 @@ test('13. Verifies fetchApi 403 licenseRevoked auto-logout + clinical purge, 503
     assert.equal(useAuthStore.getState().token, null);
     assert.equal(useClinicalStore.getState().activePatient, null);
 
-    // Simulate 503 nodesUnavailable
     global.fetch = async () => ({
       ok: false,
       status: 503,
@@ -622,7 +613,6 @@ test('13. Verifies fetchApi 403 licenseRevoked auto-logout + clinical purge, 503
     assert.equal(outageRes.status, 503);
     assert.equal(outageRes.nodesUnavailable, true);
 
-    // Verify endpoint paths & HTTP verbs for sensitive privacy, dispense & lab sign-off
     const calls = [];
     global.fetch = async (url, opts = {}) => {
       calls.push({ url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
@@ -679,28 +669,130 @@ test('14. Verifies shared LanguageSwitcher in About, AuditLogs optional actorId 
   assert.match(patRecSrc, /isPendingLabValue/, 'patient/Records.tsx must distinguish pending lab results from normal results');
 });
 
-test('15. Verifies deduplicated isPendingLabValue, Portal ModalDialog, ?module= Workstation sync & post-submit print continuity', () => {
+test('15. Verifies startup authApi.me() reconciliation & syncUserFromServer context preservation vs purge', () => {
+  const { useAuthStore } = require(path.join(SRC_ROOT, 'store/auth.ts'));
+  const { useClinicalStore } = require(path.join(SRC_ROOT, 'store/clinical.ts'));
+
+  useAuthStore.getState().login('tok-doc-1', {
+    id: 'user-doc-kl',
+    icNumber: '800101-14-5001',
+    role: 'doctor',
+    hospitalId: 'hospital-kl',
+    hospitalVerified: true,
+    fullName: 'Ahmad Razak',
+  });
+  useClinicalStore.getState().setActivePatient({
+    icNumber: '850505-10-5111',
+    fullName: 'Tan Wei Ming',
+    allergies: ['Aspirin'],
+    chronicConditions: ['Type 2 Diabetes'],
+    scopedHospitalId: 'hospital-kl',
+  });
+
+  // Same verified doctor + hospital reconciliation preserves activePatient while updating profile fields
+  useAuthStore.getState().syncUserFromServer({
+    id: 'user-doc-kl',
+    icNumber: '800101-14-5001',
+    role: 'doctor',
+    hospitalId: 'hospital-kl',
+    hospitalVerified: true,
+    fullName: 'Ahmad Razak Updated',
+    specialization: 'Internal Medicine',
+  });
+  assert.equal(useAuthStore.getState().user.fullName, 'Ahmad Razak Updated');
+  assert.equal(useClinicalStore.getState().activePatient?.icNumber, '850505-10-5111');
+
+  // If server reports hospitalVerified=false or hospitalId reassignment, activePatient is immediately purged
+  useAuthStore.getState().syncUserFromServer({
+    id: 'user-doc-kl',
+    icNumber: '800101-14-5001',
+    role: 'doctor',
+    hospitalId: 'hospital-kl',
+    hospitalVerified: false,
+  });
+  assert.equal(useAuthStore.getState().isHospitalVerified, false);
+  assert.equal(useClinicalStore.getState().activePatient, null);
+
+  const appSrc = fs.readFileSync(path.join(SRC_ROOT, 'App.tsx'), 'utf8');
+  assert.match(appSrc, /authApi\.me\(controller\.signal\)/, 'App.tsx must validate persisted token against authApi.me on startup');
+});
+
+test('16. Verifies ModalDialog createPortal + min-h-0 scroll safety, Input aria-[invalid=true], aria-describedby linkage & toast dead-code removal', () => {
+  const modalSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/modal-dialog.tsx'), 'utf8');
+  assert.match(modalSrc, /createPortal\(/, 'ModalDialog must portal into document.body');
+  assert.match(modalSrc, /\bmin-h-0\b/, 'ModalDialog body must use min-h-0 for low-height desktop scrolling');
+  assert.match(modalSrc, /title\?:\s*string/, 'DataErrorBanner must accept optional custom title prop');
+
+  const inputSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/input.tsx'), 'utf8');
+  assert.match(inputSrc, /aria-\[invalid=true\]:border-red-500/, 'Input must style aria-[invalid=true] error state');
+
+  for (const [rel, errorId] of [
+    ['components/ClinicalPatientBanner.tsx', 'clinical-banner-ic-error'],
+    ['pages/doctor/PatientSearch.tsx', 'doctor-patient-search-error'],
+    ['pages/doctor/NewRecordSearch.tsx', 'new-rec-ic-error'],
+    ['pages/admin/CentralAdmin.tsx', 'central-pointer-ic-error'],
+    ['pages/EmergencyAccess.tsx', 'emergency-ic-error'],
+    ['layouts/hospital/shared.tsx', 'quick-jump-ic-error'],
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.ok(src.includes(errorId) && src.includes('aria-describedby'), `${rel} must wire aria-describedby to #${errorId}`);
+  }
+
+  const toastSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/toast.tsx'), 'utf8');
+  const toasterSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/toaster.tsx'), 'utf8');
+  const useToastSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/use-toast.ts'), 'utf8');
+  assert.ok(!toastSrc.includes('ToastActionElement'), 'Unused ToastActionElement must be removed');
+  assert.ok(!toasterSrc.includes('action'), 'Toaster must not destructure or render removed untyped action prop');
+  assert.ok(!useToastSrc.includes('UPDATE_TOAST'), 'Unused UPDATE_TOAST action must be removed');
+
+  const sharedSrc = fs.readFileSync(path.join(SRC_ROOT, 'layouts/hospital/shared.tsx'), 'utf8');
+  assert.match(sharedSrc, /prefersReducedMotion\(\)/, 'shared.tsx dock scrolling must honor prefersReducedMotion()');
+});
+
+test('17. Verifies HospitalWorkstation ?module= URL sync & AbortController race cancellation across search/records pages', () => {
+  const wsSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/HospitalWorkstation.tsx'), 'utf8');
+  assert.match(wsSrc, /useSearchParams/, 'HospitalWorkstation must sync active module with URL query params');
+  assert.ok(!wsSrc.includes('useState<ModuleId>'), 'HospitalWorkstation must derive active module from URL without redundant local state');
+
+  for (const rel of [
+    'components/ClinicalPatientBanner.tsx',
+    'pages/doctor/PatientSearch.tsx',
+    'pages/doctor/NewRecordSearch.tsx',
+    'pages/admin/CentralAdmin.tsx',
+    'pages/admin/PatientIndex.tsx',
+    'pages/EmergencyAccess.tsx',
+    'pages/patient/Records.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.match(src, /new AbortController\(\)/, `${rel} must cancel superseded/unmounted requests via AbortController`);
+  }
+});
+
+test('18. Verifies shared isPendingLabValue deduplication & post-submit printable slip snapshots across EPrescription, LabOrders & Radiology', () => {
   const utils = require(path.join(SRC_ROOT, 'lib/utils.ts'));
   assert.equal(utils.isPendingLabValue('Pending Specimen Analysis'), true);
   assert.equal(utils.isPendingLabValue('Imaging Scheduled (30 min)'), true);
-  assert.equal(utils.isPendingLabValue('ordered'), true);
-  assert.equal(utils.isPendingLabValue('5.6'), false);
+  assert.equal(utils.isPendingLabValue('Ordered'), true);
+  assert.equal(utils.isPendingLabValue(''), true);
+  assert.equal(utils.isPendingLabValue('5.4'), false);
+  assert.equal(utils.isPendingLabValue('Negative'), false);
 
+  // Zero duplicate local definitions of isPendingLabValue outside lib/utils.ts
   for (const rel of [
-    'pages/patient/Records.tsx',
     'pages/doctor/PatientTimeline.tsx',
     'pages/doctor/modules/LabOrders.tsx',
+    'pages/patient/Records.tsx',
   ]) {
     const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
-    assert.ok(!src.includes('function isPendingLabValue'), `${rel} must import shared isPendingLabValue instead of duplicating it`);
+    assert.ok(!src.includes('function isPendingLabValue'), `${rel} must import shared isPendingLabValue instead of redefining it`);
   }
 
-  const modalSrc = fs.readFileSync(path.join(SRC_ROOT, 'components/ui/modal-dialog.tsx'), 'utf8');
-  assert.match(modalSrc, /createPortal\(dialogContent,\s*document\.body\)/, 'ModalDialog must mount via document.body Portal');
-
-  const workstationSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/HospitalWorkstation.tsx'), 'utf8');
-  assert.match(workstationSrc, /useSearchParams/, 'HospitalWorkstation must synchronize active module with URL search params');
-
-  const radSrc = fs.readFileSync(path.join(SRC_ROOT, 'pages/doctor/modules/Radiology.tsx'), 'utf8');
-  assert.match(radSrc, /setLastSubmittedOrders\(selectedOrders\)/, 'Radiology must retain submitted orders for slip printing while clearing draft selection');
+  for (const rel of [
+    'pages/doctor/modules/EPrescription.tsx',
+    'pages/doctor/modules/LabOrders.tsx',
+    'pages/doctor/modules/Radiology.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+    assert.match(src, /lastSubmittedSlip/, `${rel} must retain lastSubmittedSlip snapshot so post-submit printing never prints an empty table`);
+  }
 });

@@ -263,12 +263,86 @@ export type SensitiveCategoryKey =
   | 'substanceAbuse'
   | 'hivStatus';
 
+export const SENSITIVE_CATEGORY_KEYS: ReadonlyArray<SensitiveCategoryKey> = [
+  'mentalHealth',
+  'reproductiveHealth',
+  'substanceAbuse',
+  'hivStatus',
+];
+
 export interface SensitiveCategorySettings {
   mentalHealth: boolean;
   reproductiveHealth: boolean;
   substanceAbuse: boolean;
   hivStatus: boolean;
   updatedAt: string;
+}
+
+export const SENSITIVE_CATEGORY_MATCHERS: ReadonlyArray<{
+  key: SensitiveCategoryKey;
+  icdRegex: RegExp;
+  textRegex: RegExp;
+}> = [
+  {
+    key: 'mentalHealth',
+    icdRegex: /\bF[2-9]\d(?:\.\w+)?\b/i,
+    textRegex:
+      /\b(schizophren\w*|bipolar|major\s+depress\w*|clinical\s+depress\w*|psychiat\w*|suicid\w*|psychos(?:is|es)|psychotic|anxiety\s+disorder|ptsd|post[-\s]traumatic\s+stress)\b/i,
+  },
+  {
+    key: 'substanceAbuse',
+    icdRegex: /\bF1\d(?:\.\w+)?\b/i,
+    textRegex:
+      /\b(substance\s+(?:abuse|use\s+disorder)|opioid|alcohol\s+(?:depend\w*|abuse)|drug\s+overdose|methadone|addiction|withdrawal\s+syndrome)\b/i,
+  },
+  {
+    key: 'hivStatus',
+    icdRegex: /\bB2[0-4](?:\.\w+)?\b/i,
+    textRegex: /\b(hiv(?:[-/\s]\d)?|human\s+immunodeficiency|aids|antiretroviral)\b/i,
+  },
+  {
+    key: 'reproductiveHealth',
+    icdRegex: /\bO\d{2}(?:\.\w+)?\b/i,
+    textRegex:
+      /\b(obstetric\w*|ectopic\s+pregnan\w*|miscarriage|contracepti\w*|fertility|infertility|ivf|reproductive\s+health|termination\s+of\s+pregnancy)\b/i,
+  },
+];
+
+export function classifySensitiveText(rawText: string): SensitiveCategoryKey[] {
+  const text = String(rawText || '').trim();
+  if (!text) return [];
+  const matched: SensitiveCategoryKey[] = [];
+  for (const rule of SENSITIVE_CATEGORY_MATCHERS) {
+    if (rule.icdRegex.test(text) || rule.textRegex.test(text)) {
+      matched.push(rule.key);
+    }
+  }
+  return matched;
+}
+
+export function classifySensitiveCategories(
+  record: Pick<MedicalRecord, 'diagnosisCodes' | 'chiefComplaint' | 'diagnosis' | 'notes'>
+): SensitiveCategoryKey[] {
+  const codes = (record.diagnosisCodes || []).map(c => String(c || '').trim()).filter(Boolean);
+  const combinedText = [
+    ...codes,
+    record.chiefComplaint || '',
+    ...(record.diagnosis || []),
+    record.notes || '',
+  ].join(' ');
+  return classifySensitiveText(combinedText);
+}
+
+export function filterSensitiveConditions(
+  conditions: string[],
+  settings?: Pick<SensitiveCategorySettings, SensitiveCategoryKey> | null
+): string[] {
+  if (!Array.isArray(conditions)) return [];
+  if (!settings) return [...conditions];
+  return conditions.filter(condition => {
+    const matched = classifySensitiveText(condition);
+    return !matched.some(cat => settings[cat]);
+  });
 }
 
 export interface User {

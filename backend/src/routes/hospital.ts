@@ -184,6 +184,11 @@ const VITAL_BOUNDS: Array<[keyof VitalSigns, number, number, string]> = [
   ['height', 20, 260, 'Height (20-260 cm)'],
 ];
 
+const VALID_VISIT_TYPES: ReadonlyArray<MedicalRecord['visitType']> = [
+  'outpatient',
+  'inpatient',
+  'emergency',
+];
 const VALID_WARD_TYPES: ReadonlyArray<HospitalWard['type']> = [
   'general',
   'icu',
@@ -220,6 +225,13 @@ const VALID_APPOINTMENT_STATUSES: ReadonlyArray<ClinicAppointment['status']> = [
 ];
 
 function validateClinicalRecordPayload(payload: CreateOrUpdateRecordPayload): string | null {
+  if (
+    payload.visitType !== undefined &&
+    (payload.visitType as unknown) !== '' &&
+    !VALID_VISIT_TYPES.includes(payload.visitType)
+  ) {
+    return 'Invalid visitType (must be outpatient, inpatient, or emergency)';
+  }
   if (payload.chiefComplaint !== undefined && String(payload.chiefComplaint).length > 500) {
     return 'Chief complaint exceeds maximum length of 500 characters';
   }
@@ -425,9 +437,11 @@ router.get(
       return;
     }
 
-    const index = await getPatientIndex(icNumber);
+    const [index, sensitiveSettings] = await Promise.all([
+      getPatientIndex(icNumber),
+      getSensitiveCategorySettings(icNumber),
+    ]);
     if (index && index.hospitals.length > 0) {
-      const sensitiveSettings = await getSensitiveCategorySettings(icNumber);
       const federatedPatient = await findPatientInHospitals(icNumber, index.hospitals, {
         viewerHospitalId: hospitalId,
         sensitiveSettings,
@@ -561,9 +575,11 @@ router.post(
 
       if (!existingPatient) {
         let federatedPatient: Patient | null = null;
-        const patientIndex = await getPatientIndex(icNumber);
+        const [patientIndex, sensitiveSettings] = await Promise.all([
+          getPatientIndex(icNumber),
+          getSensitiveCategorySettings(icNumber),
+        ]);
         if (patientIndex && patientIndex.hospitals.length > 0) {
-          const sensitiveSettings = await getSensitiveCategorySettings(icNumber);
           federatedPatient = await findPatientInHospitals(icNumber, patientIndex.hospitals, {
             viewerHospitalId: hospitalId,
             sensitiveSettings,
@@ -1229,7 +1245,27 @@ router.put(
       }
     }
 
-    const chart = await getHospitalDb(hospitalId).updateFluidBalance(icNumber, body);
+    if (
+      (body.ward !== undefined && String(body.ward).length > 50) ||
+      (body.bedNumber !== undefined && String(body.bedNumber).length > 50)
+    ) {
+      res.status(400).json({
+        success: false,
+        error: 'Ward and bedNumber labels cannot exceed 50 characters',
+      });
+      return;
+    }
+
+    const chart = await getHospitalDb(hospitalId).updateFluidBalance(icNumber, {
+      oralMl: body.oralMl,
+      ivFluidMl: body.ivFluidMl,
+      bloodMl: body.bloodMl,
+      urineMl: body.urineMl,
+      drainMl: body.drainMl,
+      vomitusMl: body.vomitusMl,
+      ward: body.ward,
+      bedNumber: body.bedNumber,
+    });
     res.json({ success: true, data: chart });
   })
 );
@@ -1347,14 +1383,16 @@ router.post(
       return;
     }
 
-    const db = getHospitalDb(hospitalId);
-    const currentAccount = await db.getOrInitBillingAccount(icNumber);
-    if (currentAccount.items.length === 0) {
+    const outcome = await getHospitalDb(hospitalId).settleBillingAccountGuarded(
+      icNumber,
+      paymentMethod
+    );
+    if (outcome.status === 'empty') {
       res.status(400).json({ success: false, error: 'Cannot settle an empty billing account' });
       return;
     }
 
-    if (currentAccount.receipt && currentAccount.receipt.paymentMethod === paymentMethod) {
+    if (outcome.status === 'already_settled') {
       res.status(409).json({
         success: false,
         alreadySettled: true,
@@ -1363,7 +1401,7 @@ router.post(
       return;
     }
 
-    const account = await db.settleBillingAccount(icNumber, paymentMethod);
+    const account = outcome.account;
 
     await createAuditLog({
       timestamp: new Date().toISOString(),

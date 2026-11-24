@@ -37,6 +37,12 @@ interface LabTestItem {
   turnaround: string
 }
 
+interface LabSlipSnapshot {
+  ref: string
+  clinicalInfo: string
+  tests: LabTestItem[]
+}
+
 interface HospitalLabRequisition extends LabReportDto {
   recordId: string
   visitDate: string
@@ -75,12 +81,12 @@ export default function LabOrders() {
   const theme = getHospitalTheme(user?.hospitalId)
 
   const [selectedTests, setSelectedTests] = useState<LabTestItem[]>([])
-  const [lastSubmittedTests, setLastSubmittedTests] = useState<LabTestItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [clinicalInfo, setClinicalInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [orderRef, setOrderRef] = useState<string | null>(null)
+  const [lastSubmittedSlip, setLastSubmittedSlip] = useState<LabSlipSnapshot | null>(null)
   const [requisitions, setRequisitions] = useState<HospitalLabRequisition[]>([])
   const [signOffDrafts, setSignOffDrafts] = useState<Record<string, LabSignOffDraft>>({})
   const [signingOffId, setSigningOffId] = useState<string | null>(null)
@@ -120,9 +126,9 @@ export default function LabOrders() {
 
   useEffect(() => {
     setSelectedTests([])
-    setLastSubmittedTests([])
     setClinicalInfo('')
     setOrderRef(null)
+    setLastSubmittedSlip(null)
     setRequisitions([])
     setSignOffDrafts({})
     if (!activePatient?.icNumber) return
@@ -142,11 +148,15 @@ export default function LabOrders() {
     setSelectedTests((prev) => [...prev, { id: `lab-${item.code}`, ...item, urgent: false }])
   }
 
-  const printableTests = selectedTests.length > 0 ? selectedTests : lastSubmittedTests
-
   const handlePrint = () => {
-    if (!activePatient || printableTests.length === 0) return
-    const slipRef = selectedTests.length > 0 ? 'DRAFT' : orderRef || 'DRAFT'
+    if (!activePatient) return
+    const printableTests = selectedTests.length > 0 ? selectedTests : (lastSubmittedSlip?.tests || [])
+    if (printableTests.length === 0) return
+    const slipRef = selectedTests.length > 0 ? 'DRAFT' : (lastSubmittedSlip?.ref || orderRef || 'DRAFT')
+    const slipClinicalInfo =
+      selectedTests.length > 0
+        ? clinicalInfo
+        : (lastSubmittedSlip?.clinicalInfo ?? clinicalInfo)
     const rows = printableTests
       .map(
         (item) => `<tr>
@@ -166,7 +176,7 @@ export default function LabOrders() {
       </div>
       <div class="meta">
         <strong>Patient:</strong> ${escapeHtml(activePatient.fullName)} (${escapeHtml(activePatient.icNumber)})<br/>
-        <strong>Clinical Indication:</strong> ${escapeHtml(clinicalInfo || 'Routine investigation')}
+        <strong>Clinical Indication:</strong> ${escapeHtml(slipClinicalInfo || 'Routine investigation')}
       </div>
       <table>
         <thead><tr><th>Code</th><th>Investigation</th><th>Department</th><th>Specimen</th><th>Priority</th></tr></thead>
@@ -182,15 +192,17 @@ export default function LabOrders() {
     try {
       const ref = `LAB-${Date.now().toString().slice(-6)}`
       const today = new Date().toISOString().split('T')[0]
+      const normalizedClinicalInfo = clinicalInfo.trim()
+      const submittedTests = selectedTests.map((s) => ({ ...s }))
       const res = await hospitalApi.createRecord(user.hospitalId, {
         icNumber: activePatient.icNumber,
         visitDate: today,
         visitType: 'outpatient',
-        chiefComplaint: clinicalInfo.trim() || 'Laboratory Investigation Requisition',
-        diagnosis: [clinicalInfo.trim() || 'Diagnostic Laboratory Workup'],
-        notes: `Submitted laboratory requisition ${ref}: ${selectedTests.map((s) => s.code).join(', ')}.`,
+        chiefComplaint: normalizedClinicalInfo || 'Laboratory Investigation Requisition',
+        diagnosis: [normalizedClinicalInfo || 'Diagnostic Laboratory Workup'],
+        notes: `Submitted laboratory requisition ${ref}: ${submittedTests.map((s) => s.code).join(', ')}.`,
         patientName: activePatient.fullName,
-        labReports: selectedTests.map((s) => ({
+        labReports: submittedTests.map((s) => ({
           testType: s.category,
           testName: `${s.code} - ${s.name}`,
           result: 'Pending Specimen Analysis',
@@ -204,7 +216,11 @@ export default function LabOrders() {
 
       if (res.success) {
         setOrderRef(ref)
-        setLastSubmittedTests(selectedTests)
+        setLastSubmittedSlip({
+          ref,
+          clinicalInfo: normalizedClinicalInfo,
+          tests: submittedTests,
+        })
         setSelectedTests([])
         await loadHospitalLabRequisitions(activePatient.icNumber)
         toast({
@@ -268,6 +284,7 @@ export default function LabOrders() {
   }
 
   const pendingRequisitions = requisitions.filter((r) => isPendingLabValue(r.result))
+  const canPrintSlip = selectedTests.length > 0 || Boolean(lastSubmittedSlip)
 
   return (
     <div className="space-y-6">
@@ -280,7 +297,7 @@ export default function LabOrders() {
         actions={
           activePatient ? (
             <>
-              <Button variant="outline" size="sm" disabled={printableTests.length === 0} onClick={handlePrint}>
+              <Button variant="outline" size="sm" disabled={!canPrintSlip} onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-1.5" />
                 {t.printSummary}
               </Button>
@@ -303,11 +320,25 @@ export default function LabOrders() {
       ) : (
         <>
           {orderRef && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              <span>
-                Pathology Requisition <code className="font-mono tabular-nums">{orderRef}</code> attached to patient clinical record and queued below for laboratory result verification.
-              </span>
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-semibold flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  Pathology Requisition <code className="font-mono tabular-nums">{orderRef}</code> attached to patient clinical record and queued below for laboratory result verification.
+                </span>
+              </div>
+              {lastSubmittedSlip && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100 h-8"
+                >
+                  <Printer className="w-3.5 h-3.5 mr-1.5" />
+                  Print Requisition
+                </Button>
+              )}
             </div>
           )}
 

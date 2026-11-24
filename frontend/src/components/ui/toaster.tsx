@@ -23,14 +23,13 @@ export function Toaster() {
         className={isBottomDock ? "bottom-24" : undefined}
         style={isBottomDock ? { bottom: "5.5rem" } : undefined}
       >
-        {toasts.map(function ({ id, title, description, action, ...props }) {
+        {toasts.map(function ({ id, title, description, ...props }) {
           return (
             <Toast key={id} {...props}>
               <div className="grid gap-1">
                 {title && <ToastTitle>{title}</ToastTitle>}
                 {description && <ToastDescription>{description}</ToastDescription>}
               </div>
-              {action}
               <ToastClose onClick={() => dismiss(id)} />
             </Toast>
           )

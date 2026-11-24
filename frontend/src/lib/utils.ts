@@ -6,6 +6,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
+export function isPendingLabValue(result?: string | null): boolean {
+  const normalized = String(result || '').trim()
+  return !normalized || /^(?:pending\b|imaging scheduled\b|ordered$)/i.test(normalized)
+}
+
 export function escapeHtml(value: unknown): string {
   const str = value === null || value === undefined ? '' : String(value)
   return str
@@ -126,16 +139,6 @@ export function maskIC(ic?: string): string {
     return `${ic.slice(0, 6)}****`
   }
   return ic
-}
-
-export function isPendingLabValue(result?: string | null): boolean {
-  const normalized = String(result || '').trim().toLowerCase()
-  return (
-    !normalized ||
-    normalized.startsWith('pending') ||
-    normalized.startsWith('imaging scheduled') ||
-    normalized === 'ordered'
-  )
 }
 
 export function formatBloodPressure(

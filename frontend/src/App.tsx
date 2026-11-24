@@ -2,10 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useEffect, useRef } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { clearAllToasts } from '@/components/ui/use-toast'
-import { authApi } from '@/lib/api'
-import { useAuthStore } from '@/store/auth'
+import { useAuthStore, type User } from '@/store/auth'
 import { useClinicalStore, resetClinicalSessionContext } from '@/store/clinical'
 import { useSettingsStore } from '@/store/settings'
+import { authApi } from '@/lib/api'
 import { getRoleHomePath } from '@/lib/utils'
 import { Building2, Loader2 } from 'lucide-react'
 
@@ -59,7 +59,15 @@ function ScrollToTop() {
 
 function GlobalSessionAndAccessibilitySync() {
   const { language, fontSize, highContrast } = useSettingsStore()
-  const { isAuthenticated, token, user, isHospitalVerified, _hasHydrated } = useAuthStore()
+  const {
+    _hasHydrated,
+    token,
+    isAuthenticated,
+    user,
+    isHospitalVerified,
+    syncUserFromServer,
+    logout,
+  } = useAuthStore()
   const activePatient = useClinicalStore((s) => s.activePatient)
   const sessionKey = isAuthenticated && user ? `${user.id}:${user.role}:${user.hospitalId || ''}` : 'anon'
   const prevSessionKeyRef = useRef(sessionKey)
@@ -78,12 +86,22 @@ function GlobalSessionAndAccessibilitySync() {
     root.classList.toggle('high-contrast', highContrast)
   }, [language, fontSize, highContrast])
 
+  // Reconcile cached client session against authoritative server identity on startup / token change
   useEffect(() => {
     if (!_hasHydrated || !isAuthenticated || !token) return
     const controller = new AbortController()
-    void authApi.me(controller.signal)
+    authApi.me(controller.signal).then((res) => {
+      if (res.aborted || controller.signal.aborted) return
+      if (res.status === 401 || res.licenseRevoked) {
+        logout()
+        return
+      }
+      if (res.success && res.data && typeof res.data === 'object' && 'id' in res.data) {
+        syncUserFromServer(res.data as User)
+      }
+    })
     return () => controller.abort()
-  }, [_hasHydrated, isAuthenticated, token])
+  }, [_hasHydrated, isAuthenticated, token, syncUserFromServer, logout])
 
   useEffect(() => {
     if (!activePatient) return

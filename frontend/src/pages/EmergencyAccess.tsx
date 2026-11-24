@@ -142,6 +142,8 @@ export default function EmergencyAccess() {
 
   const faceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
+  const searchSeqRef = useRef(0)
 
   const clearAuditTimers = () => {
     if (faceTimerRef.current) {
@@ -154,7 +156,12 @@ export default function EmergencyAccess() {
     }
   }
 
-  useEffect(() => clearAuditTimers, [])
+  useEffect(() => {
+    return () => {
+      clearAuditTimers()
+      searchAbortRef.current?.abort()
+    }
+  }, [])
 
   const handlePurgeCache = () => {
     try {
@@ -242,6 +249,11 @@ export default function EmergencyAccess() {
 
   const performSearch = async () => {
     const normalizedIc = formatIC(icNumber.trim())
+    searchAbortRef.current?.abort()
+    const controller = new AbortController()
+    searchAbortRef.current = controller
+    const seq = ++searchSeqRef.current
+
     setLoading(true)
     setStatusError('')
 
@@ -258,7 +270,8 @@ export default function EmergencyAccess() {
     }
 
     try {
-      const response = await centralApi.emergencyQuery(normalizedIc)
+      const response = await centralApi.emergencyQuery(normalizedIc, controller.signal)
+      if (response.aborted || controller.signal.aborted || seq !== searchSeqRef.current) return
 
       if (response.success && response.data?.found) {
         const data = response.data
@@ -322,10 +335,13 @@ export default function EmergencyAccess() {
         )
       }
     } catch {
+      if (controller.signal.aborted || seq !== searchSeqRef.current) return
       setPatientInfo(null)
       setStatusError('Failed to retrieve emergency patient information')
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted && seq === searchSeqRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -422,6 +438,8 @@ export default function EmergencyAccess() {
                   if (statusError) setStatusError('')
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                aria-invalid={Boolean(statusError)}
+                aria-describedby={statusError ? 'emergency-ic-error' : undefined}
                 className="text-base h-12 px-4 font-mono tabular-nums"
               />
               <Button
@@ -443,6 +461,7 @@ export default function EmergencyAccess() {
 
             {statusError && (
               <div
+                id="emergency-ic-error"
                 role="alert"
                 className="text-xs font-semibold text-red-900 mt-3 flex items-center gap-2 bg-red-50 p-3 rounded-xl border border-red-300"
               >

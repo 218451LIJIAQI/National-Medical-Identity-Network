@@ -47,16 +47,23 @@ export default function PatientIndexPage() {
     Awaited<ReturnType<typeof centralApi.searchPatientIndex>>['data'] | null
   >(null)
 
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const inspectAbortRef = useRef<AbortController | null>(null)
   const inspectReqSeq = useRef(0)
 
-  const loadData = useCallback(async (signal?: AbortSignal) => {
+  const loadData = useCallback(async () => {
+    loadAbortRef.current?.abort()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+    const { signal } = controller
+
     setLoadError('')
     try {
       const [indexesRes, hospitalsRes] = await Promise.all([
         centralApi.getAllPatientIndexes(signal),
         centralApi.getHospitals(signal),
       ])
-      if (indexesRes.aborted || hospitalsRes.aborted) return
+      if (signal.aborted || indexesRes.aborted || hospitalsRes.aborted) return
 
       if (!indexesRes.success) {
         setLoadError(indexesRes.error || t.networkError)
@@ -67,9 +74,9 @@ export default function PatientIndexPage() {
         setHospitals(hospitalsRes.data)
       }
     } catch {
-      if (!signal?.aborted) setLoadError(t.networkError)
+      if (!signal.aborted) setLoadError(t.networkError)
     } finally {
-      if (!signal?.aborted) {
+      if (!signal.aborted) {
         setLoading(false)
         setRefreshing(false)
       }
@@ -77,9 +84,11 @@ export default function PatientIndexPage() {
   }, [t.networkError])
 
   useEffect(() => {
-    const controller = new AbortController()
-    void loadData(controller.signal)
-    return () => controller.abort()
+    void loadData()
+    return () => {
+      loadAbortRef.current?.abort()
+      inspectAbortRef.current?.abort()
+    }
   }, [loadData])
 
   const handleRefresh = () => {
@@ -88,24 +97,28 @@ export default function PatientIndexPage() {
   }
 
   const handleInspectPatient = async (icNumber: string) => {
+    inspectAbortRef.current?.abort()
+    const controller = new AbortController()
+    inspectAbortRef.current = controller
     const seq = ++inspectReqSeq.current
     setInspectingIc(icNumber)
     setDetailLoading(true)
     setIndexDetail(null)
     try {
-      const res = await centralApi.searchPatientIndex(icNumber)
-      if (seq !== inspectReqSeq.current) return
+      const res = await centralApi.searchPatientIndex(icNumber, controller.signal)
+      if (res.aborted || controller.signal.aborted || seq !== inspectReqSeq.current) return
       if (res.success && res.data) {
         setIndexDetail(res.data)
       }
     } finally {
-      if (seq === inspectReqSeq.current) {
+      if (!controller.signal.aborted && seq === inspectReqSeq.current) {
         setDetailLoading(false)
       }
     }
   }
 
   const closeInspection = () => {
+    inspectAbortRef.current?.abort()
     inspectReqSeq.current++
     setInspectingIc(null)
     setDetailLoading(false)
